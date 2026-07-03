@@ -146,7 +146,23 @@ async function handleEvent(event) {
   }
 
   if (["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"].includes(text)) {
+    clearAllUserSessions(userId);
     return reply(event.replyToken, electronicMenuFlex());
+  }
+
+  if (baccarat.isBaccaratCommand(text) && ["百家樂", "百家樂AI", "baccarat", "🎲 百家樂AI"].includes(text)) {
+    clearAllUserSessions(userId);
+    return baccarat.handleBaccaratMessage(event);
+  }
+
+  if (lottery539.is539Command(text) && ["539", "539AI", "今彩539", "🎯 539AI"].includes(text)) {
+    clearAllUserSessions(userId);
+    return lottery539.handle539Message(event);
+  }
+
+  if (sports.isSportsCommand(text) && ["體育", "體育AI", "SPORT", "SPORT AI"].includes(text)) {
+    clearAllUserSessions(userId);
+    return sports.handleSportsMessage(event);
   }
 
   if (electronic.hasActiveElectronicSession(userId)) {

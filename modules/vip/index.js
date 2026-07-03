@@ -7,6 +7,8 @@ const {
   STATUS,
   findVipUserByLineUserId,
   findVipUserBy3AAccount,
+  findActiveRequestByLineUserId,
+  findActiveRequestBy3AAccount,
   submitVipRequest,
   approveVip,
   extendVip,
@@ -16,7 +18,7 @@ const {
   logAiUsage,
 } = require("./repository");
 
-const AI_FEATURES = "百家樂AI / 電子AI / 539AI / SPORTS AI";
+const AI_FEATURES = "百家樂AI / 電子AI / 體育AI / 539AI";
 
 function isVipCommand(text) {
   const value = String(text || "").trim();
@@ -73,10 +75,9 @@ function daysLeft(value) {
 
 function vipStatusText(user) {
   if (!user?.account3A) return STATUSES.UNBOUND;
-  if (user.vipStatus === STATUS.APPROVED && !user.expiresAt) return STATUSES.ACTIVE;
-  if (user.vipStatus === STATUS.APPROVED && user.expiresAt && new Date(user.expiresAt).getTime() > Date.now()) return STATUSES.ACTIVE;
   if (user.vipStatus === STATUS.CANCELLED) return STATUSES.CANCELLED;
   if (user.vipStatus === STATUS.APPROVED && user.expiresAt && new Date(user.expiresAt).getTime() <= Date.now()) return STATUSES.EXPIRED;
+  if (user.vipStatus === STATUS.APPROVED) return STATUSES.ACTIVE;
   return STATUSES.PENDING;
 }
 
@@ -95,6 +96,17 @@ async function checkVipAccess(userId) {
   return { allowed: hasAiPermission(user), isAdmin: false, user };
 }
 
+function simpleFlex({ title, subtitle = "BLACKDOMAIN VIP", rows = [], quickReply: qr = vipQuickReply(false), footer = "BLACKDOMAIN VIP" }) {
+  return bubble({
+    altText: title,
+    title,
+    subtitle,
+    quickReply: qr,
+    footer,
+    contents: rows.map(([label, value]) => infoLine(label, value)),
+  });
+}
+
 function accessDeniedFlex() {
   return bubble({
     altText: "尚未開通黑域AI",
@@ -104,8 +116,8 @@ function accessDeniedFlex() {
     footer: "BLACKDOMAIN VIP",
     contents: [
       metric("AI權限", "尚未開通", "請先完成3A帳號綁定"),
-      infoLine("請先輸入", "綁定"),
-      note("完成3A帳號綁定後，等待管理員審核開通。"),
+      infoLine("請輸入", "綁定"),
+      note("完成綁定後，等待管理員審核開通。"),
     ],
   });
 }
@@ -118,16 +130,16 @@ function bindPromptFlex() {
     quickReply: quickReply([{ label: "取消", text: "取消" }]),
     footer: "BLACKDOMAIN VIP",
     contents: [
-      metric("請輸入", "您的3A帳號", "例如：abc123"),
-      note("LINE User ID 只作身分識別，不會顯示成會員帳號。"),
+      metric("請輸入", "您的3A帳號", "範例：abc123"),
+      note("LINE User ID 只作為身分識別，不會顯示為會員ID。"),
     ],
   });
 }
 
 function bindSuccessFlex(account3A) {
   return bubble({
-    altText: "綁定申請已送出",
-    title: "綁定申請已送出",
+    altText: "已收到綁定申請",
+    title: "已收到綁定申請",
     subtitle: "BLACKDOMAIN VIP",
     quickReply: vipQuickReply(false),
     footer: "BLACKDOMAIN VIP",
@@ -140,18 +152,46 @@ function bindSuccessFlex(account3A) {
   });
 }
 
+function alreadyBoundFlex(account3A) {
+  return simpleFlex({
+    title: "已綁定3A帳號",
+    rows: [
+      ["狀態", "您已綁定 3A帳號"],
+      ["3A帳號", account3A || "未取得"],
+      ["提醒", "如需更換帳號，請聯繫管理員。"],
+    ],
+  });
+}
+
+function pendingBindFlex(account3A) {
+  return simpleFlex({
+    title: "綁定申請待審核",
+    rows: [
+      ["狀態", "您已有綁定申請待審核。"],
+      ["3A帳號", account3A || "未取得"],
+      ["提醒", "請等待管理員審核。"],
+    ],
+  });
+}
+
+function accountTakenFlex() {
+  return simpleFlex({
+    title: "3A帳號無法申請",
+    rows: [["提醒", "此 3A帳號已被綁定或申請中，請聯繫管理員確認。"]],
+  });
+}
+
 async function notifyAdminsBind({ lineUserId, lineName, account3A }) {
-  const message = bubble({
-    altText: "新的綁定申請",
+  const message = simpleFlex({
     title: "新的綁定申請",
     subtitle: "BLACKDOMAIN ADMIN",
     footer: "BLACKDOMAIN VIP ADMIN",
-    contents: [
-      infoLine("LINE名稱", lineName || "未取得"),
-      infoLine("LINE User ID", lineUserId),
-      infoLine("3A帳號", account3A),
-      infoLine("狀態", "待審核"),
-      button("管理指令", "管理指令"),
+    quickReply: adminQuickReply(),
+    rows: [
+      ["LINE名稱", lineName || "未取得"],
+      ["LINE User ID", lineUserId],
+      ["3A帳號", account3A],
+      ["狀態", "待審核"],
     ],
   });
   await Promise.all(adminLineUserIds().map((adminId) => push(adminId, message)));
@@ -188,7 +228,7 @@ function vipCenterFlex(user, isAdmin = false) {
     quickReply: vipQuickReply(false),
     footer: "BLACKDOMAIN VIP",
     contents: [
-      metric("VIP狀態", status, "3A帳號綁定判定"),
+      metric("VIP狀態", status, "3A帳號綁定與AI權限"),
       infoLine("LINE名稱", user.lineName || "未取得"),
       infoLine("3A帳號", user.account3A || "未綁定"),
       infoLine("AI權限", permission),
@@ -228,7 +268,7 @@ function adminResultFlex(title, rows, success = true) {
     quickReply: adminQuickReply(),
     footer: "BLACKDOMAIN VIP ADMIN",
     contents: [
-      metric("執行結果", success ? "完成" : "未完成", success ? "管理員操作" : "請確認資料"),
+      metric("處理結果", success ? "完成" : "未完成", success ? "管理員操作完成" : "請確認資料"),
       ...rows.map(([label, value]) => infoLine(label, value)),
       button("管理指令", "管理指令", "secondary"),
     ],
@@ -263,7 +303,7 @@ async function handleAdminCommand(event) {
       ["LINE名稱", user.lineName || "未取得"],
       ["3A帳號", user.account3A || account3A],
       ["VIP狀態", vipStatusText(user)],
-      ["AI權限", hasAiPermission(user) ? "已開通" : "未開通"],
+      ["AI權限", hasAiPermission(user) ? "已開通" : "尚未開通"],
       ["到期", formatDate(user.expiresAt)],
       ["剩餘天數", daysLeft(user.expiresAt)],
       ["LINE User ID", user.lineUserId || "未綁定"],
@@ -276,7 +316,7 @@ async function handleAdminCommand(event) {
     const result = await approveVip({ account3A, days, permanent, adminLineUserId: userId });
     return reply(event.replyToken, adminResultFlex("開通VIP", [
       ["3A帳號", account3A],
-      ["期限", permanent ? "永久" : `${days}天`],
+      ["天數", permanent ? "永久" : `${days}天`],
       ["狀態", result.ok ? "已開通" : result.error || "失敗"],
     ], result.ok));
   }
@@ -310,14 +350,57 @@ async function handleAdminCommand(event) {
   return reply(event.replyToken, adminHelpFlex());
 }
 
+async function handleBindCommand(event) {
+  const lineUserId = event.source.userId || "";
+  const existingUser = await findVipUserByLineUserId(lineUserId);
+  if (existingUser.account3A) {
+    updateSession("vip", lineUserId, { binding3A: false, lastUpdated: Date.now() });
+    return reply(event.replyToken, alreadyBoundFlex(existingUser.account3A));
+  }
+
+  const existingRequest = await findActiveRequestByLineUserId(lineUserId);
+  if (existingRequest?.status === STATUS.PENDING) {
+    updateSession("vip", lineUserId, { binding3A: false, lastUpdated: Date.now() });
+    return reply(event.replyToken, pendingBindFlex(existingRequest.account3A));
+  }
+  if (existingRequest?.status === STATUS.APPROVED) {
+    updateSession("vip", lineUserId, { binding3A: false, lastUpdated: Date.now() });
+    return reply(event.replyToken, alreadyBoundFlex(existingRequest.account3A));
+  }
+
+  updateSession("vip", lineUserId, { binding3A: true, lastUpdated: Date.now() });
+  return reply(event.replyToken, bindPromptFlex());
+}
+
 async function handleBindInput(event) {
   const lineUserId = event.source.userId || "";
   const account3A = event.message.text.trim();
+
+  const accountUser = await findVipUserBy3AAccount(account3A);
+  if (accountUser.account3A) {
+    updateSession("vip", lineUserId, { binding3A: false, lastUpdated: Date.now() });
+    return reply(event.replyToken, accountTakenFlex());
+  }
+
+  const accountRequest = await findActiveRequestBy3AAccount(account3A);
+  if (accountRequest) {
+    updateSession("vip", lineUserId, { binding3A: false, lastUpdated: Date.now() });
+    return reply(event.replyToken, accountTakenFlex());
+  }
+
   const lineName = await getLineName(lineUserId);
   const result = await submitVipRequest({ lineUserId, lineName, account3A });
-  await notifyAdminsBind({ lineUserId, lineName, account3A });
   updateSession("vip", lineUserId, { binding3A: false, account3A, vipStatus: STATUS.PENDING, lastUpdated: Date.now() });
-  return reply(event.replyToken, bindSuccessFlex(account3A, result.ok));
+
+  if (!result.ok) {
+    if (result.code === "LINE_ALREADY_BOUND") return reply(event.replyToken, alreadyBoundFlex(result.user?.account3A || result.request?.account3A));
+    if (result.code === "LINE_PENDING") return reply(event.replyToken, pendingBindFlex(result.request?.account3A));
+    if (result.code === "ACCOUNT_TAKEN" || result.code === "DUPLICATE") return reply(event.replyToken, accountTakenFlex());
+    return reply(event.replyToken, simpleFlex({ title: "綁定失敗", rows: [["原因", result.error || "系統忙碌中，請稍後再試。"]] }));
+  }
+
+  await notifyAdminsBind({ lineUserId, lineName, account3A });
+  return reply(event.replyToken, bindSuccessFlex(account3A));
 }
 
 async function handleVipMessage(event) {
@@ -326,10 +409,7 @@ async function handleVipMessage(event) {
   const session = getSession("vip", lineUserId) || {};
 
   if (ADMIN_COMMANDS.some((cmd) => text === cmd || text.startsWith(`${cmd} `))) return handleAdminCommand(event);
-  if (BIND_COMMANDS.includes(text)) {
-    updateSession("vip", lineUserId, { binding3A: true, lastUpdated: Date.now() });
-    return reply(event.replyToken, bindPromptFlex());
-  }
+  if (BIND_COMMANDS.includes(text)) return handleBindCommand(event);
   if (session.binding3A) return handleBindInput(event);
 
   const isAdmin = isAdminLineUserId(lineUserId);

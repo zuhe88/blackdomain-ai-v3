@@ -7,6 +7,8 @@ const STATUS = {
   EXPIRED: "expired",
 };
 
+const ACTIVE_REQUEST_STATUSES = [STATUS.PENDING, STATUS.APPROVED];
+
 function isConnected() {
   return Boolean(supabase);
 }
@@ -55,6 +57,10 @@ function normalizeRequest(record) {
   };
 }
 
+function isActiveRequest(request) {
+  return Boolean(request && ACTIVE_REQUEST_STATUSES.includes(request.status));
+}
+
 async function findVipUserByLineUserId(lineUserId) {
   if (!isConnected() || !lineUserId) return normalizeUser(null);
   const { data, error } = await supabase
@@ -77,50 +83,83 @@ async function findVipUserBy3AAccount(account3A) {
   return normalizeUser(data);
 }
 
-async function findRequestBy3AAccount(account3A) {
-  if (!isConnected() || !account3A) return null;
+async function listRequestsByField(field, value) {
+  if (!isConnected() || !value) return [];
   const { data, error } = await supabase
     .from("vip_requests")
     .select("*")
-    .eq("three_a_account", account3A)
-    .maybeSingle();
-  if (error) return null;
-  return normalizeRequest(data);
+    .eq(field, value);
+  if (error || !Array.isArray(data)) return [];
+  return data.map(normalizeRequest);
+}
+
+async function findRequestBy3AAccount(account3A) {
+  const requests = await listRequestsByField("three_a_account", account3A);
+  return requests[0] || null;
+}
+
+async function findActiveRequestByLineUserId(lineUserId) {
+  const requests = await listRequestsByField("line_user_id", lineUserId);
+  return requests.find(isActiveRequest) || null;
+}
+
+async function findActiveRequestBy3AAccount(account3A) {
+  const requests = await listRequestsByField("three_a_account", account3A);
+  return requests.find(isActiveRequest) || null;
+}
+
+function duplicateErrorMessage(error) {
+  const code = String(error?.code || "");
+  const message = String(error?.message || "");
+  if (code === "23505" || /duplicate|unique/i.test(message)) {
+    return "此 3A帳號已被綁定或申請中，請聯繫管理員確認。";
+  }
+  return message || "系統忙碌中，請稍後再試。";
 }
 
 async function submitVipRequest({ lineUserId, lineName, account3A }) {
-  if (!isConnected()) return { ok: false, error: "Supabase未連線" };
+  if (!isConnected()) return { ok: false, code: "NO_SUPABASE", error: "Supabase尚未連線" };
 
-  const payload = {
-    line_user_id: lineUserId,
-    line_name: lineName || "未取得",
-    three_a_account: account3A,
-    status: STATUS.PENDING,
-    request_time: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const existing = await findRequestBy3AAccount(account3A);
-  if (existing) {
-    const { data, error } = await supabase
-      .from("vip_requests")
-      .update(payload)
-      .eq("three_a_account", account3A)
-      .select("*")
-      .maybeSingle();
-    if (error) return { ok: false, error: error.message };
-    return { ok: true, request: normalizeRequest(data) };
+  const boundUser = await findVipUserByLineUserId(lineUserId);
+  if (boundUser.account3A) {
+    return { ok: false, code: "LINE_ALREADY_BOUND", user: boundUser };
   }
 
+  const activeLineRequest = await findActiveRequestByLineUserId(lineUserId);
+  if (activeLineRequest) {
+    return {
+      ok: false,
+      code: activeLineRequest.status === STATUS.PENDING ? "LINE_PENDING" : "LINE_ALREADY_BOUND",
+      request: activeLineRequest,
+    };
+  }
+
+  const accountUser = await findVipUserBy3AAccount(account3A);
+  if (accountUser.account3A) {
+    return { ok: false, code: "ACCOUNT_TAKEN", user: accountUser };
+  }
+
+  const activeAccountRequest = await findActiveRequestBy3AAccount(account3A);
+  if (activeAccountRequest) {
+    return { ok: false, code: "ACCOUNT_TAKEN", request: activeAccountRequest };
+  }
+
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from("vip_requests")
     .insert({
-      ...payload,
-      created_at: new Date().toISOString(),
+      line_user_id: lineUserId,
+      line_name: lineName || "未取得",
+      three_a_account: account3A,
+      status: STATUS.PENDING,
+      request_time: now,
+      created_at: now,
+      updated_at: now,
     })
     .select("*")
     .maybeSingle();
-  if (error) return { ok: false, error: error.message };
+
+  if (error) return { ok: false, code: "DUPLICATE", error: duplicateErrorMessage(error) };
   return { ok: true, request: normalizeRequest(data) };
 }
 
@@ -129,8 +168,9 @@ function expiresAfterDays(days) {
 }
 
 async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPermission, expiresAt, isAdmin = false }) {
-  if (!isConnected()) return { ok: false, error: "Supabase未連線" };
+  if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
 
+  const now = new Date().toISOString();
   const payload = {
     line_user_id: lineUserId || null,
     line_name: lineName || "未取得",
@@ -139,7 +179,7 @@ async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPer
     ai_permission: Boolean(aiPermission),
     expires_at: expiresAt || null,
     is_admin: Boolean(isAdmin),
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 
   const existing = await findVipUserBy3AAccount(account3A);
@@ -150,19 +190,16 @@ async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPer
       .eq("three_a_account", account3A)
       .select("*")
       .maybeSingle();
-    if (error) return { ok: false, error: error.message };
+    if (error) return { ok: false, error: duplicateErrorMessage(error) };
     return { ok: true, user: normalizeUser(data) };
   }
 
   const { data, error } = await supabase
     .from("vip_users")
-    .insert({
-      ...payload,
-      created_at: new Date().toISOString(),
-    })
+    .insert({ ...payload, created_at: now })
     .select("*")
     .maybeSingle();
-  if (error) return { ok: false, error: error.message };
+  if (error) return { ok: false, error: duplicateErrorMessage(error) };
   return { ok: true, user: normalizeUser(data) };
 }
 
@@ -172,6 +209,8 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
   const lineUserId = request?.lineUserId || existingUser.lineUserId;
   const lineName = request?.lineName || existingUser.lineName || "未取得";
   const expiresAt = permanent ? null : expiresAfterDays(days || 30);
+
+  if (!lineUserId) return { ok: false, error: "查無會員綁定申請" };
 
   const result = await upsertVipUser({
     lineUserId,
@@ -279,6 +318,9 @@ module.exports = {
   STATUS,
   findVipUserByLineUserId,
   findVipUserBy3AAccount,
+  findRequestBy3AAccount,
+  findActiveRequestByLineUserId,
+  findActiveRequestBy3AAccount,
   submitVipRequest,
   approveVip,
   extendVip,

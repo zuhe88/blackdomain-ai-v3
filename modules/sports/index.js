@@ -1,6 +1,7 @@
 const { reply, quickReply } = require("../../services/line");
 const { updateSession } = require("../../utils/sessionStore");
-const { bubble, card, carousel, infoLine, metric, note, text } = require("../../ui/flex/premium");
+const { bubble, carousel, infoLine, metric, note, text, COLORS } = require("../../ui/flex/premium");
+const { moduleImageUrl } = require("../../utils/moduleImage");
 const { COMMANDS } = require("./constants");
 const { NO_DATA_TEXT, loadAvailableMatches } = require("./service");
 
@@ -24,26 +25,58 @@ function backQuickReply() {
   ]);
 }
 
+function leagueImageBubble({ title, subtitle, image, actionText }) {
+  return {
+    type: "bubble",
+    size: "kilo",
+    styles: {
+      hero: { backgroundColor: COLORS.black },
+      body: { backgroundColor: COLORS.black },
+      footer: { backgroundColor: COLORS.black },
+    },
+    hero: {
+      type: "image",
+      url: moduleImageUrl(image),
+      size: "full",
+      aspectRatio: "8:9",
+      aspectMode: "cover",
+      action: { type: "message", text: actionText },
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      paddingAll: "16px",
+      action: { type: "message", text: actionText },
+      contents: [
+        text(title, { size: "lg", weight: "bold", color: COLORS.gold, align: "center" }),
+        text(subtitle, { size: "sm", color: COLORS.white, align: "center" }),
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "10px",
+      contents: [
+        text("BLACKDOMAIN SPORTS AI", {
+          size: "xxs",
+          color: COLORS.muted,
+          align: "center",
+          wrap: false,
+        }),
+      ],
+    },
+  };
+}
+
 function menuFlex() {
-  return bubble({
-    altText: "體育AI",
-    title: "體育AI",
-    subtitle: "BLACKDOMAIN SPORTS AI",
-    quickReply: sportsQuickReply(),
-    footer: "BLACKDOMAIN SPORTS AI",
-    contents: [
-      text("請選擇分析聯盟", {
-        size: "md",
-        weight: "bold",
-        color: "#D6B46A",
-        align: "center",
-      }),
-      card("⚽ 世足AI", "賽程、勝方、比分與賽前分析", "世足"),
-      card("⚾ MLB AI", "官方賽程、戰績與賽前分析", "MLB"),
-      card("🏀 NBA", "官方賽程、戰績與賽前分析", "NBA"),
-      card("🏠 返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
-    ],
-  });
+  const message = carousel("體育AI", [
+    leagueImageBubble({ title: "世足AI", subtitle: "賽前分析・勝方預測・比分建議", image: "football.png", actionText: "世足" }),
+    leagueImageBubble({ title: "MLB AI", subtitle: "賽前分析・勝方預測・大小分", image: "mlb.png", actionText: "MLB" }),
+    leagueImageBubble({ title: "NBA", subtitle: "賽前分析・勝方預測・讓分建議", image: "nba.png", actionText: "NBA" }),
+  ]);
+  message.quickReply = sportsQuickReply();
+  return message;
 }
 
 function noDataFlex(league) {
@@ -54,22 +87,11 @@ function noDataFlex(league) {
     quickReply: backQuickReply(),
     footer: "BLACKDOMAIN SPORTS AI",
     contents: [
-      infoLine("資料狀態", NO_DATA_TEXT),
+      infoLine("賽事狀態", NO_DATA_TEXT),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
-      note("沒有可分析賽事時，BLACKDOMAIN AI 不產生假預測。"),
+      note("BLACKDOMAIN AI 會在官方資料更新後重新分析。"),
     ],
   });
-}
-
-function analysisPoints(match) {
-  if (Array.isArray(match.points) && match.points.length >= 4) return match.points;
-  return [
-    `• AI預估 ${match.prediction} 方向較值得關注`,
-    `• 近期狀態顯示 ${match.prediction} 具備較佳勝出條件`,
-    `• 比賽節奏預估偏向 ${match.total}`,
-    `• 讓分建議可參考 ${match.spread}`,
-    `• 建議比分 ${match.score}`,
-  ];
 }
 
 function matchBubble(league, match, index, total) {
@@ -84,19 +106,19 @@ function matchBubble(league, match, index, total) {
       infoLine("開賽時間", match.startTime),
       metric("AI預測勝方", match.prediction, "勝方"),
       metric("預測比分", match.score, "比分"),
-      infoLine("AI信心", match.stars || "★★★☆☆"),
+      infoLine("AI信心", match.stars || "★★★★☆"),
       infoLine("讓分建議", match.spread),
       infoLine("大小分建議", match.total),
       infoLine("總進球", match.totalGoals || match.score),
-      infoLine("半場預測", match.halfTime || "半場平手機率較高"),
-      note(["分析重點", ...analysisPoints(match)].join("\n")),
+      infoLine("半場預測", match.halfTime || "上半場保守觀察"),
+      note(["分析重點", ...(match.points || [])].join("\n• ")),
     ],
   }).contents;
 }
 
 function matchesFlex(league, matches) {
   const bubbles = matches.map((match, index) => matchBubble(league, match, index, matches.length));
-  const message = carousel(`${league} AI賽前分析`, bubbles);
+  const message = carousel(`${league} AI分析`, bubbles);
   message.quickReply = backQuickReply();
   return message;
 }

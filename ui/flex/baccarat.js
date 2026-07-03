@@ -1,4 +1,5 @@
 const { bubble, card, infoLine, metric, note, text, COLORS } = require("./premium");
+const { moduleImageUrl } = require("../../utils/moduleImage");
 
 function baccaratPromptFlex({ title, lines = [], quickReply }) {
   return bubble({
@@ -18,23 +19,71 @@ function baccaratPromptFlex({ title, lines = [], quickReply }) {
 }
 
 function baccaratPlatformFlex(quickReply) {
-  return bubble({
+  return {
+    type: "flex",
     altText: "百家樂AI",
-    title: "百家樂AI",
-    subtitle: "BLACKDOMAIN AI",
     quickReply,
-    footer: "BLACKDOMAIN BACCARAT AI",
-    contents: [
-      text("請選擇分析平台", {
-        size: "md",
-        weight: "bold",
-        color: COLORS.gold,
-        align: "center",
-      }),
-      card("DG", "進入 DG 百家樂AI房間", "DG"),
-      card("MT", "進入 MT 百家樂AI房間", "MT"),
-    ],
-  });
+    contents: {
+      type: "carousel",
+      contents: [
+        platformImageBubble("DG", "DG 百家樂AI", "dg.png"),
+        platformImageBubble("MT", "MT 百家樂AI", "mt.png"),
+      ],
+    },
+  };
+}
+
+function platformImageBubble(actionText, title, imageName) {
+  return {
+    type: "bubble",
+    size: "kilo",
+    styles: {
+      hero: { backgroundColor: COLORS.black },
+      body: { backgroundColor: COLORS.black },
+      footer: { backgroundColor: COLORS.black },
+    },
+    hero: {
+      type: "image",
+      url: moduleImageUrl(imageName),
+      size: "full",
+      aspectRatio: "8:9",
+      aspectMode: "cover",
+      action: { type: "message", text: actionText },
+    },
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "sm",
+      paddingAll: "16px",
+      action: { type: "message", text: actionText },
+      contents: [
+        text(title, {
+          size: "lg",
+          weight: "bold",
+          color: COLORS.gold,
+          align: "center",
+        }),
+        text("點選卡片進入房間選擇", {
+          size: "sm",
+          color: COLORS.white,
+          align: "center",
+        }),
+      ],
+    },
+    footer: {
+      type: "box",
+      layout: "vertical",
+      paddingAll: "10px",
+      contents: [
+        text("BLACKDOMAIN BACCARAT AI", {
+          size: "xxs",
+          color: COLORS.muted,
+          align: "center",
+          wrap: false,
+        }),
+      ],
+    },
+  };
 }
 
 function roomButton(room) {

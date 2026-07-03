@@ -55,3 +55,8 @@ create index if not exists vip_users_three_a_account_idx on public.vip_users (th
 create index if not exists vip_users_vip_status_idx on public.vip_users (vip_status);
 create index if not exists ai_usage_logs_line_user_id_idx on public.ai_usage_logs (line_user_id);
 create index if not exists ai_usage_logs_module_idx on public.ai_usage_logs (module);
+
+create unique index if not exists vip_requests_line_user_id_unique on public.vip_requests (line_user_id);
+create unique index if not exists vip_requests_three_a_account_unique on public.vip_requests (three_a_account);
+create unique index if not exists vip_users_line_user_id_unique on public.vip_users (line_user_id);
+create unique index if not exists vip_users_three_a_account_unique on public.vip_users (three_a_account);

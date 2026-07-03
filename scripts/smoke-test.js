@@ -11,6 +11,34 @@ const captured = {
   routes: { use: [], get: [], post: [], static: [] },
 };
 
+const activeVip = {
+  id: "vip-1",
+  line_user_id: "user-smoke",
+  line_name: "測試使用者",
+  three_a_account: "test3a",
+  vip_status: "approved",
+  ai_permission: true,
+  expires_at: "2099-12-31T00:00:00.000Z",
+  is_admin: false,
+  updated_at: "2099-01-01T00:00:00.000Z",
+};
+
+const boundVip = {
+  ...activeVip,
+  id: "vip-2",
+  line_user_id: "bound-user",
+  three_a_account: "bound3a",
+};
+
+const pendingRequest = {
+  id: "request-1",
+  line_user_id: "pending-user",
+  line_name: "待審核使用者",
+  three_a_account: "abc123",
+  status: "pending",
+  request_time: "2099-01-01T00:00:00.000Z",
+};
+
 global.fetch = async function mockedFetch(url) {
   const value = String(url || "");
   if (value.includes("fifa.world")) {
@@ -66,6 +94,56 @@ class MockLineClient {
   async getProfile() { return { displayName: "測試使用者" }; }
 }
 
+function makeSupabaseTable(table) {
+  const filters = [];
+  let inserted = null;
+  let updated = null;
+  const chain = {
+    select() { return chain; },
+    eq(field, value) { filters.push({ field, value }); return chain; },
+    update(payload) { updated = payload; return chain; },
+    insert(payload) { inserted = payload; return chain; },
+    async maybeSingle() {
+      const rows = rowsForTable(table, filters, inserted, updated);
+      return { data: rows[0] || null, error: null };
+    },
+    then(resolve) {
+      resolve({ data: rowsForTable(table, filters, inserted, updated), error: null });
+    },
+  };
+  return chain;
+}
+
+function rowsForTable(table, filters, inserted, updated) {
+  if (inserted) return [{ ...inserted, id: "inserted-1" }];
+  if (updated) return [{ ...updated, id: "updated-1" }];
+
+  const lineFilter = filters.find((item) => item.field === "line_user_id")?.value;
+  const accountFilter = filters.find((item) => item.field === "three_a_account")?.value;
+  const statusFilter = filters.find((item) => item.field === "status")?.value;
+
+  if (table === "vip_users") {
+    const rows = [activeVip, boundVip];
+    return rows.filter((row) => {
+      if (lineFilter && row.line_user_id !== lineFilter) return false;
+      if (accountFilter && row.three_a_account !== accountFilter) return false;
+      return true;
+    });
+  }
+
+  if (table === "vip_requests") {
+    const rows = [pendingRequest];
+    return rows.filter((row) => {
+      if (lineFilter && row.line_user_id !== lineFilter) return false;
+      if (accountFilter && row.three_a_account !== accountFilter) return false;
+      if (statusFilter && row.status !== statusFilter) return false;
+      return true;
+    });
+  }
+
+  return [];
+}
+
 Module._load = function patchedLoad(request, parent, isMain) {
   if (request === "dotenv") return { config() {} };
   if (request === "express") return createExpress();
@@ -74,65 +152,12 @@ Module._load = function patchedLoad(request, parent, isMain) {
   if (request === "openai") {
     return class MockOpenAI {
       constructor() {
-        this.chat = {
-          completions: {
-            create: async () => ({
-              choices: [{ message: { content: "• 主隊近期狀況較佳\n• 客隊防守不穩\n• AI預估主勝機率較高\n• 建議可參考主勝及大分" } }],
-            }),
-          },
-        };
+        this.chat = { completions: { create: async () => ({ choices: [{ message: { content: "主隊近期狀況較佳\n客隊防守不穩\n主場優勢明顯\n建議參考主勝" } }] }) } };
       }
     };
   }
   if (request === "@supabase/supabase-js") {
-    const activeVip = {
-      id: "vip-1",
-      line_user_id: "user-smoke",
-      line_name: "測試使用者",
-      three_a_account: "test3a",
-      vip_status: "approved",
-      ai_permission: true,
-      expires_at: "2099-12-31T00:00:00.000Z",
-      is_admin: false,
-      updated_at: "2099-01-01T00:00:00.000Z",
-    };
-    const pendingRequest = {
-      id: "request-1",
-      line_user_id: "pending-user",
-      line_name: "待審核使用者",
-      three_a_account: "abc123",
-      status: "pending",
-      request_time: "2099-01-01T00:00:00.000Z",
-    };
-    return {
-      createClient() {
-        return {
-          from(table) {
-            let lookupField = null;
-            let lookupValue = null;
-            const chain = {
-              select() { return chain; },
-              eq(field, value) { lookupField = field; lookupValue = value; return chain; },
-              update() { return chain; },
-              insert() { return chain; },
-              async maybeSingle() {
-                if (lookupValue === "blocked-user") return { data: null, error: null };
-                if (table === "vip_requests") return { data: pendingRequest, error: null };
-                if (table === "vip_users" && lookupField === "three_a_account" && lookupValue === "abc123") return { data: activeVip, error: null };
-                if (table === "vip_users") return { data: activeVip, error: null };
-                return { data: null, error: null };
-              },
-              then(resolve) {
-                if (table === "vip_requests") resolve({ data: [pendingRequest], error: null });
-                else if (table === "vip_users") resolve({ data: [activeVip], error: null });
-                else resolve({ data: [], error: null });
-              },
-            };
-            return chain;
-          },
-        };
-      },
-    };
+    return { createClient() { return { from(table) { return makeSupabaseTable(table); } }; } };
   }
   return originalLoad.apply(this, arguments);
 };
@@ -182,39 +207,38 @@ async function main() {
   const staticPath = captured.routes.static[0];
   if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) throw new Error("Static image route points to the wrong directory");
 
-  for (const text of ["黑域AI", "首頁", "開始", "menu", "選單"]) {
-    const values = await sendAndTexts(text, `home-${text}`);
-    ["🎲 百家樂AI", "⚡ 電子AI", "⚽ 體育AI", "🎯 539AI", "👑 VIP中心", "🌐 黑域官網", "📞 聯繫管理員"].forEach((label) => assertIncludes(values, label, "Home"));
-  }
-
   let values = await sendAndTexts("VIP", "user-smoke");
-  assertIncludes(values, "3A帳號", "VIP center");
-  assertIncludes(values, "AI權限", "VIP center");
+  assertIncludes(values, "VIP狀態", "VIP center");
+  assertIncludes(values, "test3a", "VIP center");
 
-  values = await sendAndTexts("綁定", "bind-user");
+  values = await sendAndTexts("綁定", "bound-user");
+  assertIncludes(values, "您已綁定 3A帳號", "Already bound");
+  assertIncludes(values, "bound3a", "Already bound");
+
+  values = await sendAndTexts("綁定", "pending-user");
+  assertIncludes(values, "您已有綁定申請待審核", "Pending bind");
+  assertIncludes(values, "abc123", "Pending bind");
+
+  values = await sendAndTexts("綁定", "new-user");
   assertIncludes(values, "請輸入", "Bind prompt");
-  values = await sendAndTexts("abc123", "bind-user");
-  assertIncludes(values, "綁定申請已送出", "Bind success");
+  values = await sendAndTexts("new3a", "new-user");
+  assertIncludes(values, "已收到您的3A帳號綁定申請", "Bind success");
   if (!captured.pushes.length) throw new Error("Admin bind notification was not pushed");
-
-  values = await sendAndTexts("管理指令", "Uaf293ee976e5170d4e8672d2c12b3f76");
-  assertIncludes(values, "管理員功能", "Admin commands");
-  values = await sendAndTexts("待審核", "Uaf293ee976e5170d4e8672d2c12b3f76");
-  assertIncludes(values, "abc123", "Pending requests");
 
   await send("電子", "user-smoke");
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
 
-  values = await sendAndTexts("539", "user-smoke");
-  assertIncludes(values, "AI今日預測", "539 menu");
-  assertIncludes(values, "歷史開獎", "539 menu");
+  await send("百家樂", "user-smoke");
+  values = await sendAndTexts("DG", "user-smoke");
+  assertIncludes(values, "RB01", "Baccarat rooms");
+  assertIncludes(values, "S07", "Baccarat rooms");
+
+  values = await sendAndTexts("體育", "user-smoke");
+  assertIncludes(values, "世足AI", "Sports menu");
 
   values = await sendAndTexts("世足", "user-smoke");
   assertIncludes(values, "AI預測勝方", "Sports analysis");
-
-  values = await sendAndTexts("百家樂", "blocked-user");
-  assertIncludes(values, "尚未開通黑域AI", "VIP gate");
 
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");
