@@ -44,12 +44,12 @@ async function handleEvent(event) {
     return reply(replyToken, mainMenuFlex());
   }
 
-  if (text === "重新開始") {
+  if (text === "重新開始" || text === "返回首頁") {
     clearUser(userId);
     return reply(replyToken, mainMenuFlex());
   }
 
-  if (text === "電子" || text === "電子AI" || text === "Electronic" || text === "⚡ 電子AI" || text === "🎰 電子AI") {
+  if (text === "電子" || text === "電子AI" || text === "Electronic" || text === "⚡ 電子AI") {
     return reply(replyToken, electronicMenuFlex());
   }
 

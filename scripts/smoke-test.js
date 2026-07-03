@@ -17,6 +17,36 @@ const captured = {
 
 const originalLoad = Module._load;
 
+global.fetch = async function mockedFetch(url) {
+  const value = String(url || "");
+
+  if (value.includes("statsapi.mlb.com")) {
+    return {
+      ok: true,
+      async json() {
+        return { dates: [] };
+      },
+    };
+  }
+
+  if (value.includes("cdn.nba.com")) {
+    return {
+      ok: true,
+      async json() {
+        return { scoreboard: { games: [] } };
+      },
+    };
+  }
+
+  return {
+    ok: false,
+    status: 404,
+    async json() {
+      return {};
+    },
+  };
+};
+
 function createExpress() {
   function express() {
     return {
@@ -522,7 +552,7 @@ async function main() {
     const values = await sendAndTexts(text, `official-${text}`);
     if (["黑域官網", "官網", "🌐 黑域官網"].includes(text)) {
       assertIncludes(values, "黑域官網", "Official website");
-    } else if (["聯繫管理員", "客服"].includes(text)) {
+    } else if (["聯繫管理員", "客服", "管理員"].includes(text)) {
       assertIncludes(values, "聯繫管理員", "Contact admin");
     } else {
       assertIncludes(values, "無權限使用此功能", `Admin ${text}`);

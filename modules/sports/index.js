@@ -1,11 +1,11 @@
 const { reply, quickReply } = require("../../services/line");
 const { updateSession } = require("../../utils/sessionStore");
 const { bubble, card, infoLine, note, text } = require("../../ui/flex/premium");
-
-const MENU_COMMANDS = ["體育", "體育AI", "SPORT", "SPORT AI", "世足", "世足AI", "MLB", "MLB AI", "NBA"];
+const { COMMANDS } = require("./constants");
+const { NO_DATA_TEXT, loadAvailableMatches } = require("./service");
 
 function isSportsCommand(text) {
-  return MENU_COMMANDS.includes(String(text || "").trim());
+  return COMMANDS.includes(String(text || "").trim());
 }
 
 function sportsQuickReply() {
@@ -32,15 +32,16 @@ function menuFlex() {
     quickReply: sportsQuickReply(),
     footer: "BLACKDOMAIN SPORTS AI",
     contents: [
-      text("請選擇分析項目", {
+      text("請選擇分析聯盟", {
         size: "md",
         weight: "bold",
         color: "#D6B46A",
         align: "center",
       }),
-      card("⚽ 世足AI", "可分析日期與賽事列表", "世足"),
-      card("⚾ MLB AI", "可分析日期與賽事列表", "MLB"),
-      card("返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
+      card("⚽ 世足AI", "賽程、近期狀態與AI分析", "世足"),
+      card("⚾ MLB AI", "官方賽程、對戰紀錄與AI分析", "MLB"),
+      card("🏀 NBA", "官方賽程、戰績與AI分析", "NBA"),
+      card("🏠 返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
     ],
   });
 }
@@ -53,11 +54,55 @@ function noDataFlex(league) {
     quickReply: backQuickReply(),
     footer: "BLACKDOMAIN SPORTS AI",
     contents: [
-      infoLine("資料狀態", "目前尚無可分析賽事"),
-      infoLine("時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
-      note("若後續接入正式賽事資料，將依原本 AI 預測邏輯顯示分析結果。"),
+      infoLine("資料狀態", NO_DATA_TEXT),
+      infoLine("資料來源", "公開賽程資料"),
+      infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
+      note("沒有可分析賽事時，BLACKDOMAIN AI 不產生假預測。"),
     ],
   });
+}
+
+function matchAnalysisFlex(league, match) {
+  return bubble({
+    altText: `${league} AI分析`,
+    title: `${league} AI分析`,
+    subtitle: "BLACKDOMAIN SPORTS AI",
+    quickReply: backQuickReply(),
+    footer: "BLACKDOMAIN SPORTS AI",
+    contents: [
+      infoLine("賽事", `${match.away} VS ${match.home}`),
+      infoLine("開賽時間", match.startTime),
+      infoLine("對戰紀錄", match.h2h),
+      infoLine("AI預測勝方", match.prediction),
+      infoLine("讓分方向", match.spread),
+      infoLine("大小分", match.total),
+      infoLine(league === "MLB" ? "總分推估" : "比分推估", match.score),
+      infoLine("信心等級", match.confidence),
+      infoLine("更新時間", match.updatedAt),
+      note("分析依賽程、近期狀態與公開資料生成，僅供參考。"),
+    ],
+  });
+}
+
+async function replyLeague(event, league) {
+  const userId = event.source.userId || "";
+  const matches = await loadAvailableMatches(league);
+  const analysis = matches[0] || null;
+
+  updateSession("sport", userId, {
+    currentPage: `${league} AI`,
+    league,
+    date: analysis?.date || null,
+    match: analysis ? `${analysis.away} VS ${analysis.home}` : null,
+    analysis,
+    lastUpdated: Date.now(),
+  });
+
+  if (!analysis) {
+    return reply(event.replyToken, noDataFlex(league));
+  }
+
+  return reply(event.replyToken, matchAnalysisFlex(league, analysis));
 }
 
 async function handleSportsMessage(event) {
@@ -77,33 +122,15 @@ async function handleSportsMessage(event) {
   }
 
   if (["世足", "世足AI"].includes(textValue)) {
-    updateSession("sport", userId, {
-      currentPage: "世足AI",
-      league: "世足",
-      analysis: "目前尚無可分析賽事",
-      lastUpdated: Date.now(),
-    });
-    return reply(event.replyToken, noDataFlex("世足"));
+    return replyLeague(event, "世足");
   }
 
   if (["MLB", "MLB AI"].includes(textValue)) {
-    updateSession("sport", userId, {
-      currentPage: "MLB AI",
-      league: "MLB",
-      analysis: "目前尚無可分析賽事",
-      lastUpdated: Date.now(),
-    });
-    return reply(event.replyToken, noDataFlex("MLB"));
+    return replyLeague(event, "MLB");
   }
 
   if (textValue === "NBA") {
-    updateSession("sport", userId, {
-      currentPage: "NBA",
-      league: "NBA",
-      analysis: "目前尚無可分析賽事",
-      lastUpdated: Date.now(),
-    });
-    return reply(event.replyToken, noDataFlex("NBA"));
+    return replyLeague(event, "NBA");
   }
 
   return false;

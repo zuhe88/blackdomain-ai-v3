@@ -163,6 +163,31 @@ function button(label, actionText, style = "primary") {
   };
 }
 
+function uriButton(label, uri, style = "primary") {
+  const color = style === "danger" ? COLORS.red : style === "secondary" ? COLORS.panel : COLORS.goldDark;
+
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "sm",
+    paddingAll: "12px",
+    backgroundColor: color,
+    cornerRadius: "12px",
+    action: {
+      type: "uri",
+      uri,
+    },
+    contents: [
+      text(label, {
+        size: "sm",
+        weight: "bold",
+        color: COLORS.white,
+        align: "center",
+      }),
+    ],
+  };
+}
+
 function section(contents = []) {
   return {
     type: "box",
@@ -260,6 +285,7 @@ module.exports = {
   infoLine,
   metric,
   button,
+  uriButton,
   card,
   section,
   note,
