@@ -1,18 +1,42 @@
-const { bubble, card } = require("./premium");
+function gameBubble(imageUrl, gameName) {
+  return {
+    type: "bubble",
+    hero: {
+      type: "image",
+      url: imageUrl,
+      size: "full",
+      aspectRatio: "16:9",
+      aspectMode: "cover",
+      action: {
+        type: "message",
+        text: gameName,
+      },
+    },
+  };
+}
 
 function electronicMenuFlex() {
-  return bubble({
+  return {
+    type: "flex",
     altText: "電子AI",
-    title: "電子AI",
-    subtitle: "BLACKDOMAIN ELECTRONIC AI",
-    footer: "BLACKDOMAIN ELECTRONIC AI",
-    contents: [
-      card("🎰 戰神賽特1", "房號 001 ~ 1300", "戰神賽特1"),
-      card("🎰 戰神賽特2", "房號 0001 ~ 4000", "戰神賽特2"),
-      card("👹 古神巴風特", "房號 001 ~ 1000", "古神巴風特"),
-      card("返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
-    ],
-  });
+    contents: {
+      type: "carousel",
+      contents: [
+        gameBubble(
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth1.png",
+          "戰神賽特1"
+        ),
+        gameBubble(
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth2.png",
+          "戰神賽特2"
+        ),
+        gameBubble(
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/baphomet.png",
+          "古神巴風特"
+        ),
+      ],
+    },
+  };
 }
 
 module.exports = electronicMenuFlex;
