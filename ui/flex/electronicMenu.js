@@ -46,15 +46,15 @@ function electronicMenuFlex() {
       type: "carousel",
       contents: [
         gameBubble(
-          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth1.png",
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth1.png?v=2",
           "戰神賽特1"
         ),
         gameBubble(
-          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth2.png",
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth2.png?v=2",
           "戰神賽特2"
         ),
         gameBubble(
-          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/baphomet.png",
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/baphomet.png?v=2",
           "古神巴風特"
         ),
       ],
