@@ -1,4 +1,5 @@
 const { reply, quickReply } = require("../../services/line");
+const { isAdminLineUserId } = require("../../config/admin");
 const { bubble, button, infoLine, note, uriButton } = require("../../ui/flex/premium");
 
 const OFFICIAL_WEBSITE_URL = "https://zuhe88.github.io/blackdomain-ai/?utm_source=chatgpt.com";
@@ -6,15 +7,10 @@ const ADMIN_LINE_URL = "https://line.me/ti/p/@893jrweh";
 
 const WEBSITE_COMMANDS = ["官網", "黑域官網", "🌐 黑域官網"];
 const CONTACT_COMMANDS = ["管理員", "客服", "聯繫管理員", "📞 聯繫管理員"];
-const ADMIN_COMMANDS = [
+const ADMIN_INFO_COMMANDS = [
   "admin",
   "Admin",
-  "開通VIP",
-  "延長VIP",
-  "取消VIP",
-  "查詢VIP",
   "使用者",
-  "VIP",
   "Session",
   "Log",
   "發送公告",
@@ -29,7 +25,7 @@ const ADMIN_COMMANDS = [
 
 function isOfficialCommand(text) {
   const value = String(text || "").trim();
-  return WEBSITE_COMMANDS.includes(value) || CONTACT_COMMANDS.includes(value) || ADMIN_COMMANDS.includes(value);
+  return WEBSITE_COMMANDS.includes(value) || CONTACT_COMMANDS.includes(value) || ADMIN_INFO_COMMANDS.includes(value);
 }
 
 function commonQuickReply() {
@@ -73,6 +69,24 @@ function contactFlex() {
   });
 }
 
+function adminInfoFlex() {
+  return bubble({
+    altText: "管理員",
+    title: "管理員",
+    subtitle: "BLACKDOMAIN AI",
+    quickReply: commonQuickReply(),
+    footer: "BLACKDOMAIN AI ADMIN",
+    contents: [
+      infoLine("VIP管理", "請輸入 VIP管理"),
+      infoLine("查詢", "查詢VIP 3A帳號"),
+      infoLine("開通", "開通VIP 3A帳號 天數"),
+      infoLine("延長", "延長VIP 3A帳號 天數"),
+      infoLine("取消", "取消VIP 3A帳號"),
+      button("VIP管理", "VIP管理"),
+    ],
+  });
+}
+
 function adminDeniedFlex() {
   return bubble({
     altText: "管理員",
@@ -99,8 +113,11 @@ async function handleOfficialMessage(event) {
     return reply(event.replyToken, contactFlex());
   }
 
-  if (ADMIN_COMMANDS.includes(text)) {
-    return reply(event.replyToken, adminDeniedFlex());
+  if (ADMIN_INFO_COMMANDS.includes(text)) {
+    if (!isAdminLineUserId(event.source?.userId)) {
+      return reply(event.replyToken, adminDeniedFlex());
+    }
+    return reply(event.replyToken, adminInfoFlex());
   }
 
   return false;

@@ -18,13 +18,12 @@ function registerWebhookRoutes(app) {
     const events = req.body.events || [];
 
     for (const event of events) {
-  try {
-    console.log("LINE USER ID =", event.source?.userId);
-    await handleEvent(event);
-  } catch (err) {
-    logError("E008", err);
-  }
-}D
+      try {
+        await handleEvent(event);
+      } catch (err) {
+        logError("E008", err);
+      }
+    }
   });
 }
 

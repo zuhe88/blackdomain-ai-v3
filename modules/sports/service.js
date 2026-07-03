@@ -1,7 +1,9 @@
+const { askSportsAI } = require("../../services/openai");
 const { WORLD_CUP_TEAMS_ZH, MLB_TEAMS_ZH, NBA_TEAMS_ZH } = require("./constants");
 
 const REQUEST_TIMEOUT = 3000;
 const NO_DATA_TEXT = "目前尚無可分析賽事";
+const MAX_MATCHES = 5;
 
 function taiwanNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
@@ -100,6 +102,41 @@ function worldCupTeamName(team = {}) {
   return WORLD_CUP_TEAMS_ZH[team.abbreviation] || team.displayName || team.name || "球隊";
 }
 
+function fallbackPreview(match) {
+  const lean = match.confidence === "高" ? "方向較明確" : match.confidence === "中" ? "仍需觀察臨場狀態" : "差距有限";
+  return `${match.away} 對 ${match.home}，AI依賽程、近期狀態與戰績評估，勝方傾向 ${match.prediction}，${lean}。大小分建議 ${match.total}，僅供賽前參考。`;
+}
+
+async function attachPreview(match) {
+  const prompt = [
+    `聯盟：${match.league}`,
+    `賽事：${match.away} VS ${match.home}`,
+    `開賽時間：${match.startTime}`,
+    `近期狀態：${match.form || "官方資料不足"}`,
+    `AI預測勝方：${match.prediction}`,
+    `讓分方向：${match.spread}`,
+    `大小分：${match.total}`,
+    `比分/總分推估：${match.score}`,
+    `信心等級：${match.confidence}`,
+    "請輸出一段 70 字以內的繁體中文賽前分析，不要保證結果。",
+  ].join("\n");
+
+  try {
+    const aiText = await askSportsAI(prompt);
+    return {
+      ...match,
+      preview: aiText.trim() || fallbackPreview(match),
+      aiSource: "OpenAI",
+    };
+  } catch (error) {
+    return {
+      ...match,
+      preview: fallbackPreview(match),
+      aiSource: "Fallback",
+    };
+  }
+}
+
 async function loadWorldCupMatches() {
   const today = taiwanNow();
   const data = await requestJson("https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard", {
@@ -109,7 +146,7 @@ async function loadWorldCupMatches() {
   const events = data.events || [];
   return events
     .filter((event) => new Date(event.date) >= new Date())
-    .slice(0, 3)
+    .slice(0, MAX_MATCHES)
     .map((event) => {
       const competition = event.competitions?.[0] || {};
       const competitors = competition.competitors || [];
@@ -128,7 +165,7 @@ async function loadWorldCupMatches() {
         losses: awayForm.losses,
       };
       const pick = pickByRecord(home, away);
-      const stage = competition.altGameNote || event.season?.slug || "FIFA World Cup";
+      const form = `${home.name} ${homeEntry.form || "無"} / ${away.name} ${awayEntry.form || "無"}`;
 
       return {
         league: "世足",
@@ -136,7 +173,7 @@ async function loadWorldCupMatches() {
         home: home.name,
         away: away.name,
         startTime: formatTaiwanTime(event.date),
-        h2h: `${stage}，近期狀態 ${home.name} ${homeEntry.form || "無"} / ${away.name} ${awayEntry.form || "無"}`,
+        form,
         prediction: pick.winner,
         spread: pick.winner,
         total: pick.rate >= 0.6 ? "Over" : "Under",
@@ -145,47 +182,6 @@ async function loadWorldCupMatches() {
         updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
       };
     });
-}
-
-async function loadMlbHeadToHead(homeId, awayId) {
-  const endDate = taiwanNow();
-  const startDate = addDays(endDate, -1095);
-  const data = await requestJson("https://statsapi.mlb.com/api/v1/schedule", {
-    sportId: 1,
-    teamId: homeId,
-    opponentId: awayId,
-    startDate: formatDate(startDate),
-    endDate: formatDate(endDate),
-    gameTypes: "R,P,F,D,L,W",
-  });
-
-  let homeWins = 0;
-  let awayWins = 0;
-  let totalRuns = 0;
-  let games = 0;
-
-  for (const date of data.dates || []) {
-    for (const game of date.games || []) {
-      const home = game.teams?.home;
-      const away = game.teams?.away;
-      if (!home || !away) continue;
-      if (home.score === undefined || away.score === undefined) continue;
-
-      games += 1;
-      totalRuns += Number(home.score || 0) + Number(away.score || 0);
-
-      const winnerId = Number(home.score) >= Number(away.score) ? home.team?.id : away.team?.id;
-      if (winnerId === homeId) homeWins += 1;
-      if (winnerId === awayId) awayWins += 1;
-    }
-  }
-
-  return {
-    games,
-    homeWins,
-    awayWins,
-    averageTotal: games ? totalRuns / games : null,
-  };
 }
 
 async function loadMlbMatches() {
@@ -206,50 +202,37 @@ async function loadMlbMatches() {
     }
   }
 
-  const games = [];
-  for (const item of upcoming.slice(0, 3)) {
-    const { date, game } = item;
+  return upcoming.slice(0, MAX_MATCHES).map(({ date, game }) => {
     const homeTeam = game.teams?.home?.team || {};
     const awayTeam = game.teams?.away?.team || {};
-    const h2h = await loadMlbHeadToHead(homeTeam.id, awayTeam.id).catch(() => ({
-      games: 0,
-      homeWins: 0,
-      awayWins: 0,
-      averageTotal: null,
-    }));
-
     const home = {
-      id: homeTeam.id,
       name: MLB_TEAMS_ZH[homeTeam.id] || homeTeam.name || "主隊",
       wins: game.teams?.home?.leagueRecord?.wins,
       losses: game.teams?.home?.leagueRecord?.losses,
     };
     const away = {
-      id: awayTeam.id,
       name: MLB_TEAMS_ZH[awayTeam.id] || awayTeam.name || "客隊",
       wins: game.teams?.away?.leagueRecord?.wins,
       losses: game.teams?.away?.leagueRecord?.losses,
     };
     const pick = pickByRecord(home, away);
-    const totalLine = h2h.averageTotal && h2h.averageTotal >= 8.5 ? "Over" : "Under";
+    const combinedRate = pick.rate;
 
-    games.push({
+    return {
       league: "MLB",
       date: date.date,
       home: home.name,
       away: away.name,
       startTime: formatTaiwanTime(game.gameDate),
-      h2h: `${home.name} ${h2h.homeWins} 勝 / ${away.name} ${h2h.awayWins} 勝 / 共 ${h2h.games} 場`,
+      form: `${home.name} ${home.wins || 0}勝${home.losses || 0}敗 / ${away.name} ${away.wins || 0}勝${away.losses || 0}敗`,
       prediction: pick.winner,
       spread: pick.winner,
-      total: totalLine,
-      score: h2h.averageTotal ? `預估總分 ${Math.round(h2h.averageTotal)}` : "官方資料不足",
+      total: combinedRate >= 0.6 ? "Over" : "Under",
+      score: combinedRate >= 0.6 ? "預估總分偏高" : "預估總分偏低",
       confidence: pick.confidence,
       updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
-    });
-  }
-
-  return games;
+    };
+  });
 }
 
 function parseNbaRecord(record) {
@@ -274,7 +257,7 @@ async function loadNbaMatches() {
 
   return games
     .filter((game) => game.gameStatus === 1)
-    .slice(0, 3)
+    .slice(0, MAX_MATCHES)
     .map((game) => {
       const homeRecord = parseNbaRecord(
         game.homeTeam?.wins !== undefined && game.homeTeam?.losses !== undefined
@@ -304,7 +287,7 @@ async function loadNbaMatches() {
         home: home.name,
         away: away.name,
         startTime: formatTaiwanTime(game.gameTimeUTC),
-        h2h: "NBA官方即時資料未提供本場對戰紀錄",
+        form: `${home.name} ${home.wins}勝${home.losses}敗 / ${away.name} ${away.wins}勝${away.losses}敗`,
         prediction: pick.winner,
         spread: pick.winner,
         total: pick.rate >= 0.6 ? "Over" : "Under",
@@ -317,10 +300,11 @@ async function loadNbaMatches() {
 
 async function loadAvailableMatches(league) {
   try {
-    if (league === "世足") return await loadWorldCupMatches();
-    if (league === "MLB") return await loadMlbMatches();
-    if (league === "NBA") return await loadNbaMatches();
-    return [];
+    let matches = [];
+    if (league === "世足") matches = await loadWorldCupMatches();
+    if (league === "MLB") matches = await loadMlbMatches();
+    if (league === "NBA") matches = await loadNbaMatches();
+    return await Promise.all(matches.slice(0, MAX_MATCHES).map(attachPreview));
   } catch (error) {
     return [];
   }

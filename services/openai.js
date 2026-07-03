@@ -1,8 +1,16 @@
-const OpenAI = require("openai");
-
 let openai = null;
 
-if (process.env.OPENAI_API_KEY) {
+function loadOpenAI() {
+  try {
+    return require("openai");
+  } catch (error) {
+    return null;
+  }
+}
+
+const OpenAI = loadOpenAI();
+
+if (process.env.OPENAI_API_KEY && OpenAI) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
@@ -19,17 +27,17 @@ async function askSportsAI(prompt) {
       {
         role: "system",
         content:
-          "你是 BLACKDOMAIN AI 體育分析引擎，只分析世界盃、MLB、NBA，不要分析百家樂、電子或539。回答要專業、簡潔，使用繁體中文。",
+          "你是 BLACKDOMAIN AI 體育賽前分析助理。請使用繁體中文，根據提供的官方賽程、戰績、近期狀態與盤口方向做賽前分析。不得保證結果，不得提及投注保證，不得輸出英文隊名。",
       },
       {
         role: "user",
         content: prompt,
       },
     ],
-    temperature: 0.7,
+    temperature: 0.4,
   });
 
-  return response.choices[0].message.content;
+  return response.choices?.[0]?.message?.content || "";
 }
 
 module.exports = {

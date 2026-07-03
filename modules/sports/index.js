@@ -1,6 +1,6 @@
 const { reply, quickReply } = require("../../services/line");
 const { updateSession } = require("../../utils/sessionStore");
-const { bubble, card, infoLine, note, text } = require("../../ui/flex/premium");
+const { bubble, card, carousel, infoLine, note, text } = require("../../ui/flex/premium");
 const { COMMANDS } = require("./constants");
 const { NO_DATA_TEXT, loadAvailableMatches } = require("./service");
 
@@ -38,9 +38,9 @@ function menuFlex() {
         color: "#D6B46A",
         align: "center",
       }),
-      card("⚽ 世足AI", "賽程、近期狀態與AI分析", "世足"),
-      card("⚾ MLB AI", "官方賽程、對戰紀錄與AI分析", "MLB"),
-      card("🏀 NBA", "官方賽程、戰績與AI分析", "NBA"),
+      card("⚽ 世足AI", "賽程、近期狀態與AI賽前分析", "世足"),
+      card("⚾ MLB AI", "官方賽程、戰績與AI賽前分析", "MLB"),
+      card("🏀 NBA", "官方賽程、戰績與AI賽前分析", "NBA"),
       card("🏠 返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
     ],
   });
@@ -62,47 +62,55 @@ function noDataFlex(league) {
   });
 }
 
-function matchAnalysisFlex(league, match) {
+function matchBubble(league, match, index, total) {
   return bubble({
     altText: `${league} AI分析`,
     title: `${league} AI分析`,
-    subtitle: "BLACKDOMAIN SPORTS AI",
+    subtitle: `第 ${index + 1} / ${total} 場`,
     quickReply: backQuickReply(),
     footer: "BLACKDOMAIN SPORTS AI",
     contents: [
       infoLine("賽事", `${match.away} VS ${match.home}`),
       infoLine("開賽時間", match.startTime),
-      infoLine("對戰紀錄", match.h2h),
+      infoLine("近期狀態", match.form || "官方資料不足"),
       infoLine("AI預測勝方", match.prediction),
       infoLine("讓分方向", match.spread),
       infoLine("大小分", match.total),
       infoLine(league === "MLB" ? "總分推估" : "比分推估", match.score),
       infoLine("信心等級", match.confidence),
-      infoLine("更新時間", match.updatedAt),
-      note("分析依賽程、近期狀態與公開資料生成，僅供參考。"),
+      infoLine("分析來源", match.aiSource || "Fallback"),
+      note(match.preview || "BLACKDOMAIN AI 賽前分析生成中。"),
     ],
-  });
+  }).contents;
+}
+
+function matchesFlex(league, matches) {
+  const bubbles = matches.map((match, index) => matchBubble(league, match, index, matches.length));
+  const message = carousel(`${league} AI賽前分析`, bubbles);
+  message.quickReply = backQuickReply();
+  return message;
 }
 
 async function replyLeague(event, league) {
   const userId = event.source.userId || "";
   const matches = await loadAvailableMatches(league);
-  const analysis = matches[0] || null;
+  const first = matches[0] || null;
 
   updateSession("sport", userId, {
     currentPage: `${league} AI`,
     league,
-    date: analysis?.date || null,
-    match: analysis ? `${analysis.away} VS ${analysis.home}` : null,
-    analysis,
+    date: first?.date || null,
+    match: first ? `${first.away} VS ${first.home}` : null,
+    analysis: first,
+    matches,
     lastUpdated: Date.now(),
   });
 
-  if (!analysis) {
+  if (!first) {
     return reply(event.replyToken, noDataFlex(league));
   }
 
-  return reply(event.replyToken, matchAnalysisFlex(league, analysis));
+  return reply(event.replyToken, matchesFlex(league, matches));
 }
 
 async function handleSportsMessage(event) {
@@ -116,6 +124,7 @@ async function handleSportsMessage(event) {
       date: null,
       match: null,
       analysis: null,
+      matches: [],
       lastUpdated: Date.now(),
     });
     return reply(event.replyToken, menuFlex());

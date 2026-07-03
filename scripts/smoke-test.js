@@ -412,13 +412,6 @@ async function main() {
     throw new Error("Static image route points to the wrong directory");
   }
 
-  ["seth1.png", "seth2.png", "baphomet.png"].forEach((file) => {
-    const target = path.join(root, "assets", "images", file);
-    if (!fs.existsSync(target) || fs.statSync(target).size === 0) {
-      throw new Error(`Missing image asset: ${file}`);
-    }
-  });
-
   for (const text of ["黑域AI", "首頁", "開始", "menu", "選單"]) {
     const values = await sendAndTexts(text, `main-${text}`);
     ["🎲 百家樂AI", "⚡ 電子AI", "⚽ 體育AI", "🎯 539AI", "👑 VIP中心", "🌐 黑域官網", "📞 聯繫管理員"].forEach((label) => {

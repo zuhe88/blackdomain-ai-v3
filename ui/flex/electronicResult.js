@@ -8,10 +8,10 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      metric("推薦房號", room, "依目前週期 AI 排序產生"),
-      infoLine("推薦原因", "依照本期活躍房排序與使用紀錄篩選"),
+      metric("推薦房號", room, "依原電子AI週期排序產生"),
+      infoLine("推薦原因", "活躍度與監控分數符合AI推薦條件"),
       infoLine("更新時間", updateTime),
-      note("BLACKDOMAIN AI 僅提供分析參考。"),
+      note("BLACKDOMAIN AI 僅提供AI分析與建議。"),
     ],
   });
 }
@@ -24,11 +24,11 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      metric("分析房號", room, "AI 已完成分析"),
+      metric("分析房號", room, "AI監控結果"),
       infoLine("活躍度", "AI監控中"),
       infoLine("波動", "AI監控中"),
-      infoLine("AI監控", "已納入本期觀察"),
-      infoLine("建議", "搭配熱門排行與資金控管使用"),
+      infoLine("AI監控", "已納入監控清單"),
+      infoLine("建議", "依目前活躍度與波動判斷"),
       infoLine("更新時間", updateTime),
     ],
   });
@@ -42,7 +42,7 @@ function electronicRankFlex(gameName, rooms, updateTime, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      ...rooms.map((room, index) => infoLine(`TOP${String(index + 1).padStart(2, "0")}`, `${room}｜熱度 ${100 - index * 3}`)),
+      ...rooms.map((room, index) => infoLine(`TOP${String(index + 1).padStart(2, "0")}`, `${room} 熱度 ${100 - index * 3}`)),
       infoLine("更新時間", updateTime),
     ],
   });

@@ -4,6 +4,7 @@ const { bubble, infoLine } = require("../../ui/flex/premium");
 const {
   electronicRecommendFlex,
   electronicRankFlex,
+  electronicAnalyzeFlex,
 } = require("../../ui/flex/electronicResult");
 
 const electronicSessions = new Map();
@@ -77,16 +78,8 @@ function shuffleBySeed(list, seedText) {
   return arr;
 }
 
-function randomPick(list, count) {
-  const pool = [...list];
-  const result = [];
-
-  while (pool.length > 0 && result.length < count) {
-    const index = Math.floor(Math.random() * pool.length);
-    result.push(pool.splice(index, 1)[0]);
-  }
-
-  return result;
+function randomPick(list, count, seedText = "BLACKDOMAIN") {
+  return shuffleBySeed(list, seedText).slice(0, count);
 }
 
 function buildCyclePools(gameName, cycleKey) {
@@ -188,7 +181,8 @@ function getNextRecommendRoom(userId, gameName) {
     availableRooms = [...cycle.goodRooms];
   }
 
-  const room = availableRooms[Math.floor(Math.random() * availableRooms.length)];
+  const roomIndex = hashScore(`${userId}:${gameName}:${getCycleKey()}:${usedRooms.length}`, availableRooms.length);
+  const room = availableRooms[roomIndex % availableRooms.length];
 
   getUsedRooms(session, gameName).push(room);
   session.updatedAt = Date.now();
@@ -338,7 +332,7 @@ async function showHotRank(event) {
   electronicSessions.set(userId, session);
 
   const cycle = getGameCycle(session.gameName);
-  const rooms = randomPick(cycle.goodRooms, 10).map((room) =>
+  const rooms = randomPick(cycle.goodRooms, 10, `RANK:${session.gameName}:${getCycleKey()}`).map((room) =>
     formatRoom(session.gameName, room)
   );
 
@@ -423,6 +417,35 @@ async function analyzeCustomRoom(event, text) {
   );
 }
 
+async function analyzeCustomRoomFlex(event, inputText) {
+  const userId = event.source.userId;
+  const session = getUserSession(userId);
+
+  if (!session.gameName) return showElectronicMain(event);
+
+  const room = parseRoomInput(inputText);
+  const check = validateRoom(session.gameName, room);
+
+  if (!check.ok) {
+    return reply(event.replyToken, electronicPromptFlex("房號不正確", [check.message]));
+  }
+
+  session.mode = "menu";
+  session.waitingCustomRoom = false;
+  session.updatedAt = Date.now();
+  electronicSessions.set(userId, session);
+
+  return reply(
+    event.replyToken,
+    electronicAnalyzeFlex(
+      session.gameName,
+      formatRoom(session.gameName, room),
+      getUpdateTimeText(),
+      afterAnalyzeQuickReply()
+    )
+  );
+}
+
 async function handleElectronicMessage(event) {
   const text = event.message.text.trim();
   const userId = event.source.userId;
@@ -430,7 +453,7 @@ async function handleElectronicMessage(event) {
 
   if (GAME_CONFIG[text]) return selectGame(event, text);
 
-  if (session.waitingCustomRoom) return analyzeCustomRoom(event, text);
+  if (session.waitingCustomRoom) return analyzeCustomRoomFlex(event, text);
 
   if (text === "AI推薦房" || text === "🤖 AI推薦房") return recommendRoom(event);
 
