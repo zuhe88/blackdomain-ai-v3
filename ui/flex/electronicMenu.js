@@ -56,6 +56,7 @@ function electronicMenuFlex() {
         gameBubble(
           "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/baphomet.png",
           "古神巴風特"
+        ),
       ],
     },
   };
