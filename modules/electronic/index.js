@@ -1,6 +1,5 @@
 const { reply, quickReply } = require("../../services/line");
 const { bubble, infoLine } = require("../../ui/flex/premium");
-
 const {
   electronicRecommendFlex,
   electronicRankFlex,
@@ -17,25 +16,31 @@ const GAME_CONFIG = {
   古神巴風特: { name: "古神巴風特", min: 1, max: 1000, pad: 3 },
 };
 
+const MAIN_COMMANDS = new Set(["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
+const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
+const RANK_COMMANDS = new Set(["熱門排行", "熱門房排行"]);
+const CUSTOM_COMMANDS = new Set(["自選分析", "自選房號分析"]);
+const BACK_TO_GAME_COMMANDS = new Set(["返回電子功能", "返回遊戲功能"]);
+
 function taipeiNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
 }
 
 function getCycleKey() {
   const now = taipeiNow();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const h = String(now.getHours()).padStart(2, "0");
-  const mm = now.getMinutes() >= 30 ? "30" : "00";
-  return `${y}${m}${d}${h}${mm}`;
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const date = String(now.getDate()).padStart(2, "0");
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = now.getMinutes() >= 30 ? "30" : "00";
+  return `${year}${month}${date}${hour}${minute}`;
 }
 
 function getUpdateTimeText() {
   const now = taipeiNow();
-  const h = String(now.getHours()).padStart(2, "0");
-  const mm = now.getMinutes() >= 30 ? "30" : "00";
-  return `${h}:${mm}`;
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = now.getMinutes() >= 30 ? "30" : "00";
+  return `${hour}:${minute}`;
 }
 
 function formatRoom(gameName, room) {
@@ -56,9 +61,7 @@ function hashScore(input, max = 2147483647) {
 function seededRandom(seedText) {
   let seed = hashScore(seedText, 2147483647);
 
-  if (seed <= 0) {
-    seed += 2147483646;
-  }
+  if (seed <= 0) seed += 2147483646;
 
   return function random() {
     seed = (seed * 16807) % 2147483647;
@@ -70,7 +73,7 @@ function shuffleBySeed(list, seedText) {
   const arr = [...list];
   const random = seededRandom(seedText);
 
-  for (let i = arr.length - 1; i > 0; i--) {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
     const j = Math.floor(random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
@@ -78,7 +81,7 @@ function shuffleBySeed(list, seedText) {
   return arr;
 }
 
-function randomPick(list, count, seedText = "BLACKDOMAIN") {
+function pickBySeed(list, count, seedText) {
   return shuffleBySeed(list, seedText).slice(0, count);
 }
 
@@ -86,16 +89,12 @@ function buildCyclePools(gameName, cycleKey) {
   const config = GAME_CONFIG[gameName];
   const allRooms = [];
 
-  for (let room = config.min; room <= config.max; room++) {
+  for (let room = config.min; room <= config.max; room += 1) {
     allRooms.push(room);
   }
 
   const goodCount = Math.max(10, Math.ceil(allRooms.length * 0.15));
-
-  const goodRooms = shuffleBySeed(
-    allRooms,
-    `GOOD:${gameName}:${cycleKey}`
-  ).slice(0, goodCount);
+  const goodRooms = shuffleBySeed(allRooms, `GOOD:${gameName}:${cycleKey}`).slice(0, goodCount);
 
   return {
     goodRooms,
@@ -159,7 +158,7 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
     subtitle: "BLACKDOMAIN ELECTRONIC AI",
     quickReply: quickReplyData,
     footer: "BLACKDOMAIN ELECTRONIC AI",
-    contents: lines.map((line) => infoLine("提示", line)),
+    contents: lines.map((line) => infoLine("資訊", line)),
   });
 }
 
@@ -173,7 +172,6 @@ function getNextRecommendRoom(userId, gameName) {
   const session = getUserSession(userId);
   const cycle = getGameCycle(gameName);
   const usedRooms = getUsedRooms(session, gameName);
-
   let availableRooms = cycle.goodRooms.filter((room) => !usedRooms.includes(room));
 
   if (availableRooms.length === 0) {
@@ -201,19 +199,16 @@ function parseRoomInput(text) {
 function validateRoom(gameName, room) {
   const config = GAME_CONFIG[gameName];
 
-  if (!config) return { ok: false, message: "遊戲不存在。" };
+  if (!config) return { ok: false, message: "遊戲不存在，請重新選擇。" };
 
   if (!Number.isInteger(room)) {
-    return { ok: false, message: "房號格式錯誤，請輸入數字。" };
+    return { ok: false, message: "房號格式錯誤，請輸入整數房號。" };
   }
 
   if (room < config.min || room > config.max) {
     return {
       ok: false,
-      message: `房號範圍錯誤，${gameName} 房號為 ${formatRoom(
-        gameName,
-        config.min
-      )} ~ ${formatRoom(gameName, config.max)}。`,
+      message: `房號不存在，${gameName} 房號範圍為 ${formatRoom(gameName, config.min)} ~ ${formatRoom(gameName, config.max)}。`,
     };
   }
 
@@ -222,33 +217,34 @@ function validateRoom(gameName, room) {
 
 function electronicModeQuickReply() {
   return quickReply([
-    { label: "🤖 AI推薦房", text: "AI推薦房" },
-    { label: "🔥 熱門排行", text: "熱門房排行" },
-    { label: "🔍 自選分析", text: "自選房號分析" },
-    { label: "⬅ 返回電子AI", text: "電子" },
+    { label: "AI推薦房", text: "AI推薦房" },
+    { label: "熱門排行", text: "熱門排行" },
+    { label: "自選分析", text: "自選分析" },
+    { label: "電子首頁", text: "電子" },
   ]);
 }
 
 function afterRecommendQuickReply() {
   return quickReply([
-    { label: "🔄 換一間", text: "換一間" },
-    { label: "🔥 熱門排行", text: "熱門房排行" },
-    { label: "🔍 自選分析", text: "自選房號分析" },
+    { label: "重新推薦", text: "重新推薦" },
+    { label: "熱門排行", text: "熱門排行" },
+    { label: "自選分析", text: "自選分析" },
   ]);
 }
 
 function afterRankQuickReply() {
   return quickReply([
-    { label: "🤖 AI推薦房", text: "AI推薦房" },
-    { label: "🔍 自選分析", text: "自選房號分析" },
-    { label: "⬅ 返回功能", text: "返回電子功能" },
+    { label: "AI推薦房", text: "AI推薦房" },
+    { label: "自選分析", text: "自選分析" },
+    { label: "返回功能", text: "返回電子功能" },
   ]);
 }
+
 function afterAnalyzeQuickReply() {
   return quickReply([
-    { label: "🤖 AI推薦房", text: "AI推薦房" },
-    { label: "🔥 熱門排行", text: "熱門房排行" },
-    { label: "🔍 再分析", text: "自選房號分析" },
+    { label: "AI推薦房", text: "AI推薦房" },
+    { label: "熱門排行", text: "熱門排行" },
+    { label: "重新輸入", text: "自選分析" },
   ]);
 }
 
@@ -261,7 +257,7 @@ async function selectGame(event, gameName) {
   const userId = event.source.userId;
 
   if (!GAME_CONFIG[gameName]) {
-    return reply(event.replyToken, electronicPromptFlex("遊戲不存在", ["請重新選擇。"]));
+    return reply(event.replyToken, electronicPromptFlex("遊戲不存在", ["請重新選擇電子AI遊戲。"]));
   }
 
   setGameSession(userId, gameName);
@@ -300,19 +296,11 @@ async function recommendRoom(event) {
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
-  const room = formatRoom(
-    session.gameName,
-    getNextRecommendRoom(userId, session.gameName)
-  );
+  const room = formatRoom(session.gameName, getNextRecommendRoom(userId, session.gameName));
 
   return reply(
     event.replyToken,
-    electronicRecommendFlex(
-      session.gameName,
-      room,
-      getUpdateTimeText(),
-      afterRecommendQuickReply()
-    )
+    electronicRecommendFlex(session.gameName, room, getUpdateTimeText(), afterRecommendQuickReply())
   );
 }
 
@@ -332,18 +320,13 @@ async function showHotRank(event) {
   electronicSessions.set(userId, session);
 
   const cycle = getGameCycle(session.gameName);
-  const rooms = randomPick(cycle.goodRooms, 10, `RANK:${session.gameName}:${getCycleKey()}`).map((room) =>
+  const rooms = pickBySeed(cycle.goodRooms, 10, `RANK:${session.gameName}:${getCycleKey()}`).map((room) =>
     formatRoom(session.gameName, room)
   );
 
   return reply(
     event.replyToken,
-    electronicRankFlex(
-      session.gameName,
-      rooms,
-      getUpdateTimeText(),
-      afterRankQuickReply()
-    )
+    electronicRankFlex(session.gameName, rooms, getUpdateTimeText(), afterRankQuickReply())
   );
 }
 
@@ -364,10 +347,7 @@ async function askCustomRoom(event) {
     event.replyToken,
     electronicPromptFlex("請輸入房號", [
       session.gameName,
-      `範圍：${formatRoom(session.gameName, config.min)} ~ ${formatRoom(
-        session.gameName,
-        config.max
-      )}`,
+      `房號範圍：${formatRoom(session.gameName, config.min)} ~ ${formatRoom(session.gameName, config.max)}`,
     ])
   );
 }
@@ -390,51 +370,6 @@ async function analyzeCustomRoom(event, text) {
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
-  const cycle = getGameCycle(session.gameName);
-  const roomText = `${session.gameName}｜${formatRoom(session.gameName, room)}`;
-
-  let title = "🔴 AI判定：不建議進場";
-  let lines = [
-    roomText,
-    "目前活躍度不足",
-    "波動訊號偏弱",
-    "建議等待下一輪更新",
-  ];
-
-  if (cycle.goodSet.has(room)) {
-    title = "🟢 AI判定：可進場";
-    lines = [
-      roomText,
-      "目前活躍度穩定",
-      "波動狀態正常",
-      "可視情況進場",
-    ];
-  }
-
-  return reply(
-    event.replyToken,
-    electronicPromptFlex(title, lines, afterAnalyzeQuickReply())
-  );
-}
-
-async function analyzeCustomRoomFlex(event, inputText) {
-  const userId = event.source.userId;
-  const session = getUserSession(userId);
-
-  if (!session.gameName) return showElectronicMain(event);
-
-  const room = parseRoomInput(inputText);
-  const check = validateRoom(session.gameName, room);
-
-  if (!check.ok) {
-    return reply(event.replyToken, electronicPromptFlex("房號不正確", [check.message]));
-  }
-
-  session.mode = "menu";
-  session.waitingCustomRoom = false;
-  session.updatedAt = Date.now();
-  electronicSessions.set(userId, session);
-
   return reply(
     event.replyToken,
     electronicAnalyzeFlex(
@@ -446,24 +381,22 @@ async function analyzeCustomRoomFlex(event, inputText) {
   );
 }
 
+async function analyzeCustomRoomFlex(event, inputText) {
+  return analyzeCustomRoom(event, inputText);
+}
+
 async function handleElectronicMessage(event) {
   const text = event.message.text.trim();
   const userId = event.source.userId;
   const session = getUserSession(userId);
 
+  if (MAIN_COMMANDS.has(text)) return showElectronicMain(event);
   if (GAME_CONFIG[text]) return selectGame(event, text);
-
   if (session.waitingCustomRoom) return analyzeCustomRoomFlex(event, text);
-
-  if (text === "AI推薦房" || text === "🤖 AI推薦房") return recommendRoom(event);
-
-  if (text === "換一間" || text === "🔄 換一間") return changeRecommendRoom(event);
-
-  if (text === "熱門排行" || text === "熱門房排行" || text === "🔥 熱門排行") return showHotRank(event);
-
-  if (text === "自選分析" || text === "自選房號分析" || text === "🔍 自選分析") return askCustomRoom(event);
-
-  if (text === "返回電子功能") return showGameMenu(event);
+  if (RECOMMEND_COMMANDS.has(text)) return recommendRoom(event);
+  if (RANK_COMMANDS.has(text)) return showHotRank(event);
+  if (CUSTOM_COMMANDS.has(text)) return askCustomRoom(event);
+  if (BACK_TO_GAME_COMMANDS.has(text)) return showGameMenu(event);
 
   return false;
 }
@@ -472,25 +405,12 @@ function isElectronicCommand(text) {
   if (!text) return false;
 
   return (
-    text === "電子" ||
-    text === "電子AI" ||
-    text === "Electronic" ||
-    text === "⚡ 電子AI" ||
-    text === "🎰 電子AI" ||
-    text === "戰神賽特1" ||
-    text === "戰神賽特2" ||
-    text === "古神巴風特" ||
-    text === "AI推薦房" ||
-    text === "🤖 AI推薦房" ||
-    text === "換一間" ||
-    text === "🔄 換一間" ||
-    text === "熱門房排行" ||
-    text === "熱門排行" ||
-    text === "🔥 熱門排行" ||
-    text === "自選房號分析" ||
-    text === "自選分析" ||
-    text === "🔍 自選分析" ||
-    text === "返回電子功能"
+    MAIN_COMMANDS.has(text) ||
+    Boolean(GAME_CONFIG[text]) ||
+    RECOMMEND_COMMANDS.has(text) ||
+    RANK_COMMANDS.has(text) ||
+    CUSTOM_COMMANDS.has(text) ||
+    BACK_TO_GAME_COMMANDS.has(text)
   );
 }
 
