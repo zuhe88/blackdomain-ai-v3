@@ -42,18 +42,39 @@ function formatRoom(gameName, room) {
   return String(room).padStart(config?.pad || 3, "0");
 }
 
-function hashScore(input, max = 1000003) {
+function hashScore(input, max = 2147483647) {
   let score = 0;
+
   for (const char of String(input)) {
     score = (score * 31 + char.charCodeAt(0)) % max;
   }
-  return score;
+
+  return score || 1;
+}
+
+function seededRandom(seedText) {
+  let seed = hashScore(seedText, 2147483647);
+
+  if (seed <= 0) {
+    seed += 2147483646;
+  }
+
+  return function random() {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
 }
 
 function shuffleBySeed(list, seedText) {
-  return [...list].sort((a, b) => {
-    return hashScore(`${seedText}:${a}`) - hashScore(`${seedText}:${b}`);
-  });
+  const arr = [...list];
+  const random = seededRandom(seedText);
+
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+
+  return arr;
 }
 
 function randomPick(list, count) {
@@ -77,7 +98,11 @@ function buildCyclePools(gameName, cycleKey) {
   }
 
   const goodCount = Math.max(10, Math.ceil(allRooms.length * 0.15));
-  const goodRooms = shuffleBySeed(allRooms, `GOOD:${gameName}:${cycleKey}`).slice(0, goodCount);
+
+  const goodRooms = shuffleBySeed(
+    allRooms,
+    `GOOD:${gameName}:${cycleKey}`
+  ).slice(0, goodCount);
 
   return {
     goodRooms,
@@ -225,7 +250,6 @@ function afterRankQuickReply() {
     { label: "⬅ 返回功能", text: "返回電子功能" },
   ]);
 }
-
 function afterAnalyzeQuickReply() {
   return quickReply([
     { label: "🤖 AI推薦房", text: "AI推薦房" },
@@ -314,7 +338,9 @@ async function showHotRank(event) {
   electronicSessions.set(userId, session);
 
   const cycle = getGameCycle(session.gameName);
-  const rooms = randomPick(cycle.goodRooms, 10).map((r) => formatRoom(session.gameName, r));
+  const rooms = randomPick(cycle.goodRooms, 10).map((room) =>
+    formatRoom(session.gameName, room)
+  );
 
   return reply(
     event.replyToken,
