@@ -47,9 +47,7 @@ const AI_ENTRY_COMMANDS = new Set([
 function registerWebhookRoutes(app) {
   app.post("/webhook", line.middleware(lineConfig), async (req, res) => {
     res.status(200).end();
-
     const events = req.body.events || [];
-
     for (const event of events) {
       try {
         await handleEvent(event);
@@ -75,11 +73,28 @@ function isAdminCommand(text) {
     text.startsWith("永久VIP ");
 }
 
-async function ensureVipOrReply(event) {
+function moduleNameFromText(text) {
+  if (["百家樂", "百家樂AI", "baccarat", "🎲 百家樂AI"].includes(text)) return "百家樂";
+  if (["電子", "電子AI", "Electronic", "⚡ 電子AI", "戰神賽特1", "戰神賽特2", "古神巴風特"].includes(text)) return "電子";
+  if (["539", "539AI", "今彩539", "🎯 539AI", "AI今日預測", "歷史開獎"].includes(text)) return "539";
+  if (["體育", "體育AI", "SPORT", "SPORT AI", "世足", "世足AI", "MLB", "MLB AI", "NBA"].includes(text)) return "SPORTS";
+  return "AI";
+}
+
+async function ensureVipOrReply(event, moduleName) {
   const access = await vip.checkVipAccess(event.source.userId || "");
-  if (access.allowed) return true;
-  await reply(event.replyToken, vip.accessDeniedFlex());
-  return false;
+  if (!access.allowed) {
+    await reply(event.replyToken, vip.accessDeniedFlex());
+    return false;
+  }
+  if (access.user?.account3A || access.isAdmin) {
+    await vip.logAiUsage({
+      lineUserId: event.source.userId || "",
+      threeAAccount: access.user?.account3A || "管理員",
+      module: moduleName,
+    });
+  }
+  return true;
 }
 
 async function handleEvent(event) {
@@ -120,7 +135,7 @@ async function handleEvent(event) {
   }
 
   if (AI_ENTRY_COMMANDS.has(text)) {
-    const allowed = await ensureVipOrReply(event);
+    const allowed = await ensureVipOrReply(event, moduleNameFromText(text));
     if (!allowed) return;
   }
 
@@ -134,38 +149,25 @@ async function handleEvent(event) {
   }
 
   if (electronic.hasActiveElectronicSession(userId)) {
-    const allowed = await ensureVipOrReply(event);
+    const allowed = await ensureVipOrReply(event, "電子");
     if (!allowed) return;
     const handled = await electronic.handleElectronicMessage(event);
     if (handled !== false) return handled;
   }
 
-  if (electronic.isElectronicCommand(text)) {
-    return electronic.handleElectronicMessage(event);
-  }
+  if (electronic.isElectronicCommand(text)) return electronic.handleElectronicMessage(event);
 
   if (baccarat.hasActiveBaccaratSession(userId)) {
-    const allowed = await ensureVipOrReply(event);
+    const allowed = await ensureVipOrReply(event, "百家樂");
     if (!allowed) return;
     const handled = await baccarat.handleBaccaratMessage(event);
     if (handled !== false) return handled;
   }
 
-  if (baccarat.isBaccaratCommand(text)) {
-    return baccarat.handleBaccaratMessage(event);
-  }
-
-  if (lottery539.is539Command(text)) {
-    return lottery539.handle539Message(event);
-  }
-
-  if (sports.isSportsCommand(text)) {
-    return sports.handleSportsMessage(event);
-  }
-
-  if (vip.isVipCommand(text)) {
-    return vip.handleVipMessage(event);
-  }
+  if (baccarat.isBaccaratCommand(text)) return baccarat.handleBaccaratMessage(event);
+  if (lottery539.is539Command(text)) return lottery539.handle539Message(event);
+  if (sports.isSportsCommand(text)) return sports.handleSportsMessage(event);
+  if (vip.isVipCommand(text)) return vip.handleVipMessage(event);
 
   return reply(replyToken, mainMenuFlex());
 }

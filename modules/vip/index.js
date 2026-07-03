@@ -4,19 +4,19 @@ const { getSession, updateSession } = require("../../utils/sessionStore");
 const { bubble, button, infoLine, metric, note } = require("../../ui/flex/premium");
 const { COMMANDS, BIND_COMMANDS, ADMIN_COMMANDS, STATUSES } = require("./constants");
 const {
-  findVipByLineUserId,
-  findVipBy3AAccount,
-  normalizeVipRecord,
-  normalizeStatus: normalizeDbStatus,
-  bind3AAccount,
-  openVipBy3AAccount,
-  extendVipBy3AAccount,
-  cancelVipBy3AAccount,
-  listPendingMembers,
-  listAllMembers,
+  STATUS,
+  findVipUserByLineUserId,
+  findVipUserBy3AAccount,
+  submitVipRequest,
+  approveVip,
+  extendVip,
+  cancelVip,
+  listPendingRequests,
+  listVipUsers,
+  logAiUsage,
 } = require("./repository");
 
-const AI_FEATURES = "百家樂AI / 電子AI / 體育AI / 539AI";
+const AI_FEATURES = "百家樂AI / 電子AI / 539AI / SPORTS AI";
 
 function isVipCommand(text) {
   const value = String(text || "").trim();
@@ -34,7 +34,7 @@ function hasActiveVipSession(userId) {
 
 function vipQuickReply(isAdmin = false) {
   const items = [
-    { label: "刷新VIP", text: "VIP查詢" },
+    { label: "刷新VIP", text: "VIP" },
     { label: "綁定3A", text: "綁定" },
     { label: "返回首頁", text: "首頁" },
   ];
@@ -60,57 +60,39 @@ async function getLineName(userId) {
   }
 }
 
-function daysLeft(expiresAt) {
-  if (!expiresAt) return "-";
-  const diff = new Date(expiresAt).getTime() - Date.now();
+function formatDate(value) {
+  if (!value) return "永久";
+  return new Date(value).toLocaleDateString("zh-TW", { timeZone: "Asia/Taipei" });
+}
+
+function daysLeft(value) {
+  if (!value) return "永久";
+  const diff = new Date(value).getTime() - Date.now();
   return String(Math.max(0, Math.ceil(diff / 86400000)));
 }
 
-function formatDate(expiresAt) {
-  if (!expiresAt) return "-";
-  return new Date(expiresAt).toLocaleDateString("zh-TW", { timeZone: "Asia/Taipei" });
-}
-
-function normalizeStatus(record) {
-  if (!record?.account3A) return STATUSES.UNBOUND;
-  const status = normalizeDbStatus(record.status);
-  if (status === "永久VIP") return STATUSES.ACTIVE;
-  if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) return STATUSES.EXPIRED;
-  if (status === STATUSES.ACTIVE) return STATUSES.ACTIVE;
-  if (status === STATUSES.EXPIRED || status === STATUSES.CANCELLED) return STATUSES.EXPIRED;
-  if (status === STATUSES.PENDING) return STATUSES.PENDING;
+function vipStatusText(user) {
+  if (!user?.account3A) return STATUSES.UNBOUND;
+  if (user.vipStatus === STATUS.APPROVED && !user.expiresAt) return STATUSES.ACTIVE;
+  if (user.vipStatus === STATUS.APPROVED && user.expiresAt && new Date(user.expiresAt).getTime() > Date.now()) return STATUSES.ACTIVE;
+  if (user.vipStatus === STATUS.CANCELLED) return STATUSES.CANCELLED;
+  if (user.vipStatus === STATUS.APPROVED && user.expiresAt && new Date(user.expiresAt).getTime() <= Date.now()) return STATUSES.EXPIRED;
   return STATUSES.PENDING;
 }
 
-function hasAiPermission(record) {
-  const status = normalizeStatus(record);
-  if (!record?.account3A) return false;
-  if (String(record.status || "") === "永久VIP") return true;
-  if (status !== STATUSES.ACTIVE) return false;
-  if (record.aiPermission === false || record.aiPermission === "false") return false;
-  if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) return false;
-  return true;
-}
-
-function aiPermissionText(status, account3A, isAdmin, record) {
-  if (isAdmin) return "無限制";
-  if (!account3A) return "尚未綁定3A帳號";
-  if (hasAiPermission(record)) return AI_FEATURES;
-  if (status === STATUSES.EXPIRED) return "VIP已過期";
-  if (status === STATUSES.PENDING) return "等待管理員審核";
-  return "尚未開通";
+function hasAiPermission(user) {
+  if (!user?.account3A) return false;
+  if (user.isAdmin) return true;
+  if (user.vipStatus !== STATUS.APPROVED) return false;
+  if (user.aiPermission !== true) return false;
+  if (!user.expiresAt) return true;
+  return new Date(user.expiresAt).getTime() > Date.now();
 }
 
 async function checkVipAccess(userId) {
-  if (isAdminLineUserId(userId)) {
-    return { allowed: true, isAdmin: true, record: null };
-  }
-  const record = normalizeVipRecord(await findVipByLineUserId(userId));
-  return {
-    allowed: hasAiPermission(record),
-    isAdmin: false,
-    record,
-  };
+  if (isAdminLineUserId(userId)) return { allowed: true, isAdmin: true, user: null };
+  const user = await findVipUserByLineUserId(userId);
+  return { allowed: hasAiPermission(user), isAdmin: false, user };
 }
 
 function accessDeniedFlex() {
@@ -122,7 +104,7 @@ function accessDeniedFlex() {
     footer: "BLACKDOMAIN VIP",
     contents: [
       metric("AI權限", "尚未開通", "請先完成3A帳號綁定"),
-      infoLine("下一步", "請輸入：綁定"),
+      infoLine("請先輸入", "綁定"),
       note("完成3A帳號綁定後，等待管理員審核開通。"),
     ],
   });
@@ -137,7 +119,7 @@ function bindPromptFlex() {
     footer: "BLACKDOMAIN VIP",
     contents: [
       metric("請輸入", "您的3A帳號", "例如：abc123"),
-      note("LINE userId 僅作為LINE身分識別，不會顯示成會員帳號。"),
+      note("LINE User ID 只作身分識別，不會顯示成會員帳號。"),
     ],
   });
 }
@@ -152,7 +134,7 @@ function bindSuccessFlex(account3A) {
     contents: [
       metric("3A帳號", account3A, "狀態：待審核"),
       infoLine("申請結果", "已收到您的3A帳號綁定申請。"),
-      infoLine("下一步", "等待管理員審核。"),
+      infoLine("下一步", "請等待管理員審核。"),
       button("查看VIP中心", "VIP"),
     ],
   });
@@ -175,7 +157,7 @@ async function notifyAdminsBind({ lineUserId, lineName, account3A }) {
   await Promise.all(adminLineUserIds().map((adminId) => push(adminId, message)));
 }
 
-function vipCenterFlex(userId, record, isAdmin = false) {
+function vipCenterFlex(user, isAdmin = false) {
   if (isAdmin) {
     return bubble({
       altText: "VIP中心",
@@ -185,7 +167,7 @@ function vipCenterFlex(userId, record, isAdmin = false) {
       footer: "BLACKDOMAIN VIP",
       contents: [
         metric("VIP狀態", "管理員", "永久VIP"),
-        infoLine("LINE名稱", record?.lineName || "未取得"),
+        infoLine("LINE名稱", user?.lineName || "未取得"),
         infoLine("3A帳號", "管理員"),
         infoLine("AI權限", "無限制"),
         infoLine("到期日期", "永久"),
@@ -196,11 +178,8 @@ function vipCenterFlex(userId, record, isAdmin = false) {
     });
   }
 
-  const status = normalizeStatus(record);
-  const account3A = record.account3A || "未綁定";
-  const lineName = record.lineName || "未取得";
-  const permission = aiPermissionText(status, record.account3A, false, record);
-  const permanent = String(record.status || "") === "永久VIP";
+  const status = vipStatusText(user);
+  const permission = hasAiPermission(user) ? AI_FEATURES : user.account3A ? "尚未開通" : "尚未綁定3A帳號";
 
   return bubble({
     altText: "VIP中心",
@@ -210,11 +189,11 @@ function vipCenterFlex(userId, record, isAdmin = false) {
     footer: "BLACKDOMAIN VIP",
     contents: [
       metric("VIP狀態", status, "3A帳號綁定判定"),
-      infoLine("LINE名稱", lineName),
-      infoLine("3A帳號", account3A),
+      infoLine("LINE名稱", user.lineName || "未取得"),
+      infoLine("3A帳號", user.account3A || "未綁定"),
       infoLine("AI權限", permission),
-      infoLine("到期日期", permanent ? "永久" : formatDate(record.expiresAt)),
-      infoLine("剩餘天數", permanent ? "永久" : daysLeft(record.expiresAt)),
+      infoLine("到期日期", formatDate(user.expiresAt)),
+      infoLine("剩餘天數", daysLeft(user.expiresAt)),
       infoLine("最後更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       button("綁定3A帳號", "綁定"),
       button("聯繫管理員", "聯繫管理員", "secondary"),
@@ -241,7 +220,7 @@ function adminHelpFlex() {
   });
 }
 
-function adminResultFlex(title, lines, success = true) {
+function adminResultFlex(title, rows, success = true) {
   return bubble({
     altText: title,
     title,
@@ -250,17 +229,17 @@ function adminResultFlex(title, lines, success = true) {
     footer: "BLACKDOMAIN VIP ADMIN",
     contents: [
       metric("執行結果", success ? "完成" : "未完成", success ? "管理員操作" : "請確認資料"),
-      ...lines.map(([label, value]) => infoLine(label, value)),
+      ...rows.map(([label, value]) => infoLine(label, value)),
       button("管理指令", "管理指令", "secondary"),
     ],
   });
 }
 
-function memberLines(members) {
+function memberRows(members) {
   if (!members.length) return [["資料", "目前沒有資料"]];
   return members.slice(0, 10).map((member, index) => [
     `#${index + 1}`,
-    `${member.account3A || "未綁定"} / ${normalizeStatus(member)} / ${member.lineName || "未取得"}`,
+    `${member.account3A || "未綁定"} / ${vipStatusText(member)} / ${member.lineName || "未取得"}`,
   ]);
 }
 
@@ -274,35 +253,27 @@ async function handleAdminCommand(event) {
   if (text === "管理指令" || text === "管理員指令") return reply(event.replyToken, adminHelpFlex());
 
   const [command, account3A, value] = text.split(/\s+/).filter(Boolean);
-
-  if (command === "待審核") {
-    const pending = await listPendingMembers();
-    return reply(event.replyToken, adminResultFlex("待審核", memberLines(pending), true));
-  }
-
-  if (command === "會員列表") {
-    const members = await listAllMembers();
-    return reply(event.replyToken, adminResultFlex("會員列表", memberLines(members), true));
-  }
-
+  if (command === "待審核") return reply(event.replyToken, adminResultFlex("待審核", memberRows(await listPendingRequests())));
+  if (command === "會員列表") return reply(event.replyToken, adminResultFlex("會員列表", memberRows(await listVipUsers())));
   if (!account3A) return reply(event.replyToken, adminHelpFlex());
 
   if (command === "查會員") {
-    const record = normalizeVipRecord(await findVipBy3AAccount(account3A));
+    const user = await findVipUserBy3AAccount(account3A);
     return reply(event.replyToken, adminResultFlex("查會員", [
-      ["LINE名稱", record.lineName || "未取得"],
-      ["3A帳號", record.account3A || account3A],
-      ["VIP狀態", normalizeStatus(record)],
-      ["到期", String(record.status || "") === "永久VIP" ? "永久" : formatDate(record.expiresAt)],
-      ["AI權限", hasAiPermission(record) ? "已開通" : "未開通"],
-      ["LINE User ID", record.lineUserId || "未綁定"],
+      ["LINE名稱", user.lineName || "未取得"],
+      ["3A帳號", user.account3A || account3A],
+      ["VIP狀態", vipStatusText(user)],
+      ["AI權限", hasAiPermission(user) ? "已開通" : "未開通"],
+      ["到期", formatDate(user.expiresAt)],
+      ["剩餘天數", daysLeft(user.expiresAt)],
+      ["LINE User ID", user.lineUserId || "未綁定"],
     ]));
   }
 
   if (command === "開通") {
     const permanent = value === "永久";
     const days = permanent ? 36500 : parseInt(value || "30", 10);
-    const result = await openVipBy3AAccount({ account3A, days, permanent });
+    const result = await approveVip({ account3A, days, permanent, adminLineUserId: userId });
     return reply(event.replyToken, adminResultFlex("開通VIP", [
       ["3A帳號", account3A],
       ["期限", permanent ? "永久" : `${days}天`],
@@ -311,7 +282,7 @@ async function handleAdminCommand(event) {
   }
 
   if (command === "永久VIP") {
-    const result = await openVipBy3AAccount({ account3A, permanent: true });
+    const result = await approveVip({ account3A, permanent: true, adminLineUserId: userId });
     return reply(event.replyToken, adminResultFlex("永久VIP", [
       ["3A帳號", account3A],
       ["狀態", result.ok ? "已設為永久VIP" : result.error || "失敗"],
@@ -320,7 +291,7 @@ async function handleAdminCommand(event) {
 
   if (command === "延長VIP") {
     const days = parseInt(value || "30", 10);
-    const result = await extendVipBy3AAccount(account3A, days);
+    const result = await extendVip(account3A, days, userId);
     return reply(event.replyToken, adminResultFlex("延長VIP", [
       ["3A帳號", account3A],
       ["增加天數", `${days}天`],
@@ -329,7 +300,7 @@ async function handleAdminCommand(event) {
   }
 
   if (command === "取消VIP") {
-    const result = await cancelVipBy3AAccount(account3A);
+    const result = await cancelVip(account3A, userId);
     return reply(event.replyToken, adminResultFlex("取消VIP", [
       ["3A帳號", account3A],
       ["狀態", result.ok ? "已取消" : result.error || "失敗"],
@@ -340,56 +311,42 @@ async function handleAdminCommand(event) {
 }
 
 async function handleBindInput(event) {
-  const userId = event.source.userId || "";
+  const lineUserId = event.source.userId || "";
   const account3A = event.message.text.trim();
-  const lineName = await getLineName(userId);
-  const result = await bind3AAccount({ lineUserId: userId, lineName, account3A });
-  await notifyAdminsBind({ lineUserId: userId, lineName, account3A });
-  updateSession("vip", userId, {
-    binding3A: false,
-    account3A,
-    vipStatus: STATUSES.PENDING,
-    aiPermission: false,
-    lastUpdated: Date.now(),
-  });
+  const lineName = await getLineName(lineUserId);
+  const result = await submitVipRequest({ lineUserId, lineName, account3A });
+  await notifyAdminsBind({ lineUserId, lineName, account3A });
+  updateSession("vip", lineUserId, { binding3A: false, account3A, vipStatus: STATUS.PENDING, lastUpdated: Date.now() });
   return reply(event.replyToken, bindSuccessFlex(account3A, result.ok));
 }
 
 async function handleVipMessage(event) {
-  const userId = event.source.userId || "";
+  const lineUserId = event.source.userId || "";
   const text = event.message.text.trim();
-  const session = getSession("vip", userId) || {};
+  const session = getSession("vip", lineUserId) || {};
 
-  if (ADMIN_COMMANDS.some((cmd) => text === cmd || text.startsWith(`${cmd} `))) {
-    return handleAdminCommand(event);
-  }
-
+  if (ADMIN_COMMANDS.some((cmd) => text === cmd || text.startsWith(`${cmd} `))) return handleAdminCommand(event);
   if (BIND_COMMANDS.includes(text)) {
-    updateSession("vip", userId, { binding3A: true, lastUpdated: Date.now() });
+    updateSession("vip", lineUserId, { binding3A: true, lastUpdated: Date.now() });
     return reply(event.replyToken, bindPromptFlex());
   }
+  if (session.binding3A) return handleBindInput(event);
 
-  if (session.binding3A) {
-    return handleBindInput(event);
-  }
+  const isAdmin = isAdminLineUserId(lineUserId);
+  const user = isAdmin
+    ? { lineName: await getLineName(lineUserId), account3A: "管理員", vipStatus: STATUS.APPROVED, aiPermission: true, expiresAt: null, isAdmin: true }
+    : await findVipUserByLineUserId(lineUserId);
 
-  const isAdmin = isAdminLineUserId(userId);
-  const record = isAdmin
-    ? { lineName: await getLineName(userId) }
-    : normalizeVipRecord(await findVipByLineUserId(userId));
-  const status = isAdmin ? STATUSES.ADMIN : normalizeStatus(record);
-  const permission = aiPermissionText(status, record.account3A, isAdmin, record);
-
-  updateSession("vip", userId, {
-    vipStatus: status,
-    account3A: isAdmin ? "管理員" : record.account3A || "未綁定",
-    aiPermission: permission,
-    expiresAt: isAdmin ? "永久" : record.expiresAt || null,
-    daysLeft: isAdmin ? "永久" : daysLeft(record.expiresAt),
+  updateSession("vip", lineUserId, {
+    vipStatus: isAdmin ? "管理員" : vipStatusText(user),
+    account3A: isAdmin ? "管理員" : user.account3A || "未綁定",
+    aiPermission: isAdmin ? "無限制" : hasAiPermission(user),
+    expiresAt: isAdmin ? "永久" : user.expiresAt || null,
+    daysLeft: isAdmin ? "永久" : daysLeft(user.expiresAt),
     lastUpdated: Date.now(),
   });
 
-  return reply(event.replyToken, vipCenterFlex(userId, record, isAdmin));
+  return reply(event.replyToken, vipCenterFlex(user, isAdmin));
 }
 
 module.exports = {
@@ -398,4 +355,5 @@ module.exports = {
   handleVipMessage,
   checkVipAccess,
   accessDeniedFlex,
+  logAiUsage,
 };

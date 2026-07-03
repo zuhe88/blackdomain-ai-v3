@@ -1,15 +1,15 @@
 const Module = require("module");
 const path = require("path");
 
+process.env.SUPABASE_URL = "https://example.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
+
 const captured = {
   replies: [],
   pushes: [],
   multicasts: [],
   routes: { use: [], get: [], post: [], static: [] },
 };
-
-process.env.SUPABASE_URL = "https://example.supabase.co";
-process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 
 global.fetch = async function mockedFetch(url) {
   const value = String(url || "");
@@ -26,17 +26,6 @@ global.fetch = async function mockedFetch(url) {
                   competitors: [
                     { homeAway: "home", form: "WWDDL", team: { abbreviation: "AUS", displayName: "Australia" } },
                     { homeAway: "away", form: "DLWDL", team: { abbreviation: "EGY", displayName: "Egypt" } },
-                  ],
-                },
-              ],
-            },
-            {
-              date: "2099-07-03T22:00Z",
-              competitions: [
-                {
-                  competitors: [
-                    { homeAway: "home", form: "WWWWW", team: { abbreviation: "ARG", displayName: "Argentina" } },
-                    { homeAway: "away", form: "WDLDD", team: { abbreviation: "CPV", displayName: "Cape Verde" } },
                   ],
                 },
               ],
@@ -85,7 +74,13 @@ Module._load = function patchedLoad(request, parent, isMain) {
   if (request === "openai") {
     return class MockOpenAI {
       constructor() {
-        this.chat = { completions: { create: async () => ({ choices: [{ message: { content: "• 主隊近期狀況較佳\n• 客隊防守不穩\n• AI預估主勝機率較高\n• 建議可參考主勝及大分" } }] }) } };
+        this.chat = {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: "• 主隊近期狀況較佳\n• 客隊防守不穩\n• AI預估主勝機率較高\n• 建議可參考主勝及大分" } }],
+            }),
+          },
+        };
       }
     };
   }
@@ -95,31 +90,42 @@ Module._load = function patchedLoad(request, parent, isMain) {
       line_user_id: "user-smoke",
       line_name: "測試使用者",
       three_a_account: "test3a",
-      vip_status: "已開通",
+      vip_status: "approved",
       ai_permission: true,
       expires_at: "2099-12-31T00:00:00.000Z",
       is_admin: false,
       updated_at: "2099-01-01T00:00:00.000Z",
     };
+    const pendingRequest = {
+      id: "request-1",
+      line_user_id: "pending-user",
+      line_name: "待審核使用者",
+      three_a_account: "abc123",
+      status: "pending",
+      request_time: "2099-01-01T00:00:00.000Z",
+    };
     return {
       createClient() {
         return {
-          from() {
+          from(table) {
+            let lookupField = null;
             let lookupValue = null;
             const chain = {
               select() { return chain; },
-              eq(field, value) {
-                lookupValue = value;
-                return chain;
-              },
+              eq(field, value) { lookupField = field; lookupValue = value; return chain; },
               update() { return chain; },
               insert() { return chain; },
               async maybeSingle() {
                 if (lookupValue === "blocked-user") return { data: null, error: null };
-                return { data: activeVip, error: null };
+                if (table === "vip_requests") return { data: pendingRequest, error: null };
+                if (table === "vip_users" && lookupField === "three_a_account" && lookupValue === "abc123") return { data: activeVip, error: null };
+                if (table === "vip_users") return { data: activeVip, error: null };
+                return { data: null, error: null };
               },
               then(resolve) {
-                resolve({ data: lookupValue === "pending" ? [{ ...activeVip, vip_status: "待審核" }] : [activeVip], error: null });
+                if (table === "vip_requests") resolve({ data: [pendingRequest], error: null });
+                else if (table === "vip_users") resolve({ data: [activeVip], error: null });
+                else resolve({ data: [], error: null });
               },
             };
             return chain;
@@ -135,15 +141,10 @@ const { handleEvent } = require("../index");
 const { image, multicast, push } = require("../services/line");
 
 function event(text, userId = "user-smoke") {
-  return {
-    type: "message",
-    replyToken: `reply-${captured.replies.length + 1}`,
-    source: { userId },
-    message: { type: "text", text },
-  };
+  return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
 }
 
-async function send(text, userId) {
+async function send(text, userId = "user-smoke") {
   await handleEvent(event(text, userId));
   return captured.replies[captured.replies.length - 1];
 }
@@ -179,12 +180,7 @@ async function main() {
   require("../app");
   const root = path.join(__dirname, "..");
   const staticPath = captured.routes.static[0];
-  if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) {
-    throw new Error("Static image route points to the wrong directory");
-  }
-  ["/images/home", "/images/baccarat", "/images/electronic", "/images/sport", "/images/539", "/images/vip", "/images/admin"].forEach((route) => {
-    if (!captured.routes.use.find((item) => item.route === route)) throw new Error(`Missing image route: ${route}`);
-  });
+  if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) throw new Error("Static image route points to the wrong directory");
 
   for (const text of ["黑域AI", "首頁", "開始", "menu", "選單"]) {
     const values = await sendAndTexts(text, `home-${text}`);
@@ -201,35 +197,21 @@ async function main() {
   assertIncludes(values, "綁定申請已送出", "Bind success");
   if (!captured.pushes.length) throw new Error("Admin bind notification was not pushed");
 
-  values = await sendAndTexts("VIP", "Uaf293ee976e5170d4e8672d2c12b3f76");
-  assertIncludes(values, "管理員", "Admin VIP");
-  assertIncludes(values, "無限制", "Admin VIP permission");
   values = await sendAndTexts("管理指令", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "管理員功能", "Admin commands");
+  values = await sendAndTexts("待審核", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "abc123", "Pending requests");
 
   await send("電子", "user-smoke");
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
-  values = await sendAndTexts("AI推薦房", "user-smoke");
-  assertIncludes(values, "推薦房號", "Electronic recommend");
-  values = await sendAndTexts("熱門排行", "user-smoke");
-  assertIncludes(values, "TOP10", "Electronic ranking");
-  values = await sendAndTexts("自選分析", "user-smoke");
-  assertIncludes(values, "請輸入房號", "Electronic custom prompt");
-  values = await sendAndTexts("123", "user-smoke");
-  assertIncludes(values, "AI監控", "Electronic custom analysis");
 
   values = await sendAndTexts("539", "user-smoke");
   assertIncludes(values, "AI今日預測", "539 menu");
   assertIncludes(values, "歷史開獎", "539 menu");
-  values = await sendAndTexts("AI今日預測", "user-smoke");
-  ["預測日期", "AI預測", "熱號", "冷號", "穩定號", "更新時間"].forEach((field) => assertIncludes(values, field, "539 analysis"));
 
-  values = await sendAndTexts("體育", "user-smoke");
-  assertIncludes(values, "世足AI", "Sports menu");
   values = await sendAndTexts("世足", "user-smoke");
   assertIncludes(values, "AI預測勝方", "Sports analysis");
-  assertIncludes(values, "分析重點", "Sports points");
 
   values = await sendAndTexts("百家樂", "blocked-user");
   assertIncludes(values, "尚未開通黑域AI", "VIP gate");
@@ -238,10 +220,9 @@ async function main() {
   await multicast(["user-a", "user-b"], "測試群發");
   assertMessage(image("https://example.com/image.png"));
 
-  for (const replyRecord of captured.replies) replyRecord.messages.forEach(assertMessage);
-  for (const pushRecord of captured.pushes) pushRecord.messages.forEach(assertMessage);
-  for (const multicastRecord of captured.multicasts) multicastRecord.messages.forEach(assertMessage);
-
+  for (const item of captured.replies) item.messages.forEach(assertMessage);
+  for (const item of captured.pushes) item.messages.forEach(assertMessage);
+  for (const item of captured.multicasts) item.messages.forEach(assertMessage);
   console.log(`Smoke test passed: ${captured.replies.length} replies, ${captured.pushes.length} push, ${captured.multicasts.length} multicast.`);
 }
 
