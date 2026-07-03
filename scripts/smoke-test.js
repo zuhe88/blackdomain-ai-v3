@@ -433,7 +433,7 @@ async function main() {
     });
   }
   let baccaratValues = await sendAndTexts("AI配注", baccaratUser);
-  ["預測", "建議下注", "信心值", "建議原因", "單注上限", "目前本金", "目前獲利"].forEach((field) => {
+  ["下注方向", "建議下注", "信心值", "建議原因", "單注上限", "目前本金", "目前獲利"].forEach((field) => {
     assertIncludes(baccaratValues, field, "Baccarat AI Bet");
   });
   baccaratValues = await sendAndTexts("過", baccaratUser);
@@ -471,7 +471,7 @@ async function main() {
     });
   }
   baccaratValues = await sendAndTexts("自由配注", baccaratUserFree);
-  assertIncludes(baccaratValues, "自行控注", "Baccarat Free Bet");
+  assertIncludes(baccaratValues, "玩家自行下注", "Baccarat Free Bet");
   await send("和", baccaratUserFree);
 
   for (const text of ["539", "539AI", "今彩539", "🎯 539AI", "🔥 AI今日預測", "📈 熱號分析", "📉 冷號分析", "⭐ 穩定號分析", "📊 歷史開獎"]) {

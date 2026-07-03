@@ -1,7 +1,3 @@
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 function roundBet(amount) {
   if (amount < 1) return 1;
   return Math.round(amount * 100) / 100;
@@ -27,7 +23,7 @@ function predict(history = []) {
   const clean = history.filter((x) => x !== "和");
 
   if (clean.length < 2) {
-    return pick(["莊", "閒"]);
+    return clean[0] === "閒" ? "莊" : "閒";
   }
 
   const last = clean[clean.length - 1];
@@ -141,7 +137,7 @@ function firstAnalysis(session) {
 
 function getConfidence(session) {
   const total = session.results.win + session.results.lose + session.results.tie;
-  if (!total) return "觀察中";
+  if (!total) return "初始分析";
 
   const rate = Math.round((session.results.win / total) * 100);
   return `${rate}%`;
@@ -149,14 +145,14 @@ function getConfidence(session) {
 
 function getReason(session) {
   if (session.mode === "自由配注") {
-    return "自由配注模式，AI僅負責紀錄。";
+    return "自由配注模式由玩家自行下注，AI僅協助紀錄。";
   }
 
   if (session.mode === "天門") {
-    return "依天門五關與單注上限控管。";
+    return "天門模式依原五關進度計算，並套用單注上限。";
   }
 
-  return "依目前牌路與資金控管產生建議。";
+  return "依目前本金、歷史結果與單注上限產生本局分析。";
 }
 
 module.exports = {

@@ -4,7 +4,7 @@ function platformQuickReply() {
   return quickReply([
     { label: "DG", text: "DG" },
     { label: "MT", text: "MT" },
-    { label: "取消", text: "取消" },
+    { label: "返回首頁", text: "返回首頁" },
   ]);
 }
 
@@ -13,7 +13,7 @@ function modeQuickReply() {
     { label: "AI配注", text: "AI配注" },
     { label: "天門", text: "天門" },
     { label: "自由配注", text: "自由配注" },
-    { label: "取消", text: "取消" },
+    { label: "返回首頁", text: "返回首頁" },
   ]);
 }
 
@@ -24,14 +24,14 @@ function resultQuickReply() {
     { label: "和", text: "和" },
     { label: "返回房號", text: "返回房號" },
     { label: "返回平台", text: "返回平台" },
-    { label: "結束分析", text: "結束分析" },
+    { label: "重新開始", text: "重新開始" },
   ]);
 }
 
 function restartQuickReply() {
   return quickReply([
     { label: "重新開始", text: "百家樂" },
-    { label: "回首頁", text: "首頁" },
+    { label: "返回首頁", text: "首頁" },
   ]);
 }
 

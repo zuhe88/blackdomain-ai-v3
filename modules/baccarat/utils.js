@@ -1,3 +1,5 @@
+const { RESULTS, MODES } = require("./constants");
+
 function normalizeRoom(platform, room) {
   if (!room) return null;
 
@@ -93,15 +95,15 @@ function validateMaxBet(capital, maxBet) {
 }
 
 function isResult(text) {
-  return ["過", "倒", "和"].includes(text);
+  return RESULTS.includes(text);
 }
 
 function isMode(text) {
-  return ["AI配注", "天門", "自由配注"].includes(text);
+  return MODES.includes(text);
 }
 
 function isCancel(text) {
-  return text === "取消";
+  return text === "返回首頁";
 }
 
 module.exports = {
