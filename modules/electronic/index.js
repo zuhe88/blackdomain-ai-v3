@@ -201,22 +201,32 @@ function getUsedRooms(session, gameName) {
 
 function getNextRecommendRoom(userId, gameName) {
   const session = getUserSession(userId);
-  const cycle = getGameCycle(gameName);
+  const config = GAME_CONFIG[gameName];
   const usedRooms = getUsedRooms(session, gameName);
 
-  let room = weightedPick(
-    cycle.aiPool,
-    userId,
-    gameName,
-    cycle.cycleKey,
-    usedRooms
-  );
+  const availableRooms = [];
 
-  if (usedRooms.includes(room)) {
-    session.usedRoomsByCycle[`${gameName}:${getCycleKey()}`] = [];
+  for (let room = config.min; room <= config.max; room++) {
+    if (!usedRooms.includes(room)) {
+      availableRooms.push(room);
+    }
   }
 
-  usedRooms.push(room);
+  // 全部抽完後重新開始
+  if (availableRooms.length === 0) {
+    session.usedRoomsByCycle[`${gameName}:${getCycleKey()}`] = [];
+
+    for (let room = config.min; room <= config.max; room++) {
+      availableRooms.push(room);
+    }
+  }
+
+  const room =
+    availableRooms[Math.floor(Math.random() * availableRooms.length)];
+
+  getUsedRooms(session, gameName).push(room);
+
+  session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
   return room;
