@@ -1,5 +1,5 @@
 const { reply, quickReply } = require("../../services/line");
-const { bubble, infoLine, metric, note } = require("../../ui/flex/premium");
+const { bubble, infoLine } = require("../../ui/flex/premium");
 
 const {
   electronicRecommendFlex,
@@ -17,28 +17,24 @@ const GAME_CONFIG = {
   古神巴風特: { name: "古神巴風特", min: 1, max: 1000, pad: 3 },
 };
 
-function getCycleKey() {
-  const now = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" })
-  );
+function taipeiNow() {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
+}
 
+function getCycleKey() {
+  const now = taipeiNow();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   const h = String(now.getHours()).padStart(2, "0");
   const mm = now.getMinutes() >= 30 ? "30" : "00";
-
   return `${y}${m}${d}${h}${mm}`;
 }
 
 function getUpdateTimeText() {
-  const now = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" })
-  );
-
+  const now = taipeiNow();
   const h = String(now.getHours()).padStart(2, "0");
   const mm = now.getMinutes() >= 30 ? "30" : "00";
-
   return `${h}:${mm}`;
 }
 
@@ -48,26 +44,71 @@ function formatRoom(gameName, room) {
   return String(room).padStart(config.pad, "0");
 }
 
-function scoreRoom(gameName, cycleKey, room) {
-  const input = `${gameName}:${cycleKey}:${room}`;
+function hashScore(input, max = 1000003) {
   let score = 0;
-
-  for (const char of input) {
-    score = (score * 31 + char.charCodeAt(0)) % 1000003;
+  for (const char of String(input)) {
+    score = (score * 31 + char.charCodeAt(0)) % max;
   }
-
   return score;
 }
 
-function createRoomList(gameName, cycleKey = getCycleKey()) {
+function normalizeScore(raw, min = 60, max = 99) {
+  return min + (raw % (max - min + 1));
+}
+
+function buildRoomData(gameName, cycleKey = getCycleKey()) {
   const config = GAME_CONFIG[gameName];
   const rooms = [];
 
-  for (let i = config.min; i <= config.max; i++) {
-    rooms.push(i);
+  for (let room = config.min; room <= config.max; room++) {
+    const aiRawA = hashScore(`AI:A:${gameName}:${cycleKey}:${room}`);
+    const aiRawB = hashScore(`AI:B:${cycleKey}:${gameName}:${room}:BD`);
+    const hotRawA = hashScore(`HOT:A:${gameName}:${cycleKey}:${room}`);
+    const hotRawB = hashScore(`HOT:B:${room}:${cycleKey}:${gameName}`);
+
+    const aiScore = Math.round(
+      normalizeScore(aiRawA, 68, 98) * 0.72 +
+      normalizeScore(aiRawB, 55, 96) * 0.28
+    );
+
+    const hotScore = Math.round(
+      normalizeScore(hotRawA, 65, 99) * 0.75 +
+      normalizeScore(hotRawB, 50, 95) * 0.25
+    );
+
+    rooms.push({
+      room,
+      aiScore,
+      hotScore,
+      aiNoise: aiRawB,
+      hotNoise: hotRawB,
+    });
   }
 
-  return rooms.sort((a, b) => scoreRoom(gameName, cycleKey, b) - scoreRoom(gameName, cycleKey, a));
+  return rooms;
+}
+
+function weightedPick(pool, userId, gameName, cycleKey, usedRooms) {
+  const available = pool.filter((item) => !usedRooms.includes(item.room));
+  const candidates = available.length ? available : pool;
+
+  const totalWeight = candidates.reduce((sum, item) => {
+    return sum + Math.max(1, item.aiScore - 55);
+  }, 0);
+
+  const seed = hashScore(
+    `${userId}:${gameName}:${cycleKey}:${Date.now()}:${Math.random()}`,
+    1000000007
+  );
+
+  let random = seed % totalWeight;
+
+  for (const item of candidates) {
+    random -= Math.max(1, item.aiScore - 55);
+    if (random <= 0) return item.room;
+  }
+
+  return candidates[0].room;
 }
 
 function getGameCycle(gameName) {
@@ -75,13 +116,32 @@ function getGameCycle(gameName) {
   const cacheKey = `${gameName}:${cycleKey}`;
 
   if (!CYCLE_CACHE.has(cacheKey)) {
-    const pool = createRoomList(gameName, cycleKey);
+    const rooms = buildRoomData(gameName, cycleKey);
+
+    const aiSorted = [...rooms].sort((a, b) => {
+      if (b.aiScore !== a.aiScore) return b.aiScore - a.aiScore;
+      return a.aiNoise - b.aiNoise;
+    });
+
+    const hotSorted = [...rooms].sort((a, b) => {
+      if (b.hotScore !== a.hotScore) return b.hotScore - a.hotScore;
+      return a.hotNoise - b.hotNoise;
+    });
+
+    const aiPoolSize = Math.max(30, Math.ceil(rooms.length * 0.08));
+    const aiPool = aiSorted.slice(0, aiPoolSize);
+
+    const hotRooms = hotSorted
+      .filter((item) => !aiPool.slice(0, 10).some((ai) => ai.room === item.room))
+      .slice(0, 10)
+      .map((item) => item.room);
 
     CYCLE_CACHE.set(cacheKey, {
       gameName,
       cycleKey,
-      pool,
-      hotRooms: pool.slice(0, 10),
+      rooms,
+      aiPool,
+      hotRooms,
       createdAt: Date.now(),
     });
   }
@@ -98,41 +158,36 @@ function getUserSession(userId) {
     return existing;
   }
 
-  if (existing) {
-    electronicSessions.delete(userId);
-  }
+  if (existing) electronicSessions.delete(userId);
 
-  if (!electronicSessions.has(userId)) {
-    electronicSessions.set(userId, {
-      gameName: null,
-      mode: null,
-      waitingCustomRoom: false,
-      usedRoomsByCycle: {},
-      updatedAt: Date.now(),
-    });
-  }
-
-  return electronicSessions.get(userId);
-}
-
-function setGameSession(userId, gameName) {
-  const session = getUserSession(userId);
-
-  session.gameName = gameName;
-  session.mode = "menu";
-  session.waitingCustomRoom = false;
-  session.updatedAt = Date.now();
+  const session = {
+    gameName: null,
+    mode: null,
+    waitingCustomRoom: false,
+    usedRoomsByCycle: {},
+    updatedAt: Date.now(),
+  };
 
   electronicSessions.set(userId, session);
   return session;
 }
 
-function electronicPromptFlex(title, lines = [], quickReply = null) {
+function setGameSession(userId, gameName) {
+  const session = getUserSession(userId);
+  session.gameName = gameName;
+  session.mode = "menu";
+  session.waitingCustomRoom = false;
+  session.updatedAt = Date.now();
+  electronicSessions.set(userId, session);
+  return session;
+}
+
+function electronicPromptFlex(title, lines = [], quickReplyData = null) {
   return bubble({
     altText: title,
     title,
     subtitle: "BLACKDOMAIN ELECTRONIC AI",
-    quickReply,
+    quickReply: quickReplyData,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: lines.map((line) => infoLine("提示", line)),
   });
@@ -140,11 +195,7 @@ function electronicPromptFlex(title, lines = [], quickReply = null) {
 
 function getUsedRooms(session, gameName) {
   const key = `${gameName}:${getCycleKey()}`;
-
-  if (!session.usedRoomsByCycle[key]) {
-    session.usedRoomsByCycle[key] = [];
-  }
-
+  if (!session.usedRoomsByCycle[key]) session.usedRoomsByCycle[key] = [];
   return session.usedRoomsByCycle[key];
 }
 
@@ -153,11 +204,16 @@ function getNextRecommendRoom(userId, gameName) {
   const cycle = getGameCycle(gameName);
   const usedRooms = getUsedRooms(session, gameName);
 
-  let room = cycle.pool.find((r) => !usedRooms.includes(r));
+  let room = weightedPick(
+    cycle.aiPool,
+    userId,
+    gameName,
+    cycle.cycleKey,
+    usedRooms
+  );
 
-  if (!room) {
+  if (usedRooms.includes(room)) {
     session.usedRoomsByCycle[`${gameName}:${getCycleKey()}`] = [];
-    room = cycle.pool[0];
   }
 
   usedRooms.push(room);
@@ -168,11 +224,7 @@ function getNextRecommendRoom(userId, gameName) {
 
 function parseRoomInput(text) {
   const raw = String(text || "").trim();
-
-  if (!/^\d+$/.test(raw)) {
-    return null;
-  }
-
+  if (!/^\d+$/.test(raw)) return null;
   const n = Number(raw);
   return Number.isInteger(n) ? n : null;
 }
@@ -180,9 +232,7 @@ function parseRoomInput(text) {
 function validateRoom(gameName, room) {
   const config = GAME_CONFIG[gameName];
 
-  if (!config) {
-    return { ok: false, message: "遊戲不存在。" };
-  }
+  if (!config) return { ok: false, message: "遊戲不存在。" };
 
   if (!Number.isInteger(room)) {
     return { ok: false, message: "房號格式錯誤，請輸入數字。" };
@@ -344,7 +394,10 @@ async function askCustomRoom(event) {
     event.replyToken,
     electronicPromptFlex("請輸入房號", [
       session.gameName,
-      `範圍：${formatRoom(session.gameName, config.min)} ~ ${formatRoom(session.gameName, config.max)}`,
+      `範圍：${formatRoom(session.gameName, config.min)} ~ ${formatRoom(
+        session.gameName,
+        config.max
+      )}`,
     ])
   );
 }
@@ -383,13 +436,9 @@ async function handleElectronicMessage(event) {
   const userId = event.source.userId;
   const session = getUserSession(userId);
 
-  if (GAME_CONFIG[text]) {
-    return selectGame(event, text);
-  }
+  if (GAME_CONFIG[text]) return selectGame(event, text);
 
-  if (session.waitingCustomRoom) {
-    return analyzeCustomRoom(event, text);
-  }
+  if (session.waitingCustomRoom) return analyzeCustomRoom(event, text);
 
   if (text === "AI推薦房" || text === "🤖 AI推薦房") {
     return recommendRoom(event);
