@@ -6,7 +6,7 @@ function gameBubble(imageUrl, gameName) {
       type: "image",
       url: imageUrl,
       size: "full",
-      aspectRatio: "16:9",
+      aspectRatio: "16:16",
       aspectMode: "cover",
       action: {
         type: "message",
