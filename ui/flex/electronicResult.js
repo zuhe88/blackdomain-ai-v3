@@ -1,184 +1,51 @@
+const { bubble, infoLine, metric, note } = require("./premium");
+
 function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
-  return card({
+  return bubble({
     altText: "AI推薦房",
-    title: "AI 推薦房",
-    gameName,
-    label: "推薦房號",
-    value: room,
-    note: `更新時間：${updateTime}`,
+    title: "AI推薦房",
+    subtitle: gameName,
     quickReply,
+    footer: "BLACKDOMAIN ELECTRONIC AI",
+    contents: [
+      metric("推薦房號", room, "依目前週期 AI 排序產生"),
+      infoLine("推薦原因", "依照本期活躍房排序與使用紀錄篩選"),
+      infoLine("更新時間", updateTime),
+      note("BLACKDOMAIN AI 僅提供分析參考。"),
+    ],
   });
 }
 
 function electronicAnalyzeFlex(gameName, room, updateTime, quickReply) {
-  return card({
+  return bubble({
     altText: "自選房號分析",
     title: "自選房號分析",
-    gameName,
-    label: "分析房號",
-    value: room,
-    note: `AI 已完成分析｜${updateTime}`,
+    subtitle: gameName,
     quickReply,
+    footer: "BLACKDOMAIN ELECTRONIC AI",
+    contents: [
+      metric("分析房號", room, "AI 已完成分析"),
+      infoLine("活躍度", "AI監控中"),
+      infoLine("波動", "AI監控中"),
+      infoLine("AI監控", "已納入本期觀察"),
+      infoLine("建議", "搭配熱門排行與資金控管使用"),
+      infoLine("更新時間", updateTime),
+    ],
   });
 }
 
 function electronicRankFlex(gameName, rooms, updateTime, quickReply) {
-  return {
-    type: "flex",
+  return bubble({
     altText: "熱門房排行",
+    title: "熱門房排行",
+    subtitle: gameName,
     quickReply,
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: "#050505",
-        paddingAll: "20px",
-        spacing: "md",
-        contents: [
-          header("熱門房排行", gameName),
-          ...rooms.map((room, i) => rankRow(i + 1, room)),
-          {
-            type: "text",
-            text: `更新時間：${updateTime}`,
-            size: "xs",
-            color: "#777777",
-            align: "center",
-            margin: "md",
-          },
-        ],
-      },
-    },
-  };
-}
-
-function card({ altText, title, gameName, label, value, note, quickReply }) {
-  return {
-    type: "flex",
-    altText,
-    quickReply,
-    contents: {
-      type: "bubble",
-      size: "mega",
-      body: {
-        type: "box",
-        layout: "vertical",
-        backgroundColor: "#050505",
-        paddingAll: "20px",
-        spacing: "md",
-        contents: [
-          header(title, gameName),
-          {
-            type: "box",
-            layout: "vertical",
-            backgroundColor: "#111111",
-            cornerRadius: "14px",
-            paddingAll: "18px",
-            spacing: "sm",
-            contents: [
-              {
-                type: "text",
-                text: label,
-                size: "sm",
-                color: "#A8A8A8",
-                align: "center",
-              },
-              {
-                type: "text",
-                text: String(value),
-                size: "xxl",
-                weight: "bold",
-                color: "#D6B46A",
-                align: "center",
-              },
-              {
-                type: "text",
-                text: note,
-                size: "sm",
-                color: "#FFFFFF",
-                align: "center",
-                margin: "md",
-              },
-            ],
-          },
-          {
-            type: "text",
-            text: "BLACKDOMAIN ELECTRONIC AI",
-            size: "xs",
-            color: "#777777",
-            align: "center",
-          },
-        ],
-      },
-    },
-  };
-}
-
-function header(title, gameName) {
-  return {
-    type: "box",
-    layout: "vertical",
-    spacing: "xs",
+    footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      {
-        type: "text",
-        text: "BLACKDOMAIN AI",
-        size: "xl",
-        weight: "bold",
-        color: "#D6B46A",
-        align: "center",
-      },
-      {
-        type: "text",
-        text: gameName,
-        size: "md",
-        weight: "bold",
-        color: "#FFFFFF",
-        align: "center",
-      },
-      {
-        type: "text",
-        text: title,
-        size: "sm",
-        color: "#A8A8A8",
-        align: "center",
-      },
-      {
-        type: "separator",
-        margin: "lg",
-      },
+      ...rooms.map((room, index) => infoLine(`TOP${String(index + 1).padStart(2, "0")}`, `${room}｜熱度 ${100 - index * 3}`)),
+      infoLine("更新時間", updateTime),
     ],
-  };
-}
-
-function rankRow(rank, room) {
-  return {
-    type: "box",
-    layout: "horizontal",
-    backgroundColor: "#111111",
-    cornerRadius: "12px",
-    paddingAll: "14px",
-    contents: [
-      {
-        type: "text",
-        text: String(rank).padStart(2, "0"),
-        size: "md",
-        weight: "bold",
-        color: "#D6B46A",
-        flex: 1,
-      },
-      {
-        type: "text",
-        text: String(room),
-        size: "lg",
-        weight: "bold",
-        color: "#FFFFFF",
-        align: "end",
-        flex: 3,
-      },
-    ],
-  };
+  });
 }
 
 module.exports = {

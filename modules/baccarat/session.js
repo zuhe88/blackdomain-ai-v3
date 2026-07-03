@@ -1,6 +1,6 @@
 const sessions = new Map();
 
-const SESSION_TIMEOUT = 10 * 60 * 1000;
+const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 function now() {
   return Date.now();

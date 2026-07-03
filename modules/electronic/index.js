@@ -1,4 +1,5 @@
-const { reply, textMessage, quickReply } = require("../../services/line");
+const { reply, quickReply } = require("../../services/line");
+const { bubble, infoLine, metric, note } = require("../../ui/flex/premium");
 
 const {
   electronicRecommendFlex,
@@ -8,6 +9,7 @@ const {
 
 const electronicSessions = new Map();
 const CYCLE_CACHE = new Map();
+const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -46,22 +48,18 @@ function formatRoom(gameName, room) {
   return String(room).padStart(config.pad, "0");
 }
 
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+function scoreRoom(gameName, cycleKey, room) {
+  const input = `${gameName}:${cycleKey}:${room}`;
+  let score = 0;
 
-function shuffle(array) {
-  const arr = [...array];
-
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = randomInt(0, i);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
+  for (const char of input) {
+    score = (score * 31 + char.charCodeAt(0)) % 1000003;
   }
 
-  return arr;
+  return score;
 }
 
-function createRoomList(gameName) {
+function createRoomList(gameName, cycleKey = getCycleKey()) {
   const config = GAME_CONFIG[gameName];
   const rooms = [];
 
@@ -69,7 +67,7 @@ function createRoomList(gameName) {
     rooms.push(i);
   }
 
-  return shuffle(rooms);
+  return rooms.sort((a, b) => scoreRoom(gameName, cycleKey, b) - scoreRoom(gameName, cycleKey, a));
 }
 
 function getGameCycle(gameName) {
@@ -77,13 +75,13 @@ function getGameCycle(gameName) {
   const cacheKey = `${gameName}:${cycleKey}`;
 
   if (!CYCLE_CACHE.has(cacheKey)) {
-    const pool = createRoomList(gameName);
+    const pool = createRoomList(gameName, cycleKey);
 
     CYCLE_CACHE.set(cacheKey, {
       gameName,
       cycleKey,
       pool,
-      hotRooms: pool.slice(0, 5),
+      hotRooms: pool.slice(0, 10),
       createdAt: Date.now(),
     });
   }
@@ -92,12 +90,25 @@ function getGameCycle(gameName) {
 }
 
 function getUserSession(userId) {
+  const existing = electronicSessions.get(userId);
+
+  if (existing && Date.now() - existing.updatedAt <= SESSION_TIMEOUT) {
+    existing.updatedAt = Date.now();
+    electronicSessions.set(userId, existing);
+    return existing;
+  }
+
+  if (existing) {
+    electronicSessions.delete(userId);
+  }
+
   if (!electronicSessions.has(userId)) {
     electronicSessions.set(userId, {
       gameName: null,
       mode: null,
       waitingCustomRoom: false,
       usedRoomsByCycle: {},
+      updatedAt: Date.now(),
     });
   }
 
@@ -110,9 +121,21 @@ function setGameSession(userId, gameName) {
   session.gameName = gameName;
   session.mode = "menu";
   session.waitingCustomRoom = false;
+  session.updatedAt = Date.now();
 
   electronicSessions.set(userId, session);
   return session;
+}
+
+function electronicPromptFlex(title, lines = [], quickReply = null) {
+  return bubble({
+    altText: title,
+    title,
+    subtitle: "BLACKDOMAIN ELECTRONIC AI",
+    quickReply,
+    footer: "BLACKDOMAIN ELECTRONIC AI",
+    contents: lines.map((line) => infoLine("提示", line)),
+  });
 }
 
 function getUsedRooms(session, gameName) {
@@ -212,28 +235,23 @@ function afterAnalyzeQuickReply() {
 }
 
 async function showElectronicMain(event) {
-  return reply(
-    event.replyToken,
-    textMessage("請先回到電子 AI 選單選擇遊戲。")
-  );
+  const electronicMenuFlex = require("../../ui/flex/electronicMenu");
+  return reply(event.replyToken, electronicMenuFlex());
 }
 
 async function selectGame(event, gameName) {
   const userId = event.source.userId;
 
   if (!GAME_CONFIG[gameName]) {
-    return reply(event.replyToken, textMessage("❌ 遊戲不存在，請重新選擇。"));
+    return reply(event.replyToken, electronicPromptFlex("遊戲不存在", ["請重新選擇。"]));
   }
 
   setGameSession(userId, gameName);
 
-  return reply(
-    event.replyToken,
-    textMessage(
-      `⚡ BLACKDOMAIN AI\n\n${gameName}\n\n請選擇功能。`,
-      electronicModeQuickReply()
-    )
-  );
+  const electronicGameMenu = require("../../ui/flex/electronicGameMenu");
+  const message = electronicGameMenu(gameName);
+  message.quickReply = electronicModeQuickReply();
+  return reply(event.replyToken, message);
 }
 
 async function showGameMenu(event) {
@@ -244,15 +262,13 @@ async function showGameMenu(event) {
 
   session.mode = "menu";
   session.waitingCustomRoom = false;
+  session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
-  return reply(
-    event.replyToken,
-    textMessage(
-      `⚡ BLACKDOMAIN AI\n\n${session.gameName}\n\n請選擇功能。`,
-      electronicModeQuickReply()
-    )
-  );
+  const electronicGameMenu = require("../../ui/flex/electronicGameMenu");
+  const message = electronicGameMenu(session.gameName);
+  message.quickReply = electronicModeQuickReply();
+  return reply(event.replyToken, message);
 }
 
 async function recommendRoom(event) {
@@ -263,6 +279,7 @@ async function recommendRoom(event) {
 
   session.mode = "recommend";
   session.waitingCustomRoom = false;
+  session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
   const room = formatRoom(
@@ -293,6 +310,7 @@ async function showHotRank(event) {
 
   session.mode = "rank";
   session.waitingCustomRoom = false;
+  session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
   const cycle = getGameCycle(session.gameName);
@@ -317,18 +335,17 @@ async function askCustomRoom(event) {
 
   session.mode = "custom";
   session.waitingCustomRoom = true;
+  session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
   const config = GAME_CONFIG[session.gameName];
 
   return reply(
     event.replyToken,
-    textMessage(
-      `請輸入房號\n\n${session.gameName}\n範圍：${formatRoom(
-        session.gameName,
-        config.min
-      )} ~ ${formatRoom(session.gameName, config.max)}`
-    )
+    electronicPromptFlex("請輸入房號", [
+      session.gameName,
+      `範圍：${formatRoom(session.gameName, config.min)} ~ ${formatRoom(session.gameName, config.max)}`,
+    ])
   );
 }
 
@@ -342,11 +359,12 @@ async function analyzeCustomRoom(event, text) {
   const check = validateRoom(session.gameName, room);
 
   if (!check.ok) {
-    return reply(event.replyToken, textMessage(check.message));
+    return reply(event.replyToken, electronicPromptFlex("房號錯誤", [check.message]));
   }
 
   session.mode = "menu";
   session.waitingCustomRoom = false;
+  session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
   return reply(
@@ -402,6 +420,8 @@ function isElectronicCommand(text) {
   return (
     text === "電子" ||
     text === "電子AI" ||
+    text === "Electronic" ||
+    text === "⚡ 電子AI" ||
     text === "🎰 電子AI" ||
     text === "戰神賽特1" ||
     text === "戰神賽特2" ||

@@ -40,45 +40,55 @@ function predict(history = []) {
   return last === "莊" ? "閒" : "莊";
 }
 
+function nextPredictionFromOutcome(session, outcome) {
+  if (!session.lastPrediction) {
+    return predict([]);
+  }
+
+  if (outcome === "過" || outcome === "和") {
+    return session.lastPrediction;
+  }
+
+  return session.lastPrediction === "莊" ? "閒" : "莊";
+}
+
 function calculateBet(session) {
   if (session.mode === "自由配注") {
     return 0;
   }
 
   if (session.mode === "天門") {
-    const base = getBaseBet(session);
     const levels = [1, 3, 7, 15, 31];
     const level = session.tianmenLevel || 1;
-    return clampBet(base * levels[level - 1], session.maxBet);
+    return clampBet(100 * levels[level - 1], Math.min(session.maxBet, session.bankroll));
   }
 
-  return getBaseBet(session);
+  return clampBet(getBaseBet(session), Math.min(session.maxBet, session.bankroll));
 }
 
-function applyResult(session, opened) {
-  const lastPrediction = session.lastPrediction;
+function applyResult(session, outcome) {
   const lastBet = Number(session.lastBet || 0);
 
-  if (!lastPrediction) {
+  if (!session.lastPrediction) {
     return session;
   }
 
-  if (opened === "和") {
+  if (outcome === "和") {
     session.results.tie += 1;
     return session;
   }
 
-  if (opened === lastPrediction) {
+  if (outcome === "過") {
     session.results.win += 1;
 
     if (session.mode !== "自由配注") {
-      session.bankroll += opened === "莊" ? lastBet * 0.95 : lastBet;
+      session.bankroll += session.lastPrediction === "莊" ? lastBet * 0.95 : lastBet;
     }
 
     if (session.mode === "天門") {
       session.tianmenLevel = 1;
     }
-  } else {
+  } else if (outcome === "倒") {
     session.results.lose += 1;
 
     if (session.mode !== "自由配注") {
@@ -102,7 +112,7 @@ function nextAnalysis(session, opened) {
 
   session = applyResult(session, opened);
 
-  const prediction = predict(session.history);
+  const prediction = nextPredictionFromOutcome(session, opened);
   const bet = calculateBet(session);
 
   session.lastPrediction = prediction;
@@ -129,7 +139,29 @@ function firstAnalysis(session) {
   };
 }
 
+function getConfidence(session) {
+  const total = session.results.win + session.results.lose + session.results.tie;
+  if (!total) return "觀察中";
+
+  const rate = Math.round((session.results.win / total) * 100);
+  return `${rate}%`;
+}
+
+function getReason(session) {
+  if (session.mode === "自由配注") {
+    return "自由配注模式，AI僅負責紀錄。";
+  }
+
+  if (session.mode === "天門") {
+    return "依天門五關與單注上限控管。";
+  }
+
+  return "依目前牌路與資金控管產生建議。";
+}
+
 module.exports = {
   firstAnalysis,
   nextAnalysis,
+  getConfidence,
+  getReason,
 };

@@ -6,6 +6,7 @@ const root = path.join(__dirname, "..");
 const captured = {
   replies: [],
   pushes: [],
+  multicasts: [],
   routes: {
     use: [],
     get: [],
@@ -54,6 +55,10 @@ class MockLineClient {
   async pushMessage(userId, messages) {
     captured.pushes.push({ userId, messages });
   }
+
+  async multicast(userIds, messages) {
+    captured.multicasts.push({ userIds, messages });
+  }
 }
 
 Module._load = function patchedLoad(request, parent, isMain) {
@@ -84,11 +89,34 @@ Module._load = function patchedLoad(request, parent, isMain) {
     };
   }
 
+  if (request === "@supabase/supabase-js") {
+    return {
+      createClient() {
+        return {
+          from() {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              async maybeSingle() {
+                return { data: null, error: null };
+              },
+            };
+          },
+        };
+      },
+    };
+  }
+
   return originalLoad.apply(this, arguments);
 };
 
 const { handleEvent } = require("../index");
-const { image, push } = require("../services/line");
+const baccaratAi = require("../modules/baccarat/ai");
+const { image, multicast, push } = require("../services/line");
 const uiQuickReply = require("../ui/quickReply");
 
 function event(text, userId = "user-smoke") {
@@ -207,6 +235,10 @@ function assertMessage(message) {
     if (value.includes("??") || value.includes("�")) {
       throw new Error("Detected corrupted text marker");
     }
+
+    if (/\b(Error|undefined|null|Exception|Stack)\b/.test(value)) {
+      throw new Error("Detected user-facing technical error text");
+    }
   });
 }
 
@@ -227,9 +259,123 @@ async function send(text, userId) {
   return captured.replies[captured.replies.length - 1];
 }
 
+async function sendAndTexts(text, userId) {
+  const response = await send(text, userId);
+  return response.messages.flatMap(collectMessageText);
+}
+
+function assertIncludes(values, expected, label) {
+  if (!values.some((value) => String(value).includes(expected))) {
+    throw new Error(`${label} missing expected text: ${expected}`);
+  }
+}
+
+function assert539Numbers(values) {
+  const joined = values.join(" ");
+  const numberGroups = joined.match(/\b(?:0[1-9]|[12][0-9]|3[0-9])(?:　(?:0[1-9]|[12][0-9]|3[0-9])){4}\b/g);
+  if (!numberGroups || numberGroups.length < 4) {
+    throw new Error("539 analysis must include prediction, hot, cold, and stable number groups");
+  }
+
+  numberGroups.forEach((group) => {
+    const numbers = group.split("　");
+    if (new Set(numbers).size !== 5) {
+      throw new Error("539 number group contains duplicates");
+    }
+  });
+}
+
+function assertBaccaratLogic() {
+  const aiBetSession = {
+    mode: "AI配注",
+    bankroll: 3000,
+    capital: 3000,
+    maxBet: 50,
+    history: [],
+    results: { win: 0, lose: 0, tie: 0 },
+    tianmenLevel: 1,
+  };
+  let result = baccaratAi.firstAnalysis(aiBetSession);
+  if (result.bet !== 50) throw new Error("Baccarat bet limit must cap AI bet");
+  const beforeWinBankroll = result.session.bankroll;
+  result = baccaratAi.nextAnalysis(result.session, "過");
+  if (result.session.bankroll <= beforeWinBankroll) throw new Error("Baccarat 過 must increase bankroll");
+
+  const tieSession = {
+    mode: "AI配注",
+    bankroll: 3000,
+    capital: 3000,
+    maxBet: 500,
+    history: [],
+    results: { win: 0, lose: 0, tie: 0 },
+    tianmenLevel: 1,
+  };
+  result = baccaratAi.firstAnalysis(tieSession);
+  const beforeTieBankroll = result.session.bankroll;
+  result = baccaratAi.nextAnalysis(result.session, "和");
+  if (result.session.bankroll !== beforeTieBankroll) throw new Error("Baccarat 和 must not change bankroll");
+
+  const heavenSession = {
+    mode: "天門",
+    bankroll: 3000,
+    capital: 3000,
+    maxBet: 80,
+    history: [],
+    results: { win: 0, lose: 0, tie: 0 },
+    tianmenLevel: 1,
+  };
+  result = baccaratAi.firstAnalysis(heavenSession);
+  if (result.bet !== 80) throw new Error("Heaven Mode must cap first level by max bet");
+
+  const freeSession = {
+    mode: "自由配注",
+    bankroll: 3000,
+    capital: 3000,
+    maxBet: 500,
+    history: [],
+    results: { win: 0, lose: 0, tie: 0 },
+    tianmenLevel: 1,
+  };
+  result = baccaratAi.firstAnalysis(freeSession);
+  if (result.bet !== 0) throw new Error("Free Bet must not recommend stake");
+}
+
 async function main() {
+  assertBaccaratLogic();
+
+  ["config", "modules", "services", "database", "middleware", "routes", "flex", "assets", "public", "utils", "logs", "scripts", "types"].forEach((dir) => {
+    if (!fs.existsSync(path.join(root, dir))) {
+      throw new Error(`Missing architecture directory: ${dir}`);
+    }
+  });
+
+  ["app.js", "server.js", "package.json"].forEach((file) => {
+    if (!fs.existsSync(path.join(root, file))) {
+      throw new Error(`Missing root file: ${file}`);
+    }
+  });
+
+  const standardModules = ["baccarat", "electronic", "sports", "lottery539", "vip"];
+  const standardFiles = ["index.js", "handler.js", "service.js", "flex.js", "validator.js", "constants.js", "session.js", "repository.js"];
+  standardModules.forEach((moduleName) => {
+    standardFiles.forEach((file) => {
+      if (!fs.existsSync(path.join(root, "modules", moduleName, file))) {
+        throw new Error(`Missing module standard file: ${moduleName}/${file}`);
+      }
+    });
+  });
+
   const imageRoute = captured.routes.use.find((route) => route.route === "/images");
   if (!imageRoute) throw new Error("Missing /images static route");
+
+  const publicImageRoute = captured.routes.use.find((route) => route.route === "/public/images");
+  if (!publicImageRoute) throw new Error("Missing /public/images static route");
+
+  ["/images/home", "/images/baccarat", "/images/electronic", "/images/sport", "/images/539", "/images/vip", "/images/admin"].forEach((route) => {
+    if (!captured.routes.use.find((item) => item.route === route)) {
+      throw new Error(`Missing image route: ${route}`);
+    }
+  });
 
   const staticPath = captured.routes.static[0];
   if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) {
@@ -243,67 +389,144 @@ async function main() {
     }
   });
 
-  for (const text of ["黑域AI", "首頁", "開始", "選單"]) {
-    await send(text, `main-${text}`);
+  for (const text of ["黑域AI", "首頁", "開始", "menu", "選單"]) {
+    const values = await sendAndTexts(text, `main-${text}`);
+    ["🎲 百家樂AI", "⚡ 電子AI", "⚽ 體育AI", "🎯 539AI", "👑 VIP中心", "🌐 黑域官網", "📞 聯繫管理員"].forEach((label) => {
+      assertIncludes(values, label, "Home menu");
+    });
   }
 
-  for (const text of ["電子", "電子AI", "🎰 電子AI"]) {
+  for (const text of ["電子", "電子AI", "Electronic", "⚡ 電子AI"]) {
     await send(text, `electronic-menu-${text}`);
   }
 
-  const electronicUser = "electronic-flow";
-  for (const text of [
-    "戰神賽特1",
-    "AI推薦房",
-    "換一間",
-    "熱門房排行",
-    "自選房號分析",
-    "123",
-    "返回電子功能",
-    "戰神賽特2",
-    "古神巴風特",
-  ]) {
-    await send(text, electronicUser);
+  for (const game of ["戰神賽特1", "戰神賽特2", "古神巴風特"]) {
+    const electronicUser = `electronic-flow-${game}`;
+    let values = await sendAndTexts(game, electronicUser);
+    assertIncludes(values, "AI推薦房", `${game} menu`);
+    assertIncludes(values, "熱門房排行", `${game} menu`);
+    assertIncludes(values, "自選房號分析", `${game} menu`);
+
+    values = await sendAndTexts("AI推薦房", electronicUser);
+    assertIncludes(values, "推薦房號", `${game} recommend`);
+    assertIncludes(values, "推薦原因", `${game} recommend`);
+
+    values = await sendAndTexts("熱門房排行", electronicUser);
+    assertIncludes(values, "TOP10", `${game} ranking`);
+    assertIncludes(values, "更新時間", `${game} ranking`);
+
+    values = await sendAndTexts("自選房號分析", electronicUser);
+    assertIncludes(values, "請輸入房號", `${game} custom prompt`);
+
+    values = await sendAndTexts(game === "戰神賽特2" ? "4000" : "123", electronicUser);
+    assertIncludes(values, "活躍度", `${game} analysis`);
+    assertIncludes(values, "波動", `${game} analysis`);
+    assertIncludes(values, "AI監控", `${game} analysis`);
+    assertIncludes(values, "建議", `${game} analysis`);
   }
 
   const baccaratUser = "baccarat-flow";
-  for (const text of ["百家樂", "DG", "01", "3000", "500", "AI配注", "莊", "閒", "和", "結束分析"]) {
+  for (const text of ["百家樂", "DG", "DG01", "3000", "500"]) {
     const reply = await send(text, baccaratUser);
     reply.messages.forEach((message) => {
       if (message.type !== "flex") throw new Error("Baccarat must reply with Flex UI");
     });
   }
+  let baccaratValues = await sendAndTexts("AI配注", baccaratUser);
+  ["預測", "建議下注", "信心值", "建議原因", "單注上限", "目前本金", "目前獲利"].forEach((field) => {
+    assertIncludes(baccaratValues, field, "Baccarat AI Bet");
+  });
+  baccaratValues = await sendAndTexts("過", baccaratUser);
+  assertIncludes(baccaratValues, "過", "Baccarat over");
+  assertIncludes(baccaratValues, "目前獲利", "Baccarat profit");
+  baccaratValues = await sendAndTexts("倒", baccaratUser);
+  assertIncludes(baccaratValues, "倒", "Baccarat loss");
+  baccaratValues = await sendAndTexts("和", baccaratUser);
+  assertIncludes(baccaratValues, "和", "Baccarat tie");
+  await send("返回房號", baccaratUser);
+  await send("DG02", baccaratUser);
+  await send("3000", baccaratUser);
+  await send("500", baccaratUser);
+  await send("AI配注", baccaratUser);
+  await send("結束分析", baccaratUser);
 
   const baccaratUserMt = "baccarat-mt-flow";
-  for (const text of ["百家樂AI", "MT", "3A", "3000.5", "500.5", "天門", "莊", "取消"]) {
+  for (const text of ["百家樂AI", "MT", "3A", "3000", "500"]) {
     const reply = await send(text, baccaratUserMt);
     reply.messages.forEach((message) => {
       if (message.type !== "flex") throw new Error("Baccarat must reply with Flex UI");
     });
   }
+  baccaratValues = await sendAndTexts("天門", baccaratUserMt);
+  assertIncludes(baccaratValues, "天門", "Baccarat Heaven Mode");
+  assertIncludes(baccaratValues, "建議下注", "Baccarat Heaven Mode bet");
+  await send("過", baccaratUserMt);
+  await send("取消", baccaratUserMt);
 
   const baccaratUserFree = "baccarat-free-flow";
-  for (const text of ["🤖 百家樂AI", "MT", "13A", "3,000", "500", "自由配注", "和"]) {
+  for (const text of ["baccarat", "MT", "MT13", "3,000", "500"]) {
     const reply = await send(text, baccaratUserFree);
     reply.messages.forEach((message) => {
       if (message.type !== "flex") throw new Error("Baccarat must reply with Flex UI");
     });
   }
+  baccaratValues = await sendAndTexts("自由配注", baccaratUserFree);
+  assertIncludes(baccaratValues, "自行控注", "Baccarat Free Bet");
+  await send("和", baccaratUserFree);
 
-  for (const text of ["539", "539AI", "📊 539AI", "539預測", "539今日"]) {
-    await send(text, `539-${text}`);
+  for (const text of ["539", "539AI", "今彩539", "🎯 539AI", "🔥 AI今日預測", "📈 熱號分析", "📉 冷號分析", "⭐ 穩定號分析", "📊 歷史開獎"]) {
+    const values = await sendAndTexts(text, `539-${text}`);
+    if (!["539", "539AI", "今彩539", "🎯 539AI", "📊 歷史開獎"].includes(text)) {
+      assert539Numbers(values);
+    }
   }
 
-  for (const text of ["體育", "體育AI", "⚽ 體育AI", "MLB", "NBA", "世界盃"]) {
-    await send(text, `sports-${text}`);
+  for (const text of ["體育", "體育AI", "SPORT", "SPORT AI", "世足", "世足AI", "MLB", "MLB AI", "NBA"]) {
+    const values = await sendAndTexts(text, `sports-${text}`);
+    if (["世足", "世足AI", "MLB", "MLB AI", "NBA"].includes(text)) {
+      assertIncludes(values, "目前尚無可分析賽事", `SPORT ${text}`);
+    }
   }
 
-  for (const text of ["VIP", "VIP查詢", "👑 VIP查詢", "VIP會員", "會員中心"]) {
-    await send(text, `vip-${text}`);
+  for (const text of ["VIP", "vip", "VIP查詢", "我的VIP", "會員", "VIP中心", "👑 VIP中心"]) {
+    const values = await sendAndTexts(text, `vip-${text}`);
+    ["VIP狀態", "到期日期", "剩餘天數", "AI權限"].forEach((field) => {
+      assertIncludes(values, field, `VIP ${text}`);
+    });
   }
 
-  for (const text of ["幸運盒", "Lucky Box", "LUCKY BOX", "抽獎", "開盒"]) {
-    await send(text, `lucky-${text}`);
+  for (const text of [
+    "黑域官網",
+    "官網",
+    "🌐 黑域官網",
+    "聯繫管理員",
+    "客服",
+    "管理員",
+    "admin",
+    "開通VIP",
+    "延長VIP",
+    "取消VIP",
+    "查詢VIP",
+    "使用者",
+    "Session",
+    "Log",
+    "發送公告",
+    "維護公告",
+    "更新公告",
+    "刷新AI",
+    "查看AI狀態",
+    "查看Railway",
+    "查看Supabase",
+    "查看Version",
+  ]) {
+    const values = await sendAndTexts(text, `official-${text}`);
+    if (["黑域官網", "官網", "🌐 黑域官網"].includes(text)) {
+      assertIncludes(values, "黑域官網", "Official website");
+    } else if (["聯繫管理員", "客服"].includes(text)) {
+      assertIncludes(values, "聯繫管理員", "Contact admin");
+    } else {
+      assertIncludes(values, "無權限使用此功能", `Admin ${text}`);
+    }
   }
 
   for (const text of ["未知指令"]) {
@@ -314,8 +537,12 @@ async function main() {
   if (captured.pushes.length !== 1) throw new Error("Expected pushMessage to be called");
   captured.pushes[0].messages.forEach(assertMessage);
 
-  const imageFallback = image("http://example.com/not-secure.png");
-  assertMessage(imageFallback);
+  await multicast(["user-a", "user-b"], "群發測試");
+  if (captured.multicasts.length !== 1) throw new Error("Expected multicast to be called");
+  captured.multicasts[0].messages.forEach(assertMessage);
+
+  const imageMessage = image("https://example.com/image.png");
+  assertMessage(imageMessage);
 
   process.env.IMG_SET1 = "http://example.com/not-secure.png";
   const gameQuickReply = uiQuickReply.electronicGames();
@@ -323,7 +550,7 @@ async function main() {
     throw new Error("Invalid quickReply imageUrl should be omitted");
   }
 
-  console.log(`Smoke test passed: ${captured.replies.length} replies, ${captured.pushes.length} push.`);
+  console.log(`Smoke test passed: ${captured.replies.length} replies, ${captured.pushes.length} push, ${captured.multicasts.length} multicast.`);
 }
 
 main().catch((err) => {

@@ -1,4 +1,5 @@
 const line = require("@line/bot-sdk");
+const { USER_ERROR_TEXT, logError } = require("../utils/errorCodes");
 
 const lineConfig = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -19,7 +20,7 @@ function isHttpsUrl(value) {
 function text(text, quickReply = null) {
   const message = {
     type: "text",
-    text: trim(text || "系統忙碌中，請稍後再試。", 5000),
+    text: trim(text || USER_ERROR_TEXT, 5000),
   };
 
   if (quickReply) {
@@ -39,7 +40,8 @@ function flex(altText, contents) {
 
 function image(originalContentUrl, previewImageUrl = originalContentUrl) {
   if (!isHttpsUrl(originalContentUrl) || !isHttpsUrl(previewImageUrl)) {
-    return text("圖片暫時無法顯示，請稍後再試。");
+    logError("E005", new Error("Invalid image URL"));
+    return text(USER_ERROR_TEXT);
   }
 
   return {
@@ -89,7 +91,10 @@ function normalizeMessages(messages) {
     .slice(0, 5)
     .map((message) => {
       if (typeof message === "string") return text(message);
-      if (!message.type) return text("系統回覆格式異常，請重新操作。");
+      if (!message.type) {
+        logError("E006", new Error("Invalid LINE message object"));
+        return text(USER_ERROR_TEXT);
+      }
       return message;
     });
 }
@@ -98,10 +103,7 @@ async function reply(replyToken, messages) {
   try {
     await lineClient.replyMessage(replyToken, normalizeMessages(messages));
   } catch (err) {
-    console.error("LINE_REPLY_ERROR:", err.message);
-    if (err.originalError?.response?.data) {
-      console.error(JSON.stringify(err.originalError.response.data, null, 2));
-    }
+    logError("E001", err);
   }
 }
 
@@ -109,10 +111,15 @@ async function push(userId, messages) {
   try {
     await lineClient.pushMessage(userId, normalizeMessages(messages));
   } catch (err) {
-    console.error("LINE_PUSH_ERROR:", err.message);
-    if (err.originalError?.response?.data) {
-      console.error(JSON.stringify(err.originalError.response.data, null, 2));
-    }
+    logError("E002", err);
+  }
+}
+
+async function multicast(userIds, messages) {
+  try {
+    await lineClient.multicast(userIds, normalizeMessages(messages));
+  } catch (err) {
+    logError("E002", err);
   }
 }
 
@@ -128,4 +135,5 @@ module.exports = {
   quickReply,
   reply,
   push,
+  multicast,
 };

@@ -1,7 +1,8 @@
 const { reply, quickReply } = require("../../services/line");
-const { bubble, card, infoLine, metric, note, text } = require("../../ui/flex/premium");
+const { updateSession } = require("../../utils/sessionStore");
+const { bubble, card, infoLine, note, text } = require("../../ui/flex/premium");
 
-const MENU_COMMANDS = ["體育", "體育AI", "⚽ 體育AI", "MLB", "NBA", "世界盃"];
+const MENU_COMMANDS = ["體育", "體育AI", "SPORT", "SPORT AI", "世足", "世足AI", "MLB", "MLB AI", "NBA"];
 
 function isSportsCommand(text) {
   return MENU_COMMANDS.includes(String(text || "").trim());
@@ -9,30 +10,18 @@ function isSportsCommand(text) {
 
 function sportsQuickReply() {
   return quickReply([
-    { label: "MLB", text: "MLB" },
+    { label: "世足AI", text: "世足" },
+    { label: "MLB AI", text: "MLB" },
     { label: "NBA", text: "NBA" },
-    { label: "世界盃", text: "世界盃" },
-    { label: "回首頁", text: "首頁" },
+    { label: "返回首頁", text: "首頁" },
   ]);
 }
 
-function scoreSeed(text) {
-  return Array.from(String(text)).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-}
-
-function buildAnalysis(league) {
-  const seed = scoreSeed(`${league}:${new Date().toISOString().slice(0, 10)}`);
-  const confidence = 62 + (seed % 24);
-  const pace = ["穩健", "偏快", "拉鋸", "高壓"][seed % 4];
-  const risk = ["低", "中", "中高"][seed % 3];
-  const recommendation = confidence >= 78 ? "可列入觀察名單" : "建議保守觀察";
-
-  return {
-    confidence,
-    pace,
-    risk,
-    recommendation,
-  };
+function backQuickReply() {
+  return quickReply([
+    { label: "返回聯盟", text: "體育" },
+    { label: "返回首頁", text: "首頁" },
+  ]);
 }
 
 function menuFlex() {
@@ -43,47 +32,78 @@ function menuFlex() {
     quickReply: sportsQuickReply(),
     footer: "BLACKDOMAIN SPORTS AI",
     contents: [
-      text("請選擇賽事類型", {
+      text("請選擇分析項目", {
         size: "md",
         weight: "bold",
         color: "#D6B46A",
         align: "center",
       }),
-      card("MLB", "棒球賽事分析", "MLB"),
-      card("NBA", "籃球賽事分析", "NBA"),
-      card("世界盃", "足球賽事分析", "世界盃"),
+      card("⚽ 世足AI", "可分析日期與賽事列表", "世足"),
+      card("⚾ MLB AI", "可分析日期與賽事列表", "MLB"),
+      card("返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
     ],
   });
 }
 
-function analysisFlex(league) {
-  const analysis = buildAnalysis(league);
-
+function noDataFlex(league) {
   return bubble({
     altText: `${league} 體育AI`,
-    title: `${league} 分析`,
+    title: `${league} AI`,
     subtitle: "BLACKDOMAIN SPORTS AI",
-    quickReply: sportsQuickReply(),
+    quickReply: backQuickReply(),
     footer: "BLACKDOMAIN SPORTS AI",
     contents: [
-      metric("AI 信心指標", `${analysis.confidence}%`, analysis.recommendation),
-      infoLine("賽事節奏", analysis.pace),
-      infoLine("風險等級", analysis.risk),
-      infoLine("分析日期", new Date().toLocaleDateString("zh-TW", { timeZone: "Asia/Taipei" })),
-      note("體育AI 僅提供分析參考，請自行控管風險。"),
+      infoLine("資料狀態", "目前尚無可分析賽事"),
+      infoLine("時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
+      note("若後續接入正式賽事資料，將依原本 AI 預測邏輯顯示分析結果。"),
     ],
   });
 }
 
 async function handleSportsMessage(event) {
   const textValue = event.message.text.trim();
+  const userId = event.source.userId || "";
 
-  if (["體育", "體育AI", "⚽ 體育AI"].includes(textValue)) {
+  if (["體育", "體育AI", "SPORT", "SPORT AI"].includes(textValue)) {
+    updateSession("sport", userId, {
+      currentPage: "體育AI",
+      league: null,
+      date: null,
+      match: null,
+      analysis: null,
+      lastUpdated: Date.now(),
+    });
     return reply(event.replyToken, menuFlex());
   }
 
-  if (["MLB", "NBA", "世界盃"].includes(textValue)) {
-    return reply(event.replyToken, analysisFlex(textValue));
+  if (["世足", "世足AI"].includes(textValue)) {
+    updateSession("sport", userId, {
+      currentPage: "世足AI",
+      league: "世足",
+      analysis: "目前尚無可分析賽事",
+      lastUpdated: Date.now(),
+    });
+    return reply(event.replyToken, noDataFlex("世足"));
+  }
+
+  if (["MLB", "MLB AI"].includes(textValue)) {
+    updateSession("sport", userId, {
+      currentPage: "MLB AI",
+      league: "MLB",
+      analysis: "目前尚無可分析賽事",
+      lastUpdated: Date.now(),
+    });
+    return reply(event.replyToken, noDataFlex("MLB"));
+  }
+
+  if (textValue === "NBA") {
+    updateSession("sport", userId, {
+      currentPage: "NBA",
+      league: "NBA",
+      analysis: "目前尚無可分析賽事",
+      lastUpdated: Date.now(),
+    });
+    return reply(event.replyToken, noDataFlex("NBA"));
   }
 
   return false;

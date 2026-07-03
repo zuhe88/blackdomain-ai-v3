@@ -37,7 +37,7 @@ function baccaratPlatformFlex(quickReply) {
   });
 }
 
-function baccaratAnalysisFlex({ session, prediction, bet, quickReply }) {
+function baccaratAnalysisFlex({ session, prediction, bet, confidence = "觀察中", reason = "依目前資料產生 AI 建議。", quickReply }) {
   const history = session.history.length ? session.history.join(" ") : "尚未輸入牌路";
   const profit =
     session.mode === "自由配注"
@@ -54,11 +54,15 @@ function baccaratAnalysisFlex({ session, prediction, bet, quickReply }) {
     contents: [
       metric("預測", prediction, session.mode),
       metric("建議下注", betText, "請依照自身風險控管操作"),
+      infoLine("信心值", confidence),
+      infoLine("建議原因", reason),
+      infoLine("單注上限", String(session.maxBet)),
       infoLine("目前本金", session.mode === "自由配注" ? "-" : String(session.bankroll)),
       infoLine("目前獲利", String(profit)),
       infoLine("過", String(session.results.win)),
       infoLine("倒", String(session.results.lose)),
       infoLine("和", String(session.results.tie)),
+      infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       note(`目前牌路：${history}`),
     ],
   });

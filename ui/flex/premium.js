@@ -27,6 +27,10 @@ function separator(margin = "md") {
   };
 }
 
+function divider(margin = "md") {
+  return separator(margin);
+}
+
 function header(title, subtitle = "BLACKDOMAIN AI") {
   return {
     type: "box",
@@ -134,6 +138,43 @@ function card(title, subtitle, actionText) {
   };
 }
 
+function button(label, actionText, style = "primary") {
+  const color = style === "danger" ? COLORS.red : style === "secondary" ? COLORS.panel : COLORS.goldDark;
+
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "sm",
+    paddingAll: "12px",
+    backgroundColor: color,
+    cornerRadius: "12px",
+    action: {
+      type: "message",
+      text: actionText,
+    },
+    contents: [
+      text(label, {
+        size: "sm",
+        weight: "bold",
+        color: COLORS.white,
+        align: "center",
+      }),
+    ],
+  };
+}
+
+function section(contents = []) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    backgroundColor: COLORS.panel,
+    cornerRadius: "14px",
+    paddingAll: "14px",
+    contents,
+  };
+}
+
 function note(value) {
   return text(value, {
     size: "xs",
@@ -180,14 +221,54 @@ function bubble({ altText, title, subtitle, contents = [], quickReply, footer = 
   return message;
 }
 
+function carousel(altText, bubbles) {
+  return {
+    type: "flex",
+    altText: String(altText || "BLACKDOMAIN AI").slice(0, 400),
+    contents: {
+      type: "carousel",
+      contents: bubbles,
+    },
+  };
+}
+
+const baseBubble = bubble;
+const baseHeader = header;
+const baseFooter = (value = "BLACKDOMAIN AI ENGINE") => ({
+  type: "box",
+  layout: "vertical",
+  paddingAll: "12px",
+  contents: [
+    text(value, {
+      size: "xs",
+      color: COLORS.muted,
+      align: "center",
+      wrap: false,
+    }),
+  ],
+});
+const baseButton = button;
+const baseMetric = metric;
+const baseDivider = divider;
+
 module.exports = {
   COLORS,
   text,
   separator,
+  divider,
   header,
   infoLine,
   metric,
+  button,
   card,
+  section,
   note,
   bubble,
+  carousel,
+  baseBubble,
+  baseHeader,
+  baseFooter,
+  baseButton,
+  baseMetric,
+  baseDivider,
 };

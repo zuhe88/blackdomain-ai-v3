@@ -19,9 +19,11 @@ function modeQuickReply() {
 
 function resultQuickReply() {
   return quickReply([
-    { label: "莊", text: "莊" },
-    { label: "閒", text: "閒" },
+    { label: "過", text: "過" },
+    { label: "倒", text: "倒" },
     { label: "和", text: "和" },
+    { label: "返回房號", text: "返回房號" },
+    { label: "返回平台", text: "返回平台" },
     { label: "結束分析", text: "結束分析" },
   ]);
 }
