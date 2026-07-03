@@ -39,17 +39,23 @@ function gameBubble(imageUrl, gameName) {
 }
 
 function electronicMenuFlex() {
-  const BASE_URL = "https://blackdomain-ai-v3-production.up.railway.app";
-
   return {
     type: "flex",
     altText: "電子AI",
     contents: {
       type: "carousel",
       contents: [
-        gameBubble(`${BASE_URL}/images/electronic/seth1.png`, "戰神賽特1"),
-        gameBubble(`${BASE_URL}/images/electronic/seth2.png`, "戰神賽特2"),
-        gameBubble(`${BASE_URL}/images/electronic/baphomet.png`, "古神巴風特"),
+        gameBubble(
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth1.png",
+          "戰神賽特1"
+        ),
+        gameBubble(
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/seth2.png",
+          "戰神賽特2"
+        ),
+        gameBubble(
+          "https://blackdomain-ai-v3-production.up.railway.app/images/electronic/baphomet.png",
+          "古神巴風特"
       ],
     },
   };
