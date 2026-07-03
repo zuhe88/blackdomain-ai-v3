@@ -4,7 +4,6 @@ const { bubble, infoLine } = require("../../ui/flex/premium");
 const {
   electronicRecommendFlex,
   electronicRankFlex,
-  electronicAnalyzeFlex,
 } = require("../../ui/flex/electronicResult");
 
 const electronicSessions = new Map();
@@ -40,8 +39,7 @@ function getUpdateTimeText() {
 
 function formatRoom(gameName, room) {
   const config = GAME_CONFIG[gameName];
-  if (!config) return String(room);
-  return String(room).padStart(config.pad, "0");
+  return String(room).padStart(config?.pad || 3, "0");
 }
 
 function hashScore(input, max = 1000003) {
@@ -52,63 +50,40 @@ function hashScore(input, max = 1000003) {
   return score;
 }
 
-function normalizeScore(raw, min = 60, max = 99) {
-  return min + (raw % (max - min + 1));
+function shuffleBySeed(list, seedText) {
+  return [...list].sort((a, b) => {
+    return hashScore(`${seedText}:${a}`) - hashScore(`${seedText}:${b}`);
+  });
 }
 
-function buildRoomData(gameName, cycleKey = getCycleKey()) {
+function buildCyclePools(gameName, cycleKey) {
   const config = GAME_CONFIG[gameName];
-  const rooms = [];
+  const allRooms = [];
 
   for (let room = config.min; room <= config.max; room++) {
-    const aiRawA = hashScore(`AI:A:${gameName}:${cycleKey}:${room}`);
-    const aiRawB = hashScore(`AI:B:${cycleKey}:${gameName}:${room}:BD`);
-    const hotRawA = hashScore(`HOT:A:${gameName}:${cycleKey}:${room}`);
-    const hotRawB = hashScore(`HOT:B:${room}:${cycleKey}:${gameName}`);
-
-    const aiScore = Math.round(
-      normalizeScore(aiRawA, 68, 98) * 0.72 +
-      normalizeScore(aiRawB, 55, 96) * 0.28
-    );
-
-    const hotScore = Math.round(
-      normalizeScore(hotRawA, 65, 99) * 0.75 +
-      normalizeScore(hotRawB, 50, 95) * 0.25
-    );
-
-    rooms.push({
-      room,
-      aiScore,
-      hotScore,
-      aiNoise: aiRawB,
-      hotNoise: hotRawB,
-    });
+    allRooms.push(room);
   }
 
-  return rooms;
-}
+  const goodCount = Math.max(10, Math.ceil(allRooms.length * 0.15));
+  const aiCount = Math.max(8, Math.ceil(allRooms.length * 0.08));
+  const hotCount = Math.max(10, Math.ceil(allRooms.length * 0.03));
+  const strongCount = Math.max(5, Math.ceil(allRooms.length * 0.03));
 
-function weightedPick(pool, userId, gameName, cycleKey, usedRooms) {
-  const available = pool.filter((item) => !usedRooms.includes(item.room));
-  const candidates = available.length ? available : pool;
+  const goodRooms = shuffleBySeed(allRooms, `GOOD:${gameName}:${cycleKey}`).slice(0, goodCount);
+  const strongRooms = shuffleBySeed(goodRooms, `STRONG:${gameName}:${cycleKey}`).slice(0, strongCount);
+  const aiRooms = shuffleBySeed(goodRooms, `AI:${gameName}:${cycleKey}`).slice(0, aiCount);
+  const hotRooms = shuffleBySeed(goodRooms, `HOT:${gameName}:${cycleKey}`).slice(0, hotCount);
 
-  const totalWeight = candidates.reduce((sum, item) => {
-    return sum + Math.max(1, item.aiScore - 55);
-  }, 0);
-
-  const seed = hashScore(
-    `${userId}:${gameName}:${cycleKey}:${Date.now()}:${Math.random()}`,
-    1000000007
-  );
-
-  let random = seed % totalWeight;
-
-  for (const item of candidates) {
-    random -= Math.max(1, item.aiScore - 55);
-    if (random <= 0) return item.room;
-  }
-
-  return candidates[0].room;
+  return {
+    goodRooms,
+    strongRooms,
+    aiRooms,
+    hotRooms,
+    goodSet: new Set(goodRooms),
+    strongSet: new Set(strongRooms),
+    aiSet: new Set(aiRooms),
+    hotSet: new Set(hotRooms),
+  };
 }
 
 function getGameCycle(gameName) {
@@ -116,32 +91,10 @@ function getGameCycle(gameName) {
   const cacheKey = `${gameName}:${cycleKey}`;
 
   if (!CYCLE_CACHE.has(cacheKey)) {
-    const rooms = buildRoomData(gameName, cycleKey);
-
-    const aiSorted = [...rooms].sort((a, b) => {
-      if (b.aiScore !== a.aiScore) return b.aiScore - a.aiScore;
-      return a.aiNoise - b.aiNoise;
-    });
-
-    const hotSorted = [...rooms].sort((a, b) => {
-      if (b.hotScore !== a.hotScore) return b.hotScore - a.hotScore;
-      return a.hotNoise - b.hotNoise;
-    });
-
-    const aiPoolSize = Math.max(30, Math.ceil(rooms.length * 0.08));
-    const aiPool = aiSorted.slice(0, aiPoolSize);
-
-    const hotRooms = hotSorted
-      .filter((item) => !aiPool.slice(0, 10).some((ai) => ai.room === item.room))
-      .slice(0, 10)
-      .map((item) => item.room);
-
     CYCLE_CACHE.set(cacheKey, {
       gameName,
       cycleKey,
-      rooms,
-      aiPool,
-      hotRooms,
+      ...buildCyclePools(gameName, cycleKey),
       createdAt: Date.now(),
     });
   }
@@ -201,31 +154,19 @@ function getUsedRooms(session, gameName) {
 
 function getNextRecommendRoom(userId, gameName) {
   const session = getUserSession(userId);
-  const config = GAME_CONFIG[gameName];
+  const cycle = getGameCycle(gameName);
   const usedRooms = getUsedRooms(session, gameName);
 
-  const availableRooms = [];
+  let availableRooms = cycle.aiRooms.filter((room) => !usedRooms.includes(room));
 
-  for (let room = config.min; room <= config.max; room++) {
-    if (!usedRooms.includes(room)) {
-      availableRooms.push(room);
-    }
-  }
-
-  // 全部抽完後重新開始
   if (availableRooms.length === 0) {
     session.usedRoomsByCycle[`${gameName}:${getCycleKey()}`] = [];
-
-    for (let room = config.min; room <= config.max; room++) {
-      availableRooms.push(room);
-    }
+    availableRooms = cycle.aiRooms;
   }
 
-  const room =
-    availableRooms[Math.floor(Math.random() * availableRooms.length)];
+  const room = availableRooms[Math.floor(Math.random() * availableRooms.length)];
 
   getUsedRooms(session, gameName).push(room);
-
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
@@ -374,7 +315,7 @@ async function showHotRank(event) {
   electronicSessions.set(userId, session);
 
   const cycle = getGameCycle(session.gameName);
-  const rooms = cycle.hotRooms.map((r) => formatRoom(session.gameName, r));
+  const rooms = cycle.hotRooms.slice(0, 10).map((r) => formatRoom(session.gameName, r));
 
   return reply(
     event.replyToken,
@@ -430,14 +371,38 @@ async function analyzeCustomRoom(event, text) {
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
 
+  const cycle = getGameCycle(session.gameName);
+  const roomText = `${session.gameName}｜${formatRoom(session.gameName, room)}`;
+
+  let title = "🔴 AI判定：不建議進場";
+  let lines = [
+    roomText,
+    "目前活躍度不足",
+    "波動訊號偏弱",
+    "建議等待下一輪更新",
+  ];
+
+  if (cycle.strongSet.has(room) || cycle.aiSet.has(room) || cycle.hotSet.has(room)) {
+    title = "🟢 AI判定：高度建議進場";
+    lines = [
+      roomText,
+      "目前波動強烈",
+      "活躍度明顯提升",
+      "建議可進場觀察",
+    ];
+  } else if (cycle.goodSet.has(room)) {
+    title = "🟡 AI判定：可進場";
+    lines = [
+      roomText,
+      "目前活躍度穩定",
+      "波動狀態正常",
+      "可視情況進場",
+    ];
+  }
+
   return reply(
     event.replyToken,
-    electronicAnalyzeFlex(
-      session.gameName,
-      formatRoom(session.gameName, room),
-      getUpdateTimeText(),
-      afterAnalyzeQuickReply()
-    )
+    electronicPromptFlex(title, lines, afterAnalyzeQuickReply())
   );
 }
 
@@ -450,25 +415,15 @@ async function handleElectronicMessage(event) {
 
   if (session.waitingCustomRoom) return analyzeCustomRoom(event, text);
 
-  if (text === "AI推薦房" || text === "🤖 AI推薦房") {
-    return recommendRoom(event);
-  }
+  if (text === "AI推薦房" || text === "🤖 AI推薦房") return recommendRoom(event);
 
-  if (text === "換一間" || text === "🔄 換一間") {
-    return changeRecommendRoom(event);
-  }
+  if (text === "換一間" || text === "🔄 換一間") return changeRecommendRoom(event);
 
-  if (text === "熱門房排行" || text === "🔥 熱門排行") {
-    return showHotRank(event);
-  }
+  if (text === "熱門房排行" || text === "🔥 熱門排行") return showHotRank(event);
 
-  if (text === "自選房號分析" || text === "🔍 自選分析") {
-    return askCustomRoom(event);
-  }
+  if (text === "自選房號分析" || text === "🔍 自選分析") return askCustomRoom(event);
 
-  if (text === "返回電子功能") {
-    return showGameMenu(event);
-  }
+  if (text === "返回電子功能") return showGameMenu(event);
 
   return false;
 }
