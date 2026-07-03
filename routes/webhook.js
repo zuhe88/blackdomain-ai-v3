@@ -11,6 +11,39 @@ const vip = require("../modules/vip");
 const official = require("../modules/official");
 const { clearUser, updateSession } = require("../utils/sessionStore");
 
+const HOME_COMMANDS = ["黑域AI", "首頁", "開始", "menu", "選單", "主選單"];
+const CANCEL_COMMANDS = ["取消", "退出", "返回首頁", "重新開始"];
+const GLOBAL_VIP_COMMANDS = ["VIP", "VIP中心", "VIP查詢", "查VIP", "我的VIP", "會員", "會員中心", "綁定", "綁定3A"];
+const GLOBAL_ADMIN_COMMANDS = ["管理指令", "管理員指令", "待審核", "會員列表"];
+const AI_ENTRY_COMMANDS = new Set([
+  "百家樂",
+  "百家樂AI",
+  "baccarat",
+  "🎲 百家樂AI",
+  "電子",
+  "電子AI",
+  "Electronic",
+  "⚡ 電子AI",
+  "戰神賽特1",
+  "戰神賽特2",
+  "古神巴風特",
+  "539",
+  "539AI",
+  "今彩539",
+  "🎯 539AI",
+  "AI今日預測",
+  "歷史開獎",
+  "體育",
+  "體育AI",
+  "SPORT",
+  "SPORT AI",
+  "世足",
+  "世足AI",
+  "MLB",
+  "MLB AI",
+  "NBA",
+]);
+
 function registerWebhookRoutes(app) {
   app.post("/webhook", line.middleware(lineConfig), async (req, res) => {
     res.status(200).end();
@@ -27,6 +60,28 @@ function registerWebhookRoutes(app) {
   });
 }
 
+function clearAllUserSessions(userId) {
+  clearUser(userId);
+  if (electronic.resetElectronicSession) electronic.resetElectronicSession(userId);
+  if (baccarat.resetBaccaratSession) baccarat.resetBaccaratSession(userId);
+}
+
+function isAdminCommand(text) {
+  return GLOBAL_ADMIN_COMMANDS.includes(text) ||
+    text.startsWith("開通 ") ||
+    text.startsWith("查會員 ") ||
+    text.startsWith("取消VIP ") ||
+    text.startsWith("延長VIP ") ||
+    text.startsWith("永久VIP ");
+}
+
+async function ensureVipOrReply(event) {
+  const access = await vip.checkVipAccess(event.source.userId || "");
+  if (access.allowed) return true;
+  await reply(event.replyToken, vip.accessDeniedFlex());
+  return false;
+}
+
 async function handleEvent(event) {
   if (event.type !== "message") return;
   if (event.message.type !== "text") return;
@@ -35,7 +90,8 @@ async function handleEvent(event) {
   const replyToken = event.replyToken;
   const userId = event.source.userId;
 
-  if (["黑域AI", "首頁", "開始", "menu", "選單"].includes(text)) {
+  if (HOME_COMMANDS.includes(text)) {
+    clearAllUserSessions(userId);
     updateSession("home", userId, {
       currentPage: "首頁",
       currentFeature: null,
@@ -44,9 +100,28 @@ async function handleEvent(event) {
     return reply(replyToken, mainMenuFlex());
   }
 
-  if (text === "重新開始" || text === "返回首頁") {
-    clearUser(userId);
+  if (CANCEL_COMMANDS.includes(text)) {
+    clearAllUserSessions(userId);
     return reply(replyToken, mainMenuFlex());
+  }
+
+  if (GLOBAL_VIP_COMMANDS.includes(text) || isAdminCommand(text)) {
+    clearAllUserSessions(userId);
+    return vip.handleVipMessage(event);
+  }
+
+  if (vip.hasActiveVipSession && vip.hasActiveVipSession(userId)) {
+    return vip.handleVipMessage(event);
+  }
+
+  if (official.isOfficialCommand(text)) {
+    clearAllUserSessions(userId);
+    return official.handleOfficialMessage(event);
+  }
+
+  if (AI_ENTRY_COMMANDS.has(text)) {
+    const allowed = await ensureVipOrReply(event);
+    if (!allowed) return;
   }
 
   if (text === "電子" || text === "電子AI" || text === "Electronic" || text === "⚡ 電子AI") {
@@ -59,6 +134,8 @@ async function handleEvent(event) {
   }
 
   if (electronic.hasActiveElectronicSession(userId)) {
+    const allowed = await ensureVipOrReply(event);
+    if (!allowed) return;
     const handled = await electronic.handleElectronicMessage(event);
     if (handled !== false) return handled;
   }
@@ -68,6 +145,8 @@ async function handleEvent(event) {
   }
 
   if (baccarat.hasActiveBaccaratSession(userId)) {
+    const allowed = await ensureVipOrReply(event);
+    if (!allowed) return;
     const handled = await baccarat.handleBaccaratMessage(event);
     if (handled !== false) return handled;
   }
@@ -86,10 +165,6 @@ async function handleEvent(event) {
 
   if (vip.isVipCommand(text)) {
     return vip.handleVipMessage(event);
-  }
-
-  if (official.isOfficialCommand(text)) {
-    return official.handleOfficialMessage(event);
   }
 
   return reply(replyToken, mainMenuFlex());

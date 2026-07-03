@@ -279,4 +279,5 @@ module.exports = {
   handleBaccaratMessage,
   isBaccaratCommand,
   hasActiveBaccaratSession: hasActiveSession,
+  resetBaccaratSession: resetSession,
 };

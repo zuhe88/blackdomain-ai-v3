@@ -107,6 +107,17 @@ function fallbackPreview(match) {
   return `${match.away} 對 ${match.home}，AI依賽程、近期狀態與戰績評估，勝方傾向 ${match.prediction}，${lean}。大小分建議 ${match.total}，僅供賽前參考。`;
 }
 
+function fallbackPoints(match) {
+  return [
+    `• 主隊與客隊近期狀態已納入AI評估`,
+    `• AI預估 ${match.prediction} 勝出機率較高`,
+    `• 讓分建議可參考 ${match.spread}`,
+    `• 大小分建議可參考 ${match.total}`,
+    `• 比分方向建議 ${match.score}`,
+    `• 賽前仍需留意臨場名單與盤口變化`,
+  ];
+}
+
 async function attachPreview(match) {
   const prompt = [
     `聯盟：${match.league}`,
@@ -126,13 +137,13 @@ async function attachPreview(match) {
     return {
       ...match,
       preview: aiText.trim() || fallbackPreview(match),
-      aiSource: "OpenAI",
+      points: fallbackPoints(match),
     };
   } catch (error) {
     return {
       ...match,
       preview: fallbackPreview(match),
-      aiSource: "Fallback",
+      points: fallbackPoints(match),
     };
   }
 }
@@ -178,6 +189,9 @@ async function loadWorldCupMatches() {
         spread: pick.winner,
         total: pick.rate >= 0.6 ? "Over" : "Under",
         score: pick.rate >= 0.6 ? "預估 2-1" : "預估 1-1",
+        stars: pick.confidence === "高" ? "★★★★★" : pick.confidence === "中" ? "★★★★☆" : "★★★☆☆",
+        totalGoals: pick.rate >= 0.6 ? "2至3球" : "1至2球",
+        halfTime: pick.rate >= 0.6 ? "半場主隊不敗" : "半場平手機率較高",
         confidence: pick.confidence,
         updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
       };
@@ -229,6 +243,9 @@ async function loadMlbMatches() {
       spread: pick.winner,
       total: combinedRate >= 0.6 ? "Over" : "Under",
       score: combinedRate >= 0.6 ? "預估總分偏高" : "預估總分偏低",
+      stars: pick.confidence === "高" ? "★★★★★" : pick.confidence === "中" ? "★★★★☆" : "★★★☆☆",
+      totalGoals: combinedRate >= 0.6 ? "總分偏高" : "總分偏低",
+      halfTime: "前半段節奏需觀察先發投手",
       confidence: pick.confidence,
       updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
     };
@@ -292,6 +309,9 @@ async function loadNbaMatches() {
         spread: pick.winner,
         total: pick.rate >= 0.6 ? "Over" : "Under",
         score: "依官方戰績推估",
+        stars: pick.confidence === "高" ? "★★★★★" : pick.confidence === "中" ? "★★★★☆" : "★★★☆☆",
+        totalGoals: pick.rate >= 0.6 ? "總分偏高" : "總分偏低",
+        halfTime: "上半場節奏偏向主隊掌握",
         confidence: pick.confidence,
         updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
       };

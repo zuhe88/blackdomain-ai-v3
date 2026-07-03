@@ -459,9 +459,9 @@ async function handleElectronicMessage(event) {
 
   if (text === "換一間" || text === "🔄 換一間") return changeRecommendRoom(event);
 
-  if (text === "熱門房排行" || text === "🔥 熱門排行") return showHotRank(event);
+  if (text === "熱門排行" || text === "熱門房排行" || text === "🔥 熱門排行") return showHotRank(event);
 
-  if (text === "自選房號分析" || text === "🔍 自選分析") return askCustomRoom(event);
+  if (text === "自選分析" || text === "自選房號分析" || text === "🔍 自選分析") return askCustomRoom(event);
 
   if (text === "返回電子功能") return showGameMenu(event);
 
@@ -485,8 +485,10 @@ function isElectronicCommand(text) {
     text === "換一間" ||
     text === "🔄 換一間" ||
     text === "熱門房排行" ||
+    text === "熱門排行" ||
     text === "🔥 熱門排行" ||
     text === "自選房號分析" ||
+    text === "自選分析" ||
     text === "🔍 自選分析" ||
     text === "返回電子功能"
   );
