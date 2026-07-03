@@ -1,4 +1,4 @@
-const { RESULTS, MODES } = require("./constants");
+const { RESULTS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
 
 function normalizeRoom(platform, room) {
   if (!room) return null;
@@ -6,11 +6,6 @@ function normalizeRoom(platform, room) {
   const value = String(room).trim().toUpperCase().replace(/\s+/g, "");
 
   if (platform === "DG") {
-    if (/^DG\d+$/.test(value)) {
-      const num = parseInt(value.replace("DG", ""), 10);
-      return `DG${String(num).padStart(2, "0")}`;
-    }
-
     if (/^RB\d+$/.test(value)) {
       const num = parseInt(value.replace("RB", ""), 10);
       return `RB${String(num).padStart(2, "0")}`;
@@ -21,19 +16,22 @@ function normalizeRoom(platform, room) {
       return `S${String(num).padStart(2, "0")}`;
     }
 
-    if (/^\d+$/.test(value)) {
-      return `DG${String(parseInt(value, 10)).padStart(2, "0")}`;
-    }
+    return value;
   }
 
   if (platform === "MT") {
+    if (value === "3A") return "MT3A";
+    if (value === "13A") return "MT13A";
+
+    if (/^MT\d+A$/.test(value)) {
+      const num = parseInt(value.replace("MT", "").replace("A", ""), 10);
+      return `MT${num}A`;
+    }
+
     if (/^MT\d+$/.test(value)) {
       const num = parseInt(value.replace("MT", ""), 10);
       return `MT${String(num).padStart(2, "0")}`;
     }
-
-    if (value === "3A") return "3A";
-    if (value === "13A") return "13A";
 
     if (/^\d+$/.test(value)) {
       return `MT${String(parseInt(value, 10)).padStart(2, "0")}`;
@@ -44,36 +42,8 @@ function normalizeRoom(platform, room) {
 }
 
 function validateRoom(platform, room) {
-  if (platform === "DG") {
-    if (/^DG\d{2}$/.test(room)) {
-      const n = parseInt(room.substring(2), 10);
-      return n >= 1 && n <= 7;
-    }
-
-    if (/^RB\d{2}$/.test(room)) {
-      const n = parseInt(room.substring(2), 10);
-      return n >= 1 && n <= 7;
-    }
-
-    if (/^S\d{2}$/.test(room)) {
-      const n = parseInt(room.substring(1), 10);
-      return n >= 1 && n <= 7;
-    }
-
-    return false;
-  }
-
-  if (platform === "MT") {
-    if (room === "3A" || room === "13A") return true;
-
-    if (/^MT\d{2}$/.test(room)) {
-      const n = parseInt(room.substring(2), 10);
-      return n >= 1 && n <= 13;
-    }
-
-    return false;
-  }
-
+  if (platform === "DG") return DG_ROOMS.includes(room);
+  if (platform === "MT") return MT_ROOMS.includes(room);
   return false;
 }
 
@@ -103,7 +73,7 @@ function isMode(text) {
 }
 
 function isCancel(text) {
-  return text === "返回首頁";
+  return ["返回首頁", "首頁", "主選單", "選單", "取消", "退出"].includes(String(text || "").trim());
 }
 
 module.exports = {

@@ -2,6 +2,7 @@ const { reply } = require("../../services/line");
 const {
   baccaratPromptFlex,
   baccaratPlatformFlex,
+  baccaratRoomFlex,
   baccaratAnalysisFlex,
 } = require("../../ui/flex/baccarat");
 const {
@@ -37,30 +38,35 @@ const {
   getConfidence,
   getReason,
 } = require("./ai");
-const { COMMANDS, MODES } = require("./constants");
+const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
+
+function roomsForPlatform(platform) {
+  return platform === "DG" ? DG_ROOMS : MT_ROOMS;
+}
 
 function roomPrompt(platform) {
-  return baccaratPromptFlex({
-    title: `${platform} 房號選擇`,
-    lines: [
-      "請輸入房號。",
-      "DG範例：DG01 / RB03 / S05",
-      "MT範例：MT01 / MT03 / 3A / 13A",
-    ],
-  });
+  return baccaratRoomFlex(platform, roomsForPlatform(platform));
 }
 
 function capitalPrompt() {
   return baccaratPromptFlex({
     title: "請輸入本金",
-    lines: ["本金只能輸入正整數。", "範例：1000 / 3000"],
+    lines: ["本金只能輸入整數，不可為 0、負數、小數或文字。", "範例：1000、3000"],
   });
 }
 
 function maxBetPrompt(capital) {
   return baccaratPromptFlex({
     title: "請輸入單注上限",
-    lines: [`目前本金：${capital}`, "單注上限只能輸入正整數，且不可超過本金。"],
+    lines: [`目前本金：${capital}`, "單注上限只能輸入整數，AI下注不會超過此金額。"],
+  });
+}
+
+function modePrompt(session) {
+  return baccaratPromptFlex({
+    title: "請選擇模式",
+    lines: [`本金：${session.capital}`, `單注上限：${session.maxBet}`, `模式：${MODES.join("、")}`],
+    quickReply: modeQuickReply(),
   });
 }
 
@@ -69,13 +75,8 @@ async function handleBaccaratMessage(event) {
   const incomingText = event.message.text.trim();
   const token = event.replyToken;
 
-  if (isCancel(incomingText) || incomingText === "重新開始") {
+  if (isCancel(incomingText)) {
     resetSession(userId);
-
-    if (incomingText === "重新開始") {
-      return reply(token, baccaratPlatformFlex(platformQuickReply()));
-    }
-
     return false;
   }
 
@@ -86,7 +87,7 @@ async function handleBaccaratMessage(event) {
 
   const session = getSession(userId);
 
-  if (incomingText === "返回平台") {
+  if (incomingText === "重新開始") {
     resetSession(userId);
     return reply(token, baccaratPlatformFlex(platformQuickReply()));
   }
@@ -97,7 +98,9 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "platform") {
-    if (incomingText !== "DG" && incomingText !== "MT") {
+    const platform = incomingText.toUpperCase();
+
+    if (platform !== "DG" && platform !== "MT") {
       return reply(
         token,
         baccaratPromptFlex({
@@ -108,8 +111,8 @@ async function handleBaccaratMessage(event) {
       );
     }
 
-    setPlatform(userId, incomingText);
-    return reply(token, roomPrompt(incomingText));
+    setPlatform(userId, platform);
+    return reply(token, roomPrompt(platform));
   }
 
   if (session.step === "room") {
@@ -120,11 +123,7 @@ async function handleBaccaratMessage(event) {
         token,
         baccaratPromptFlex({
           title: "房號格式不正確",
-          lines: [
-            `${session.platform} 房號不存在，請重新輸入。`,
-            "DG：DG01~DG07 / RB01~RB07 / S01~S07",
-            "MT：MT01~MT13 / 3A / 13A",
-          ],
+          lines: ["房號格式不正確，請選擇下方按鈕或輸入正確房號。"],
         })
       );
     }
@@ -141,7 +140,7 @@ async function handleBaccaratMessage(event) {
         token,
         baccaratPromptFlex({
           title: "本金格式不正確",
-          lines: ["請輸入正整數。", "範例：1000 / 3000"],
+          lines: ["請輸入整數本金。", "範例：1000、3000"],
         })
       );
     }
@@ -158,7 +157,7 @@ async function handleBaccaratMessage(event) {
         token,
         baccaratPromptFlex({
           title: "單注上限格式不正確",
-          lines: ["請輸入正整數。"],
+          lines: ["請輸入整數單注上限。"],
         })
       );
     }
@@ -173,16 +172,8 @@ async function handleBaccaratMessage(event) {
       );
     }
 
-    setMaxBet(userId, maxBet);
-
-    return reply(
-      token,
-      baccaratPromptFlex({
-        title: "請選擇模式",
-        lines: [`本金：${session.capital}`, `單注上限：${maxBet}`],
-        quickReply: modeQuickReply(),
-      })
-    );
+    const updated = setMaxBet(userId, maxBet);
+    return reply(token, modePrompt(updated));
   }
 
   if (session.step === "mode") {
@@ -191,7 +182,7 @@ async function handleBaccaratMessage(event) {
         token,
         baccaratPromptFlex({
           title: "請選擇模式",
-          lines: [`模式：${MODES.join(" / ")}`],
+          lines: [`可用模式：${MODES.join("、")}`],
           quickReply: modeQuickReply(),
         })
       );
@@ -220,8 +211,8 @@ async function handleBaccaratMessage(event) {
       return reply(
         token,
         baccaratPromptFlex({
-          title: "請輸入本局結果",
-          lines: ["請輸入：過 / 倒 / 和。"],
+          title: "請回報本局結果",
+          lines: ["請選擇或輸入：閒、和、莊。"],
           quickReply: resultQuickReply(),
         })
       );
@@ -237,7 +228,7 @@ async function handleBaccaratMessage(event) {
         token,
         baccaratPromptFlex({
           title: "本金已歸零",
-          lines: ["請重新開始分析。"],
+          lines: ["請重新開始並輸入新的本金。"],
           quickReply: restartQuickReply(),
         })
       );
@@ -264,15 +255,15 @@ function isBaccaratCommand(text) {
     ...COMMANDS,
     "DG",
     "MT",
+    ...DG_ROOMS,
+    ...MT_ROOMS,
     ...MODES,
-    "過",
-    "倒",
+    "閒",
     "和",
-    "返回房號",
-    "返回平台",
-    "返回首頁",
+    "莊",
     "重新開始",
-  ].includes(text);
+    "返回房號",
+  ].includes(String(text || "").trim());
 }
 
 module.exports = {

@@ -1,6 +1,16 @@
-const COMMANDS = ["VIP", "vip", "VIP查詢", "我的VIP", "會員", "VIP中心", "會員中心", "👑 VIP中心"];
+const COMMANDS = ["VIP", "vip", "VIP中心", "VIP查詢", "我的VIP", "會員", "查VIP", "會員中心", "👑 VIP中心"];
 const BIND_COMMANDS = ["綁定", "綁定3A"];
-const ADMIN_COMMANDS = ["管理指令", "管理員指令", "待審核", "查會員", "開通", "取消VIP", "延長VIP", "永久VIP", "會員列表"];
+const ADMIN_COMMANDS = [
+  "管理指令",
+  "管理員指令",
+  "待審核",
+  "查會員",
+  "開通",
+  "取消VIP",
+  "延長VIP",
+  "永久VIP",
+  "會員列表",
+];
 
 const STATUSES = {
   ADMIN: "管理員",

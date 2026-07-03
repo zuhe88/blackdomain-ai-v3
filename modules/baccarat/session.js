@@ -17,9 +17,9 @@ function createSession(userId) {
     step: "platform",
     history: [],
     results: {
-      win: 0,
-      lose: 0,
+      player: 0,
       tie: 0,
+      banker: 0,
     },
     lastPrediction: null,
     lastBet: 0,

@@ -1,3 +1,6 @@
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const { COLORS, text } = require("./premium");
 
 const DEFAULT_BASE_URL = "https://blackdomain-ai-v3-production.up.railway.app";
@@ -22,7 +25,17 @@ function publicBaseUrl() {
 }
 
 function imageUrl(fileName) {
-  return `${publicBaseUrl()}/images/electronic/${fileName}`;
+  return `${publicBaseUrl()}/images/electronic/${fileName}?v=${imageVersion(fileName)}`;
+}
+
+function imageVersion(fileName) {
+  try {
+    const filePath = path.join(__dirname, "..", "..", "public", "images", "electronic", fileName);
+    const buffer = fs.readFileSync(filePath);
+    return crypto.createHash("sha256").update(buffer).digest("hex").slice(0, 12);
+  } catch (error) {
+    return "blackdomain-v3";
+  }
 }
 
 function gameCard({ title, subtitle, image, actionText }) {
