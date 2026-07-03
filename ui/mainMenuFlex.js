@@ -40,6 +40,7 @@ function mainMenuFlex() {
           menuCard("📊 539AI", "539 AI 分析服務", "539"),
           menuCard("⚽ 體育AI", "體育賽事 AI 分析", "體育"),
           menuCard("👑 VIP查詢", "VIP 專屬查詢服務", "VIP查詢"),
+          menuCard("幸運盒", "VIP 機率抽取與開盒結果", "幸運盒"),
         ],
       },
       footer: {

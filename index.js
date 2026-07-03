@@ -17,6 +17,10 @@ const electronicGameMenu = require("./ui/flex/electronicGameMenu");
 
 const electronic = require("./modules/electronic");
 const baccarat = require("./modules/baccarat");
+const sports = require("./modules/sports");
+const lottery539 = require("./modules/lottery539");
+const vip = require("./modules/vip");
+const luckyBox = require("./modules/luckyBox");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -89,16 +93,20 @@ async function handleEvent(event) {
     return baccarat.handleBaccaratMessage(event);
   }
 
-  if (["539", "539AI", "📊 539AI"].includes(text)) {
-    return reply(replyToken, textMessage("📊 539AI 建置中"));
+  if (lottery539.is539Command(text)) {
+    return lottery539.handle539Message(event);
   }
 
-  if (["體育", "體育AI", "⚽ 體育AI", "MLB"].includes(text)) {
-    return reply(replyToken, textMessage("⚽ 體育AI 建置中"));
+  if (sports.isSportsCommand(text)) {
+    return sports.handleSportsMessage(event);
   }
 
-  if (["VIP", "VIP查詢", "👑 VIP查詢"].includes(text)) {
-    return reply(replyToken, textMessage("👑 VIP查詢 建置中"));
+  if (vip.isVipCommand(text)) {
+    return vip.handleVipMessage(event);
+  }
+
+  if (luckyBox.isLuckyBoxCommand(text)) {
+    return luckyBox.handleLuckyBoxMessage(event);
   }
 
   return reply(replyToken, mainMenuFlex());

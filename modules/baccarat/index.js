@@ -1,4 +1,9 @@
-const { reply, textMessage } = require("../../services/line");
+const { reply } = require("../../services/line");
+const {
+  baccaratPromptFlex,
+  baccaratPlatformFlex,
+  baccaratAnalysisFlex,
+} = require("../../ui/flex/baccarat");
 
 const {
   getSession,
@@ -43,16 +48,11 @@ async function handleBaccaratMessage(event) {
 
     return reply(
       token,
-      textMessage(
-        `━━━━━━━━━━━━━━━━━━━━
-
-⚡ BLACKDOMAIN AI
-
-百家樂分析已結束。
-
-━━━━━━━━━━━━━━━━━━━━`,
-        restartQuickReply()
-      )
+      baccaratPromptFlex({
+        title: "百家樂分析已結束",
+        lines: ["請重新開始或回首頁。"],
+        quickReply: restartQuickReply(),
+      })
     );
   }
 
@@ -61,20 +61,7 @@ async function handleBaccaratMessage(event) {
 
     return reply(
       token,
-      textMessage(
-        `━━━━━━━━━━━━━━━━━━━━
-
-⚡ BLACKDOMAIN AI
-
-🤖 百家樂AI
-
-━━━━━━━━━━━━━━━━━━━━
-
-請選擇平台
-
-━━━━━━━━━━━━━━━━━━━━`,
-        platformQuickReply()
-      )
+      baccaratPlatformFlex(platformQuickReply())
     );
   }
 
@@ -84,7 +71,11 @@ async function handleBaccaratMessage(event) {
     if (text !== "DG" && text !== "MT") {
       return reply(
         token,
-        textMessage("請選擇平台：DG 或 MT", platformQuickReply())
+        baccaratPromptFlex({
+          title: "請選擇平台",
+          lines: ["請選擇平台：DG 或 MT"],
+          quickReply: platformQuickReply(),
+        })
       );
     }
 
@@ -92,25 +83,10 @@ async function handleBaccaratMessage(event) {
 
     return reply(
       token,
-      textMessage(
-        `━━━━━━━━━━━━━━━━━━━━
-
-⚡ BLACKDOMAIN AI
-
-${text} 真人百家樂
-
-━━━━━━━━━━━━━━━━━━━━
-
-請輸入房號
-
-DG範例：
-01 / RB03 / S05
-
-MT範例：
-01 / 03 / 3A / 13A
-
-━━━━━━━━━━━━━━━━━━━━`
-      )
+      baccaratPromptFlex({
+        title: `${text} 真人百家樂`,
+        lines: ["請輸入房號", "DG範例：01 / RB03 / S05", "MT範例：01 / 03 / 3A / 13A"],
+      })
     );
   }
 
@@ -120,21 +96,10 @@ MT範例：
     if (!validateRoom(session.platform, room)) {
       return reply(
         token,
-        textMessage(
-          `❌ 房號格式錯誤
-
-${session.platform} 可用房號：
-
-DG：
-01~07
-RB01~RB07
-S01~S07
-
-MT：
-01~13
-3A
-13A`
-        )
+        baccaratPromptFlex({
+          title: "房號格式錯誤",
+          lines: [`${session.platform} 可用房號：`, "DG：01~07 / RB01~RB07 / S01~S07", "MT：01~13 / 3A / 13A"],
+        })
       );
     }
 
@@ -142,24 +107,10 @@ MT：
 
     return reply(
       token,
-      textMessage(
-        `━━━━━━━━━━━━━━━━━━━━
-
-⚡ BLACKDOMAIN AI
-
-${session.platform}｜${room}
-
-━━━━━━━━━━━━━━━━━━━━
-
-請輸入本金
-
-例如：
-3000
-3000.5
-3,000
-
-━━━━━━━━━━━━━━━━━━━━`
-      )
+      baccaratPromptFlex({
+        title: `${session.platform}｜${room}`,
+        lines: ["請輸入本金", "例如：3000 / 3000.5 / 3,000"],
+      })
     );
   }
 
@@ -169,16 +120,10 @@ ${session.platform}｜${room}
     if (!capital) {
       return reply(
         token,
-        textMessage(
-          `❌ 本金格式錯誤
-
-請輸入數字
-
-例如：
-3000
-3000.5
-3,000`
-        )
+        baccaratPromptFlex({
+          title: "本金格式錯誤",
+          lines: ["請輸入數字", "例如：3000 / 3000.5 / 3,000"],
+        })
       );
     }
 
@@ -186,24 +131,10 @@ ${session.platform}｜${room}
 
     return reply(
       token,
-      textMessage(
-        `━━━━━━━━━━━━━━━━━━━━
-
-⚡ BLACKDOMAIN AI
-
-目前本金：
-${capital}
-
-━━━━━━━━━━━━━━━━━━━━
-
-請輸入單柱上限
-
-例如：
-500
-500.5
-
-━━━━━━━━━━━━━━━━━━━━`
-      )
+      baccaratPromptFlex({
+        title: "目前本金",
+        lines: [String(capital), "請輸入單柱上限", "例如：500 / 500.5"],
+      })
     );
   }
 
@@ -213,14 +144,20 @@ ${capital}
     if (!maxBet) {
       return reply(
         token,
-        textMessage("❌ 單柱上限格式錯誤，請輸入數字。")
+        baccaratPromptFlex({
+          title: "單柱上限格式錯誤",
+          lines: ["請輸入數字。"],
+        })
       );
     }
 
     if (!validateMaxBet(session.capital, maxBet)) {
       return reply(
         token,
-        textMessage("❌ 單柱上限不可大於本金，也不可小於或等於 0。")
+        baccaratPromptFlex({
+          title: "單柱上限錯誤",
+          lines: ["單柱上限不可大於本金，也不可小於或等於 0。"],
+        })
       );
     }
 
@@ -228,24 +165,11 @@ ${capital}
 
     return reply(
       token,
-      textMessage(
-        `━━━━━━━━━━━━━━━━━━━━
-
-⚡ BLACKDOMAIN AI
-
-本金：
-${session.capital}
-
-單柱上限：
-${maxBet}
-
-━━━━━━━━━━━━━━━━━━━━
-
-請選擇模式
-
-━━━━━━━━━━━━━━━━━━━━`,
-        modeQuickReply()
-      )
+      baccaratPromptFlex({
+        title: "請選擇模式",
+        lines: [`本金：${session.capital}`, `單柱上限：${maxBet}`],
+        quickReply: modeQuickReply(),
+      })
     );
   }
 
@@ -253,7 +177,11 @@ ${maxBet}
     if (!isMode(text)) {
       return reply(
         token,
-        textMessage("請選擇模式：AI配注 / 天門 / 自由配注", modeQuickReply())
+        baccaratPromptFlex({
+          title: "請選擇模式",
+          lines: ["請選擇模式：AI配注 / 天門 / 自由配注"],
+          quickReply: modeQuickReply(),
+        })
       );
     }
 
@@ -264,7 +192,12 @@ ${maxBet}
 
     return reply(
       token,
-      textMessage(formatAnalysis(first.session, first.prediction, first.bet), resultQuickReply())
+      baccaratAnalysisFlex({
+        session: first.session,
+        prediction: first.prediction,
+        bet: first.bet,
+        quickReply: resultQuickReply(),
+      })
     );
   }
 
@@ -272,7 +205,11 @@ ${maxBet}
     if (!isResult(text)) {
       return reply(
         token,
-        textMessage("請輸入：莊 / 閒 / 和", resultQuickReply())
+        baccaratPromptFlex({
+          title: "請輸入開局結果",
+          lines: ["請輸入：莊 / 閒 / 和"],
+          quickReply: resultQuickReply(),
+        })
       );
     }
 
@@ -284,22 +221,22 @@ ${maxBet}
 
       return reply(
         token,
-        textMessage(
-          `━━━━━━━━━━━━━━━━━━━━
-
-⚠️ BLACKDOMAIN AI
-
-資金已歸零，分析停止。
-
-━━━━━━━━━━━━━━━━━━━━`,
-          restartQuickReply()
-        )
+        baccaratPromptFlex({
+          title: "資金已歸零",
+          lines: ["分析停止。"],
+          quickReply: restartQuickReply(),
+        })
       );
     }
 
     return reply(
       token,
-      textMessage(formatAnalysis(result.session, result.prediction, result.bet), resultQuickReply())
+      baccaratAnalysisFlex({
+        session: result.session,
+        prediction: result.prediction,
+        bet: result.bet,
+        quickReply: resultQuickReply(),
+      })
     );
   }
 

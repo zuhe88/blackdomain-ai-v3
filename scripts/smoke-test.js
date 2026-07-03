@@ -112,6 +112,30 @@ function walkFlex(node, visitor) {
   Object.keys(node).forEach((key) => walkFlex(node[key], visitor));
 }
 
+function collectMessageText(message) {
+  const values = [];
+
+  if (message.type === "text") {
+    values.push(message.text);
+  }
+
+  if (message.type === "flex") {
+    walkFlex(message.contents, (node) => {
+      if (node.type === "text") values.push(node.text);
+      if (node.action?.type === "message") values.push(node.action.text);
+    });
+  }
+
+  if (message.quickReply) {
+    message.quickReply.items.forEach((item) => {
+      values.push(item.action.label);
+      values.push(item.action.text);
+    });
+  }
+
+  return values;
+}
+
 function assertMessage(message) {
   if (!message || typeof message !== "object") {
     throw new Error("LINE message must be an object");
@@ -174,6 +198,16 @@ function assertMessage(message) {
       }
     });
   }
+
+  collectMessageText(message).forEach((value) => {
+    if (value.includes("建置中")) {
+      throw new Error("Active module returned 建置中");
+    }
+
+    if (value.includes("??") || value.includes("�")) {
+      throw new Error("Detected corrupted text marker");
+    }
+  });
 }
 
 function assertLatestReply() {
@@ -190,6 +224,7 @@ function assertLatestReply() {
 async function send(text, userId) {
   await handleEvent(event(text, userId));
   assertLatestReply();
+  return captured.replies[captured.replies.length - 1];
 }
 
 async function main() {
@@ -233,20 +268,45 @@ async function main() {
 
   const baccaratUser = "baccarat-flow";
   for (const text of ["百家樂", "DG", "01", "3000", "500", "AI配注", "莊", "閒", "和", "結束分析"]) {
-    await send(text, baccaratUser);
+    const reply = await send(text, baccaratUser);
+    reply.messages.forEach((message) => {
+      if (message.type !== "flex") throw new Error("Baccarat must reply with Flex UI");
+    });
   }
 
   const baccaratUserMt = "baccarat-mt-flow";
   for (const text of ["百家樂AI", "MT", "3A", "3000.5", "500.5", "天門", "莊", "取消"]) {
-    await send(text, baccaratUserMt);
+    const reply = await send(text, baccaratUserMt);
+    reply.messages.forEach((message) => {
+      if (message.type !== "flex") throw new Error("Baccarat must reply with Flex UI");
+    });
   }
 
   const baccaratUserFree = "baccarat-free-flow";
   for (const text of ["🤖 百家樂AI", "MT", "13A", "3,000", "500", "自由配注", "和"]) {
-    await send(text, baccaratUserFree);
+    const reply = await send(text, baccaratUserFree);
+    reply.messages.forEach((message) => {
+      if (message.type !== "flex") throw new Error("Baccarat must reply with Flex UI");
+    });
   }
 
-  for (const text of ["539", "539AI", "📊 539AI", "體育", "體育AI", "⚽ 體育AI", "MLB", "VIP", "VIP查詢", "👑 VIP查詢", "未知指令"]) {
+  for (const text of ["539", "539AI", "📊 539AI", "539預測", "539今日"]) {
+    await send(text, `539-${text}`);
+  }
+
+  for (const text of ["體育", "體育AI", "⚽ 體育AI", "MLB", "NBA", "世界盃"]) {
+    await send(text, `sports-${text}`);
+  }
+
+  for (const text of ["VIP", "VIP查詢", "👑 VIP查詢", "VIP會員", "會員中心"]) {
+    await send(text, `vip-${text}`);
+  }
+
+  for (const text of ["幸運盒", "Lucky Box", "LUCKY BOX", "抽獎", "開盒"]) {
+    await send(text, `lucky-${text}`);
+  }
+
+  for (const text of ["未知指令"]) {
     await send(text, `misc-${text}`);
   }
 
