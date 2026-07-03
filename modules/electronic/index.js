@@ -56,6 +56,18 @@ function shuffleBySeed(list, seedText) {
   });
 }
 
+function randomPick(list, count) {
+  const pool = [...list];
+  const result = [];
+
+  while (pool.length > 0 && result.length < count) {
+    const index = Math.floor(Math.random() * pool.length);
+    result.push(pool.splice(index, 1)[0]);
+  }
+
+  return result;
+}
+
 function buildCyclePools(gameName, cycleKey) {
   const config = GAME_CONFIG[gameName];
   const allRooms = [];
@@ -65,24 +77,11 @@ function buildCyclePools(gameName, cycleKey) {
   }
 
   const goodCount = Math.max(10, Math.ceil(allRooms.length * 0.15));
-  const aiCount = Math.max(8, Math.ceil(allRooms.length * 0.08));
-  const hotCount = Math.max(10, Math.ceil(allRooms.length * 0.03));
-  const strongCount = Math.max(5, Math.ceil(allRooms.length * 0.03));
-
   const goodRooms = shuffleBySeed(allRooms, `GOOD:${gameName}:${cycleKey}`).slice(0, goodCount);
-  const strongRooms = shuffleBySeed(goodRooms, `STRONG:${gameName}:${cycleKey}`).slice(0, strongCount);
-  const aiRooms = shuffleBySeed(goodRooms, `AI:${gameName}:${cycleKey}`).slice(0, aiCount);
-  const hotRooms = shuffleBySeed(goodRooms, `HOT:${gameName}:${cycleKey}`).slice(0, hotCount);
 
   return {
     goodRooms,
-    strongRooms,
-    aiRooms,
-    hotRooms,
     goodSet: new Set(goodRooms),
-    strongSet: new Set(strongRooms),
-    aiSet: new Set(aiRooms),
-    hotSet: new Set(hotRooms),
   };
 }
 
@@ -157,11 +156,11 @@ function getNextRecommendRoom(userId, gameName) {
   const cycle = getGameCycle(gameName);
   const usedRooms = getUsedRooms(session, gameName);
 
-  let availableRooms = cycle.aiRooms.filter((room) => !usedRooms.includes(room));
+  let availableRooms = cycle.goodRooms.filter((room) => !usedRooms.includes(room));
 
   if (availableRooms.length === 0) {
     session.usedRoomsByCycle[`${gameName}:${getCycleKey()}`] = [];
-    availableRooms = cycle.aiRooms;
+    availableRooms = [...cycle.goodRooms];
   }
 
   const room = availableRooms[Math.floor(Math.random() * availableRooms.length)];
@@ -315,7 +314,7 @@ async function showHotRank(event) {
   electronicSessions.set(userId, session);
 
   const cycle = getGameCycle(session.gameName);
-  const rooms = cycle.hotRooms.slice(0, 10).map((r) => formatRoom(session.gameName, r));
+  const rooms = randomPick(cycle.goodRooms, 10).map((r) => formatRoom(session.gameName, r));
 
   return reply(
     event.replyToken,
@@ -382,16 +381,8 @@ async function analyzeCustomRoom(event, text) {
     "建議等待下一輪更新",
   ];
 
-  if (cycle.strongSet.has(room) || cycle.aiSet.has(room) || cycle.hotSet.has(room)) {
-    title = "🟢 AI判定：高度建議進場";
-    lines = [
-      roomText,
-      "目前波動強烈",
-      "活躍度明顯提升",
-      "建議可進場觀察",
-    ];
-  } else if (cycle.goodSet.has(room)) {
-    title = "🟡 AI判定：可進場";
+  if (cycle.goodSet.has(room)) {
+    title = "🟢 AI判定：可進場";
     lines = [
       roomText,
       "目前活躍度穩定",
