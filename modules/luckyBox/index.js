@@ -1,6 +1,6 @@
 const { adminLineUserIds, isAdminLineUserId } = require("../../config/admin");
 const { bubble, button, infoLine, metric, note } = require("../../ui/flex/premium");
-const { push, reply, line3AClient } = require("../../services/line3a");
+const { getProfile, push, reply } = require("../../services/line3a");
 const {
   findMemberByLineUserId,
   findMemberBy3AAccount,
@@ -129,7 +129,7 @@ function pickPrize(member, isAdmin) {
 
 async function getLineName(userId) {
   try {
-    const profile = await line3AClient.getProfile(userId);
+    const profile = await getProfile(userId);
     return profile?.displayName || "未取得";
   } catch (error) {
     return "未取得";
