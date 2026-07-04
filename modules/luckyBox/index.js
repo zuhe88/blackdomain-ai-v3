@@ -384,8 +384,11 @@ function pickPrizeByProbability(probability) {
 }
 
 function sectorIndexForPrize(prize) {
-  const index = WHEEL_SEGMENTS.findIndex((item) => item === prize);
-  return index >= 0 ? index : 0;
+  const indexes = WHEEL_SEGMENTS
+    .map((item, index) => (item === prize ? index : -1))
+    .filter((index) => index >= 0);
+  if (!indexes.length) return 0;
+  return indexes[Math.floor(Math.random() * indexes.length)];
 }
 
 function parseProbabilityCommand(value) {
@@ -401,7 +404,7 @@ function parseProbabilityCommand(value) {
   }
   if (!["AI權限1天", "88", "888", "2888"].every((key) => Object.prototype.hasOwnProperty.call(result, key))) return null;
   const total = Object.values(result).reduce((sum, number) => sum + number, 0);
-  if (total !== 100) return { error: "sum" };
+  if (Math.abs(total - 100) > 0.0001) return { error: "sum" };
   return result;
 }
 
@@ -469,7 +472,9 @@ async function handleAdmin(event, value) {
 
   const adminCommandPrefixes = [
     "管理指令",
+    "管理員指令",
     "機率設定",
+    "機率設定 ",
     "設定機率 ",
     "開通 ",
     "增加 ",
@@ -490,9 +495,9 @@ async function handleAdmin(event, value) {
   const looksLikeAdminCommand = adminCommandPrefixes.some((prefix) => value === prefix.trim() || value.startsWith(prefix));
   if (!isAdmin && looksLikeAdminCommand) return reply(event.replyToken, `❌ 您不是管理員\nLINE UID：${adminId}`);
   if (!isAdmin) return false;
-  if (value === "管理指令") return reply(event.replyToken, adminCommandsText());
+  if (value === "管理指令" || value === "管理員指令") return reply(event.replyToken, adminCommandsText());
   if (value === "機率設定") return reply(event.replyToken, probabilityFlex(await getSpinProbability()));
-  if (value.startsWith("設定機率 ")) {
+  if (value.startsWith("設定機率 ") || value.startsWith("機率設定 ")) {
     const probability = parseProbabilityCommand(value);
     if (probability?.error === "sum") return reply(event.replyToken, "設定失敗\n機率總和必須等於100");
     if (!probability) return reply(event.replyToken, "設定失敗\n請確認格式：\n設定機率 AI 45 88 45 888 9 2888 1");
@@ -636,9 +641,11 @@ async function handleLuckyBoxEvent(event) {
   const adminResult = await handleAdmin(event, value);
   if (adminResult !== false) return adminResult;
 
+  if (value === "綁定" || value === "綁定3A") return reply(event.replyToken, bindHelpFlex());
   if (value.startsWith("綁定 ")) return bindMember(event, value.split(/\s+/));
 
   const command = normalizeUserCommand(value);
+  if (command === "選單" || command === "開始") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
   if (command === "我的VIP") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
   if (command === "我的鑰匙") {
     const member = await getViewerMember(userId);

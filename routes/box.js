@@ -340,7 +340,8 @@ function pageHtml() {
         return;
       }
       const index = Number.isInteger(data.sectorIndex) ? data.sectorIndex : Math.max(0, prizeIndex(data.prize));
-      const target = 360 - (index * segmentAngle + segmentAngle / 2);
+      const safeOffset = (Math.random() - 0.5) * segmentAngle * 0.62;
+      const target = 360 - (index * segmentAngle + segmentAngle / 2 + safeOffset);
       const normalizedRotation = ((currentRotation % 360) + 360) % 360;
       currentRotation += 360 * 5 + ((target - normalizedRotation + 360) % 360);
       wheel.style.transform = "rotate(" + currentRotation + "deg)";
