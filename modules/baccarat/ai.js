@@ -1,19 +1,58 @@
+const MAX_RISK_RATIO = 0.2;
+
 function roundBet(amount) {
-  if (amount < 1) return 1;
-  return Math.round(amount * 100) / 100;
+  if (amount < 100) return 100;
+  return Math.floor(Number(amount || 0) / 100) * 100;
 }
 
 function clampBet(amount, maxBet) {
-  return Math.min(roundBet(amount), maxBet);
+  const capped = Math.min(roundBet(amount), roundBet(maxBet));
+  return Math.max(0, capped);
+}
+
+function getBaseBetAmount(capital) {
+  if (capital >= 30000) return roundBet(capital * 0.15);
+  if (capital >= 20000) return 3500;
+  if (capital >= 15000) return 2500;
+  if (capital >= 10000) return 1800;
+  if (capital >= 7000) return 1500;
+  if (capital >= 5000) return 1000;
+  if (capital >= 4000) return 700;
+  if (capital >= 3000) return 500;
+  if (capital >= 2000) return 300;
+  if (capital >= 1000) return 200;
+  return roundBet(Math.max(100, capital * 0.15));
+}
+
+function riskLevelForBet(bet, capital) {
+  const ratio = capital > 0 ? bet / capital : 0;
+  if (ratio <= 0.08) return "🟢 保守";
+  if (ratio <= 0.14) return "🟡 穩健";
+  return "🟠 積極";
+}
+
+function dynamicBetFromBase(base, limit) {
+  const variants = [-0.1, 0, 0.1]
+    .map((rate) => clampBet(base * (1 + rate), limit))
+    .filter((amount) => amount > 0);
+  const unique = Array.from(new Set(variants));
+  return unique[Math.floor(Math.random() * unique.length)] || clampBet(base, limit);
 }
 
 function getBaseBet(session) {
   const capital = Number(session.bankroll || session.capital || 0);
   const maxBet = Number(session.maxBet || capital);
-  let base = capital * 0.03;
-  if (capital >= 5000) base = capital * 0.04;
-  if (capital >= 10000) base = capital * 0.05;
-  return clampBet(base, maxBet);
+  const riskLimit = roundBet(capital * MAX_RISK_RATIO);
+  const limit = Math.min(maxBet, capital, riskLimit || capital);
+  const base = getBaseBetAmount(capital);
+  const bet = dynamicBetFromBase(base, limit);
+  session.lastBetMeta = {
+    baseBet: clampBet(base, limit),
+    riskLevel: riskLevelForBet(bet, capital),
+    strategy: "動態配注",
+    maxRiskRatio: MAX_RISK_RATIO,
+  };
+  return bet;
 }
 
 function predict(history = []) {
@@ -30,7 +69,14 @@ function calculateBet(session) {
   if (session.mode === "天門") {
     const levels = [1, 3, 7, 15, 31];
     const level = session.tianmenLevel || 1;
-    return clampBet(100 * levels[level - 1], Math.min(session.maxBet, session.bankroll));
+    const bet = clampBet(100 * levels[level - 1], Math.min(session.maxBet, session.bankroll));
+    session.lastBetMeta = {
+      baseBet: bet,
+      riskLevel: riskLevelForBet(bet, Number(session.bankroll || session.capital || 0)),
+      strategy: "天門五關",
+      maxRiskRatio: MAX_RISK_RATIO,
+    };
+    return bet;
   }
   return clampBet(getBaseBet(session), Math.min(session.maxBet, session.bankroll));
 }
@@ -91,4 +137,6 @@ module.exports = {
   firstAnalysis,
   nextAnalysis,
   getReason,
+  calculateBet,
+  getBaseBetAmount,
 };

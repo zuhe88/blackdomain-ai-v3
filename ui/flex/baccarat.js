@@ -147,6 +147,7 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
   const history = session.history.length ? session.history.join(" ") : "目前尚無紀錄";
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
   const betText = session.mode === "自由配注" ? "玩家自行配注" : String(bet);
+  const betMeta = session.lastBetMeta || {};
   const results = {
     player: session.results.player || 0,
     tie: session.results.tie || 0,
@@ -163,6 +164,9 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
       metric("建議", prediction, session.mode),
       metric("建議金額", betText, "依單注上限與目前本金計算"),
       infoLine("目前狀態", "AI監控中"),
+      infoLine("AI風險等級", session.mode === "自由配注" ? "-" : betMeta.riskLevel || "🟡 穩健"),
+      infoLine("本金", String(session.capital || session.startBankroll || session.bankroll || "-")),
+      infoLine("AI配注策略", session.mode === "自由配注" ? "紀錄模式" : betMeta.strategy || "動態配注"),
       infoLine("AI分析摘要", reason),
       infoLine("單注上限", String(session.maxBet)),
       infoLine("目前本金", session.mode === "自由配注" ? "-" : String(session.bankroll)),
