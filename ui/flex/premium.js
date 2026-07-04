@@ -1,15 +1,15 @@
 const COLORS = {
-  black: "#05070B",
-  deep: "#080D14",
-  panel: "#101722",
-  glass: "#121C2A",
-  blue: "#27A7FF",
-  blueSoft: "#75C9FF",
-  blueDark: "#123759",
-  gold: "#C9A95A",
+  black: "#06080C",
+  deep: "#0B0E13",
+  panel: "#11151C",
+  glass: "#151A22",
+  blue: "#4A9BD8",
+  blueSoft: "#8DBCE4",
+  blueDark: "#172B3D",
+  gold: "#B99A55",
   white: "#FFFFFF",
-  gray: "#B8C2CF",
-  muted: "#748191",
+  gray: "#C7CED8",
+  muted: "#7C8794",
   red: "#D65A5A",
   green: "#43D18C",
 };
@@ -35,41 +35,15 @@ function divider(margin = "md") {
   return separator(margin);
 }
 
-function tinyBar(color = COLORS.blue, flex = 1) {
-  return {
-    type: "box",
-    layout: "vertical",
-    height: "2px",
-    flex,
-    backgroundColor: color,
-    contents: [],
-  };
-}
-
-function hudRail() {
-  return {
-    type: "box",
-    layout: "horizontal",
-    spacing: "xs",
-    margin: "md",
-    contents: [
-      tinyBar(COLORS.blue, 2),
-      tinyBar("#1F4568", 5),
-      tinyBar(COLORS.gold, 1),
-      tinyBar("#1F4568", 3),
-    ],
-  };
-}
-
 function hexMark() {
   return {
     type: "box",
     layout: "vertical",
-    width: "28px",
-    height: "28px",
-    cornerRadius: "8px",
-    backgroundColor: "#0B253A",
-    borderColor: COLORS.blue,
+    width: "34px",
+    height: "34px",
+    cornerRadius: "12px",
+    backgroundColor: "#111923",
+    borderColor: "#26445C",
     borderWidth: "1px",
     contents: [
       text("AI", {
@@ -84,15 +58,15 @@ function hexMark() {
   };
 }
 
-function header(title, subtitle = "黑域AI 智能分析平台") {
+function header(title, subtitle = "AI 即時分析中心") {
   return {
     type: "box",
     layout: "vertical",
-    spacing: "sm",
-    paddingAll: "16px",
-    backgroundColor: "#08111B",
-    cornerRadius: "18px",
-    borderColor: "#17486B",
+    spacing: "md",
+    paddingAll: "20px",
+    backgroundColor: "#0D1118",
+    cornerRadius: "22px",
+    borderColor: "#202A36",
     borderWidth: "1px",
     contents: [
       {
@@ -112,8 +86,6 @@ function header(title, subtitle = "黑域AI 智能分析平台") {
           },
         ],
       },
-      hudRail(),
-      text("AI系統運行中｜資料同步完成", { size: "xxs", color: COLORS.gray, align: "center" }),
     ],
   };
 }
@@ -223,7 +195,7 @@ function note(value) {
   return text(value, { size: "xs", color: COLORS.muted, align: "center" });
 }
 
-function bubble({ altText, title, subtitle, contents = [], quickReply, footer = "黑域AI 智能分析平台" }) {
+function bubble({ altText, title, subtitle, contents = [], quickReply, footer = "黑域AI" }) {
   const message = {
     type: "flex",
     altText: String(altText || title || "黑域AI").slice(0, 400),
@@ -267,7 +239,7 @@ function carousel(altText, bubbles) {
 
 const baseBubble = bubble;
 const baseHeader = header;
-const baseFooter = (value = "黑域AI 智能分析平台") => ({
+const baseFooter = (value = "黑域AI") => ({
   type: "box",
   layout: "vertical",
   paddingAll: "12px",

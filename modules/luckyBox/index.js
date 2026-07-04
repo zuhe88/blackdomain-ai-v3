@@ -22,7 +22,7 @@ const BLACKDOMAIN_LINE_URL = "https://line.me/ti/p/@391wiftp";
 const DEFAULT_BASE_URL = "https://blackdomain-ai-v3-production.up.railway.app";
 const adminOpenSessions = new Map();
 
-const WHEEL_SEGMENTS = ["AI權限1天", "88", "AI權限1天", "888", "88", "AI權限1天", "888", "2888"];
+const WHEEL_SEGMENTS = ["AI權限1天", "88", "AI權限1天", "888", "88", "2888"];
 
 function baseUrl() {
   const raw = process.env.PUBLIC_BASE_URL || process.env.RAILWAY_PUBLIC_DOMAIN || DEFAULT_BASE_URL;
@@ -542,26 +542,34 @@ async function getViewerMember(userId) {
   return isAdminLineUserId(userId) ? adminMember(userId) : findMemberByLineUserId(userId);
 }
 
+function normalizeUserCommand(value) {
+  return String(value || "")
+    .replace(/^[\s🎡👤📒📜🔑🎁]+/u, "")
+    .trim();
+}
+
 async function handleLuckyBoxEvent(event) {
   if (event.type !== "message" && event.type !== "postback" && event.type !== "follow") return;
   const userId = event.source.userId || "";
-  if (event.type === "follow") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
-  if (event.type === "message" && event.message.type !== "text") return reply(event.replyToken, "目前僅支援文字指令，請輸入：選單");
+  if (event.type === "follow") return;
+  if (event.type === "message" && event.message.type !== "text") return;
   const value = event.type === "postback" ? String(event.postback?.data || "") : event.message.text.trim();
   const adminResult = await handleAdmin(event, value);
   if (adminResult !== false) return adminResult;
+
   if (value.startsWith("綁定 ")) return bindMember(event, value.split(/\s+/));
-  if (value === "綁定") return reply(event.replyToken, bindHelpFlex());
-  if (value === "選單" || value === "開始") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
-  if (value === "我的VIP") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
-  if (value === "我的鑰匙") {
+
+  const command = normalizeUserCommand(value);
+  if (command === "我的VIP") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
+  if (command === "我的鑰匙") {
     const member = await getViewerMember(userId);
     return reply(event.replyToken, `目前鑰匙數量：${member.isAdmin ? "無限制" : member.keys || 0}`);
   }
-  if (value === "幸運轉盤") return reply(event.replyToken, spinIntroFlex(await getViewerMember(userId)));
-  if (value === "活動公告") return reply(event.replyToken, activityFlex());
-  if (value === "抽獎紀錄") return handleHistory(event);
-  return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
+  if (command === "幸運轉盤") return reply(event.replyToken, spinIntroFlex(await getViewerMember(userId)));
+  if (command === "活動公告") return reply(event.replyToken, activityFlex());
+  if (command === "抽獎紀錄") return handleHistory(event);
+
+  return;
 }
 
 module.exports = {

@@ -1,42 +1,48 @@
-const { COLORS, bubble, button, text } = require("./flex/premium");
+const { COLORS, bubble, text } = require("./flex/premium");
 
-function statusTile(label, value, accent = COLORS.blue) {
+function badge(label, color = COLORS.blueSoft) {
   return {
     type: "box",
-    layout: "vertical",
-    flex: 1,
-    paddingAll: "12px",
-    cornerRadius: "16px",
-    backgroundColor: "#0D1520",
-    borderColor: "#163854",
+    layout: "horizontal",
+    spacing: "xs",
+    paddingTop: "6px",
+    paddingBottom: "6px",
+    paddingStart: "9px",
+    paddingEnd: "9px",
+    cornerRadius: "999px",
+    backgroundColor: "#111820",
+    borderColor: "#252F3A",
     borderWidth: "1px",
     contents: [
-      text(label, { size: "xxs", color: COLORS.gray, align: "center" }),
-      text(value, { size: "md", weight: "bold", color: accent, align: "center" }),
+      text("●", { size: "xxs", color, flex: 0, wrap: false }),
+      text(label, { size: "xxs", color: COLORS.gray, flex: 0, wrap: false }),
     ],
   };
 }
 
-function featureButton(title, subtitle, actionText, accent = COLORS.blue) {
+function featureRow({ icon, title, subtitle, actionText, accent = COLORS.blueSoft }) {
   return {
     type: "box",
     layout: "horizontal",
     spacing: "md",
-    margin: "sm",
     paddingAll: "14px",
-    cornerRadius: "18px",
-    backgroundColor: "#0D1520",
-    borderColor: "#163854",
+    cornerRadius: "16px",
+    backgroundColor: "#10151D",
+    borderColor: "#202A36",
     borderWidth: "1px",
     action: { type: "message", text: actionText },
     contents: [
       {
         type: "box",
         layout: "vertical",
-        width: "8px",
-        cornerRadius: "8px",
-        backgroundColor: accent,
-        contents: [],
+        width: "38px",
+        height: "38px",
+        cornerRadius: "13px",
+        backgroundColor: "#171E27",
+        borderColor: "#283343",
+        borderWidth: "1px",
+        justifyContent: "center",
+        contents: [text(icon, { size: "lg", align: "center", wrap: false })],
       },
       {
         type: "box",
@@ -45,70 +51,74 @@ function featureButton(title, subtitle, actionText, accent = COLORS.blue) {
         spacing: "xs",
         contents: [
           text(title, { size: "md", weight: "bold", color: COLORS.white }),
-          text(subtitle, { size: "xs", color: COLORS.gray }),
+          text(subtitle, { size: "xs", color: COLORS.muted }),
         ],
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        width: "22px",
+        justifyContent: "center",
+        contents: [text("›", { size: "xl", color: accent, align: "end", wrap: false })],
       },
     ],
   };
 }
 
-function featureGrid() {
+function utilityRow() {
   return {
     type: "box",
     layout: "vertical",
     spacing: "sm",
+    margin: "sm",
     contents: [
-      featureButton("百家樂AI", "AI分析、配注紀錄、結果追蹤", "百家樂", COLORS.blue),
-      featureButton("電子AI", "推薦房、熱門排行、自選分析", "電子", "#5DD6FF"),
-      featureButton("體育AI", "世足、MLB、NBA 賽前分析", "體育", "#6E8BFF"),
-      featureButton("539AI", "今日分析與歷史開獎", "539", COLORS.gold),
-      {
-        type: "box",
-        layout: "horizontal",
-        spacing: "sm",
-        contents: [
-          button("VIP中心", "VIP", "secondary"),
-          button("黑域官網", "黑域官網", "secondary"),
-        ],
-      },
-      button("聯繫管理員", "聯繫管理員", "secondary"),
+      featureRow({ icon: "👑", title: "VIP中心", subtitle: "查看權限、狀態與到期資訊", actionText: "VIP", accent: COLORS.gold }),
+      featureRow({ icon: "🌐", title: "黑域官網", subtitle: "前往官方網站與服務入口", actionText: "黑域官網", accent: COLORS.blueSoft }),
+      featureRow({ icon: "📞", title: "聯繫管理員", subtitle: "需要協助時可聯繫管理窗口", actionText: "聯繫管理員", accent: COLORS.gray }),
     ],
   };
 }
 
 function mainMenuFlex() {
   return bubble({
-    altText: "黑域AI 智能分析平台",
-    title: "黑域AI 智能分析平台",
-    subtitle: "AI系統運行中",
-    footer: "黑域AI 智能分析平台",
+    altText: "黑域AI",
+    title: "黑域AI",
+    subtitle: "AI 即時分析中心",
+    footer: "黑域AI",
     contents: [
       {
         type: "box",
         layout: "horizontal",
         spacing: "sm",
+        contents: [badge("運行中", COLORS.green), badge("已同步", COLORS.blueSoft), badge("即時分析", COLORS.gold)],
+      },
+      {
+        type: "box",
+        layout: "vertical",
+        spacing: "xs",
+        margin: "sm",
+        paddingAll: "14px",
+        cornerRadius: "16px",
+        backgroundColor: "#0C1016",
+        borderColor: "#1C2530",
+        borderWidth: "1px",
         contents: [
-          statusTile("系統狀態", "運行中"),
-          statusTile("資料狀態", "已同步", COLORS.gold),
-          statusTile("分析模式", "即時"),
+          text("AI分析摘要", { size: "sm", weight: "bold", color: COLORS.white }),
+          text("資料同步完成，系統正在持續監測各項分析模組。", { size: "xs", color: COLORS.muted }),
         ],
       },
       {
         type: "box",
         layout: "vertical",
         spacing: "sm",
-        margin: "md",
-        paddingAll: "14px",
-        cornerRadius: "18px",
-        backgroundColor: "#08111B",
-        borderColor: "#173A57",
-        borderWidth: "1px",
         contents: [
-          text("AI分析摘要", { size: "sm", weight: "bold", color: COLORS.blueSoft }),
-          text("目前資料同步完成，系統持續監測各項分析模組。", { size: "sm", color: COLORS.white }),
+          featureRow({ icon: "🎲", title: "百家樂AI", subtitle: "配注分析、結果紀錄與本金追蹤", actionText: "百家樂" }),
+          featureRow({ icon: "⚡", title: "電子AI", subtitle: "推薦房、熱門排行與自選分析", actionText: "電子" }),
+          featureRow({ icon: "⚽", title: "體育AI", subtitle: "世足、MLB、NBA 賽前分析", actionText: "體育" }),
+          featureRow({ icon: "🎯", title: "539AI", subtitle: "今日分析與歷史開獎整理", actionText: "539", accent: COLORS.gold }),
         ],
       },
-      featureGrid(),
+      utilityRow(),
     ],
   });
 }
