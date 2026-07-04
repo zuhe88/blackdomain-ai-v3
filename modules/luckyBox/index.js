@@ -592,19 +592,23 @@ async function openBoxByLineUserId(lineUserId) {
   const log = await addLuckyLog({ lineUserId, threeAAccount: member.threeAAccount, prize, isAdminTest: isAdmin });
   if (!log.ok) return { ok: false, code: "LOG_FAILED", message: log.error };
   const aiDays = prizeAiDays(prize);
+  let aiAccess = null;
   if (aiDays > 0) {
     const grant = aiDays === 1
       ? await grantBlackdomainAiAccessOneDay({ ...member, lineUserId })
       : await grantBlackdomainAiAccessDays({ ...member, lineUserId }, aiDays);
-    if (grant.ok) await notifyAiAccessUpdated({ ...member, lineUserId }, { days: aiDays, expiresAt: grant.expiresAt });
+    if (grant.ok) aiAccess = { days: aiDays, expiresAt: grant.expiresAt };
   }
-  return { ok: true, prize, sectorIndex: sectorIndexForPrize(prize), keys: nextKeys, member: { ...member, keys: nextKeys }, isAdminTest: isAdmin };
+  return { ok: true, prize, sectorIndex: sectorIndexForPrize(prize), keys: nextKeys, member: { ...member, keys: nextKeys }, isAdminTest: isAdmin, aiAccess };
 }
 
-async function notifySpinResult(lineUserId, prize) {
+async function notifySpinResult(lineUserId, prize, aiAccess = null) {
   const isAdmin = isAdminLineUserId(lineUserId);
   const member = isAdmin ? adminMember(lineUserId) : await findMemberByLineUserId(lineUserId);
   await push(lineUserId, `幸運轉盤抽獎完成\n獎項：${prize}\n時間：${formatDateTime(new Date().toISOString())}`);
+  if (aiAccess?.days > 0) {
+    await notifyAiAccessUpdated({ ...member, lineUserId }, { days: Number(aiAccess.days), expiresAt: aiAccess.expiresAt });
+  }
   await notifyAdminsPrize(member, prize, isAdmin);
   return { ok: true };
 }

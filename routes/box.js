@@ -209,7 +209,6 @@ function pageHtml() {
       </div>
     </section>
     <button id="openButton">🎡 轉動輪盤</button>
-    <button id="againButton" style="display:none">🎯 再抽一次</button>
     <div class="grid">
       <button class="secondary" id="historyButton">📒 抽獎紀錄</button>
       <button class="secondary" id="activityButton">📜 活動公告</button>
@@ -233,6 +232,7 @@ function pageHtml() {
     let memberState = "";
     let latestKeys = 0;
     let currentRotation = 0;
+    let spinning = false;
     const $ = (id) => document.getElementById(id);
     const wheel = $("wheel");
 
@@ -242,7 +242,7 @@ function pageHtml() {
       const isLight = index === 1 || index === 3 || index === 5;
       div.className = "seg " + (isLight ? "light " : "") + (label === "2888" ? "jackpot" : label.includes("AI") ? "pass" : "");
       const angle = index * segmentAngle + segmentAngle / 2;
-      div.style.transform = "rotate(" + angle + "deg) translateY(-106px) rotate(" + (-angle) + "deg)";
+      div.style.transform = "rotate(" + angle + "deg) translateY(-106px)";
       div.innerHTML = label === "2888" ? "👑<br>2888" : label;
       wheel.appendChild(div);
     });
@@ -304,47 +304,63 @@ function pageHtml() {
       $("vipStatus").textContent = data.vipStatus;
       $("keys").textContent = data.isAdmin ? "無限制（管理員）" : data.keys + " 把";
       $("openTimes").textContent = data.openTimes;
-      $("againButton").style.display = data.state === "ready" && (data.isAdmin || latestKeys >= 2) ? "block" : "none";
     }
     async function spin() {
+      if (spinning) return;
       if (!lineUserId) return setNotice("尚未取得LINE身分");
       if (memberState === "unbound") return setNotice("尚未綁定3A帳號，請先完成會員綁定");
       if (memberState === "pending") return setNotice("綁定審核中，請等待管理員審核");
       const restoreButtonText = $("openButton").textContent || "🎡 轉動輪盤";
+      spinning = true;
       $("openButton").disabled = true;
-      $("againButton").disabled = true;
       $("openButton").textContent = "請稍後 正在轉動幸運轉盤...";
-      const response = await fetch("/api/box/open", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ lineUserId }),
-      });
-      const data = await response.json();
+      let data;
+      try {
+        const response = await fetch("/api/box/open", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ lineUserId }),
+        });
+        data = await response.json();
+      } catch (error) {
+        console.error("[box/open]", error);
+        setNotice("⚠️ 抽獎失敗，請稍後再試。");
+        $("resultBox").innerHTML = '<div class="result-title">⚠️ 抽獎失敗，請稍後再試。</div>';
+        $("openButton").disabled = false;
+        $("openButton").textContent = restoreButtonText;
+        spinning = false;
+        return;
+      }
       if (!data.ok) {
         setNotice("⚠️ 抽獎失敗，請稍後再試。");
         $("resultBox").innerHTML = '<div class="result-title">⚠️ 抽獎失敗，請稍後再試。</div>';
         $("openButton").disabled = false;
-        $("againButton").disabled = false;
         $("openButton").textContent = restoreButtonText;
+        spinning = false;
         return;
       }
       const index = Number.isInteger(data.sectorIndex) ? data.sectorIndex : Math.max(0, prizeIndex(data.prize));
       const target = 360 - (index * segmentAngle + segmentAngle / 2);
-      currentRotation += 360 * 5 + target;
+      const normalizedRotation = ((currentRotation % 360) + 360) % 360;
+      currentRotation += 360 * 5 + ((target - normalizedRotation + 360) % 360);
       wheel.style.transform = "rotate(" + currentRotation + "deg)";
       setTimeout(async () => {
         $("resultBox").classList.add("spark");
         $("resultBox").innerHTML = '<div class="result-title">🎉 恭喜獲得</div><div class="result-prize">' + data.prize + '</div><div class="result-note">' + prizeNote(data.prize) + '</div>';
         setNotice("抽獎完成");
-        await fetch("/api/box/notify", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ lineUserId, prize: data.prize }),
-        });
-        await loadStatus();
+        try {
+          await fetch("/api/box/notify", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ lineUserId, prize: data.prize, aiAccess: data.aiAccess || null }),
+          });
+          await loadStatus();
+        } catch (error) {
+          console.error("[box/notify]", error);
+        }
         $("openButton").disabled = false;
-        $("againButton").disabled = false;
         $("openButton").textContent = "🎯 再抽一次";
+        spinning = false;
         setTimeout(() => $("resultBox").classList.remove("spark"), 1400);
       }, 2900);
     }
@@ -365,7 +381,6 @@ function pageHtml() {
     }
     $("openButton").addEventListener("click", spin);
     $("connectButton").addEventListener("click", () => startLineLogin().catch(() => setNotice("LINE身分連結失敗")));
-    $("againButton").addEventListener("click", spin);
     $("historyButton").addEventListener("click", loadHistory);
     $("activityButton").addEventListener("click", () => {
       const panel = $("activity");
@@ -434,8 +449,9 @@ function registerBoxRoutes(app) {
     try {
       const lineUserId = String(req.body?.lineUserId || "");
       const prize = String(req.body?.prize || "");
+      const aiAccess = req.body?.aiAccess || null;
       if (!lineUserId || !prize) return res.json({ ok: false, message: "通知資料不完整" });
-      res.json(await notifySpinResult(lineUserId, prize));
+      res.json(await notifySpinResult(lineUserId, prize, aiAccess));
     } catch (error) {
       console.error("[box/notify]", error);
       res.json({ ok: false, message: "系統忙碌中，請稍後再試。" });
