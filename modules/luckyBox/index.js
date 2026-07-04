@@ -216,8 +216,8 @@ function bindHelpFlex() {
     altText: "3A帳號綁定",
     title: "會員綁定",
     contents: [
-      info("綁定格式", "綁定 3A帳號 暱稱"),
-      info("範例", "綁定 abc888 小黑"),
+      info("綁定格式", "綁定 3A帳號"),
+      info("範例", "綁定 abc888"),
       info("審核狀態", "送出後等待管理員審核"),
     ],
   });
@@ -411,8 +411,7 @@ function parseProbabilityCommand(value) {
 async function bindMember(event, parts) {
   const lineUserId = event.source.userId || "";
   const threeAAccount = parts[1];
-  const nickname = parts.slice(2).join(" ");
-  if (!threeAAccount || !nickname) return reply(event.replyToken, bindHelpFlex());
+  if (!threeAAccount) return reply(event.replyToken, bindHelpFlex());
   const existing = await findMemberByLineUserId(lineUserId);
   if (existing.threeAAccount) {
     return reply(event.replyToken, `您已綁定 3A帳號：${existing.threeAAccount}\n如需更換帳號，請聯繫管理員。`);
@@ -420,6 +419,7 @@ async function bindMember(event, parts) {
   const accountOwner = await findMemberBy3AAccount(threeAAccount);
   if (accountOwner.threeAAccount) return reply(event.replyToken, "此 3A帳號已被綁定或申請中，請聯繫管理員確認。");
   const lineName = await getLineName(lineUserId);
+  const nickname = parts.slice(2).join(" ") || lineName || threeAAccount;
   const result = await createBindRequest({ lineUserId, lineName, threeAAccount, nickname });
   if (!result.ok) return reply(event.replyToken, result.error || "系統忙碌中，請稍後再試。");
   await notifyAdminsBind(result.member);
