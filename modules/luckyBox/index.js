@@ -16,6 +16,7 @@ const {
   getSpinProbability,
   setSpinProbability,
   grantBlackdomainAiAccessOneDay,
+  grantBlackdomainAiAccessDays,
 } = require("./repository");
 
 const BLACKDOMAIN_LINE_URL = "https://line.me/ti/p/@391wiftp";
@@ -174,6 +175,20 @@ function uriButton(label, uri, style = "primary") {
   };
 }
 
+function clipboardButton(label, clipboardText, style = "secondary") {
+  const color = style === "secondary" ? "#241E16" : "#B8924A";
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "sm",
+    paddingAll: "13px",
+    cornerRadius: "14px",
+    backgroundColor: color,
+    action: { type: "clipboard", label, clipboardText },
+    contents: [text(label, { size: "sm", weight: "bold", color: "#FFFFFF", align: "center" })],
+  };
+}
+
 function memberCenterFlex(member = {}) {
   return flex({
     altText: "3A會員中心",
@@ -302,6 +317,7 @@ function adminBindFlex(member) {
       info("LINE名稱", member.lineName || "未取得"),
       info("3A帳號", member.threeAAccount),
       info("申請時間", formatDateTime(member.createdAt)),
+      clipboardButton("複製綁定格式", `綁定 ${member.threeAAccount}`),
       vipButton("開通會員", `開通 ${member.threeAAccount}`),
       vipButton("拒絕", `拒絕 ${member.threeAAccount}`, "danger"),
     ],
@@ -328,6 +344,25 @@ async function notifyAdminsPrize(member, prize, isAdminTest) {
     footer: "3A VIP ADMIN",
   });
   await Promise.all(adminLineUserIds().map((adminId) => push(adminId, message)));
+}
+
+async function notifyAdminsText(message) {
+  await Promise.all(adminLineUserIds().map((adminId) => push(adminId, message)));
+}
+
+async function notifyAiAccessUpdated(member, { status = "已開通", days = 0, expiresAt = null, disabled = false } = {}) {
+  if (!member?.lineUserId) return;
+  const body = disabled
+    ? "━━━━━━━━━━━━━━\nAI會員已到期。\n請聯絡管理員。\n━━━━━━━━━━━━━━"
+    : [
+        "━━━━━━━━━━━━━━",
+        "🎉 黑域AI會員已更新",
+        `狀態：${status}`,
+        `新增：+${days}天`,
+        `目前到期：${formatDateTime(expiresAt)}`,
+        "━━━━━━━━━━━━━━",
+      ].join("\n");
+  await push(member.lineUserId, body);
 }
 
 async function getLineName(userId) {
@@ -388,7 +423,16 @@ async function openVipForMember(account, days) {
   const result = await updateMemberBy3AAccount(account, { status: "approved", vip_expires_at: expiresAt });
   if (!result.ok) return { ok: false, message: result.error };
   await push(member.lineUserId, `VIP 已成功開通\nVIP期限：${days === "永久" ? "永久" : `${days} 天`}\n到期時間：${days === "永久" ? "永久" : formatDateTime(expiresAt)}\n重新進入黑域AI即可使用全部VIP功能。`);
+  if (days !== "永久") await notifyAiAccessUpdated(member, { days: Number(days), expiresAt });
+  await notifyAdminsText(`管理員操作完成\n項目：開通AI\n3A帳號：${account}\n天數：${days}\n到期：${days === "永久" ? "永久" : formatDateTime(expiresAt)}`);
   return { ok: true, message: `已開通 ${account} ${days === "永久" ? "永久VIP" : `${days}天`}` };
+}
+
+function prizeAiDays(prize) {
+  if (/三十天|30天/i.test(String(prize || ""))) return 30;
+  if (/七天|7天/i.test(String(prize || ""))) return 7;
+  if (/AI.*(一天|1天)|AI權限1天/i.test(String(prize || ""))) return 1;
+  return 0;
 }
 
 async function changeKeys(account, amount) {
@@ -403,10 +447,17 @@ async function handleAdmin(event, value) {
   const adminId = event.source.userId || "";
   const isAdmin = isAdminLineUserId(adminId);
   if (value === "管理員測試") {
-    if (isAdmin) {
-      return reply(event.replyToken, `✅ 管理員驗證成功\n目前系統：3A官方LINE\nLINE UID：${adminId}\n權限：管理員`);
-    }
-    return reply(event.replyToken, `❌ 您不是管理員\nLINE UID：${adminId}`);
+    const list = adminLineUserIds();
+    return reply(
+      event.replyToken,
+      [
+        isAdmin ? "✅ 管理員驗證成功" : "❌ 您不是管理員",
+        "目前系統：3A官方LINE",
+        `event.source.userId：${adminId}`,
+        `管理員UID清單：${list.length ? list.join(", ") : "未設定"}`,
+        `includes結果：${isAdmin ? "成功" : "失敗"}`,
+      ].join("\n")
+    );
   }
 
   const adminCommandPrefixes = [
@@ -460,6 +511,8 @@ async function handleAdmin(event, value) {
     const result = await updateMemberBy3AAccount(account, { status: "approved", vip_expires_at: expiresAt });
     if (!result.ok) return reply(event.replyToken, result.error);
     await push(member.lineUserId, `VIP 已增加\n增加：${amount} 天\n新的到期時間：${formatDateTime(expiresAt)}`);
+    await notifyAiAccessUpdated(member, { days: Number(amount), expiresAt });
+    await notifyAdminsText(`管理員操作完成\n項目：增加權限\n3A帳號：${account}\n天數：${amount}\n到期：${formatDateTime(expiresAt)}`);
     return reply(event.replyToken, `已增加 ${account} ${amount} 天`);
   }
   if (command === "減少" && account && amount) {
@@ -469,6 +522,7 @@ async function handleAdmin(event, value) {
     const result = await updateMemberBy3AAccount(account, { vip_expires_at: expiresAt });
     if (!result.ok) return reply(event.replyToken, result.error);
     await push(member.lineUserId, `VIP期限已調整\n減少：${amount} 天\n目前到期：${formatDateTime(expiresAt)}`);
+    await notifyAdminsText(`管理員操作完成\n項目：扣除權限\n3A帳號：${account}\n天數：${amount}\n到期：${formatDateTime(expiresAt)}`);
     return reply(event.replyToken, `已減少 ${account} ${amount} 天`);
   }
   if (command === "刪除" && account) {
@@ -477,6 +531,8 @@ async function handleAdmin(event, value) {
     const result = await updateMemberBy3AAccount(account, { vip_expires_at: new Date().toISOString() });
     if (!result.ok) return reply(event.replyToken, result.error);
     await push(member.lineUserId, "您的VIP已取消。\n如需重新使用請聯絡管理員。");
+    await notifyAiAccessUpdated(member, { disabled: true });
+    await notifyAdminsText(`管理員操作完成\n項目：刪除會員權限\n3A帳號：${account}`);
     return reply(event.replyToken, `已刪除 ${account} VIP`);
   }
   if ((command === "查詢" || command === "查會員") && account) return reply(event.replyToken, memberCenterFlex(await findMemberBy3AAccount(account)));
@@ -528,7 +584,13 @@ async function openBoxByLineUserId(lineUserId) {
   }
   const log = await addLuckyLog({ lineUserId, threeAAccount: member.threeAAccount, prize, isAdminTest: isAdmin });
   if (!log.ok) return { ok: false, code: "LOG_FAILED", message: log.error };
-  if (prize === "AI權限1天") await grantBlackdomainAiAccessOneDay({ ...member, lineUserId });
+  const aiDays = prizeAiDays(prize);
+  if (aiDays > 0) {
+    const grant = aiDays === 1
+      ? await grantBlackdomainAiAccessOneDay({ ...member, lineUserId })
+      : await grantBlackdomainAiAccessDays({ ...member, lineUserId }, aiDays);
+    if (grant.ok) await notifyAiAccessUpdated({ ...member, lineUserId }, { days: aiDays, expiresAt: grant.expiresAt });
+  }
   await push(lineUserId, `幸運轉盤抽獎完成\n獎項：${prize}\n時間：${formatDateTime(new Date().toISOString())}`);
   await notifyAdminsPrize(member, prize, isAdmin);
   return { ok: true, prize, keys: nextKeys, member: { ...member, keys: nextKeys }, isAdminTest: isAdmin };

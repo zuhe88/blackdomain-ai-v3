@@ -240,6 +240,10 @@ function addDays(base, days) {
 }
 
 async function grantBlackdomainAiAccessOneDay(member) {
+  return grantBlackdomainAiAccessDays(member, 1);
+}
+
+async function grantBlackdomainAiAccessDays(member, days = 1) {
   if (!isConnected() || !member?.threeAAccount) return { ok: false, error: "Supabase尚未連線" };
   const now = new Date().toISOString();
   const { data: existingByLine } = member.lineUserId
@@ -251,7 +255,7 @@ async function grantBlackdomainAiAccessOneDay(member) {
   const existing = existingByLine || existingByAccount;
 
   if (existing?.id) {
-    const expiresAt = addDays(existing.expires_at, 1);
+    const expiresAt = addDays(existing.expires_at, days);
     const { error } = await supabase
       .from("vip_users")
       .update({
@@ -264,7 +268,7 @@ async function grantBlackdomainAiAccessOneDay(member) {
     return error ? { ok: false, error: error.message } : { ok: true, expiresAt };
   }
 
-  const expiresAt = addDays(null, 1);
+  const expiresAt = addDays(null, days);
   const { error } = await supabase.from("vip_users").insert({
     line_user_id: member.lineUserId || null,
     line_name: member.lineName || null,
@@ -294,4 +298,5 @@ module.exports = {
   getSpinProbability,
   setSpinProbability,
   grantBlackdomainAiAccessOneDay,
+  grantBlackdomainAiAccessDays,
 };

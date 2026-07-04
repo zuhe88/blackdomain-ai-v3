@@ -68,7 +68,7 @@ function pageHtml() {
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     :root {
-      --black: #050403;
+      --black: #090909;
       --panel: #15100a;
       --panel2: #241a10;
       --gold: #d4aa52;
@@ -86,7 +86,13 @@ function pageHtml() {
       background:
         radial-gradient(circle at 50% 8%, rgba(244, 221, 161, .22), transparent 30%),
         radial-gradient(circle at 50% 48%, rgba(217, 182, 109, .12), transparent 42%),
-        linear-gradient(160deg, #050403 0%, #17100a 52%, #050403 100%);
+        linear-gradient(160deg, #090909 0%, #17100a 52%, #090909 100%);
+    }
+    h1, .club, .badge, .value, .result-title, .result-prize, button, a.button, .seg, .wheel-center {
+      font-weight: 900;
+      letter-spacing: .03em;
+      -webkit-text-stroke: 1.5px rgba(0,0,0,.9);
+      text-shadow: 0 2px 6px rgba(0,0,0,.45);
     }
     .wrap { width: min(480px, 100%); min-height: 100vh; margin: 0 auto; padding: 22px 18px 30px; display: grid; gap: 14px; }
     .hero, .card {
@@ -98,15 +104,23 @@ function pageHtml() {
     .hero { padding: 22px; text-align: center; position: relative; overflow: hidden; }
     .hero:before { content: ""; position: absolute; inset: -90px 48px auto; height: 136px; background: radial-gradient(circle, rgba(244,221,161,.34), transparent 66%); filter: blur(10px); }
     .club { position: relative; color: var(--gold2); font-size: 13px; letter-spacing: 1px; font-weight: 900; }
-    h1 { position: relative; margin: 8px 0 0; font-size: 32px; }
+    h1 { position: relative; margin: 8px 0 0; font-size: 32px; color: #ffffff; }
     .badge { display: inline-flex; margin-top: 14px; padding: 8px 15px; border-radius: 999px; color: #261805; background: linear-gradient(135deg, #f5dfa3, #b88a3f); font-size: 13px; font-weight: 900; }
     .card { padding: 16px; }
     .row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(217, 182, 109, .14); font-size: 15px; }
     .row:last-child { border-bottom: 0; }
-    .label { color: var(--muted); }
+    .label { color: var(--muted); letter-spacing: .03em; }
     .value { color: var(--white); font-weight: 800; text-align: right; }
-    .wheel-card { text-align: center; overflow: hidden; }
-    .wheel-wrap { position: relative; width: min(368px, 88vw); height: min(368px, 88vw); margin: 4px auto 14px; display: grid; place-items: center; }
+    .wheel-card { text-align: center; overflow: visible; }
+    .wheel-wrap {
+      position: relative;
+      width: min(336px, calc(100vw - 76px));
+      height: min(336px, calc(100vw - 76px));
+      margin: 4px auto 14px;
+      display: grid;
+      place-items: center;
+      justify-self: center;
+    }
     .pointer {
       position: absolute; top: -2px; z-index: 5; width: 34px; height: 42px;
       clip-path: polygon(50% 100%, 0 0, 100% 0);
@@ -139,7 +153,7 @@ function pageHtml() {
       transform-origin: 50% 17px; color: var(--white); font-size: 18px; font-weight: 1000; text-align: center;
       text-shadow: 0 2px 6px rgba(0,0,0,.8);
     }
-    .seg.light { color: #2c1c08; text-shadow: 0 1px 0 rgba(255,255,255,.25); }
+    .seg.light { color: #2c1c08; -webkit-text-stroke: 0; text-shadow: 0 1px 0 rgba(255,255,255,.25); }
     .jackpot { color: #2c1c08; filter: drop-shadow(0 0 8px rgba(255,218,104,.72)); }
     .pass { color: #fffaf2; }
     .result {
@@ -149,11 +163,13 @@ function pageHtml() {
     .result-prize { color: var(--white); font-size: 34px; font-weight: 1000; margin-top: 4px; }
     .result-note { color: var(--muted); font-size: 13px; margin-top: 6px; }
     button, a.button {
-      width: 100%; border: 0; border-radius: 16px; padding: 12px 16px; color: #241705;
-      background: linear-gradient(135deg, #f3d98e, #b4893f); font-size: 16px; font-weight: 900;
+      width: 100%; border: 1px solid rgba(212,175,55,.72); border-radius: 18px; padding: 12px 16px; color: #ffffff;
+      background: linear-gradient(135deg, rgba(9,9,9,.98), rgba(35,29,17,.98)); font-size: 16px; font-weight: 900;
       text-decoration: none; text-align: center; display: block; cursor: pointer;
+      box-shadow: 0 12px 30px rgba(0,0,0,.36), 0 0 18px rgba(212,175,55,.12);
     }
-    .secondary { color: var(--white); background: linear-gradient(135deg, #2b2318, #14100b); border: 1px solid rgba(217,182,109,.35); }
+    button:hover, a.button:hover { box-shadow: 0 12px 30px rgba(0,0,0,.42), 0 0 26px rgba(212,175,55,.28); }
+    .secondary { color: var(--white); background: linear-gradient(135deg, #12110f, #090909); border: 1px solid rgba(217,182,109,.35); }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .notice { color: var(--muted); font-size: 14px; line-height: 1.7; text-align: center; }
     .history { display: none; gap: 10px; }
@@ -220,7 +236,7 @@ function pageHtml() {
       const div = document.createElement("div");
       const isLight = index === 1 || index === 3 || index === 5;
       div.className = "seg " + (isLight ? "light " : "") + (label === "2888" ? "jackpot" : label.includes("AI") ? "pass" : "");
-      div.style.transform = "rotate(" + (index * segmentAngle + segmentAngle / 2) + "deg) translateY(-128px)";
+      div.style.transform = "rotate(" + (index * segmentAngle + segmentAngle / 2) + "deg) translateY(-116px)";
       div.innerHTML = label === "2888" ? "👑<br>2888" : label;
       wheel.appendChild(div);
     });
@@ -232,9 +248,6 @@ function pageHtml() {
       return SEGMENTS.findIndex((item) => item === prize);
     }
     async function resolveLineUserId() {
-      const params = new URLSearchParams(location.search);
-      const fromQuery = params.get("lineUserId") || params.get("uid");
-      if (fromQuery) return fromQuery;
       if (!LIFF_ID || !window.liff) return "";
       await liff.init({ liffId: LIFF_ID });
       if (!liff.isLoggedIn()) {
@@ -252,7 +265,11 @@ function pageHtml() {
         $("vipStatus").textContent = "請從3A官方LINE開啟";
         return;
       }
-      const response = await fetch("/api/box/status?lineUserId=" + encodeURIComponent(lineUserId));
+      const response = await fetch("/api/box/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lineUserId }),
+      });
       const data = await response.json();
       memberState = data.state;
       latestKeys = Number(data.keys || 0);
@@ -301,7 +318,11 @@ function pageHtml() {
       const panel = $("history");
       panel.classList.toggle("on");
       if (!panel.classList.contains("on")) return;
-      const response = await fetch("/api/box/history?lineUserId=" + encodeURIComponent(lineUserId));
+      const response = await fetch("/api/box/history", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lineUserId }),
+      });
       const data = await response.json();
       panel.innerHTML = data.rows.length
         ? data.rows.map((row) => '<div class="history-item">抽獎時間：' + row.createdAt + '<br>獎項：' + row.prize + '<br>3A帳號：' + row.threeAAccount + '</div>').join("")
@@ -325,15 +346,40 @@ function registerBoxRoutes(app) {
 
   app.get("/box", (req, res) => res.type("html").send(pageHtml()));
 
+  async function sendStatus(lineUserId, res) {
+    if (isAdminLineUserId(lineUserId)) return res.json(statusForMember({}, lineUserId));
+    const member = await findMemberByLineUserId(lineUserId);
+    return res.json(statusForMember(member, lineUserId));
+  }
+
+  async function sendHistory(lineUserId, res) {
+    const rows = await listHistory(lineUserId, 20);
+    return res.json({
+      rows: rows.map((row) => ({
+        prize: row.prize || "—",
+        threeAAccount: row.threeAAccount || "—",
+        createdAt: formatDateTime(row.createdAt),
+      })),
+    });
+  }
+
   app.get("/api/box/status", async (req, res) => {
     try {
       const lineUserId = String(req.query.lineUserId || "");
-      if (isAdminLineUserId(lineUserId)) return res.json(statusForMember({}, lineUserId));
-      const member = await findMemberByLineUserId(lineUserId);
-      res.json(statusForMember(member, lineUserId));
+      return sendStatus(lineUserId, res);
     } catch (error) {
       console.error("[box/status]", error);
-      res.json({ state: "error", message: "系統忙碌中，請稍後再試。", threeAAccount: "—", vipStatus: "—", keys: 0, openTimes: 0 });
+      return res.json({ state: "error", message: "系統忙碌中，請稍後再試。", threeAAccount: "—", vipStatus: "—", keys: 0, openTimes: 0 });
+    }
+  });
+
+  app.post("/api/box/status", jsonParser, async (req, res) => {
+    try {
+      const lineUserId = String(req.body?.lineUserId || "");
+      return sendStatus(lineUserId, res);
+    } catch (error) {
+      console.error("[box/status]", error);
+      return res.json({ state: "error", message: "系統忙碌中，請稍後再試。", threeAAccount: "—", vipStatus: "—", keys: 0, openTimes: 0 });
     }
   });
 
@@ -351,17 +397,20 @@ function registerBoxRoutes(app) {
   app.get("/api/box/history", async (req, res) => {
     try {
       const lineUserId = String(req.query.lineUserId || "");
-      const rows = await listHistory(lineUserId, 20);
-      res.json({
-        rows: rows.map((row) => ({
-          prize: row.prize || "—",
-          threeAAccount: row.threeAAccount || "—",
-          createdAt: formatDateTime(row.createdAt),
-        })),
-      });
+      return sendHistory(lineUserId, res);
     } catch (error) {
       console.error("[box/history]", error);
-      res.json({ rows: [] });
+      return res.json({ rows: [] });
+    }
+  });
+
+  app.post("/api/box/history", jsonParser, async (req, res) => {
+    try {
+      const lineUserId = String(req.body?.lineUserId || "");
+      return sendHistory(lineUserId, res);
+    } catch (error) {
+      console.error("[box/history]", error);
+      return res.json({ rows: [] });
     }
   });
 

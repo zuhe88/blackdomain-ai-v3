@@ -1,7 +1,7 @@
 const { lineClient, push, quickReply, reply } = require("../../services/line");
 const { adminLineUserIds, isAdminLineUserId } = require("../../config/admin");
 const { getSession, updateSession } = require("../../utils/sessionStore");
-const { bubble, button, infoLine, metric, note } = require("../../ui/flex/premium");
+const { bubble, button, infoLine, metric, note, text } = require("../../ui/flex/premium");
 const { COMMANDS, BIND_COMMANDS, ADMIN_COMMANDS, STATUSES } = require("./constants");
 const {
   STATUS,
@@ -181,17 +181,34 @@ function accountTakenFlex() {
   });
 }
 
+function clipboardButton(label, clipboardText) {
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "sm",
+    paddingAll: "12px",
+    backgroundColor: "#0F0E0C",
+    cornerRadius: "18px",
+    borderColor: "#D4AF37",
+    borderWidth: "1px",
+    action: { type: "clipboard", label, clipboardText },
+    contents: [text(label, { size: "sm", weight: "bold", color: "#FFFFFF", align: "center" })],
+  };
+}
+
 async function notifyAdminsBind({ lineUserId, lineName, account3A }) {
-  const message = simpleFlex({
+  const message = bubble({
+    altText: "新的綁定申請",
     title: "新的綁定申請",
     subtitle: "BLACKDOMAIN ADMIN",
     footer: "BLACKDOMAIN VIP ADMIN",
     quickReply: adminQuickReply(),
-    rows: [
-      ["LINE名稱", lineName || "未取得"],
-      ["LINE User ID", lineUserId],
-      ["3A帳號", account3A],
-      ["狀態", "待審核"],
+    contents: [
+      infoLine("LINE名稱", lineName || "未取得"),
+      infoLine("LINE User ID", lineUserId),
+      infoLine("3A帳號", account3A),
+      infoLine("狀態", "待審核"),
+      clipboardButton("複製綁定格式", `綁定 ${account3A}`),
     ],
   });
   await Promise.all(adminLineUserIds().map((adminId) => push(adminId, message)));

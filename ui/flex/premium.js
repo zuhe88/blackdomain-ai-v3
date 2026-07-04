@@ -1,15 +1,15 @@
 const COLORS = {
-  black: "#06080C",
-  deep: "#0B0E13",
-  panel: "#11151C",
-  glass: "#151A22",
-  blue: "#4A9BD8",
-  blueSoft: "#8DBCE4",
-  blueDark: "#172B3D",
-  gold: "#B99A55",
+  black: "#090909",
+  deep: "#0D0D0D",
+  panel: "#12110F",
+  glass: "#171511",
+  blue: "#D6B45F",
+  blueSoft: "#F0D58A",
+  blueDark: "#2A2112",
+  gold: "#D4AF37",
   white: "#FFFFFF",
-  gray: "#C7CED8",
-  muted: "#7C8794",
+  gray: "#D8D3C8",
+  muted: "#9B927E",
   red: "#D65A5A",
   green: "#43D18C",
 };
@@ -35,56 +35,36 @@ function divider(margin = "md") {
   return separator(margin);
 }
 
-function hexMark() {
-  return {
-    type: "box",
-    layout: "vertical",
-    width: "34px",
-    height: "34px",
-    cornerRadius: "12px",
-    backgroundColor: "#111923",
-    borderColor: "#26445C",
-    borderWidth: "1px",
-    contents: [
-      text("AI", {
-        size: "xxs",
-        weight: "bold",
-        color: COLORS.blueSoft,
-        align: "center",
-        gravity: "center",
-        wrap: false,
-      }),
-    ],
-  };
-}
-
 function header(title, subtitle = "AI 即時分析中心") {
   return {
     type: "box",
     layout: "vertical",
     spacing: "md",
-    paddingAll: "20px",
-    backgroundColor: "#0D1118",
+    paddingAll: "22px",
+    backgroundColor: "#0E0D0B",
     cornerRadius: "22px",
-    borderColor: "#202A36",
+    borderColor: "#6D5728",
     borderWidth: "1px",
     contents: [
       {
+        type: "separator",
+        color: "#D4AF37",
+      },
+      {
         type: "box",
-        layout: "horizontal",
-        spacing: "md",
+        layout: "vertical",
+        spacing: "xs",
+        paddingTop: "8px",
+        paddingBottom: "8px",
         contents: [
-          hexMark(),
-          {
-            type: "box",
-            layout: "vertical",
-            flex: 1,
-            contents: [
-              text(title, { size: "xl", weight: "bold", color: COLORS.white }),
-              text(subtitle, { size: "xs", color: COLORS.blueSoft }),
-            ],
-          },
+          text("BLACKDOMAIN AI", { size: "xs", weight: "bold", color: COLORS.gold, align: "center", wrap: false }),
+          text(title, { size: "xl", weight: "bold", color: COLORS.white, align: "center" }),
+          text(subtitle, { size: "xs", color: COLORS.gray, align: "center" }),
         ],
+      },
+      {
+        type: "separator",
+        color: "#D4AF37",
       },
     ],
   };
@@ -96,9 +76,9 @@ function infoLine(label, value) {
     layout: "horizontal",
     spacing: "md",
     paddingAll: "10px",
-    backgroundColor: "#0B121B",
+    backgroundColor: "#11100E",
     cornerRadius: "12px",
-    borderColor: "#14304A",
+    borderColor: "#4C3C1E",
     borderWidth: "1px",
     contents: [
       text(label, { size: "sm", color: COLORS.blueSoft, flex: 2 }),
@@ -119,7 +99,7 @@ function metric(label, value, note) {
     spacing: "sm",
     backgroundColor: COLORS.glass,
     cornerRadius: "18px",
-    borderColor: "#1B5B85",
+    borderColor: "#6D5728",
     borderWidth: "1px",
     paddingAll: "16px",
     contents,
@@ -135,7 +115,7 @@ function card(title, subtitle, actionText) {
     paddingAll: "14px",
     backgroundColor: COLORS.glass,
     cornerRadius: "18px",
-    borderColor: "#163854",
+    borderColor: "#6D5728",
     borderWidth: "1px",
     action: { type: "message", text: actionText },
     contents: [
@@ -146,15 +126,15 @@ function card(title, subtitle, actionText) {
 }
 
 function button(label, actionText, style = "primary") {
-  const color = style === "danger" ? COLORS.red : style === "secondary" ? "#0D1722" : "#145B91";
+  const color = style === "danger" ? COLORS.red : "#0F0E0C";
   return {
     type: "box",
     layout: "vertical",
     margin: "sm",
     paddingAll: "12px",
     backgroundColor: color,
-    cornerRadius: "14px",
-    borderColor: style === "secondary" ? "#1B3A55" : COLORS.blueSoft,
+    cornerRadius: "18px",
+    borderColor: style === "secondary" ? "#6D5728" : COLORS.gold,
     borderWidth: "1px",
     action: { type: "message", text: actionText },
     contents: [text(label, { size: "sm", weight: "bold", color: COLORS.white, align: "center" })],
@@ -162,15 +142,15 @@ function button(label, actionText, style = "primary") {
 }
 
 function uriButton(label, uri, style = "primary") {
-  const color = style === "danger" ? COLORS.red : style === "secondary" ? "#0D1722" : "#145B91";
+  const color = style === "danger" ? COLORS.red : "#0F0E0C";
   return {
     type: "box",
     layout: "vertical",
     margin: "sm",
     paddingAll: "12px",
     backgroundColor: color,
-    cornerRadius: "14px",
-    borderColor: style === "secondary" ? "#1B3A55" : COLORS.blueSoft,
+    cornerRadius: "18px",
+    borderColor: style === "secondary" ? "#6D5728" : COLORS.gold,
     borderWidth: "1px",
     action: { type: "uri", uri },
     contents: [text(label, { size: "sm", weight: "bold", color: COLORS.white, align: "center" })],
@@ -184,7 +164,7 @@ function section(contents = []) {
     spacing: "sm",
     backgroundColor: COLORS.panel,
     cornerRadius: "18px",
-    borderColor: "#163854",
+    borderColor: "#6D5728",
     borderWidth: "1px",
     paddingAll: "14px",
     contents,
