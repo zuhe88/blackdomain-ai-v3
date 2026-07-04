@@ -113,7 +113,7 @@ function totalAdvice(value) {
 function soccerScore(stronger) {
   if (stronger >= 0.62) return { score: "2：0", totalGoals: "2球", halfTime: "1：0" };
   if (stronger >= 0.58) return { score: "2：1", totalGoals: "3球", halfTime: "1：0" };
-  return { score: "1：1", totalGoals: "2球", halfTime: "0：0" };
+  return { score: "1：0", totalGoals: "1球", halfTime: "0：0" };
 }
 
 function baseballScore(stronger) {
@@ -126,6 +126,28 @@ function basketballScore(stronger) {
   if (stronger >= 0.64) return { score: "116：108", totalGoals: "總分224分", halfTime: "半場 58：53" };
   if (stronger >= 0.58) return { score: "112：106", totalGoals: "總分218分", halfTime: "半場 55：52" };
   return { score: "109：105", totalGoals: "總分214分", halfTime: "半場 53：51" };
+}
+
+function orientScoreHomeAway(score, winner, home, away) {
+  const parts = String(score || "").split("：");
+  if (parts.length !== 2 || parts[0] === parts[1]) return score;
+  return winner === away ? `${parts[1]}：${parts[0]}` : score;
+}
+
+function orientTextScoreHomeAway(value, winner, home, away) {
+  const text = String(value || "");
+  const match = text.match(/(\d+)：(\d+)/);
+  if (!match || match[1] === match[2] || winner !== away) return value;
+  return text.replace(`${match[1]}：${match[2]}`, `${match[2]}：${match[1]}`);
+}
+
+function applyHomeAwayScore(match, score) {
+  return {
+    ...match,
+    score: orientScoreHomeAway(score.score, match.prediction, match.home, match.away),
+    totalGoals: score.totalGoals,
+    halfTime: orientTextScoreHomeAway(score.halfTime, match.prediction, match.home, match.away),
+  };
 }
 
 function fallbackPoints(match) {
@@ -178,7 +200,7 @@ function worldCupFallbackMatches() {
     .map((match) => {
       const pick = match.strength >= 0.57 ? match.home : match.away;
       const score = soccerScore(match.strength);
-      return {
+      return applyHomeAwayScore({
         league: "世足",
         date: formatDate(new Date(match.start)),
         home: match.home,
@@ -187,11 +209,8 @@ function worldCupFallbackMatches() {
         prediction: pick,
         spread: `${pick} -0.5`,
         total: totalAdvice(match.strength),
-        score: score.score,
-        totalGoals: score.totalGoals,
-        halfTime: score.halfTime,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
-      };
+      }, score);
     });
 }
 
@@ -214,7 +233,7 @@ async function loadWorldCupMatches() {
       const pick = pickByRecord(home, away);
       const score = soccerScore(pick.stronger);
 
-      return {
+      return applyHomeAwayScore({
         league: "世足",
         date: formatDate(new Date(event.date)),
         home: home.name,
@@ -223,11 +242,8 @@ async function loadWorldCupMatches() {
         prediction: pick.winner,
         spread: `${pick.winner} -0.5`,
         total: totalAdvice(pick.stronger),
-        score: score.score,
-        totalGoals: score.totalGoals,
-        halfTime: score.halfTime,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
-      };
+      }, score);
     });
 
   return matches.length ? matches : worldCupFallbackMatches();
@@ -265,7 +281,7 @@ async function loadMlbMatches() {
     const pick = pickByRecord(home, away);
     const score = baseballScore(pick.stronger);
 
-    return {
+    return applyHomeAwayScore({
       league: "MLB",
       date: date.date,
       home: home.name,
@@ -274,11 +290,8 @@ async function loadMlbMatches() {
       prediction: pick.winner,
       spread: `${pick.winner} -1.5`,
       total: totalAdvice(pick.stronger),
-      score: score.score,
-      totalGoals: score.totalGoals,
-      halfTime: score.halfTime,
       updatedAt: formatTaiwanTime(new Date().toISOString()),
-    };
+    }, score);
   });
 }
 
@@ -311,7 +324,7 @@ async function loadNbaMatches() {
       const pick = pickByRecord(home, away);
       const score = basketballScore(pick.stronger);
 
-      return {
+      return applyHomeAwayScore({
         league: "NBA",
         date: formatDate(taiwanNow()),
         home: home.name,
@@ -320,11 +333,8 @@ async function loadNbaMatches() {
         prediction: pick.winner,
         spread: `${pick.winner} -3.5`,
         total: totalAdvice(pick.stronger),
-        score: score.score,
-        totalGoals: score.totalGoals,
-        halfTime: score.halfTime,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
-      };
+      }, score);
     });
 }
 
