@@ -7,7 +7,7 @@ const {
 } = require("../../ui/flex/electronicResult");
 
 const electronicSessions = new Map();
-const CYCLE_CACHE = new Map();
+const cycleCache = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 const GAME_CONFIG = {
@@ -16,7 +16,7 @@ const GAME_CONFIG = {
   古神巴風特: { name: "古神巴風特", min: 1, max: 1000, pad: 3 },
 };
 
-const MAIN_COMMANDS = new Set(["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
+const MAIN_COMMANDS = new Set(["電子", "電子AI", "Electronic", "electronic"]);
 const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
 const RANK_COMMANDS = new Set(["熱門排行", "熱門房排行"]);
 const CUSTOM_COMMANDS = new Set(["自選分析", "自選房號分析"]);
@@ -83,16 +83,16 @@ function buildCyclePools(gameName, cycleKey) {
   for (let room = config.min; room <= config.max; room += 1) allRooms.push(room);
   const goodCount = Math.max(10, Math.ceil(allRooms.length * 0.15));
   const goodRooms = shuffleBySeed(allRooms, `GOOD:${gameName}:${cycleKey}`).slice(0, goodCount);
-  return { goodRooms, goodSet: new Set(goodRooms) };
+  return { goodRooms };
 }
 
 function getGameCycle(gameName) {
   const cycleKey = getCycleKey();
   const cacheKey = `${gameName}:${cycleKey}`;
-  if (!CYCLE_CACHE.has(cacheKey)) {
-    CYCLE_CACHE.set(cacheKey, { gameName, cycleKey, ...buildCyclePools(gameName, cycleKey), createdAt: Date.now() });
+  if (!cycleCache.has(cacheKey)) {
+    cycleCache.set(cacheKey, { gameName, cycleKey, ...buildCyclePools(gameName, cycleKey), createdAt: Date.now() });
   }
-  return CYCLE_CACHE.get(cacheKey);
+  return cycleCache.get(cacheKey);
 }
 
 function getUserSession(userId) {
@@ -152,17 +152,17 @@ function getNextRecommendRoom(userId, gameName) {
   return room;
 }
 
-function parseRoomInput(text) {
-  const raw = String(text || "").trim();
+function parseRoomInput(value) {
+  const raw = String(value || "").trim();
   if (!/^\d+$/.test(raw)) return null;
-  const n = Number(raw);
-  return Number.isInteger(n) ? n : null;
+  const room = Number(raw);
+  return Number.isInteger(room) ? room : null;
 }
 
 function validateRoom(gameName, room) {
   const config = GAME_CONFIG[gameName];
   if (!config) return { ok: false, message: "遊戲不存在，請重新選擇。" };
-  if (!Number.isInteger(room)) return { ok: false, message: "房號格式錯誤，請輸入整數房號。" };
+  if (!Number.isInteger(room)) return { ok: false, message: "房號格式不正確，請輸入數字房號。" };
   if (room < config.min || room > config.max) {
     return { ok: false, message: `房號不存在，${gameName} 房號範圍為 ${formatRoom(gameName, config.min)} ~ ${formatRoom(gameName, config.max)}。` };
   }
@@ -277,11 +277,11 @@ async function askCustomRoom(event) {
   ]));
 }
 
-async function analyzeCustomRoom(event, text) {
+async function analyzeCustomRoom(event, value) {
   const userId = event.source.userId;
   const session = getUserSession(userId);
   if (!session.gameName) return showElectronicMain(event);
-  const room = parseRoomInput(text);
+  const room = parseRoomInput(value);
   const check = validateRoom(session.gameName, room);
   if (!check.ok) return reply(event.replyToken, electronicPromptFlex("房號錯誤", [check.message]));
   session.mode = "menu";
@@ -292,22 +292,22 @@ async function analyzeCustomRoom(event, text) {
 }
 
 async function handleElectronicMessage(event) {
-  const text = event.message.text.trim();
+  const value = event.message.text.trim();
   const userId = event.source.userId;
   const session = getUserSession(userId);
-  if (MAIN_COMMANDS.has(text)) return showElectronicMain(event);
-  if (GAME_CONFIG[text]) return selectGame(event, text);
-  if (session.waitingCustomRoom) return analyzeCustomRoom(event, text);
-  if (RECOMMEND_COMMANDS.has(text)) return recommendRoom(event);
-  if (RANK_COMMANDS.has(text)) return showHotRank(event);
-  if (CUSTOM_COMMANDS.has(text)) return askCustomRoom(event);
-  if (BACK_TO_GAME_COMMANDS.has(text)) return showGameMenu(event);
+  if (MAIN_COMMANDS.has(value)) return showElectronicMain(event);
+  if (GAME_CONFIG[value]) return selectGame(event, value);
+  if (session.waitingCustomRoom) return analyzeCustomRoom(event, value);
+  if (RECOMMEND_COMMANDS.has(value)) return recommendRoom(event);
+  if (RANK_COMMANDS.has(value)) return showHotRank(event);
+  if (CUSTOM_COMMANDS.has(value)) return askCustomRoom(event);
+  if (BACK_TO_GAME_COMMANDS.has(value)) return showGameMenu(event);
   return false;
 }
 
-function isElectronicCommand(text) {
-  if (!text) return false;
-  return MAIN_COMMANDS.has(text) || Boolean(GAME_CONFIG[text]) || RECOMMEND_COMMANDS.has(text) || RANK_COMMANDS.has(text) || CUSTOM_COMMANDS.has(text) || BACK_TO_GAME_COMMANDS.has(text);
+function isElectronicCommand(value) {
+  if (!value) return false;
+  return MAIN_COMMANDS.has(value) || Boolean(GAME_CONFIG[value]) || RECOMMEND_COMMANDS.has(value) || RANK_COMMANDS.has(value) || CUSTOM_COMMANDS.has(value) || BACK_TO_GAME_COMMANDS.has(value);
 }
 
 function hasActiveElectronicSession(userId) {
@@ -329,7 +329,7 @@ function electronicStatus(userId) {
 
 function cleanupOldCycles() {
   const currentCycle = getCycleKey();
-  for (const [key] of CYCLE_CACHE.entries()) if (!key.endsWith(currentCycle)) CYCLE_CACHE.delete(key);
+  for (const [key] of cycleCache.entries()) if (!key.endsWith(currentCycle)) cycleCache.delete(key);
 }
 
 setInterval(cleanupOldCycles, 10 * 60 * 1000).unref();

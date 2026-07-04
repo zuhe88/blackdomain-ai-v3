@@ -57,23 +57,16 @@ function leagueImageBubble({ title, subtitle, image, actionText }) {
       type: "box",
       layout: "vertical",
       paddingAll: "10px",
-      contents: [
-        text("BLACKDOMAIN SPORTS AI", {
-          size: "xxs",
-          color: COLORS.muted,
-          align: "center",
-          wrap: false,
-        }),
-      ],
+      contents: [text("BLACKDOMAIN SPORTS AI", { size: "xxs", color: COLORS.muted, align: "center", wrap: false })],
     },
   };
 }
 
 function menuFlex() {
   const message = carousel("體育AI", [
-    leagueImageBubble({ title: "世足AI", subtitle: "賽前分析・勝方預測・比分建議", image: "football.png", actionText: "世足" }),
-    leagueImageBubble({ title: "MLB AI", subtitle: "賽前分析・勝方預測・大小分", image: "mlb.png", actionText: "MLB" }),
-    leagueImageBubble({ title: "NBA", subtitle: "賽前分析・勝方預測・讓分建議", image: "nba.png", actionText: "NBA" }),
+    leagueImageBubble({ title: "世足AI", subtitle: "賽前分析、比分、讓分與大小分", image: "football.png", actionText: "世足" }),
+    leagueImageBubble({ title: "MLB AI", subtitle: "賽前分析、勝方與大小分", image: "mlb.png", actionText: "MLB" }),
+    leagueImageBubble({ title: "NBA", subtitle: "賽前分析、勝方與節奏判斷", image: "nba.png", actionText: "NBA" }),
   ]);
   message.quickReply = sportsQuickReply();
   return message;
@@ -89,9 +82,24 @@ function noDataFlex(league) {
     contents: [
       infoLine("賽事狀態", NO_DATA_TEXT),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
-      note("BLACKDOMAIN AI 會在官方資料更新後重新分析。"),
+      note("BLACKDOMAIN AI 會持續追蹤可分析賽事。"),
     ],
   });
+}
+
+function pointsBox(points = []) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    backgroundColor: COLORS.panel,
+    cornerRadius: "14px",
+    paddingAll: "14px",
+    contents: [
+      text("分析重點", { size: "sm", weight: "bold", color: COLORS.gold }),
+      ...points.slice(0, 6).map((point) => text(`• ${point}`, { size: "sm", color: COLORS.white, wrap: true })),
+    ],
+  };
 }
 
 function matchBubble(league, match, index, total) {
@@ -104,13 +112,13 @@ function matchBubble(league, match, index, total) {
     contents: [
       infoLine("賽事", `${match.away} VS ${match.home}`),
       infoLine("開賽時間", match.startTime),
-      metric("AI預測勝方", match.prediction, "勝方"),
-      metric("預測比分", match.score, "比分"),
+      metric("AI預測勝方", match.prediction, "賽前分析"),
+      metric("預測比分", match.score, "比分參考"),
       infoLine("讓分建議", match.spread),
       infoLine("大小分建議", match.total),
       infoLine("總進球", match.totalGoals || match.score),
-      infoLine("半場預測", match.halfTime || "上半場保守觀察"),
-      note(["分析重點", ...(match.points || [])].join("\n• ")),
+      infoLine("半場預測", match.halfTime || "上半場節奏觀察"),
+      pointsBox(match.points),
     ],
   }).contents;
 }

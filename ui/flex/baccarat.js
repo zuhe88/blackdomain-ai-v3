@@ -37,7 +37,7 @@ function platformImageBubble(actionText, title, imageName) {
       action: { type: "message", text: actionText },
       contents: [
         text(title, { size: "lg", weight: "bold", color: COLORS.gold, align: "center" }),
-        text("點選卡片進入房間選擇", { size: "sm", color: COLORS.white, align: "center" }),
+        text("點擊平台進入房間選擇", { size: "sm", color: COLORS.white, align: "center" }),
       ],
     },
     footer: {
@@ -91,7 +91,7 @@ function baccaratRoomFlex(platform, rooms, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
-      text("請選擇下方房間，或手動輸入房號。", { size: "sm", color: COLORS.white, align: "center" }),
+      text("請選擇下方房間按鈕，或手動輸入正確房號。", { size: "sm", color: COLORS.white, align: "center" }),
       ...chunk(rooms, 3).map((row) => ({
         type: "box",
         layout: "horizontal",
@@ -101,7 +101,7 @@ function baccaratRoomFlex(platform, rooms, quickReply) {
           ...Array.from({ length: 3 - row.length }, () => ({ type: "box", layout: "vertical", flex: 1, contents: [] })),
         ],
       })),
-      note("手動輸入支援大小寫，例如 rb01、RB01、mt3a、MT13A。"),
+      note("手動輸入支援 rb01、RB01、s01、S01、mt3a、MT13A 等格式。"),
     ],
   });
 }
@@ -128,7 +128,7 @@ function resultActionPanel() {
     spacing: "sm",
     margin: "lg",
     contents: [
-      text("回報本局結果", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
+      text("請回報本局結果", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
       {
         type: "box",
         layout: "horizontal",
@@ -143,8 +143,8 @@ function resultActionPanel() {
   };
 }
 
-function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN AI 分析中", quickReply }) {
-  const history = session.history.length ? session.history.join(" ") : "尚未回報結果";
+function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN AI 分析完成", quickReply }) {
+  const history = session.history.length ? session.history.join(" ") : "目前尚無紀錄";
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
   const betText = session.mode === "自由配注" ? "玩家自行配注" : String(bet);
   const results = {
@@ -161,9 +161,9 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
       metric("建議", prediction, session.mode),
-      metric("建議下注", betText, "不超過單注上限與目前本金"),
+      metric("建議金額", betText, "依單注上限與目前本金計算"),
       infoLine("目前狀態", "AI監控中"),
-      infoLine("分析", reason),
+      infoLine("AI分析摘要", reason),
       infoLine("單注上限", String(session.maxBet)),
       infoLine("目前本金", session.mode === "自由配注" ? "-" : String(session.bankroll)),
       infoLine("目前獲利", String(profit)),
@@ -172,7 +172,7 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
       infoLine("和", String(results.tie)),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       resultActionPanel(),
-      note(`目前歷史：${history}`),
+      note(`目前紀錄：${history}`),
     ],
   });
 }

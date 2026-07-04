@@ -53,7 +53,7 @@ function capitalPrompt() {
 function maxBetPrompt(capital) {
   return baccaratPromptFlex({
     title: "請輸入單注上限",
-    lines: [`目前本金：${capital}`, "單注上限只能輸入整數，AI下注不會超過此金額。"],
+    lines: [`目前本金：${capital}`, "單注上限只能輸入整數，AI建議金額不會超過此上限。"],
   });
 }
 
@@ -67,33 +67,33 @@ function modePrompt(session) {
 
 async function handleBaccaratMessage(event) {
   const userId = event.source.userId;
-  const incomingText = event.message.text.trim();
+  const value = event.message.text.trim();
   const token = event.replyToken;
 
-  if (isCancel(incomingText)) {
+  if (isCancel(value)) {
     resetSession(userId);
     return false;
   }
 
-  if (COMMANDS.includes(incomingText)) {
+  if (COMMANDS.includes(value)) {
     resetSession(userId);
     return reply(token, baccaratPlatformFlex(platformQuickReply()));
   }
 
   const session = getSession(userId);
 
-  if (incomingText === "重新開始") {
+  if (value === "重新開始") {
     resetSession(userId);
     return reply(token, baccaratPlatformFlex(platformQuickReply()));
   }
 
-  if (incomingText === "返回房號" && session.platform) {
+  if (value === "返回房號" && session.platform) {
     setStep(userId, "room");
     return reply(token, roomPrompt(session.platform));
   }
 
   if (session.step === "platform") {
-    const platform = incomingText.toUpperCase();
+    const platform = value.toUpperCase();
     if (platform !== "DG" && platform !== "MT") {
       return reply(token, baccaratPromptFlex({
         title: "請選擇平台",
@@ -106,7 +106,7 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "room") {
-    const room = normalizeRoom(session.platform, incomingText);
+    const room = normalizeRoom(session.platform, value);
     if (!validateRoom(session.platform, room)) {
       return reply(token, baccaratPromptFlex({
         title: "房號格式不正確",
@@ -118,11 +118,11 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "capital") {
-    const capital = parseMoney(incomingText);
+    const capital = parseMoney(value);
     if (!capital) {
       return reply(token, baccaratPromptFlex({
         title: "本金格式不正確",
-        lines: ["請輸入整數本金。", "範例：1000、3000"],
+        lines: ["請輸入正整數本金。", "範例：1000、3000"],
       }));
     }
     setCapital(userId, capital);
@@ -130,11 +130,11 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "maxBet") {
-    const maxBet = parseMoney(incomingText);
+    const maxBet = parseMoney(value);
     if (!maxBet) {
       return reply(token, baccaratPromptFlex({
         title: "單注上限格式不正確",
-        lines: ["請輸入整數單注上限。"],
+        lines: ["請輸入正整數單注上限。"],
       }));
     }
     if (!validateMaxBet(session.capital, maxBet)) {
@@ -148,14 +148,14 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "mode") {
-    if (!isMode(incomingText)) {
+    if (!isMode(value)) {
       return reply(token, baccaratPromptFlex({
         title: "請選擇模式",
         lines: [`可用模式：${MODES.join("、")}`],
         quickReply: modeQuickReply(),
       }));
     }
-    const updated = setMode(userId, incomingText);
+    const updated = setMode(userId, value);
     const first = firstAnalysis(updated);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
@@ -168,14 +168,14 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "playing") {
-    if (!isResult(incomingText)) {
+    if (!isResult(value)) {
       return reply(token, baccaratPromptFlex({
         title: "請回報本局結果",
-        lines: ["請選擇或輸入：閒、和、莊。"],
+        lines: ["請點選或輸入：閒、和、莊。"],
         quickReply: resultQuickReply(),
       }));
     }
-    const result = nextAnalysis(session, incomingText);
+    const result = nextAnalysis(session, value);
     updateAfterRound(userId, result.session);
     if (result.session.bankroll <= 0 && result.session.mode !== "自由配注") {
       resetSession(userId);
@@ -197,7 +197,7 @@ async function handleBaccaratMessage(event) {
   return false;
 }
 
-function isBaccaratCommand(text) {
+function isBaccaratCommand(value) {
   return [
     ...COMMANDS,
     "DG",
@@ -210,7 +210,7 @@ function isBaccaratCommand(text) {
     "莊",
     "重新開始",
     "返回房號",
-  ].includes(String(text || "").trim());
+  ].includes(String(value || "").trim());
 }
 
 module.exports = {

@@ -18,7 +18,7 @@ if (process.env.OPENAI_API_KEY && OpenAI) {
 
 async function askSportsAI(prompt) {
   if (!openai) {
-    throw new Error("OPENAI_API_KEY 未設定");
+    throw new Error("OPENAI_API_KEY 尚未設定");
   }
 
   const response = await openai.chat.completions.create({
@@ -27,14 +27,14 @@ async function askSportsAI(prompt) {
       {
         role: "system",
         content:
-          "你是 BLACKDOMAIN AI 體育賽前分析助理。請使用繁體中文，根據提供的官方賽程、戰績、近期狀態與盤口方向做賽前分析。不得保證結果，不得提及投注保證，不得輸出英文隊名。",
+          "你是 BLACKDOMAIN AI 體育賽前分析助理。請使用繁體中文，提供專業、保守、可讀的賽前分析。不要保證結果，不要顯示信心百分比，不要使用星星評分，不要提到 OpenAI 或資料來源。請輸出四到六點重點，每點一句。",
       },
       {
         role: "user",
         content: prompt,
       },
     ],
-    temperature: 0.4,
+    temperature: 0.35,
   });
 
   return response.choices?.[0]?.message?.content || "";

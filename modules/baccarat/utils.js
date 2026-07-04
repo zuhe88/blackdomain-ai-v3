@@ -39,16 +39,16 @@ function validateMaxBet(capital, maxBet) {
   return maxBet > 0 && maxBet <= capital;
 }
 
-function isResult(text) {
-  return RESULTS.includes(text);
+function isResult(value) {
+  return RESULTS.includes(value);
 }
 
-function isMode(text) {
-  return MODES.includes(text);
+function isMode(value) {
+  return MODES.includes(value);
 }
 
-function isCancel(text) {
-  return ["返回首頁", "首頁", "主選單", "選單", "取消", "退出"].includes(String(text || "").trim());
+function isCancel(value) {
+  return ["返回首頁", "首頁", "主選單", "選單", "取消", "退出"].includes(String(value || "").trim());
 }
 
 module.exports = {

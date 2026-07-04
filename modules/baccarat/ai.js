@@ -17,12 +17,12 @@ function getBaseBet(session) {
 }
 
 function predict(history = []) {
-  const clean = history.filter((x) => x !== "和");
-  if (clean.length < 2) return clean[0] === "閒" ? "莊" : "閒";
+  const clean = history.filter((item) => item !== "和");
+  if (clean.length < 2) return clean[0] === "莊" ? "閒" : "莊";
   const last = clean[clean.length - 1];
   const secondLast = clean[clean.length - 2];
   if (last === secondLast) return last;
-  return last === "閒" ? "莊" : "閒";
+  return last === "莊" ? "閒" : "莊";
 }
 
 function calculateBet(session) {
@@ -82,9 +82,9 @@ function firstAnalysis(session) {
 }
 
 function getReason(session) {
-  if (session.mode === "自由配注") return "自由配注模式由玩家自行決定下注，BLACKDOMAIN AI 僅協助紀錄結果。";
-  if (session.mode === "天門") return "天門模式保留原五關節奏，下注金額仍受單注上限與目前本金限制。";
-  return "依照目前路單變化與資金控管條件，輸出下一局參考方向。";
+  if (session.mode === "自由配注") return "自由配注模式下，AI只負責紀錄與統計，不主動建議下注。";
+  if (session.mode === "天門") return "天門模式依原五關節奏執行，下注金額會受到單注上限與目前本金限制。";
+  return "AI已依目前紀錄完成監測，建議以單注上限與本金控管為優先。";
 }
 
 module.exports = {

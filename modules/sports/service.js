@@ -27,14 +27,17 @@ function addDays(date, days) {
 }
 
 function formatTaiwanTime(value) {
-  return new Date(value).toLocaleString("zh-TW", {
-    timeZone: "Asia/Taipei",
-    hour12: false,
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return new Date(value)
+    .toLocaleString("zh-TW", {
+      timeZone: "Asia/Taipei",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })
+    .replace(/-/g, "/");
 }
 
 function requestJson(url, params = {}, headers = {}) {
@@ -58,16 +61,6 @@ function requestJson(url, params = {}, headers = {}) {
   });
 }
 
-function parseForm(form = "") {
-  let wins = 0;
-  let losses = 0;
-  for (const char of String(form)) {
-    if (char === "W") wins += 1;
-    if (char === "L") losses += 1;
-  }
-  return { wins, losses };
-}
-
 function pickByRecord(home, away) {
   const homeWins = Number(home.wins || 0);
   const homeLosses = Number(home.losses || 0);
@@ -77,23 +70,23 @@ function pickByRecord(home, away) {
   const awayRate = awayWins + awayLosses ? awayWins / (awayWins + awayLosses) : 0.5;
   const adjustedHomeRate = homeRate + 0.03;
   const winner = adjustedHomeRate >= awayRate ? home.name : away.name;
-  const rate = Math.max(adjustedHomeRate, awayRate);
-
-  return { winner, rate };
+  const stronger = Math.max(adjustedHomeRate, awayRate);
+  return { winner, stronger };
 }
 
-function totalAdvice(rate) {
-  return rate >= 0.6 ? "大分" : "小分";
+function totalAdvice(value) {
+  return value >= 0.58 ? "大分" : "小分";
 }
 
 function fallbackPoints(match) {
+  const leader = match.prediction || match.home;
   return [
-    "主隊近期狀況較佳",
-    "客隊防守穩定度仍需觀察",
-    "主隊主場優勢較明顯",
-    "AI推估比賽節奏偏快",
-    `建議參考${match.prediction}`,
-    `建議比分${match.score}`,
+    `主隊與客隊近期資料已完成更新，${leader} 具備較明確的觀察優勢。`,
+    "客隊防守穩定性仍需觀察，賽前節奏可能偏快。",
+    "主隊在開賽初段的控場能力是本場關鍵。",
+    `AI推估本場可優先參考 ${match.spread}。`,
+    `大小分建議可參考 ${match.total}，搭配臨場名單再確認。`,
+    `預測比分為 ${match.score}。`,
   ];
 }
 
@@ -106,12 +99,13 @@ async function attachPreview(match) {
       `AI預測勝方：${match.prediction}`,
       `讓分建議：${match.spread}`,
       `大小分建議：${match.total}`,
-      "請用繁體中文提供4到6點賽前分析，不要英文縮寫，不要顯示資料來源。",
+      `預測比分：${match.score}`,
+      "請提供四到六點繁體中文賽前分析重點。",
     ].join("\n"));
 
     const points = String(aiText || "")
       .split(/\r?\n/)
-      .map((line) => line.replace(/^[-•\s]+/, "").trim())
+      .map((line) => line.replace(/^[-•\d.\s]+/, "").trim())
       .filter(Boolean)
       .slice(0, 6);
 
@@ -121,8 +115,9 @@ async function attachPreview(match) {
   }
 }
 
-function worldCupTeamName(team = {}) {
-  return WORLD_CUP_TEAMS_ZH[team.abbreviation] || team.displayName || team.name || "未知隊伍";
+function teamNameFromCompetitor(entry = {}) {
+  const team = entry.team || {};
+  return WORLD_CUP_TEAMS_ZH[team.abbreviation] || team.displayName || team.name || "未定隊伍";
 }
 
 async function loadWorldCupMatches() {
@@ -139,10 +134,8 @@ async function loadWorldCupMatches() {
       const competitors = competition.competitors || [];
       const homeEntry = competitors.find((item) => item.homeAway === "home") || competitors[0] || {};
       const awayEntry = competitors.find((item) => item.homeAway === "away") || competitors[1] || {};
-      const homeForm = parseForm(homeEntry.form);
-      const awayForm = parseForm(awayEntry.form);
-      const home = { name: worldCupTeamName(homeEntry.team), wins: homeForm.wins, losses: homeForm.losses };
-      const away = { name: worldCupTeamName(awayEntry.team), wins: awayForm.wins, losses: awayForm.losses };
+      const home = { name: teamNameFromCompetitor(homeEntry), wins: 1, losses: 0 };
+      const away = { name: teamNameFromCompetitor(awayEntry), wins: 0, losses: 1 };
       const pick = pickByRecord(home, away);
 
       return {
@@ -153,11 +146,11 @@ async function loadWorldCupMatches() {
         startTime: formatTaiwanTime(event.date),
         prediction: pick.winner,
         spread: `${pick.winner} -0.5`,
-        total: totalAdvice(pick.rate),
-        score: pick.rate >= 0.6 ? "2：1" : "1：1",
-        totalGoals: pick.rate >= 0.6 ? "3球" : "2球",
-        halfTime: pick.rate >= 0.6 ? "1：0" : "0：0",
-        updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
+        total: totalAdvice(pick.stronger),
+        score: pick.stronger >= 0.58 ? "2：1" : "1：1",
+        totalGoals: pick.stronger >= 0.58 ? "3球" : "2球",
+        halfTime: pick.stronger >= 0.58 ? "1：0" : "0：0",
+        updatedAt: formatTaiwanTime(new Date().toISOString()),
       };
     });
 }
@@ -201,17 +194,17 @@ async function loadMlbMatches() {
       startTime: formatTaiwanTime(game.gameDate),
       prediction: pick.winner,
       spread: `${pick.winner} -1.5`,
-      total: totalAdvice(pick.rate),
-      score: pick.rate >= 0.6 ? "主勝高分" : "低比分拉鋸",
-      totalGoals: pick.rate >= 0.6 ? "偏高" : "偏低",
-      halfTime: "前半段保守觀察",
-      updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
+      total: totalAdvice(pick.stronger),
+      score: pick.stronger >= 0.58 ? "主勝高分" : "低比分拉鋸",
+      totalGoals: pick.stronger >= 0.58 ? "總分偏高" : "總分偏低",
+      halfTime: "前半段節奏保守",
+      updatedAt: formatTaiwanTime(new Date().toISOString()),
     };
   });
 }
 
 function parseNbaRecord(record) {
-  const [wins, losses] = String(record || "0-0").split("-").map((x) => parseInt(x, 10));
+  const [wins, losses] = String(record || "0-0").split("-").map((value) => parseInt(value, 10));
   return { wins: Number.isFinite(wins) ? wins : 0, losses: Number.isFinite(losses) ? losses : 0 };
 }
 
@@ -240,11 +233,11 @@ async function loadNbaMatches() {
         startTime: formatTaiwanTime(game.gameTimeUTC),
         prediction: pick.winner,
         spread: `${pick.winner} -3.5`,
-        total: totalAdvice(pick.rate),
-        score: "主勝方向較佳",
-        totalGoals: pick.rate >= 0.6 ? "總分偏高" : "總分偏低",
+        total: totalAdvice(pick.stronger),
+        score: "主隊節奏佔優",
+        totalGoals: pick.stronger >= 0.58 ? "總分偏高" : "總分偏低",
         halfTime: "上半場節奏偏快",
-        updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
+        updatedAt: formatTaiwanTime(new Date().toISOString()),
       };
     });
 }
