@@ -11,7 +11,7 @@ const official = require("../modules/official");
 const { clearUser, updateSession } = require("../utils/sessionStore");
 
 const HOME_COMMANDS = new Set(["黑域AI", "首頁", "開始", "menu", "選單", "主選單"]);
-const CANCEL_COMMANDS = new Set(["取消", "退出", "返回首頁", "重新開始"]);
+const CANCEL_COMMANDS = new Set(["取消", "退出", "返回首頁"]);
 const VIP_COMMANDS = new Set(["VIP", "vip", "VIP中心", "VIP查詢", "我的VIP", "會員", "查VIP", "會員中心", "綁定", "綁定3A"]);
 const ADMIN_COMMANDS = new Set(["管理指令", "管理員指令", "待審核", "會員列表"]);
 const OFFICIAL_WEBSITE_COMMANDS = new Set(["官網", "黑域官網", "🌐 黑域官網"]);
@@ -121,6 +121,10 @@ async function handleEvent(event) {
 
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
+
+  if (text === "重新開始" && baccarat.hasActiveBaccaratSession && baccarat.hasActiveBaccaratSession(userId)) {
+    return baccarat.handleBaccaratMessage(event);
+  }
 
   if (HOME_COMMANDS.has(text) || CANCEL_COMMANDS.has(text)) {
     return replyHome(event);

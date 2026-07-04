@@ -5,6 +5,38 @@ const REQUEST_TIMEOUT = 3000;
 const NO_DATA_TEXT = "目前尚無可分析賽事";
 const MAX_MATCHES = 5;
 
+const WORLD_CUP_ROUND16_FALLBACK = [
+  { away: "加拿大", home: "摩洛哥", start: "2026-07-05T00:00:00+08:00", strength: 0.56 },
+  { away: "巴拉圭", home: "法國", start: "2026-07-05T04:00:00+08:00", strength: 0.62 },
+  { away: "巴西", home: "挪威", start: "2026-07-06T03:00:00+08:00", strength: 0.6 },
+  { away: "墨西哥", home: "英格蘭", start: "2026-07-06T07:00:00+08:00", strength: 0.57 },
+  { away: "葡萄牙", home: "西班牙", start: "2026-07-07T02:00:00+08:00", strength: 0.54 },
+  { away: "美國", home: "比利時", start: "2026-07-07T07:00:00+08:00", strength: 0.56 },
+  { away: "阿根廷", home: "埃及", start: "2026-07-07T23:00:00+08:00", strength: 0.61 },
+  { away: "瑞士", home: "哥倫比亞", start: "2026-07-08T03:00:00+08:00", strength: 0.55 },
+];
+
+const WORLD_CUP_DISPLAY_NAMES_ZH = {
+  Argentina: "阿根廷",
+  Australia: "澳洲",
+  Belgium: "比利時",
+  Brazil: "巴西",
+  Canada: "加拿大",
+  Colombia: "哥倫比亞",
+  Egypt: "埃及",
+  England: "英格蘭",
+  France: "法國",
+  Mexico: "墨西哥",
+  Morocco: "摩洛哥",
+  Norway: "挪威",
+  Paraguay: "巴拉圭",
+  Portugal: "葡萄牙",
+  Spain: "西班牙",
+  Switzerland: "瑞士",
+  "United States": "美國",
+  USA: "美國",
+};
+
 function taiwanNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
 }
@@ -78,6 +110,24 @@ function totalAdvice(value) {
   return value >= 0.58 ? "大分" : "小分";
 }
 
+function soccerScore(stronger) {
+  if (stronger >= 0.62) return { score: "2：0", totalGoals: "2球", halfTime: "1：0" };
+  if (stronger >= 0.58) return { score: "2：1", totalGoals: "3球", halfTime: "1：0" };
+  return { score: "1：1", totalGoals: "2球", halfTime: "0：0" };
+}
+
+function baseballScore(stronger) {
+  if (stronger >= 0.64) return { score: "6：3", totalGoals: "總分9分", halfTime: "前五局 3：1" };
+  if (stronger >= 0.58) return { score: "5：3", totalGoals: "總分8分", halfTime: "前五局 2：1" };
+  return { score: "4：3", totalGoals: "總分7分", halfTime: "前五局 2：2" };
+}
+
+function basketballScore(stronger) {
+  if (stronger >= 0.64) return { score: "116：108", totalGoals: "總分224分", halfTime: "半場 58：53" };
+  if (stronger >= 0.58) return { score: "112：106", totalGoals: "總分218分", halfTime: "半場 55：52" };
+  return { score: "109：105", totalGoals: "總分214分", halfTime: "半場 53：51" };
+}
+
 function fallbackPoints(match) {
   const leader = match.prediction || match.home;
   return [
@@ -117,7 +167,32 @@ async function attachPreview(match) {
 
 function teamNameFromCompetitor(entry = {}) {
   const team = entry.team || {};
-  return WORLD_CUP_TEAMS_ZH[team.abbreviation] || "未定隊伍";
+  return WORLD_CUP_TEAMS_ZH[team.abbreviation] || WORLD_CUP_DISPLAY_NAMES_ZH[team.displayName] || WORLD_CUP_DISPLAY_NAMES_ZH[team.shortDisplayName] || "未定隊伍";
+}
+
+function worldCupFallbackMatches() {
+  const now = Date.now();
+  return WORLD_CUP_ROUND16_FALLBACK
+    .filter((match) => new Date(match.start).getTime() >= now)
+    .slice(0, MAX_MATCHES)
+    .map((match) => {
+      const pick = match.strength >= 0.57 ? match.home : match.away;
+      const score = soccerScore(match.strength);
+      return {
+        league: "世足",
+        date: formatDate(new Date(match.start)),
+        home: match.home,
+        away: match.away,
+        startTime: formatTaiwanTime(match.start),
+        prediction: pick,
+        spread: `${pick} -0.5`,
+        total: totalAdvice(match.strength),
+        score: score.score,
+        totalGoals: score.totalGoals,
+        halfTime: score.halfTime,
+        updatedAt: formatTaiwanTime(new Date().toISOString()),
+      };
+    });
 }
 
 async function loadWorldCupMatches() {
@@ -126,7 +201,7 @@ async function loadWorldCupMatches() {
     dates: compactDate(today),
   });
 
-  return (data.events || [])
+  const matches = (data.events || [])
     .filter((event) => new Date(event.date) >= new Date())
     .slice(0, MAX_MATCHES)
     .map((event) => {
@@ -137,6 +212,7 @@ async function loadWorldCupMatches() {
       const home = { name: teamNameFromCompetitor(homeEntry), wins: 1, losses: 0 };
       const away = { name: teamNameFromCompetitor(awayEntry), wins: 0, losses: 1 };
       const pick = pickByRecord(home, away);
+      const score = soccerScore(pick.stronger);
 
       return {
         league: "世足",
@@ -147,12 +223,14 @@ async function loadWorldCupMatches() {
         prediction: pick.winner,
         spread: `${pick.winner} -0.5`,
         total: totalAdvice(pick.stronger),
-        score: pick.stronger >= 0.58 ? "2：1" : "1：1",
-        totalGoals: pick.stronger >= 0.58 ? "3球" : "2球",
-        halfTime: pick.stronger >= 0.58 ? "1：0" : "0：0",
+        score: score.score,
+        totalGoals: score.totalGoals,
+        halfTime: score.halfTime,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
       };
     });
+
+  return matches.length ? matches : worldCupFallbackMatches();
 }
 
 async function loadMlbMatches() {
@@ -185,6 +263,7 @@ async function loadMlbMatches() {
       losses: game.teams?.away?.leagueRecord?.losses,
     };
     const pick = pickByRecord(home, away);
+    const score = baseballScore(pick.stronger);
 
     return {
       league: "MLB",
@@ -195,9 +274,9 @@ async function loadMlbMatches() {
       prediction: pick.winner,
       spread: `${pick.winner} -1.5`,
       total: totalAdvice(pick.stronger),
-      score: pick.stronger >= 0.58 ? "主勝高分" : "低比分拉鋸",
-      totalGoals: pick.stronger >= 0.58 ? "總分偏高" : "總分偏低",
-      halfTime: "前半段節奏保守",
+      score: score.score,
+      totalGoals: score.totalGoals,
+      halfTime: score.halfTime,
       updatedAt: formatTaiwanTime(new Date().toISOString()),
     };
   });
@@ -209,13 +288,19 @@ function parseNbaRecord(record) {
 }
 
 async function loadNbaMatches() {
-  const data = await requestJson("https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json", {}, {
-    Accept: "application/json",
-    Referer: "https://www.nba.com/",
-    "User-Agent": "Mozilla/5.0",
-  });
+  const today = taiwanNow();
+  let games = [];
+  for (let offset = 0; offset <= 14 && !games.length; offset += 1) {
+    const date = formatDate(addDays(today, offset)).replace(/-/g, "");
+    const data = await requestJson(`https://cdn.nba.com/static/json/liveData/scoreboard/scoreboard_${date}.json`, {}, {
+      Accept: "application/json",
+      Referer: "https://www.nba.com/",
+      "User-Agent": "Mozilla/5.0",
+    }).catch(() => null);
+    games = data?.scoreboard?.games || [];
+  }
 
-  return (data?.scoreboard?.games || [])
+  return games
     .filter((game) => game.gameStatus === 1)
     .slice(0, MAX_MATCHES)
     .map((game) => {
@@ -224,6 +309,7 @@ async function loadNbaMatches() {
       const home = { name: NBA_TEAMS_ZH[game.homeTeam?.teamTricode] || "主隊", ...homeRecord };
       const away = { name: NBA_TEAMS_ZH[game.awayTeam?.teamTricode] || "客隊", ...awayRecord };
       const pick = pickByRecord(home, away);
+      const score = basketballScore(pick.stronger);
 
       return {
         league: "NBA",
@@ -234,9 +320,9 @@ async function loadNbaMatches() {
         prediction: pick.winner,
         spread: `${pick.winner} -3.5`,
         total: totalAdvice(pick.stronger),
-        score: "主隊節奏佔優",
-        totalGoals: pick.stronger >= 0.58 ? "總分偏高" : "總分偏低",
-        halfTime: "上半場節奏偏快",
+        score: score.score,
+        totalGoals: score.totalGoals,
+        halfTime: score.halfTime,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
       };
     });
