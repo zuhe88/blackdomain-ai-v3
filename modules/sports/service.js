@@ -117,7 +117,7 @@ async function attachPreview(match) {
 
 function teamNameFromCompetitor(entry = {}) {
   const team = entry.team || {};
-  return WORLD_CUP_TEAMS_ZH[team.abbreviation] || team.displayName || team.name || "未定隊伍";
+  return WORLD_CUP_TEAMS_ZH[team.abbreviation] || "未定隊伍";
 }
 
 async function loadWorldCupMatches() {
@@ -175,12 +175,12 @@ async function loadMlbMatches() {
     const homeTeam = game.teams?.home?.team || {};
     const awayTeam = game.teams?.away?.team || {};
     const home = {
-      name: MLB_TEAMS_ZH[homeTeam.id] || homeTeam.name || "主隊",
+      name: MLB_TEAMS_ZH[homeTeam.id] || "主隊",
       wins: game.teams?.home?.leagueRecord?.wins,
       losses: game.teams?.home?.leagueRecord?.losses,
     };
     const away = {
-      name: MLB_TEAMS_ZH[awayTeam.id] || awayTeam.name || "客隊",
+      name: MLB_TEAMS_ZH[awayTeam.id] || "客隊",
       wins: game.teams?.away?.leagueRecord?.wins,
       losses: game.teams?.away?.leagueRecord?.losses,
     };
@@ -221,8 +221,8 @@ async function loadNbaMatches() {
     .map((game) => {
       const homeRecord = parseNbaRecord(`${game.homeTeam?.wins || 0}-${game.homeTeam?.losses || 0}`);
       const awayRecord = parseNbaRecord(`${game.awayTeam?.wins || 0}-${game.awayTeam?.losses || 0}`);
-      const home = { name: NBA_TEAMS_ZH[game.homeTeam?.teamTricode] || game.homeTeam?.teamName || "主隊", ...homeRecord };
-      const away = { name: NBA_TEAMS_ZH[game.awayTeam?.teamTricode] || game.awayTeam?.teamName || "客隊", ...awayRecord };
+      const home = { name: NBA_TEAMS_ZH[game.homeTeam?.teamTricode] || "主隊", ...homeRecord };
+      const away = { name: NBA_TEAMS_ZH[game.awayTeam?.teamTricode] || "客隊", ...awayRecord };
       const pick = pickByRecord(home, away);
 
       return {

@@ -1,4 +1,4 @@
-const { reply, quickReply } = require("../../services/line");
+const { reply, push, quickReply } = require("../../services/line");
 const { updateSession } = require("../../utils/sessionStore");
 const { bubble, carousel, infoLine, metric, note, text, COLORS } = require("../../ui/flex/premium");
 const { moduleImageUrl } = require("../../utils/moduleImage");
@@ -149,6 +149,26 @@ async function replyLeague(event, league) {
   return reply(event.replyToken, matchesFlex(league, matches));
 }
 
+async function pushLeagueAfterLoading(event, league) {
+  const userId = event.source.userId || "";
+  await reply(event.replyToken, "AI分析中，請稍候。\nAI預測勝方、比分、讓分與大小分正在整理。");
+  const matches = await loadAvailableMatches(league);
+  const first = matches[0] || null;
+
+  updateSession("sport", userId, {
+    currentPage: `${league} AI`,
+    league,
+    date: first?.date || null,
+    match: first ? `${first.away} VS ${first.home}` : null,
+    analysis: first,
+    matches,
+    lastUpdated: Date.now(),
+  });
+
+  if (!first) return push(userId, noDataFlex(league));
+  return push(userId, matchesFlex(league, matches));
+}
+
 async function handleSportsMessage(event) {
   const value = event.message.text.trim();
   const userId = event.source.userId || "";
@@ -166,9 +186,9 @@ async function handleSportsMessage(event) {
     return reply(event.replyToken, menuFlex());
   }
 
-  if (["世足", "世足AI"].includes(value)) return replyLeague(event, "世足");
-  if (["MLB", "MLB AI"].includes(value)) return replyLeague(event, "MLB");
-  if (value === "NBA") return replyLeague(event, "NBA");
+  if (["世足", "世足AI"].includes(value)) return pushLeagueAfterLoading(event, "世足");
+  if (["MLB", "MLB AI"].includes(value)) return pushLeagueAfterLoading(event, "MLB");
+  if (value === "NBA") return pushLeagueAfterLoading(event, "NBA");
 
   return false;
 }

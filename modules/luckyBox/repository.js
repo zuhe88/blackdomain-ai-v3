@@ -1,5 +1,16 @@
 const supabase = require("../../services/supabase");
 
+const DEFAULT_SPIN_PROBABILITY = {
+  "AI權限1天": 45,
+  "88": 45,
+  "888": 9,
+  "2888": 1,
+};
+
+const THREE_A_MEMBERS_TABLE = "three_a_members";
+const THREE_A_SPIN_LOGS_TABLE = "three_a_spin_logs";
+const THREE_A_MARQUEE_TABLE = "three_a_marquee";
+
 function isConnected() {
   return Boolean(supabase);
 }
@@ -48,7 +59,7 @@ function normalizeLog(row) {
 async function findMemberByLineUserId(lineUserId) {
   if (!isConnected() || !lineUserId) return normalizeMember(null);
   const { data, error } = await supabase
-    .from("lucky_members")
+    .from(THREE_A_MEMBERS_TABLE)
     .select("*")
     .eq("line_user_id", lineUserId)
     .maybeSingle();
@@ -59,7 +70,7 @@ async function findMemberByLineUserId(lineUserId) {
 async function findMemberBy3AAccount(threeAAccount) {
   if (!isConnected() || !threeAAccount) return normalizeMember(null);
   const { data, error } = await supabase
-    .from("lucky_members")
+    .from(THREE_A_MEMBERS_TABLE)
     .select("*")
     .eq("three_a_account", threeAAccount)
     .maybeSingle();
@@ -71,7 +82,7 @@ async function createBindRequest({ lineUserId, lineName, threeAAccount, nickname
   if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
   const now = new Date().toISOString();
   const { data, error } = await supabase
-    .from("lucky_members")
+    .from(THREE_A_MEMBERS_TABLE)
     .insert({
       line_user_id: lineUserId,
       line_name: lineName || "未取得",
@@ -102,7 +113,7 @@ async function createBindRequest({ lineUserId, lineName, threeAAccount, nickname
 async function updateMemberBy3AAccount(threeAAccount, payload) {
   if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
   const { data, error } = await supabase
-    .from("lucky_members")
+    .from(THREE_A_MEMBERS_TABLE)
     .update({ ...payload, updated_at: new Date().toISOString() })
     .eq("three_a_account", threeAAccount)
     .select("*")
@@ -114,7 +125,7 @@ async function updateMemberBy3AAccount(threeAAccount, payload) {
 async function updateMemberByLineUserId(lineUserId, payload) {
   if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
   const { data, error } = await supabase
-    .from("lucky_members")
+    .from(THREE_A_MEMBERS_TABLE)
     .update({ ...payload, updated_at: new Date().toISOString() })
     .eq("line_user_id", lineUserId)
     .select("*")
@@ -127,7 +138,7 @@ async function addLuckyLog({ lineUserId, threeAAccount, prize, isAdminTest = fal
   if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
   const now = new Date().toISOString();
   const { data, error } = await supabase
-    .from("lucky_box_logs")
+    .from(THREE_A_SPIN_LOGS_TABLE)
     .insert({
       line_user_id: lineUserId,
       three_a_account: threeAAccount,
@@ -140,7 +151,7 @@ async function addLuckyLog({ lineUserId, threeAAccount, prize, isAdminTest = fal
   if (error) return { ok: false, error: error.message };
 
   if (!isAdminTest) {
-    await supabase.from("lucky_marquee").insert({
+    await supabase.from(THREE_A_MARQUEE_TABLE).insert({
       line_user_id: lineUserId,
       three_a_account: threeAAccount,
       prize,
@@ -154,7 +165,7 @@ async function addLuckyLog({ lineUserId, threeAAccount, prize, isAdminTest = fal
 async function listHistory(lineUserId, limit = 20) {
   if (!isConnected() || !lineUserId) return [];
   const { data, error } = await supabase
-    .from("lucky_box_logs")
+    .from(THREE_A_SPIN_LOGS_TABLE)
     .select("*")
     .eq("line_user_id", lineUserId);
   if (error || !Array.isArray(data)) return [];
@@ -166,29 +177,110 @@ async function listHistory(lineUserId, limit = 20) {
 
 async function listPendingMembers(limit = 20) {
   if (!isConnected()) return [];
-  const { data, error } = await supabase
-    .from("lucky_members")
-    .select("*")
-    .eq("status", "pending");
+  const { data, error } = await supabase.from(THREE_A_MEMBERS_TABLE).select("*").eq("status", "pending");
   if (error || !Array.isArray(data)) return [];
   return data.map(normalizeMember).slice(0, limit);
 }
 
 async function listMembers(limit = 200) {
   if (!isConnected()) return [];
-  const { data, error } = await supabase.from("lucky_members").select("*");
+  const { data, error } = await supabase.from(THREE_A_MEMBERS_TABLE).select("*");
   if (error || !Array.isArray(data)) return [];
   return data.map(normalizeMember).slice(0, limit);
 }
 
 async function listLogs(limit = 200) {
   if (!isConnected()) return [];
-  const { data, error } = await supabase.from("lucky_box_logs").select("*");
+  const { data, error } = await supabase.from(THREE_A_SPIN_LOGS_TABLE).select("*");
   if (error || !Array.isArray(data)) return [];
   return data.map(normalizeLog).slice(-limit);
 }
 
+function normalizeProbability(value) {
+  const source = value && typeof value === "object" ? value : DEFAULT_SPIN_PROBABILITY;
+  return {
+    "AI權限1天": Number(source["AI權限1天"] ?? source.AI ?? DEFAULT_SPIN_PROBABILITY["AI權限1天"]),
+    "88": Number(source["88"] ?? DEFAULT_SPIN_PROBABILITY["88"]),
+    "888": Number(source["888"] ?? DEFAULT_SPIN_PROBABILITY["888"]),
+    "2888": Number(source["2888"] ?? DEFAULT_SPIN_PROBABILITY["2888"]),
+  };
+}
+
+async function getSpinProbability() {
+  if (!isConnected()) return DEFAULT_SPIN_PROBABILITY;
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("value")
+    .eq("key", "spin_probability")
+    .maybeSingle();
+  if (error || !data?.value) return DEFAULT_SPIN_PROBABILITY;
+  return normalizeProbability(data.value);
+}
+
+async function setSpinProbability(probability, updatedBy) {
+  if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
+  const payload = {
+    key: "spin_probability",
+    value: normalizeProbability(probability),
+    updated_by: updatedBy || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .upsert(payload, { onConflict: "key" })
+    .select("*")
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, value: normalizeProbability(data.value) };
+}
+
+function addDays(base, days) {
+  const start = base && new Date(base).getTime() > Date.now() ? new Date(base).getTime() : Date.now();
+  return new Date(start + Math.max(1, Number(days || 1)) * 86400000).toISOString();
+}
+
+async function grantBlackdomainAiAccessOneDay(member) {
+  if (!isConnected() || !member?.threeAAccount) return { ok: false, error: "Supabase尚未連線" };
+  const now = new Date().toISOString();
+  const { data: existingByLine } = member.lineUserId
+    ? await supabase.from("vip_users").select("*").eq("line_user_id", member.lineUserId).maybeSingle()
+    : { data: null };
+  const { data: existingByAccount } = !existingByLine
+    ? await supabase.from("vip_users").select("*").eq("three_a_account", member.threeAAccount).maybeSingle()
+    : { data: null };
+  const existing = existingByLine || existingByAccount;
+
+  if (existing?.id) {
+    const expiresAt = addDays(existing.expires_at, 1);
+    const { error } = await supabase
+      .from("vip_users")
+      .update({
+        vip_status: "approved",
+        ai_permission: true,
+        expires_at: expiresAt,
+        updated_at: now,
+      })
+      .eq("id", existing.id);
+    return error ? { ok: false, error: error.message } : { ok: true, expiresAt };
+  }
+
+  const expiresAt = addDays(null, 1);
+  const { error } = await supabase.from("vip_users").insert({
+    line_user_id: member.lineUserId || null,
+    line_name: member.lineName || null,
+    three_a_account: member.threeAAccount,
+    vip_status: "approved",
+    ai_permission: true,
+    expires_at: expiresAt,
+    is_admin: false,
+    created_at: now,
+    updated_at: now,
+  });
+  return error ? { ok: false, error: error.message } : { ok: true, expiresAt };
+}
+
 module.exports = {
+  DEFAULT_SPIN_PROBABILITY,
   findMemberByLineUserId,
   findMemberBy3AAccount,
   createBindRequest,
@@ -199,4 +291,7 @@ module.exports = {
   listPendingMembers,
   listMembers,
   listLogs,
+  getSpinProbability,
+  setSpinProbability,
+  grantBlackdomainAiAccessOneDay,
 };

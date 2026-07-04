@@ -1,7 +1,7 @@
 const express = require("express");
 const { isAdminLineUserId } = require("../config/admin");
 const { findMemberByLineUserId, listHistory } = require("../modules/luckyBox/repository");
-const { BLACKDOMAIN_LINE_URL, boxUrl, formatDateTime, openBoxByLineUserId } = require("../modules/luckyBox");
+const { BLACKDOMAIN_LINE_URL, WHEEL_SEGMENTS, boxUrl, formatDateTime, openBoxByLineUserId } = require("../modules/luckyBox");
 
 function statusForMember(member, lineUserId) {
   const isAdmin = isAdminLineUserId(lineUserId);
@@ -33,7 +33,7 @@ function statusForMember(member, lineUserId) {
 
   return {
     state: "ready",
-    message: "可開啟幸運寶箱",
+    message: "可抽幸運轉盤",
     lineUserId,
     threeAAccount: member.threeAAccount,
     vipStatus: isAdmin ? "管理員" : "已開通",
@@ -45,24 +45,24 @@ function statusForMember(member, lineUserId) {
 
 function pageHtml() {
   const liffId = process.env.LINE_3A_LIFF_ID || process.env.LIFF_ID || "";
+  const segments = WHEEL_SEGMENTS;
   return `<!doctype html>
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>3A VIP CLUB 幸運寶箱</title>
+  <title>3A VIP CLUB 幸運轉盤</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     :root {
-      --black: #060504;
-      --panel: #15110c;
-      --panel2: #21180f;
-      --gold: #d7b46a;
-      --gold2: #f0d99b;
-      --deep: #8b682f;
+      --black: #050403;
+      --panel: #16110b;
+      --panel2: #241a10;
+      --gold: #d9b66d;
+      --gold2: #f4dda1;
       --white: #fffaf0;
-      --muted: #b8a887;
-      --danger: #d05a48;
+      --muted: #b7a783;
+      --danger: #c94d38;
     }
     * { box-sizing: border-box; }
     body {
@@ -71,284 +71,145 @@ function pageHtml() {
       color: var(--white);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
       background:
-        radial-gradient(circle at 50% 10%, rgba(232, 188, 92, .28), transparent 34%),
-        radial-gradient(circle at 10% 80%, rgba(141, 98, 35, .22), transparent 28%),
-        linear-gradient(160deg, #050403 0%, #15100a 48%, #050403 100%);
+        radial-gradient(circle at 50% 8%, rgba(244, 221, 161, .3), transparent 30%),
+        radial-gradient(circle at 50% 48%, rgba(217, 182, 109, .16), transparent 42%),
+        linear-gradient(160deg, #050403 0%, #17100a 52%, #050403 100%);
     }
-    .wrap {
-      width: min(460px, 100%);
-      min-height: 100vh;
-      margin: 0 auto;
-      padding: 22px 18px 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
+    .wrap { width: min(480px, 100%); min-height: 100vh; margin: 0 auto; padding: 22px 18px 30px; display: grid; gap: 16px; }
     .hero, .card {
-      border: 1px solid rgba(215, 180, 106, .52);
-      border-radius: 24px;
-      background: linear-gradient(145deg, rgba(33, 24, 15, .94), rgba(9, 7, 5, .96));
-      box-shadow: 0 24px 70px rgba(0, 0, 0, .45), inset 0 1px 0 rgba(255, 255, 255, .08);
+      border: 1px solid rgba(217, 182, 109, .52);
+      border-radius: 26px;
+      background: linear-gradient(145deg, rgba(36, 26, 16, .96), rgba(7, 6, 5, .98));
+      box-shadow: 0 26px 80px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.08);
     }
-    .hero {
-      padding: 20px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero::before {
-      content: "";
-      position: absolute;
-      inset: -80px 20px auto;
-      height: 130px;
-      background: radial-gradient(circle, rgba(244, 211, 139, .35), transparent 65%);
-      filter: blur(8px);
-    }
-    .club {
-      position: relative;
-      color: var(--gold2);
-      font-size: 13px;
-      letter-spacing: 2px;
-      font-weight: 800;
-    }
-    h1 {
-      position: relative;
-      margin: 6px 0 0;
-      font-size: 31px;
-      letter-spacing: 0;
-    }
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-top: 12px;
-      padding: 7px 14px;
-      border-radius: 999px;
-      color: #2b1b07;
-      background: linear-gradient(135deg, #f6dc96, #b98a3b);
-      font-size: 13px;
-      font-weight: 800;
-    }
+    .hero { padding: 22px; text-align: center; position: relative; overflow: hidden; }
+    .hero:before { content: ""; position: absolute; inset: -90px 40px auto; height: 140px; background: radial-gradient(circle, rgba(244,221,161,.42), transparent 66%); filter: blur(8px); }
+    .club { position: relative; color: var(--gold2); font-size: 13px; letter-spacing: 2px; font-weight: 900; }
+    h1 { position: relative; margin: 8px 0 0; font-size: 32px; }
+    .badge { display: inline-flex; margin-top: 14px; padding: 8px 15px; border-radius: 999px; color: #261805; background: linear-gradient(135deg, #f5dfa3, #b88a3f); font-size: 13px; font-weight: 900; }
     .card { padding: 16px; }
-    .row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 9px 0;
-      border-bottom: 1px solid rgba(215, 180, 106, .14);
-      font-size: 15px;
-    }
+    .row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(217, 182, 109, .14); font-size: 15px; }
     .row:last-child { border-bottom: 0; }
     .label { color: var(--muted); }
-    .value { color: var(--white); font-weight: 700; text-align: right; }
-    .chest-zone {
-      min-height: 260px;
-      display: grid;
-      place-items: center;
-      text-align: center;
-      overflow: hidden;
-      position: relative;
+    .value { color: var(--white); font-weight: 800; text-align: right; }
+    .wheel-card { text-align: center; overflow: hidden; }
+    .wheel-wrap { position: relative; width: min(350px, 86vw); height: min(350px, 86vw); margin: 6px auto 14px; display: grid; place-items: center; }
+    .pointer {
+      position: absolute; top: -4px; z-index: 5; width: 0; height: 0;
+      border-left: 18px solid transparent; border-right: 18px solid transparent; border-top: 34px solid var(--gold2);
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,.4));
     }
-    .glow {
-      position: absolute;
-      width: 210px;
-      height: 210px;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(244, 211, 139, .36), transparent 62%);
-      filter: blur(10px);
-      opacity: .7;
+    .wheel {
+      width: 100%; height: 100%; border-radius: 50%; position: relative; overflow: hidden;
+      border: 9px solid rgba(244,221,161,.86);
+      box-shadow: 0 0 44px rgba(217,182,109,.3), inset 0 0 44px rgba(0,0,0,.44);
+      transition: transform 4.8s cubic-bezier(.08,.72,.08,1);
+      background: conic-gradient(
+        #24160c 0deg 30deg, #9e7230 30deg 60deg, #18110b 60deg 90deg, #5c3b17 90deg 120deg,
+        #24160c 120deg 150deg, #9e7230 150deg 180deg, #18110b 180deg 210deg, #5c3b17 210deg 240deg,
+        #24160c 240deg 270deg, #9e7230 270deg 300deg, #18110b 300deg 330deg, #d8b35f 330deg 360deg
+      );
     }
-    .chest {
-      position: relative;
-      width: 185px;
-      height: 145px;
-      transform-origin: 50% 70%;
-      transition: transform .18s ease;
+    .wheel:before { content: ""; position: absolute; inset: 18px; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; }
+    .wheel-center {
+      position: absolute; z-index: 4; width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; text-align: center;
+      color: #291b08; font-weight: 900; background: linear-gradient(135deg, #f6e1a8, #b7883e);
+      border: 4px solid #fff1bf; box-shadow: 0 8px 28px rgba(0,0,0,.36);
     }
-    .chest.opening { animation: shake .2s linear infinite; }
-    .lid, .box {
-      position: absolute;
-      left: 0;
-      width: 185px;
-      border: 2px solid rgba(247, 220, 150, .86);
-      background: linear-gradient(135deg, #5f3214, #d19b41 52%, #6d3b17);
-      box-shadow: inset 0 6px 18px rgba(255, 236, 178, .2), 0 16px 32px rgba(0, 0, 0, .42);
+    .seg {
+      position: absolute; left: 50%; top: 50%; width: 98px; margin-left: -49px; margin-top: -13px;
+      transform-origin: 50% 13px; color: var(--white); font-size: 12px; font-weight: 900; text-align: center;
+      text-shadow: 0 2px 6px rgba(0,0,0,.8);
     }
-    .lid {
-      top: 0;
-      height: 62px;
-      border-radius: 22px 22px 8px 8px;
-      transform-origin: 20px 62px;
-      transition: transform .7s cubic-bezier(.18, .9, .22, 1.2);
-    }
-    .box {
-      bottom: 0;
-      height: 92px;
-      border-radius: 14px 14px 20px 20px;
-    }
-    .lock {
-      position: absolute;
-      left: 72px;
-      bottom: 50px;
-      width: 42px;
-      height: 52px;
-      border-radius: 10px;
-      background: linear-gradient(180deg, #f5df9d, #9b6d2b);
-      border: 2px solid #fff0ba;
-      z-index: 3;
-    }
-    .chest.opened .lid { transform: rotate(-24deg) translateY(-20px); }
+    .jackpot { color: #fff0b5; filter: drop-shadow(0 0 6px rgba(255,218,104,.8)); }
+    .pass { color: #dbe7ff; }
     .result {
-      position: relative;
-      margin-top: 22px;
-      font-size: 23px;
-      font-weight: 900;
-      color: var(--gold2);
-      min-height: 30px;
+      min-height: 86px; padding: 14px; border-radius: 20px; background: rgba(255,255,255,.04); border: 1px solid rgba(217,182,109,.18);
     }
-    .particles {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: 0;
-    }
-    .particles.on { opacity: 1; }
-    .particles span {
-      position: absolute;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #f7dc96;
-      animation: fly 1.1s ease-out forwards;
-    }
+    .result-title { color: var(--gold2); font-weight: 900; font-size: 18px; }
+    .result-prize { color: var(--white); font-size: 34px; font-weight: 1000; margin-top: 4px; }
+    .result-note { color: var(--muted); font-size: 13px; margin-top: 6px; }
     button, a.button {
-      width: 100%;
-      border: 0;
-      border-radius: 18px;
-      padding: 15px 16px;
-      color: #241705;
-      background: linear-gradient(135deg, #f3d98e, #b4893f);
-      font-size: 16px;
-      font-weight: 900;
-      text-decoration: none;
-      text-align: center;
-      display: block;
-      cursor: pointer;
-      box-shadow: 0 12px 28px rgba(180, 137, 63, .25);
+      width: 100%; border: 0; border-radius: 18px; padding: 15px 16px; color: #241705;
+      background: linear-gradient(135deg, #f3d98e, #b4893f); font-size: 16px; font-weight: 900;
+      text-decoration: none; text-align: center; display: block; cursor: pointer;
     }
-    .secondary {
-      color: var(--white);
-      background: linear-gradient(135deg, #2b2318, #14100b);
-      border: 1px solid rgba(215, 180, 106, .35);
-      box-shadow: none;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .notice {
-      color: var(--muted);
-      font-size: 14px;
-      line-height: 1.7;
-      text-align: center;
-    }
-    .history {
-      display: none;
-      gap: 10px;
-    }
+    .secondary { color: var(--white); background: linear-gradient(135deg, #2b2318, #14100b); border: 1px solid rgba(217,182,109,.35); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .notice { color: var(--muted); font-size: 14px; line-height: 1.7; text-align: center; }
+    .history { display: none; gap: 10px; }
     .history.on { display: grid; }
-    .history-item {
-      border: 1px solid rgba(215, 180, 106, .22);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255, 255, 255, .04);
-      font-size: 14px;
-      line-height: 1.6;
-    }
-    @keyframes shake {
-      0%, 100% { transform: rotate(0deg); }
-      25% { transform: rotate(-2deg); }
-      75% { transform: rotate(2deg); }
-    }
-    @keyframes fly {
-      from { transform: translate(0, 0) scale(1); opacity: 1; }
-      to { transform: translate(var(--x), var(--y)) scale(.2); opacity: 0; }
-    }
+    .history-item { border: 1px solid rgba(217,182,109,.22); border-radius: 14px; padding: 12px; background: rgba(255,255,255,.04); font-size: 14px; line-height: 1.6; }
+    .spark { animation: spark 1.3s ease-out; }
+    @keyframes spark { 0% { box-shadow: 0 0 0 rgba(244,221,161,0); } 50% { box-shadow: 0 0 52px rgba(244,221,161,.62); } 100% { box-shadow: 0 0 0 rgba(244,221,161,0); } }
   </style>
 </head>
 <body>
   <main class="wrap">
     <section class="hero">
       <div class="club">3A VIP CLUB</div>
-      <h1>幸運寶箱</h1>
+      <h1>幸運轉盤</h1>
       <div class="badge" id="statusBadge">會員資料讀取中</div>
     </section>
-
     <section class="card">
-      <div class="row"><span class="label">3A帳號</span><span class="value" id="account">—</span></div>
-      <div class="row"><span class="label">VIP狀態</span><span class="value" id="vipStatus">—</span></div>
-      <div class="row"><span class="label">目前鑰匙數量</span><span class="value" id="keys">—</span></div>
-      <div class="row"><span class="label">可開啟次數</span><span class="value" id="openTimes">—</span></div>
+      <div class="row"><span class="label">會員</span><span class="value" id="account">—</span></div>
+      <div class="row"><span class="label">VIP</span><span class="value" id="vipStatus">—</span></div>
+      <div class="row"><span class="label">鑰匙</span><span class="value" id="keys">—</span></div>
+      <div class="row"><span class="label">可抽</span><span class="value" id="openTimes">—</span></div>
     </section>
-
-    <section class="card chest-zone">
-      <div class="glow"></div>
-      <div class="particles" id="particles"></div>
-      <div>
-        <div class="chest" id="chest">
-          <div class="lid"></div>
-          <div class="box"></div>
-          <div class="lock"></div>
-        </div>
-        <div class="result" id="resultText"></div>
+    <section class="card wheel-card">
+      <div class="wheel-wrap">
+        <div class="pointer"></div>
+        <div class="wheel" id="wheel"></div>
+        <div class="wheel-center">3A<br>VIP</div>
+      </div>
+      <div class="result" id="resultBox">
+        <div class="result-title">等待抽獎</div>
+        <div class="result-note">每2把鑰匙可抽一次幸運轉盤</div>
       </div>
     </section>
-
-    <button id="openButton">立即開寶箱</button>
+    <button id="openButton">🎯 立即抽獎</button>
+    <button id="againButton" style="display:none">🎯 再抽一次</button>
     <div class="grid">
-      <button class="secondary" id="historyButton">抽獎紀錄</button>
-      <button class="secondary" id="activityButton">活動公告</button>
+      <button class="secondary" id="historyButton">📒 抽獎紀錄</button>
+      <button class="secondary" id="activityButton">📜 活動公告</button>
     </div>
     <a class="button secondary" href="line://nv/chat">返回LINE</a>
     <a class="button secondary" href="${BLACKDOMAIN_LINE_URL}">黑域AI</a>
-
     <section class="card history" id="history"></section>
     <section class="card notice" id="activity" style="display:none">
       新會員加入立即獲得2把鑰匙<br>
       成功邀請好友加入即可獲得4把鑰匙<br>
       每儲值1000元可獲得1把鑰匙<br>
-      每2把鑰匙可開啟一次幸運寶箱<br>
-      幸運寶箱有機會獲得：AI使用權限、88、288、588、888、3888<br>
+      每2把鑰匙可抽一次幸運轉盤<br>
+      幸運轉盤有機會獲得：AI權限1天、88、888、2888<br>
       活動內容依官方公告為準。
     </section>
   </main>
-
   <script>
     const LIFF_ID = ${JSON.stringify(liffId)};
+    const SEGMENTS = ${JSON.stringify(segments)};
     let lineUserId = "";
     let memberState = "";
+    let latestKeys = 0;
+    let currentRotation = 0;
     const $ = (id) => document.getElementById(id);
+    const wheel = $("wheel");
 
-    function setNotice(message) {
-      $("statusBadge").textContent = message;
+    SEGMENTS.forEach((label, index) => {
+      const div = document.createElement("div");
+      div.className = "seg " + (label === "2888" ? "jackpot" : label.includes("AI") ? "pass" : "");
+      div.style.transform = "rotate(" + (index * 30 + 15) + "deg) translateY(-128px)";
+      div.innerHTML = label === "2888" ? "👑 JACKPOT<br>2888" : label === "AI權限1天" ? "BLACKDOMAIN<br>AI PASS" : label;
+      wheel.appendChild(div);
+    });
+
+    function setNotice(message) { $("statusBadge").textContent = message; }
+    function prizeNote(prize) { return prize === "AI權限1天" ? "AI權限已立即開通。" : "獎勵已發送至您的會員帳號。"; }
+    function prizeIndex(prize) {
+      if (prize === "2888") return SEGMENTS.indexOf("2888");
+      return SEGMENTS.findIndex((item) => item === prize);
     }
-
-    function particleBurst() {
-      const layer = $("particles");
-      layer.innerHTML = "";
-      for (let i = 0; i < 28; i += 1) {
-        const dot = document.createElement("span");
-        dot.style.left = 80 + Math.random() * 120 + "px";
-        dot.style.top = 70 + Math.random() * 80 + "px";
-        dot.style.setProperty("--x", (Math.random() * 220 - 110) + "px");
-        dot.style.setProperty("--y", (-80 - Math.random() * 140) + "px");
-        layer.appendChild(dot);
-      }
-      layer.classList.add("on");
-      setTimeout(() => layer.classList.remove("on"), 1200);
-    }
-
     async function resolveLineUserId() {
       const params = new URLSearchParams(location.search);
       const fromQuery = params.get("lineUserId") || params.get("uid");
@@ -362,67 +223,58 @@ function pageHtml() {
       const profile = await liff.getProfile();
       return profile.userId || "";
     }
-
     async function loadStatus() {
       lineUserId = await resolveLineUserId();
       if (!lineUserId) {
         memberState = "no_line";
         setNotice("尚未取得LINE身分");
-        $("account").textContent = "—";
         $("vipStatus").textContent = "請從3A官方LINE開啟";
-        $("keys").textContent = "—";
-        $("openTimes").textContent = "—";
         return;
       }
       const response = await fetch("/api/box/status?lineUserId=" + encodeURIComponent(lineUserId));
       const data = await response.json();
       memberState = data.state;
+      latestKeys = Number(data.keys || 0);
       setNotice(data.message);
       $("account").textContent = data.threeAAccount;
       $("vipStatus").textContent = data.vipStatus;
-      $("keys").textContent = data.keys;
+      $("keys").textContent = data.keys + (data.isAdmin ? " 把（管理員）" : " 把");
       $("openTimes").textContent = data.openTimes;
+      $("againButton").style.display = data.state === "ready" && (data.isAdmin || latestKeys >= 2) ? "block" : "none";
     }
-
-    async function openBox() {
-      if (!lineUserId) {
-        setNotice("尚未取得LINE身分");
-        return;
-      }
-      if (memberState === "unbound") {
-        setNotice("尚未綁定3A帳號，請先完成會員綁定");
-        return;
-      }
-      if (memberState === "pending") {
-        setNotice("綁定審核中，請等待管理員審核");
-        return;
-      }
+    async function spin() {
+      if (!lineUserId) return setNotice("尚未取得LINE身分");
+      if (memberState === "unbound") return setNotice("尚未綁定3A帳號，請先完成會員綁定");
+      if (memberState === "pending") return setNotice("綁定審核中，請等待管理員審核");
       $("openButton").disabled = true;
-      $("resultText").textContent = "";
-      $("chest").classList.add("opening");
-      setNotice("寶箱開啟中");
+      $("againButton").disabled = true;
+      $("resultBox").innerHTML = '<div class="result-title">幸運轉盤旋轉中</div><div class="result-note">請稍候，結果由系統決定。</div>';
       const response = await fetch("/api/box/open", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ lineUserId }),
       });
       const data = await response.json();
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      $("chest").classList.remove("opening");
       if (!data.ok) {
-        setNotice(data.message || "目前無法開啟寶箱");
+        setNotice(data.message || "目前無法抽獎");
         $("openButton").disabled = false;
+        $("againButton").disabled = false;
         return;
       }
-      $("chest").classList.add("opened");
-      particleBurst();
-      $("resultText").textContent = "獎項：" + data.prize;
-      setNotice("開箱完成");
-      await loadStatus();
-      setTimeout(() => $("chest").classList.remove("opened"), 1800);
-      $("openButton").disabled = false;
+      const index = Math.max(0, prizeIndex(data.prize));
+      const target = 360 - (index * 30 + 15);
+      currentRotation += 360 * 7 + target;
+      wheel.style.transform = "rotate(" + currentRotation + "deg)";
+      setTimeout(async () => {
+        $("resultBox").classList.add("spark");
+        $("resultBox").innerHTML = '<div class="result-title">🎉 Congratulations<br>恭喜獲得</div><div class="result-prize">' + data.prize + '</div><div class="result-note">' + prizeNote(data.prize) + '</div>';
+        setNotice("抽獎完成");
+        await loadStatus();
+        $("openButton").disabled = false;
+        $("againButton").disabled = false;
+        setTimeout(() => $("resultBox").classList.remove("spark"), 1400);
+      }, 4900);
     }
-
     async function loadHistory() {
       if (!lineUserId) return;
       const panel = $("history");
@@ -430,14 +282,12 @@ function pageHtml() {
       if (!panel.classList.contains("on")) return;
       const response = await fetch("/api/box/history?lineUserId=" + encodeURIComponent(lineUserId));
       const data = await response.json();
-      if (!data.rows.length) {
-        panel.innerHTML = '<div class="notice">目前尚無抽獎紀錄。</div>';
-        return;
-      }
-      panel.innerHTML = data.rows.map((row) => '<div class="history-item">抽獎時間：' + row.createdAt + '<br>獎項：' + row.prize + '<br>3A帳號：' + row.threeAAccount + '</div>').join("");
+      panel.innerHTML = data.rows.length
+        ? data.rows.map((row) => '<div class="history-item">抽獎時間：' + row.createdAt + '<br>獎項：' + row.prize + '<br>3A帳號：' + row.threeAAccount + '</div>').join("")
+        : '<div class="notice">目前尚無抽獎紀錄。</div>';
     }
-
-    $("openButton").addEventListener("click", openBox);
+    $("openButton").addEventListener("click", spin);
+    $("againButton").addEventListener("click", spin);
     $("historyButton").addEventListener("click", loadHistory);
     $("activityButton").addEventListener("click", () => {
       const panel = $("activity");
@@ -452,9 +302,7 @@ function pageHtml() {
 function registerBoxRoutes(app) {
   const jsonParser = typeof express.json === "function" ? express.json({ limit: "128kb" }) : (req, res, next) => next();
 
-  app.get("/box", (req, res) => {
-    res.type("html").send(pageHtml());
-  });
+  app.get("/box", (req, res) => res.type("html").send(pageHtml()));
 
   app.get("/api/box/status", async (req, res) => {
     try {
@@ -471,8 +319,7 @@ function registerBoxRoutes(app) {
     try {
       const lineUserId = String(req.body?.lineUserId || "");
       if (!lineUserId) return res.json({ ok: false, message: "尚未取得LINE身分" });
-      const result = await openBoxByLineUserId(lineUserId);
-      res.json(result);
+      res.json(await openBoxByLineUserId(lineUserId));
     } catch (error) {
       console.error("[box/open]", error);
       res.json({ ok: false, message: "系統忙碌中，請稍後再試。" });
@@ -503,8 +350,8 @@ function registerBoxRoutes(app) {
         "新會員加入立即獲得2把鑰匙",
         "成功邀請好友加入即可獲得4把鑰匙",
         "每儲值1000元可獲得1把鑰匙",
-        "每2把鑰匙可開啟一次幸運寶箱",
-        "幸運寶箱有機會獲得：AI使用權限、88、288、588、888、3888",
+        "每2把鑰匙可抽一次幸運轉盤",
+        "幸運轉盤有機會獲得：AI權限1天、88、888、2888",
         "活動內容依官方公告為準。",
       ],
     });

@@ -1,10 +1,3 @@
-drop table if exists public.vip_members cascade;
-drop table if exists public.users cascade;
-drop table if exists public.members cascade;
-drop table if exists public.user_profiles cascade;
-drop table if exists public.profiles cascade;
-drop table if exists public.accounts cascade;
-
 create table if not exists public.vip_requests (
   id uuid primary key default gen_random_uuid(),
   line_user_id text not null,
@@ -95,3 +88,15 @@ create table if not exists public.lucky_marquee (
 create index if not exists lucky_members_status_idx on public.lucky_members (status);
 create index if not exists lucky_box_logs_line_user_id_idx on public.lucky_box_logs (line_user_id);
 create index if not exists lucky_marquee_created_at_idx on public.lucky_marquee (created_at);
+
+create table if not exists public.lottery_settings (
+  id uuid primary key default gen_random_uuid(),
+  key text unique not null,
+  value jsonb not null,
+  updated_at timestamptz not null default now(),
+  updated_by text
+);
+
+insert into public.lottery_settings (key, value, updated_at)
+values ('spin_probability', '{"AI權限1天":45,"88":45,"888":9,"2888":1}'::jsonb, now())
+on conflict (key) do nothing;
