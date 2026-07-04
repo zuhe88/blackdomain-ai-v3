@@ -32,12 +32,7 @@ const {
   resultQuickReply,
   restartQuickReply,
 } = require("./quickReply");
-const {
-  firstAnalysis,
-  nextAnalysis,
-  getConfidence,
-  getReason,
-} = require("./ai");
+const { firstAnalysis, nextAnalysis, getReason } = require("./ai");
 const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
 
 function roomsForPlatform(platform) {
@@ -99,152 +94,104 @@ async function handleBaccaratMessage(event) {
 
   if (session.step === "platform") {
     const platform = incomingText.toUpperCase();
-
     if (platform !== "DG" && platform !== "MT") {
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "請選擇平台",
-          lines: ["請選擇 DG 或 MT。"],
-          quickReply: platformQuickReply(),
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "請選擇平台",
+        lines: ["請選擇 DG 或 MT。"],
+        quickReply: platformQuickReply(),
+      }));
     }
-
     setPlatform(userId, platform);
     return reply(token, roomPrompt(platform));
   }
 
   if (session.step === "room") {
     const room = normalizeRoom(session.platform, incomingText);
-
     if (!validateRoom(session.platform, room)) {
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "房號格式不正確",
-          lines: ["房號格式不正確，請選擇下方按鈕或輸入正確房號。"],
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "房號格式不正確",
+        lines: ["房號格式不正確，請選擇下方按鈕或輸入正確房號。"],
+      }));
     }
-
     setRoom(userId, room);
     return reply(token, capitalPrompt());
   }
 
   if (session.step === "capital") {
     const capital = parseMoney(incomingText);
-
     if (!capital) {
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "本金格式不正確",
-          lines: ["請輸入整數本金。", "範例：1000、3000"],
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "本金格式不正確",
+        lines: ["請輸入整數本金。", "範例：1000、3000"],
+      }));
     }
-
     setCapital(userId, capital);
     return reply(token, maxBetPrompt(capital));
   }
 
   if (session.step === "maxBet") {
     const maxBet = parseMoney(incomingText);
-
     if (!maxBet) {
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "單注上限格式不正確",
-          lines: ["請輸入整數單注上限。"],
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "單注上限格式不正確",
+        lines: ["請輸入整數單注上限。"],
+      }));
     }
-
     if (!validateMaxBet(session.capital, maxBet)) {
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "單注上限不正確",
-          lines: ["單注上限不可超過本金，且必須大於 0。"],
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "單注上限不正確",
+        lines: ["單注上限不可超過本金，且必須大於 0。"],
+      }));
     }
-
     const updated = setMaxBet(userId, maxBet);
     return reply(token, modePrompt(updated));
   }
 
   if (session.step === "mode") {
     if (!isMode(incomingText)) {
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "請選擇模式",
-          lines: [`可用模式：${MODES.join("、")}`],
-          quickReply: modeQuickReply(),
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "請選擇模式",
+        lines: [`可用模式：${MODES.join("、")}`],
+        quickReply: modeQuickReply(),
+      }));
     }
-
     const updated = setMode(userId, incomingText);
     const first = firstAnalysis(updated);
-
     updateAfterRound(userId, first.session);
-
-    return reply(
-      token,
-      baccaratAnalysisFlex({
-        session: first.session,
-        prediction: first.prediction,
-        bet: first.bet,
-        confidence: getConfidence(first.session),
-        reason: getReason(first.session),
-        quickReply: resultQuickReply(),
-      })
-    );
+    return reply(token, baccaratAnalysisFlex({
+      session: first.session,
+      prediction: first.prediction,
+      bet: first.bet,
+      reason: getReason(first.session),
+      quickReply: resultQuickReply(),
+    }));
   }
 
   if (session.step === "playing") {
     if (!isResult(incomingText)) {
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "請回報本局結果",
-          lines: ["請選擇或輸入：閒、和、莊。"],
-          quickReply: resultQuickReply(),
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "請回報本局結果",
+        lines: ["請選擇或輸入：閒、和、莊。"],
+        quickReply: resultQuickReply(),
+      }));
     }
-
     const result = nextAnalysis(session, incomingText);
     updateAfterRound(userId, result.session);
-
     if (result.session.bankroll <= 0 && result.session.mode !== "自由配注") {
       resetSession(userId);
-
-      return reply(
-        token,
-        baccaratPromptFlex({
-          title: "本金已歸零",
-          lines: ["請重新開始並輸入新的本金。"],
-          quickReply: restartQuickReply(),
-        })
-      );
+      return reply(token, baccaratPromptFlex({
+        title: "本金已歸零",
+        lines: ["請重新開始並輸入新的本金。"],
+        quickReply: restartQuickReply(),
+      }));
     }
-
-    return reply(
-      token,
-      baccaratAnalysisFlex({
-        session: result.session,
-        prediction: result.prediction,
-        bet: result.bet,
-        confidence: getConfidence(result.session),
-        reason: getReason(result.session),
-        quickReply: resultQuickReply(),
-      })
-    );
+    return reply(token, baccaratAnalysisFlex({
+      session: result.session,
+      prediction: result.prediction,
+      bet: result.bet,
+      reason: getReason(result.session),
+      quickReply: resultQuickReply(),
+    }));
   }
 
   return false;

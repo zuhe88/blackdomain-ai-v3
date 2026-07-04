@@ -82,12 +82,6 @@ function pickByRecord(home, away) {
   return { winner, rate };
 }
 
-function confidenceStars(rate) {
-  if (rate >= 0.65) return "★★★★★";
-  if (rate >= 0.55) return "★★★★☆";
-  return "★★★☆☆";
-}
-
 function totalAdvice(rate) {
   return rate >= 0.6 ? "大分" : "小分";
 }
@@ -161,7 +155,6 @@ async function loadWorldCupMatches() {
         spread: `${pick.winner} -0.5`,
         total: totalAdvice(pick.rate),
         score: pick.rate >= 0.6 ? "2：1" : "1：1",
-        stars: confidenceStars(pick.rate),
         totalGoals: pick.rate >= 0.6 ? "3球" : "2球",
         halfTime: pick.rate >= 0.6 ? "1：0" : "0：0",
         updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
@@ -210,7 +203,6 @@ async function loadMlbMatches() {
       spread: `${pick.winner} -1.5`,
       total: totalAdvice(pick.rate),
       score: pick.rate >= 0.6 ? "主勝高分" : "低比分拉鋸",
-      stars: confidenceStars(pick.rate),
       totalGoals: pick.rate >= 0.6 ? "偏高" : "偏低",
       halfTime: "前半段保守觀察",
       updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
@@ -250,7 +242,6 @@ async function loadNbaMatches() {
         spread: `${pick.winner} -3.5`,
         total: totalAdvice(pick.rate),
         score: "主勝方向較佳",
-        stars: confidenceStars(pick.rate),
         totalGoals: pick.rate >= 0.6 ? "總分偏高" : "總分偏低",
         halfTime: "上半場節奏偏快",
         updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),

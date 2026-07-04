@@ -1,4 +1,4 @@
-const { bubble, infoLine, metric, note } = require("./premium");
+const { bubble, infoLine, metric, note, text, COLORS } = require("./premium");
 
 function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
   return bubble({
@@ -9,7 +9,9 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
       metric("推薦房號", room, "BLACKDOMAIN AI 即時監控"),
-      infoLine("推薦原因", "活躍度與波動指標符合 AI 推薦條件"),
+      infoLine("目前狀態", "AI監控中"),
+      infoLine("波動", "偏高"),
+      infoLine("活躍度", "提升"),
       infoLine("更新時間", updateTime),
       note("本分析由 BLACKDOMAIN AI 生成，僅供參考。"),
     ],
@@ -25,13 +27,42 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply) {
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
       metric("分析房號", room, "AI監控結果"),
-      infoLine("活躍度", "中高"),
-      infoLine("波動", "穩定偏強"),
-      infoLine("AI監控", "已納入即時觀察"),
+      infoLine("目前狀態", "AI監控中"),
+      infoLine("波動", "偏高"),
+      infoLine("活躍度", "提升"),
       infoLine("建議", "可列入觀察名單，請依自身節奏操作"),
       infoLine("更新時間", updateTime),
     ],
   });
+}
+
+function rankCard(room, index) {
+  const medals = ["👑", "🥇", "🥈", "🥉", "◆"];
+  return {
+    type: "box",
+    layout: "vertical",
+    margin: "md",
+    paddingAll: "14px",
+    cornerRadius: "14px",
+    backgroundColor: index === 0 ? "#211A08" : COLORS.panel,
+    borderColor: COLORS.goldDark,
+    borderWidth: "1px",
+    contents: [
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "md",
+        contents: [
+          text(medals[index] || "◆", { size: "lg", flex: 1, align: "center", color: COLORS.gold, wrap: false }),
+          text(`TOP ${index + 1}`, { size: "sm", weight: "bold", flex: 2, color: COLORS.gold, wrap: false }),
+          text(room, { size: "xl", weight: "bold", flex: 3, align: "end", color: COLORS.white, wrap: false }),
+        ],
+      },
+      infoLine("目前狀態", "AI監控中"),
+      infoLine("波動", index <= 1 ? "偏高" : "穩定偏高"),
+      infoLine("活躍度", "提升"),
+    ],
+  };
 }
 
 function electronicRankFlex(gameName, rooms, updateTime, quickReply) {
@@ -42,10 +73,9 @@ function electronicRankFlex(gameName, rooms, updateTime, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      ...rooms.map((room, index) =>
-        infoLine(`TOP${String(index + 1).padStart(2, "0")}`, `${room} 熱度 ${100 - index * 3}`)
-      ),
+      ...rooms.slice(0, 5).map((room, index) => rankCard(room, index)),
       infoLine("更新時間", updateTime),
+      note("每30分鐘更新一次"),
     ],
   });
 }

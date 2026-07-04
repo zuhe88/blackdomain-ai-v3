@@ -1,4 +1,4 @@
-const { bubble, card, infoLine, metric, note, text, COLORS } = require("./premium");
+const { bubble, infoLine, metric, note, text, COLORS } = require("./premium");
 const { moduleImageUrl } = require("../../utils/moduleImage");
 
 function baccaratPromptFlex({ title, lines = [], quickReply }) {
@@ -8,29 +8,8 @@ function baccaratPromptFlex({ title, lines = [], quickReply }) {
     subtitle: "BLACKDOMAIN 百家樂AI",
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
-    contents: lines.map((line) =>
-      text(line, {
-        size: "sm",
-        color: COLORS.white,
-        align: "center",
-      })
-    ),
+    contents: lines.map((line) => text(line, { size: "sm", color: COLORS.white, align: "center" })),
   });
-}
-
-function baccaratPlatformFlex(quickReply) {
-  return {
-    type: "flex",
-    altText: "百家樂AI",
-    quickReply,
-    contents: {
-      type: "carousel",
-      contents: [
-        platformImageBubble("DG", "DG 百家樂AI", "dg.png"),
-        platformImageBubble("MT", "MT 百家樂AI", "mt.png"),
-      ],
-    },
-  };
 }
 
 function platformImageBubble(actionText, title, imageName) {
@@ -57,30 +36,29 @@ function platformImageBubble(actionText, title, imageName) {
       paddingAll: "16px",
       action: { type: "message", text: actionText },
       contents: [
-        text(title, {
-          size: "lg",
-          weight: "bold",
-          color: COLORS.gold,
-          align: "center",
-        }),
-        text("點選卡片進入房間選擇", {
-          size: "sm",
-          color: COLORS.white,
-          align: "center",
-        }),
+        text(title, { size: "lg", weight: "bold", color: COLORS.gold, align: "center" }),
+        text("點選卡片進入房間選擇", { size: "sm", color: COLORS.white, align: "center" }),
       ],
     },
     footer: {
       type: "box",
       layout: "vertical",
       paddingAll: "10px",
+      contents: [text("BLACKDOMAIN BACCARAT AI", { size: "xxs", color: COLORS.muted, align: "center", wrap: false })],
+    },
+  };
+}
+
+function baccaratPlatformFlex(quickReply) {
+  return {
+    type: "flex",
+    altText: "百家樂AI",
+    quickReply,
+    contents: {
+      type: "carousel",
       contents: [
-        text("BLACKDOMAIN BACCARAT AI", {
-          size: "xxs",
-          color: COLORS.muted,
-          align: "center",
-          wrap: false,
-        }),
+        platformImageBubble("DG", "DG 百家樂AI", "dg.png"),
+        platformImageBubble("MT", "MT 百家樂AI", "mt.png"),
       ],
     },
   };
@@ -94,19 +72,8 @@ function roomButton(room) {
     paddingAll: "10px",
     backgroundColor: COLORS.panel,
     cornerRadius: "10px",
-    action: {
-      type: "message",
-      text: room,
-    },
-    contents: [
-      text(room, {
-        size: "sm",
-        weight: "bold",
-        color: COLORS.gold,
-        align: "center",
-        wrap: false,
-      }),
-    ],
+    action: { type: "message", text: room },
+    contents: [text(room, { size: "sm", weight: "bold", color: COLORS.gold, align: "center", wrap: false })],
   };
 }
 
@@ -114,23 +81,6 @@ function chunk(list, size) {
   const rows = [];
   for (let i = 0; i < list.length; i += size) rows.push(list.slice(i, i + size));
   return rows;
-}
-
-function roomRows(rooms) {
-  return chunk(rooms, 3).map((row) => ({
-    type: "box",
-    layout: "horizontal",
-    spacing: "sm",
-    contents: [
-      ...row.map(roomButton),
-      ...Array.from({ length: 3 - row.length }, () => ({
-        type: "box",
-        layout: "vertical",
-        flex: 1,
-        contents: [],
-      })),
-    ],
-  }));
 }
 
 function baccaratRoomFlex(platform, rooms, quickReply) {
@@ -141,12 +91,16 @@ function baccaratRoomFlex(platform, rooms, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
-      text("請選擇下方房間，或手動輸入房號。", {
-        size: "sm",
-        color: COLORS.white,
-        align: "center",
-      }),
-      ...roomRows(rooms),
+      text("請選擇下方房間，或手動輸入房號。", { size: "sm", color: COLORS.white, align: "center" }),
+      ...chunk(rooms, 3).map((row) => ({
+        type: "box",
+        layout: "horizontal",
+        spacing: "sm",
+        contents: [
+          ...row.map(roomButton),
+          ...Array.from({ length: 3 - row.length }, () => ({ type: "box", layout: "vertical", flex: 1, contents: [] })),
+        ],
+      })),
       note("手動輸入支援大小寫，例如 rb01、RB01、mt3a、MT13A。"),
     ],
   });
@@ -162,19 +116,8 @@ function resultActionButton(label, color) {
     backgroundColor: color,
     cornerRadius: "14px",
     justifyContent: "center",
-    action: {
-      type: "message",
-      text: label,
-    },
-    contents: [
-      text(label, {
-        size: "xl",
-        weight: "bold",
-        color: COLORS.white,
-        align: "center",
-        wrap: false,
-      }),
-    ],
+    action: { type: "message", text: label },
+    contents: [text(label, { size: "xl", weight: "bold", color: COLORS.white, align: "center", wrap: false })],
   };
 }
 
@@ -185,12 +128,7 @@ function resultActionPanel() {
     spacing: "sm",
     margin: "lg",
     contents: [
-      text("回報本局結果", {
-        size: "sm",
-        weight: "bold",
-        color: COLORS.gold,
-        align: "center",
-      }),
+      text("回報本局結果", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
       {
         type: "box",
         layout: "horizontal",
@@ -205,13 +143,15 @@ function resultActionPanel() {
   };
 }
 
-function baccaratAnalysisFlex({ session, prediction, bet, confidence = "穩定分析", reason = "BLACKDOMAIN AI 分析中", quickReply }) {
+function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN AI 分析中", quickReply }) {
   const history = session.history.length ? session.history.join(" ") : "尚未回報結果";
-  const profit =
-    session.mode === "自由配注"
-      ? "-"
-      : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
+  const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
   const betText = session.mode === "自由配注" ? "玩家自行配注" : String(bet);
+  const results = {
+    player: session.results.player || 0,
+    tie: session.results.tie || 0,
+    banker: session.results.banker || 0,
+  };
 
   return bubble({
     altText: "百家樂AI 分析結果",
@@ -220,16 +160,16 @@ function baccaratAnalysisFlex({ session, prediction, bet, confidence = "穩定�
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
-      metric("下注方向", prediction, session.mode),
+      metric("建議", prediction, session.mode),
       metric("建議下注", betText, "不超過單注上限與目前本金"),
-      infoLine("信心值", confidence),
-      infoLine("建議原因", reason),
+      infoLine("目前狀態", "AI監控中"),
+      infoLine("分析", reason),
       infoLine("單注上限", String(session.maxBet)),
       infoLine("目前本金", session.mode === "自由配注" ? "-" : String(session.bankroll)),
       infoLine("目前獲利", String(profit)),
-      infoLine("閒", String(session.results.player)),
-      infoLine("和", String(session.results.tie)),
-      infoLine("莊", String(session.results.banker)),
+      infoLine("莊", String(results.banker)),
+      infoLine("閒", String(results.player)),
+      infoLine("和", String(results.tie)),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       resultActionPanel(),
       note(`目前歷史：${history}`),

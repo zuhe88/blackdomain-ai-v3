@@ -106,7 +106,6 @@ function matchBubble(league, match, index, total) {
       infoLine("開賽時間", match.startTime),
       metric("AI預測勝方", match.prediction, "勝方"),
       metric("預測比分", match.score, "比分"),
-      infoLine("AI信心", match.stars || "★★★★☆"),
       infoLine("讓分建議", match.spread),
       infoLine("大小分建議", match.total),
       infoLine("總進球", match.totalGoals || match.score),

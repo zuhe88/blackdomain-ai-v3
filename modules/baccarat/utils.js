@@ -2,40 +2,20 @@ const { RESULTS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
 
 function normalizeRoom(platform, room) {
   if (!room) return null;
-
   const value = String(room).trim().toUpperCase().replace(/\s+/g, "");
 
   if (platform === "DG") {
-    if (/^RB\d+$/.test(value)) {
-      const num = parseInt(value.replace("RB", ""), 10);
-      return `RB${String(num).padStart(2, "0")}`;
-    }
-
-    if (/^S\d+$/.test(value)) {
-      const num = parseInt(value.replace("S", ""), 10);
-      return `S${String(num).padStart(2, "0")}`;
-    }
-
+    if (/^RB\d+$/.test(value)) return `RB${String(parseInt(value.replace("RB", ""), 10)).padStart(2, "0")}`;
+    if (/^S\d+$/.test(value)) return `S${String(parseInt(value.replace("S", ""), 10)).padStart(2, "0")}`;
     return value;
   }
 
   if (platform === "MT") {
     if (value === "3A") return "MT3A";
     if (value === "13A") return "MT13A";
-
-    if (/^MT\d+A$/.test(value)) {
-      const num = parseInt(value.replace("MT", "").replace("A", ""), 10);
-      return `MT${num}A`;
-    }
-
-    if (/^MT\d+$/.test(value)) {
-      const num = parseInt(value.replace("MT", ""), 10);
-      return `MT${String(num).padStart(2, "0")}`;
-    }
-
-    if (/^\d+$/.test(value)) {
-      return `MT${String(parseInt(value, 10)).padStart(2, "0")}`;
-    }
+    if (/^MT\d+A$/.test(value)) return `MT${parseInt(value.replace("MT", "").replace("A", ""), 10)}A`;
+    if (/^MT\d+$/.test(value)) return `MT${String(parseInt(value.replace("MT", ""), 10)).padStart(2, "0")}`;
+    if (/^\d+$/.test(value)) return `MT${String(parseInt(value, 10)).padStart(2, "0")}`;
   }
 
   return value;
@@ -49,19 +29,14 @@ function validateRoom(platform, room) {
 
 function parseMoney(value) {
   if (value === undefined || value === null) return null;
-
   const raw = String(value).replace(/,/g, "").trim();
   if (!/^\d+$/.test(raw)) return null;
-
   const money = parseInt(raw, 10);
-  if (!Number.isInteger(money) || money <= 0) return null;
-  return money;
+  return Number.isInteger(money) && money > 0 ? money : null;
 }
 
 function validateMaxBet(capital, maxBet) {
-  if (maxBet <= 0) return false;
-  if (maxBet > capital) return false;
-  return true;
+  return maxBet > 0 && maxBet <= capital;
 }
 
 function isResult(text) {

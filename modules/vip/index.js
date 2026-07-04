@@ -62,13 +62,13 @@ async function getLineName(userId) {
   }
 }
 
-function formatDate(value) {
-  if (!value) return "永久";
+function formatDate(value, permanent = false) {
+  if (!value) return permanent ? "永久" : "—";
   return new Date(value).toLocaleDateString("zh-TW", { timeZone: "Asia/Taipei" });
 }
 
-function daysLeft(value) {
-  if (!value) return "永久";
+function daysLeft(value, permanent = false) {
+  if (!value) return permanent ? "永久" : "—";
   const diff = new Date(value).getTime() - Date.now();
   return String(Math.max(0, Math.ceil(diff / 86400000)));
 }
@@ -220,6 +220,7 @@ function vipCenterFlex(user, isAdmin = false) {
 
   const status = vipStatusText(user);
   const permission = hasAiPermission(user) ? AI_FEATURES : user.account3A ? "尚未開通" : "尚未綁定3A帳號";
+  const isPermanentVip = user.account3A && user.vipStatus === STATUS.APPROVED && user.aiPermission === true && !user.expiresAt;
 
   return bubble({
     altText: "VIP中心",
@@ -232,8 +233,8 @@ function vipCenterFlex(user, isAdmin = false) {
       infoLine("LINE名稱", user.lineName || "未取得"),
       infoLine("3A帳號", user.account3A || "未綁定"),
       infoLine("AI權限", permission),
-      infoLine("到期日期", formatDate(user.expiresAt)),
-      infoLine("剩餘天數", daysLeft(user.expiresAt)),
+      infoLine("到期日期", formatDate(user.expiresAt, isPermanentVip)),
+      infoLine("剩餘天數", daysLeft(user.expiresAt, isPermanentVip)),
       infoLine("最後更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       button("綁定3A帳號", "綁定"),
       button("聯繫管理員", "聯繫管理員", "secondary"),
@@ -304,8 +305,8 @@ async function handleAdminCommand(event) {
       ["3A帳號", user.account3A || account3A],
       ["VIP狀態", vipStatusText(user)],
       ["AI權限", hasAiPermission(user) ? "已開通" : "尚未開通"],
-      ["到期", formatDate(user.expiresAt)],
-      ["剩餘天數", daysLeft(user.expiresAt)],
+      ["到期", formatDate(user.expiresAt, user.vipStatus === STATUS.APPROVED && !user.expiresAt)],
+      ["剩餘天數", daysLeft(user.expiresAt, user.vipStatus === STATUS.APPROVED && !user.expiresAt)],
       ["LINE User ID", user.lineUserId || "未綁定"],
     ]));
   }
