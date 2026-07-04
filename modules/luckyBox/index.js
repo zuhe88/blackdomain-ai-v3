@@ -31,6 +31,8 @@ function baseUrl() {
 }
 
 function boxUrl() {
+  const liffId = process.env.LINE_3A_LIFF_ID || process.env.LIFF_ID || "";
+  if (liffId) return `https://liff.line.me/${liffId}`;
   return `${baseUrl()}/box`;
 }
 
@@ -381,6 +383,11 @@ function pickPrizeByProbability(probability) {
   return "AI權限1天";
 }
 
+function sectorIndexForPrize(prize) {
+  const index = WHEEL_SEGMENTS.findIndex((item) => item === prize);
+  return index >= 0 ? index : 0;
+}
+
 function parseProbabilityCommand(value) {
   const parts = String(value || "").trim().split(/\s+/).slice(1);
   if (parts.length !== 8) return null;
@@ -591,9 +598,15 @@ async function openBoxByLineUserId(lineUserId) {
       : await grantBlackdomainAiAccessDays({ ...member, lineUserId }, aiDays);
     if (grant.ok) await notifyAiAccessUpdated({ ...member, lineUserId }, { days: aiDays, expiresAt: grant.expiresAt });
   }
+  return { ok: true, prize, sectorIndex: sectorIndexForPrize(prize), keys: nextKeys, member: { ...member, keys: nextKeys }, isAdminTest: isAdmin };
+}
+
+async function notifySpinResult(lineUserId, prize) {
+  const isAdmin = isAdminLineUserId(lineUserId);
+  const member = isAdmin ? adminMember(lineUserId) : await findMemberByLineUserId(lineUserId);
   await push(lineUserId, `幸運轉盤抽獎完成\n獎項：${prize}\n時間：${formatDateTime(new Date().toISOString())}`);
   await notifyAdminsPrize(member, prize, isAdmin);
-  return { ok: true, prize, keys: nextKeys, member: { ...member, keys: nextKeys }, isAdminTest: isAdmin };
+  return { ok: true };
 }
 
 async function handleHistory(event) {
@@ -642,6 +655,7 @@ module.exports = {
   formatDateTime,
   handleLuckyBoxEvent,
   memberCenterFlex,
+  notifySpinResult,
   openBoxByLineUserId,
   probabilityFlex,
 };

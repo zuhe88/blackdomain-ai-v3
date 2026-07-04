@@ -210,7 +210,7 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
   const lineName = request?.lineName || existingUser.lineName || "未取得";
   const expiresAt = permanent ? null : expiresAfterDays(days || 30);
 
-  if (!lineUserId) return { ok: false, error: "查無會員綁定申請" };
+  if (!lineUserId) return { ok: false, error: "找不到此會員的 LINE User ID，無法推送通知。" };
 
   const result = await upsertVipUser({
     lineUserId,
@@ -257,6 +257,26 @@ async function extendVip(account3A, days, adminLineUserId) {
     isAdmin: false,
   });
   await logAdminAction(adminLineUserId, "延長VIP", account3A, result.ok ? "success" : "failed");
+  return result;
+}
+
+async function reduceVip(account3A, days, adminLineUserId) {
+  const user = await findVipUserBy3AAccount(account3A);
+  if (!user.account3A) return { ok: false, error: "查無3A帳號" };
+  const base = user.expiresAt && new Date(user.expiresAt).getTime() > Date.now()
+    ? new Date(user.expiresAt).getTime()
+    : Date.now();
+  const expiresAt = new Date(Math.max(Date.now(), base - Math.max(1, Number(days || 1)) * 86400000)).toISOString();
+  const result = await upsertVipUser({
+    lineUserId: user.lineUserId,
+    lineName: user.lineName,
+    account3A,
+    vipStatus: STATUS.APPROVED,
+    aiPermission: true,
+    expiresAt,
+    isAdmin: false,
+  });
+  await logAdminAction(adminLineUserId, "扣除VIP天數", account3A, result.ok ? "success" : "failed");
   return result;
 }
 
@@ -324,6 +344,7 @@ module.exports = {
   submitVipRequest,
   approveVip,
   extendVip,
+  reduceVip,
   cancelVip,
   listPendingRequests,
   listVipUsers,

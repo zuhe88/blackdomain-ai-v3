@@ -8,6 +8,8 @@ const ADMIN_COMMANDS = [
   "開通",
   "取消VIP",
   "延長VIP",
+  "扣天數",
+  "減少VIP",
   "永久VIP",
   "會員列表",
 ];

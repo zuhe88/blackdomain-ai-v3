@@ -1,7 +1,7 @@
 const express = require("express");
 const { isAdminLineUserId } = require("../config/admin");
 const { findMemberByLineUserId, listHistory } = require("../modules/luckyBox/repository");
-const { BLACKDOMAIN_LINE_URL, WHEEL_SEGMENTS, boxUrl, formatDateTime, openBoxByLineUserId } = require("../modules/luckyBox");
+const { BLACKDOMAIN_LINE_URL, WHEEL_SEGMENTS, boxUrl, formatDateTime, notifySpinResult, openBoxByLineUserId } = require("../modules/luckyBox");
 
 function statusForMember(member, lineUserId) {
   const isAdmin = isAdminLineUserId(lineUserId);
@@ -89,23 +89,22 @@ function pageHtml() {
         linear-gradient(160deg, #090909 0%, #17100a 52%, #090909 100%);
     }
     h1, .club, .badge, .value, .result-title, .result-prize, button, a.button, .seg, .wheel-center {
-      font-weight: 900;
-      letter-spacing: .03em;
-      -webkit-text-stroke: 1.5px rgba(0,0,0,.9);
-      text-shadow: 0 2px 6px rgba(0,0,0,.45);
+      font-weight: 800;
+      letter-spacing: .02em;
+      text-shadow: 0 2px 8px rgba(0,0,0,.5);
     }
-    .wrap { width: min(480px, 100%); min-height: 100vh; margin: 0 auto; padding: 22px 18px 30px; display: grid; gap: 14px; }
+    .wrap { width: min(430px, 100%); min-height: 100vh; margin: 0 auto; padding: 18px 14px 28px; display: grid; gap: 14px; }
     .hero, .card {
       border: 1px solid rgba(217, 182, 109, .52);
-      border-radius: 24px;
-      background: linear-gradient(145deg, rgba(36, 26, 16, .96), rgba(7, 6, 5, .98));
-      box-shadow: 0 26px 80px rgba(0,0,0,.46), inset 0 1px 0 rgba(255,255,255,.08);
+      border-radius: 22px;
+      background: linear-gradient(145deg, rgba(28, 21, 12, .96), rgba(7, 6, 5, .98));
+      box-shadow: 0 18px 54px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.08);
     }
-    .hero { padding: 22px; text-align: center; position: relative; overflow: hidden; }
+    .hero { padding: 22px 18px; text-align: center; position: relative; overflow: hidden; }
     .hero:before { content: ""; position: absolute; inset: -90px 48px auto; height: 136px; background: radial-gradient(circle, rgba(244,221,161,.34), transparent 66%); filter: blur(10px); }
-    .club { position: relative; color: var(--gold2); font-size: 13px; letter-spacing: 1px; font-weight: 900; }
-    h1 { position: relative; margin: 8px 0 0; font-size: 32px; color: #ffffff; }
-    .badge { display: inline-flex; margin-top: 14px; padding: 8px 15px; border-radius: 999px; color: #261805; background: linear-gradient(135deg, #f5dfa3, #b88a3f); font-size: 13px; font-weight: 900; }
+    .club { position: relative; color: var(--gold2); font-size: 12px; letter-spacing: 1px; font-weight: 800; }
+    h1 { position: relative; margin: 8px 0 0; font-size: 30px; color: #ffffff; }
+    .badge { display: inline-flex; margin-top: 14px; padding: 8px 15px; border-radius: 999px; color: #261805; background: linear-gradient(135deg, #f5dfa3, #b88a3f); font-size: 13px; font-weight: 800; text-shadow: none; }
     .card { padding: 16px; }
     .row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(217, 182, 109, .14); font-size: 15px; }
     .row:last-child { border-bottom: 0; }
@@ -114,8 +113,8 @@ function pageHtml() {
     .wheel-card { text-align: center; overflow: visible; }
     .wheel-wrap {
       position: relative;
-      width: min(336px, calc(100vw - 76px));
-      height: min(336px, calc(100vw - 76px));
+      width: min(318px, calc(100vw - 84px));
+      height: min(318px, calc(100vw - 84px));
       margin: 4px auto 14px;
       display: grid;
       place-items: center;
@@ -129,9 +128,9 @@ function pageHtml() {
     }
     .wheel {
       width: 100%; height: 100%; border-radius: 50%; position: relative; overflow: hidden;
-      border: 10px solid rgba(244,221,161,.88);
-      box-shadow: 0 0 52px rgba(217,182,109,.32), 0 18px 50px rgba(0,0,0,.48), inset 0 0 42px rgba(0,0,0,.46);
-      transition: transform 4.8s cubic-bezier(.08,.72,.08,1);
+      border: 9px solid rgba(244,221,161,.86);
+      box-shadow: 0 0 34px rgba(217,182,109,.24), 0 14px 38px rgba(0,0,0,.42), inset 0 0 34px rgba(0,0,0,.46);
+      transition: transform 2.8s cubic-bezier(.12,.78,.12,1);
       background: conic-gradient(
         #17110b 0deg 60deg,
         #d8b35f 60deg 120deg,
@@ -143,17 +142,17 @@ function pageHtml() {
     }
     .wheel:before { content: ""; position: absolute; inset: 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 50%; }
     .wheel-center {
-      position: absolute; z-index: 4; width: 108px; height: 108px; border-radius: 50%; display: grid; place-items: center; text-align: center;
+      position: absolute; z-index: 4; width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; text-align: center;
       color: #291b08; font-weight: 900; background: linear-gradient(135deg, #f6e1a8, #b7883e);
       border: 5px solid #fff1bf; box-shadow: 0 10px 30px rgba(0,0,0,.38), 0 0 24px rgba(244,221,161,.38);
       line-height: 1.25;
     }
     .seg {
-      position: absolute; left: 50%; top: 50%; width: 116px; margin-left: -58px; margin-top: -17px;
-      transform-origin: 50% 17px; color: var(--white); font-size: 18px; font-weight: 1000; text-align: center;
+      position: absolute; left: 50%; top: 50%; width: 112px; margin-left: -56px; margin-top: -16px;
+      transform-origin: 50% 16px; color: var(--white); font-size: 17px; font-weight: 900; text-align: center;
       text-shadow: 0 2px 6px rgba(0,0,0,.8);
     }
-    .seg.light { color: #2c1c08; -webkit-text-stroke: 0; text-shadow: 0 1px 0 rgba(255,255,255,.25); }
+    .seg.light { color: #2c1c08; text-shadow: 0 1px 0 rgba(255,255,255,.25); }
     .jackpot { color: #2c1c08; filter: drop-shadow(0 0 8px rgba(255,218,104,.72)); }
     .pass { color: #fffaf2; }
     .result {
@@ -170,6 +169,8 @@ function pageHtml() {
     }
     button:hover, a.button:hover { box-shadow: 0 12px 30px rgba(0,0,0,.42), 0 0 26px rgba(212,175,55,.28); }
     .secondary { color: var(--white); background: linear-gradient(135deg, #12110f, #090909); border: 1px solid rgba(217,182,109,.35); }
+    .connect { display: none; }
+    .connect.on { display: block; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .notice { color: var(--muted); font-size: 14px; line-height: 1.7; text-align: center; }
     .history { display: none; gap: 10px; }
@@ -185,6 +186,10 @@ function pageHtml() {
       <div class="club">3A尊榮會員</div>
       <h1>幸運轉盤</h1>
       <div class="badge" id="statusBadge">會員資料讀取中</div>
+    </section>
+    <section class="card connect" id="connectPanel">
+      <div class="notice" id="connectText">請先連結LINE身分，系統才能讀取會員與鑰匙資料。</div>
+      <button id="connectButton" style="margin-top:12px">連結LINE身分</button>
     </section>
     <section class="card">
       <div class="row"><span class="label">會員</span><span class="value" id="account">—</span></div>
@@ -236,12 +241,29 @@ function pageHtml() {
       const div = document.createElement("div");
       const isLight = index === 1 || index === 3 || index === 5;
       div.className = "seg " + (isLight ? "light " : "") + (label === "2888" ? "jackpot" : label.includes("AI") ? "pass" : "");
-      div.style.transform = "rotate(" + (index * segmentAngle + segmentAngle / 2) + "deg) translateY(-116px)";
+      const angle = index * segmentAngle + segmentAngle / 2;
+      div.style.transform = "rotate(" + angle + "deg) translateY(-106px) rotate(" + (-angle) + "deg)";
       div.innerHTML = label === "2888" ? "👑<br>2888" : label;
       wheel.appendChild(div);
     });
 
     function setNotice(message) { $("statusBadge").textContent = message; }
+    function setConnectVisible(visible, message) {
+      $("connectPanel").classList.toggle("on", Boolean(visible));
+      if (message) $("connectText").textContent = message;
+    }
+    async function startLineLogin() {
+      if (!LIFF_ID || !window.liff) {
+        setConnectVisible(true, "目前尚未設定LIFF，請由3A官方LINE的幸運轉盤入口重新開啟。");
+        return;
+      }
+      await liff.init({ liffId: LIFF_ID });
+      if (!liff.isLoggedIn()) {
+        liff.login({ redirectUri: location.href });
+        return;
+      }
+      await loadStatus();
+    }
     function prizeNote(prize) { return prize === "AI權限1天" ? "AI權限已立即開通。" : "獎勵已發送至您的會員帳號。"; }
     function prizeIndex(prize) {
       if (prize === "2888") return SEGMENTS.indexOf("2888");
@@ -251,7 +273,6 @@ function pageHtml() {
       if (!LIFF_ID || !window.liff) return "";
       await liff.init({ liffId: LIFF_ID });
       if (!liff.isLoggedIn()) {
-        liff.login({ redirectUri: location.href });
         return "";
       }
       const profile = await liff.getProfile();
@@ -261,10 +282,15 @@ function pageHtml() {
       lineUserId = await resolveLineUserId();
       if (!lineUserId) {
         memberState = "no_line";
-        setNotice("尚未取得LINE身分");
-        $("vipStatus").textContent = "請從3A官方LINE開啟";
+        setNotice("尚未連結LINE身分");
+        $("account").textContent = "尚未連結";
+        $("vipStatus").textContent = "請點下方按鈕";
+        $("keys").textContent = "—";
+        $("openTimes").textContent = "—";
+        setConnectVisible(true, LIFF_ID ? "請點擊下方按鈕連結LINE身分。" : "目前尚未設定LIFF，請由3A官方LINE的幸運轉盤入口重新開啟。");
         return;
       }
+      setConnectVisible(false);
       const response = await fetch("/api/box/status", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -284,9 +310,10 @@ function pageHtml() {
       if (!lineUserId) return setNotice("尚未取得LINE身分");
       if (memberState === "unbound") return setNotice("尚未綁定3A帳號，請先完成會員綁定");
       if (memberState === "pending") return setNotice("綁定審核中，請等待管理員審核");
+      const restoreButtonText = $("openButton").textContent || "🎡 轉動輪盤";
       $("openButton").disabled = true;
       $("againButton").disabled = true;
-      $("resultBox").innerHTML = '<div class="result-title">幸運轉盤旋轉中</div><div class="result-note">請稍候，結果由系統決定。</div>';
+      $("openButton").textContent = "請稍後 正在轉動幸運轉盤...";
       const response = await fetch("/api/box/open", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -294,24 +321,32 @@ function pageHtml() {
       });
       const data = await response.json();
       if (!data.ok) {
-        setNotice(data.message || "目前無法抽獎");
+        setNotice("⚠️ 抽獎失敗，請稍後再試。");
+        $("resultBox").innerHTML = '<div class="result-title">⚠️ 抽獎失敗，請稍後再試。</div>';
         $("openButton").disabled = false;
         $("againButton").disabled = false;
+        $("openButton").textContent = restoreButtonText;
         return;
       }
-      const index = Math.max(0, prizeIndex(data.prize));
+      const index = Number.isInteger(data.sectorIndex) ? data.sectorIndex : Math.max(0, prizeIndex(data.prize));
       const target = 360 - (index * segmentAngle + segmentAngle / 2);
-      currentRotation += 360 * 7 + target;
+      currentRotation += 360 * 5 + target;
       wheel.style.transform = "rotate(" + currentRotation + "deg)";
       setTimeout(async () => {
         $("resultBox").classList.add("spark");
         $("resultBox").innerHTML = '<div class="result-title">🎉 恭喜獲得</div><div class="result-prize">' + data.prize + '</div><div class="result-note">' + prizeNote(data.prize) + '</div>';
         setNotice("抽獎完成");
+        await fetch("/api/box/notify", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ lineUserId, prize: data.prize }),
+        });
         await loadStatus();
         $("openButton").disabled = false;
         $("againButton").disabled = false;
+        $("openButton").textContent = "🎯 再抽一次";
         setTimeout(() => $("resultBox").classList.remove("spark"), 1400);
-      }, 4900);
+      }, 2900);
     }
     async function loadHistory() {
       if (!lineUserId) return;
@@ -329,6 +364,7 @@ function pageHtml() {
         : '<div class="notice">目前尚無抽獎紀錄。</div>';
     }
     $("openButton").addEventListener("click", spin);
+    $("connectButton").addEventListener("click", () => startLineLogin().catch(() => setNotice("LINE身分連結失敗")));
     $("againButton").addEventListener("click", spin);
     $("historyButton").addEventListener("click", loadHistory);
     $("activityButton").addEventListener("click", () => {
@@ -390,6 +426,18 @@ function registerBoxRoutes(app) {
       res.json(await openBoxByLineUserId(lineUserId));
     } catch (error) {
       console.error("[box/open]", error);
+      res.json({ ok: false, message: "系統忙碌中，請稍後再試。" });
+    }
+  });
+
+  app.post("/api/box/notify", jsonParser, async (req, res) => {
+    try {
+      const lineUserId = String(req.body?.lineUserId || "");
+      const prize = String(req.body?.prize || "");
+      if (!lineUserId || !prize) return res.json({ ok: false, message: "通知資料不完整" });
+      res.json(await notifySpinResult(lineUserId, prize));
+    } catch (error) {
+      console.error("[box/notify]", error);
       res.json({ ok: false, message: "系統忙碌中，請稍後再試。" });
     }
   });

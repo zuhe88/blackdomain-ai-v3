@@ -6,7 +6,36 @@ const lineConfig = {
   channelSecret: process.env.LINE_CHANNEL_SECRET,
 };
 
-const lineClient = new line.Client(lineConfig);
+if (!lineConfig.channelAccessToken || !lineConfig.channelSecret) {
+  console.error("LINE_CHANNEL_ACCESS_TOKEN or LINE_CHANNEL_SECRET is not configured.");
+}
+
+let cachedClient = null;
+let warnedMissingLineConfig = false;
+
+function getLineClient() {
+  if ((!lineConfig.channelAccessToken || !lineConfig.channelSecret) && !warnedMissingLineConfig) {
+    warnedMissingLineConfig = true;
+    console.error("LINE_CHANNEL_ACCESS_TOKEN or LINE_CHANNEL_SECRET is not configured.");
+  }
+  if (!cachedClient) cachedClient = new line.Client(lineConfig);
+  return cachedClient;
+}
+
+const lineClient = {
+  replyMessage(replyToken, messages) {
+    return getLineClient().replyMessage(replyToken, messages);
+  },
+  pushMessage(userId, messages) {
+    return getLineClient().pushMessage(userId, messages);
+  },
+  multicast(userIds, messages) {
+    return getLineClient().multicast(userIds, messages);
+  },
+  getProfile(userId) {
+    return getLineClient().getProfile(userId);
+  },
+};
 
 function trim(value, max) {
   const text = String(value || "");
@@ -109,10 +138,15 @@ async function reply(replyToken, messages) {
 
 async function push(userId, messages) {
   try {
-    await lineClient.pushMessage(userId, normalizeMessages(messages));
+    await pushStrict(userId, messages);
   } catch (err) {
     logError("E002", err);
   }
+}
+
+async function pushStrict(userId, messages) {
+  if (!userId) throw new Error("Missing line_user_id for pushMessage.");
+  await lineClient.pushMessage(userId, normalizeMessages(messages));
 }
 
 async function multicast(userIds, messages) {
@@ -135,5 +169,6 @@ module.exports = {
   quickReply,
   reply,
   push,
+  pushStrict,
   multicast,
 };
