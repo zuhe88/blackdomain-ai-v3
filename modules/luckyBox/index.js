@@ -22,20 +22,7 @@ const BLACKDOMAIN_LINE_URL = "https://line.me/ti/p/@391wiftp";
 const DEFAULT_BASE_URL = "https://blackdomain-ai-v3-production.up.railway.app";
 const adminOpenSessions = new Map();
 
-const WHEEL_SEGMENTS = [
-  "AI權限1天",
-  "88",
-  "AI權限1天",
-  "888",
-  "88",
-  "AI權限1天",
-  "88",
-  "888",
-  "AI權限1天",
-  "88",
-  "AI權限1天",
-  "2888",
-];
+const WHEEL_SEGMENTS = ["AI權限1天", "88", "AI權限1天", "888", "88", "AI權限1天", "888", "2888"];
 
 function baseUrl() {
   const raw = process.env.PUBLIC_BASE_URL || process.env.RAILWAY_PUBLIC_DOMAIN || DEFAULT_BASE_URL;
@@ -71,6 +58,19 @@ function minusDays(base, days) {
   return new Date(Math.max(Date.now(), start - Math.max(0, Number(days || 0)) * 86400000)).toISOString();
 }
 
+function adminMember(lineUserId) {
+  return {
+    lineUserId,
+    lineName: "管理員",
+    threeAAccount: "管理員測試",
+    status: "approved",
+    keys: 999,
+    firstOpened: true,
+    isAdmin: true,
+    vipExpiresAt: null,
+  };
+}
+
 function isVipActive(member) {
   if (member?.isAdmin) return true;
   if (!member?.vipExpiresAt) return false;
@@ -82,7 +82,7 @@ function vipStatus(member) {
   if (!member?.threeAAccount) return "尚未綁定";
   if (member.status === "pending") return "審核中";
   if (member.status === "rejected") return "已拒絕";
-  return isVipActive(member) ? "已開通" : "未開通";
+  return isVipActive(member) || member.status === "approved" ? "已開通" : "未開通";
 }
 
 function vipExpiresText(member) {
@@ -183,7 +183,7 @@ function memberCenterFlex(member = {}) {
       info("3A帳號", member.threeAAccount || "未綁定"),
       info("帳號狀態", vipStatus(member)),
       info("VIP到期", vipExpiresText(member)),
-      info("目前鑰匙", member.keys || 0),
+      info("目前鑰匙", member.isAdmin ? "無限制" : member.keys || 0),
       vipButton("我的VIP", "我的VIP"),
       vipButton("幸運轉盤", "幸運轉盤"),
       vipButton("抽獎紀錄", "抽獎紀錄", "secondary"),
@@ -207,16 +207,16 @@ function bindHelpFlex() {
 }
 
 function spinIntroFlex(member = {}) {
-  if (!member.threeAAccount) return bindHelpFlex();
+  if (!member.isAdmin && !member.threeAAccount) return bindHelpFlex();
   return flex({
     altText: "幸運轉盤",
     title: "幸運轉盤",
     contents: [
-      info("3A帳號", member.threeAAccount),
+      info("3A帳號", member.threeAAccount || "管理員測試"),
       info("VIP狀態", vipStatus(member)),
-      info("目前鑰匙", member.keys || 0),
-      info("可抽次數", Math.floor((member.keys || 0) / 2)),
-      uriButton("立即抽獎", boxUrl()),
+      info("目前鑰匙", member.isAdmin ? "無限制" : member.keys || 0),
+      info("可抽次數", member.isAdmin ? "無限制" : Math.floor((member.keys || 0) / 2)),
+      uriButton("轉動輪盤", boxUrl()),
       vipButton("抽獎紀錄", "抽獎紀錄", "secondary"),
       vipButton("活動公告", "活動公告", "secondary"),
     ],
@@ -320,7 +320,7 @@ async function notifyAdminsPrize(member, prize, isAdminTest) {
     subtitle: "3A VIP ADMIN",
     contents: [
       info("LINE名稱", member.lineName || "未取得"),
-      info("3A帳號", member.threeAAccount),
+      info("3A帳號", member.threeAAccount || "管理員測試"),
       info("獎項", prize),
       info("類型", isAdminTest ? "管理員測試" : "會員抽獎"),
       info("時間", formatDateTime(new Date().toISOString())),
@@ -373,9 +373,7 @@ async function bindMember(event, parts) {
     return reply(event.replyToken, `您已綁定 3A帳號：${existing.threeAAccount}\n如需更換帳號，請聯繫管理員。`);
   }
   const accountOwner = await findMemberBy3AAccount(threeAAccount);
-  if (accountOwner.threeAAccount) {
-    return reply(event.replyToken, "此 3A帳號已被綁定或申請中，請聯繫管理員確認。");
-  }
+  if (accountOwner.threeAAccount) return reply(event.replyToken, "此 3A帳號已被綁定或申請中，請聯繫管理員確認。");
   const lineName = await getLineName(lineUserId);
   const result = await createBindRequest({ lineUserId, lineName, threeAAccount, nickname });
   if (!result.ok) return reply(event.replyToken, result.error || "系統忙碌中，請稍後再試。");
@@ -389,10 +387,7 @@ async function openVipForMember(account, days) {
   const expiresAt = days === "永久" ? "9999-12-31T15:59:59.000Z" : plusDays(member.vipExpiresAt, days);
   const result = await updateMemberBy3AAccount(account, { status: "approved", vip_expires_at: expiresAt });
   if (!result.ok) return { ok: false, message: result.error };
-  await push(
-    member.lineUserId,
-    `VIP 已成功開通\nVIP期限：${days === "永久" ? "永久" : `${days} 天`}\n到期時間：${days === "永久" ? "永久" : formatDateTime(expiresAt)}\n重新進入黑域AI即可使用全部VIP功能。`
-  );
+  await push(member.lineUserId, `VIP 已成功開通\nVIP期限：${days === "永久" ? "永久" : `${days} 天`}\n到期時間：${days === "永久" ? "永久" : formatDateTime(expiresAt)}\n重新進入黑域AI即可使用全部VIP功能。`);
   return { ok: true, message: `已開通 ${account} ${days === "永久" ? "永久VIP" : `${days}天`}` };
 }
 
@@ -406,13 +401,37 @@ async function changeKeys(account, amount) {
 
 async function handleAdmin(event, value) {
   const adminId = event.source.userId || "";
+  const isAdmin = isAdminLineUserId(adminId);
   if (value === "管理員測試") {
-    if (isAdminLineUserId(adminId)) {
-      return reply(event.replyToken, `✅ 管理員驗證成功\n目前帳號：3A官方LINE\nLINE UID：${adminId}\n權限：管理員`);
+    if (isAdmin) {
+      return reply(event.replyToken, `✅ 管理員驗證成功\n目前系統：3A官方LINE\nLINE UID：${adminId}\n權限：管理員`);
     }
     return reply(event.replyToken, `❌ 您不是管理員\nLINE UID：${adminId}`);
   }
-  if (!isAdminLineUserId(adminId)) return false;
+
+  const adminCommandPrefixes = [
+    "管理指令",
+    "機率設定",
+    "設定機率 ",
+    "開通 ",
+    "增加 ",
+    "減少 ",
+    "刪除 ",
+    "查詢 ",
+    "查會員 ",
+    "補鑰匙 ",
+    "扣鑰匙 ",
+    "拒絕 ",
+    "待審",
+    "會員列表",
+    "統計",
+    "群發 ",
+    "公告 ",
+    "重設轉盤 ",
+  ];
+  const looksLikeAdminCommand = adminCommandPrefixes.some((prefix) => value === prefix.trim() || value.startsWith(prefix));
+  if (!isAdmin && looksLikeAdminCommand) return reply(event.replyToken, `❌ 您不是管理員\nLINE UID：${adminId}`);
+  if (!isAdmin) return false;
   if (value === "管理指令") return reply(event.replyToken, adminCommandsText());
   if (value === "機率設定") return reply(event.replyToken, probabilityFlex(await getSpinProbability()));
   if (value.startsWith("設定機率 ")) {
@@ -426,8 +445,7 @@ async function handleAdmin(event, value) {
   if (/^\d+$/.test(value) && adminOpenSessions.has(adminId)) {
     const account = adminOpenSessions.get(adminId);
     adminOpenSessions.delete(adminId);
-    const result = await openVipForMember(account, Number(value));
-    return reply(event.replyToken, result.message);
+    return reply(event.replyToken, (await openVipForMember(account, Number(value))).message);
   }
   const [command, account, amount] = value.split(/\s+/).filter(Boolean);
   if (command === "開通" && account && !amount) {
@@ -498,19 +516,19 @@ async function handleAdmin(event, value) {
 
 async function openBoxByLineUserId(lineUserId) {
   const isAdmin = isAdminLineUserId(lineUserId);
-  const member = await findMemberByLineUserId(lineUserId);
-  if (!member.threeAAccount) return { ok: false, code: "UNBOUND", message: "尚未綁定3A帳號" };
-  if (member.status !== "approved") return { ok: false, code: "PENDING", message: "綁定審核中" };
+  const member = isAdmin ? adminMember(lineUserId) : await findMemberByLineUserId(lineUserId);
+  if (!isAdmin && !member.threeAAccount) return { ok: false, code: "UNBOUND", message: "尚未綁定3A帳號" };
+  if (!isAdmin && member.status !== "approved") return { ok: false, code: "PENDING", message: "綁定審核中" };
   if (!isAdmin && member.keys < 2) return { ok: false, code: "NO_KEYS", message: "鑰匙不足" };
   const prize = !isAdmin && !member.firstOpened ? "AI權限1天" : pickPrizeByProbability(await getSpinProbability());
   const nextKeys = isAdmin ? member.keys : member.keys - 2;
-  const update = await updateMemberByLineUserId(lineUserId, { keys: nextKeys, first_opened: true });
-  if (!update.ok) return { ok: false, code: "UPDATE_FAILED", message: update.error };
+  if (!isAdmin) {
+    const update = await updateMemberByLineUserId(lineUserId, { keys: nextKeys, first_opened: true });
+    if (!update.ok) return { ok: false, code: "UPDATE_FAILED", message: update.error };
+  }
   const log = await addLuckyLog({ lineUserId, threeAAccount: member.threeAAccount, prize, isAdminTest: isAdmin });
   if (!log.ok) return { ok: false, code: "LOG_FAILED", message: log.error };
-  if (prize === "AI權限1天") {
-    await grantBlackdomainAiAccessOneDay({ ...member, lineUserId });
-  }
+  if (prize === "AI權限1天") await grantBlackdomainAiAccessOneDay({ ...member, lineUserId });
   await push(lineUserId, `幸運轉盤抽獎完成\n獎項：${prize}\n時間：${formatDateTime(new Date().toISOString())}`);
   await notifyAdminsPrize(member, prize, isAdmin);
   return { ok: true, prize, keys: nextKeys, member: { ...member, keys: nextKeys }, isAdminTest: isAdmin };
@@ -520,25 +538,30 @@ async function handleHistory(event) {
   return reply(event.replyToken, historyFlex(await listHistory(event.source.userId || "", 20)));
 }
 
+async function getViewerMember(userId) {
+  return isAdminLineUserId(userId) ? adminMember(userId) : findMemberByLineUserId(userId);
+}
+
 async function handleLuckyBoxEvent(event) {
   if (event.type !== "message" && event.type !== "postback" && event.type !== "follow") return;
-  if (event.type === "follow") return reply(event.replyToken, memberCenterFlex(await findMemberByLineUserId(event.source.userId || "")));
+  const userId = event.source.userId || "";
+  if (event.type === "follow") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
   if (event.type === "message" && event.message.type !== "text") return reply(event.replyToken, "目前僅支援文字指令，請輸入：選單");
   const value = event.type === "postback" ? String(event.postback?.data || "") : event.message.text.trim();
   const adminResult = await handleAdmin(event, value);
   if (adminResult !== false) return adminResult;
   if (value.startsWith("綁定 ")) return bindMember(event, value.split(/\s+/));
   if (value === "綁定") return reply(event.replyToken, bindHelpFlex());
-  if (value === "選單" || value === "開始") return reply(event.replyToken, memberCenterFlex(await findMemberByLineUserId(event.source.userId || "")));
-  if (value === "我的VIP") return reply(event.replyToken, memberCenterFlex(await findMemberByLineUserId(event.source.userId || "")));
+  if (value === "選單" || value === "開始") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
+  if (value === "我的VIP") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
   if (value === "我的鑰匙") {
-    const member = await findMemberByLineUserId(event.source.userId || "");
-    return reply(event.replyToken, `目前鑰匙數量：${member.keys || 0}`);
+    const member = await getViewerMember(userId);
+    return reply(event.replyToken, `目前鑰匙數量：${member.isAdmin ? "無限制" : member.keys || 0}`);
   }
-  if (value === "幸運轉盤") return reply(event.replyToken, spinIntroFlex(await findMemberByLineUserId(event.source.userId || "")));
+  if (value === "幸運轉盤") return reply(event.replyToken, spinIntroFlex(await getViewerMember(userId)));
   if (value === "活動公告") return reply(event.replyToken, activityFlex());
   if (value === "抽獎紀錄") return handleHistory(event);
-  return reply(event.replyToken, memberCenterFlex(await findMemberByLineUserId(event.source.userId || "")));
+  return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
 }
 
 module.exports = {

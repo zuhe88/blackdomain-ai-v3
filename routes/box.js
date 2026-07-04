@@ -5,6 +5,19 @@ const { BLACKDOMAIN_LINE_URL, WHEEL_SEGMENTS, boxUrl, formatDateTime, openBoxByL
 
 function statusForMember(member, lineUserId) {
   const isAdmin = isAdminLineUserId(lineUserId);
+  if (isAdmin) {
+    return {
+      state: "ready",
+      message: "管理員測試模式",
+      lineUserId,
+      threeAAccount: "管理員測試",
+      vipStatus: "管理員",
+      keys: "無限制",
+      openTimes: "無限制",
+      isAdmin: true,
+    };
+  }
+
   if (!member.threeAAccount) {
     return {
       state: "unbound",
@@ -14,7 +27,7 @@ function statusForMember(member, lineUserId) {
       vipStatus: "未綁定",
       keys: 0,
       openTimes: 0,
-      isAdmin,
+      isAdmin: false,
     };
   }
 
@@ -27,7 +40,7 @@ function statusForMember(member, lineUserId) {
       vipStatus: "審核中",
       keys: member.keys || 0,
       openTimes: Math.floor((member.keys || 0) / 2),
-      isAdmin,
+      isAdmin: false,
     };
   }
 
@@ -36,10 +49,10 @@ function statusForMember(member, lineUserId) {
     message: "可抽幸運轉盤",
     lineUserId,
     threeAAccount: member.threeAAccount,
-    vipStatus: isAdmin ? "管理員" : "已開通",
+    vipStatus: "已開通",
     keys: member.keys || 0,
-    openTimes: isAdmin ? "無限制" : Math.floor((member.keys || 0) / 2),
-    isAdmin,
+    openTimes: Math.floor((member.keys || 0) / 2),
+    isAdmin: false,
   };
 }
 
@@ -105,9 +118,8 @@ function pageHtml() {
       box-shadow: 0 0 44px rgba(217,182,109,.3), inset 0 0 44px rgba(0,0,0,.44);
       transition: transform 4.8s cubic-bezier(.08,.72,.08,1);
       background: conic-gradient(
-        #24160c 0deg 30deg, #9e7230 30deg 60deg, #18110b 60deg 90deg, #5c3b17 90deg 120deg,
-        #24160c 120deg 150deg, #9e7230 150deg 180deg, #18110b 180deg 210deg, #5c3b17 210deg 240deg,
-        #24160c 240deg 270deg, #9e7230 270deg 300deg, #18110b 300deg 330deg, #d8b35f 330deg 360deg
+        #24160c 0deg 45deg, #9e7230 45deg 90deg, #18110b 90deg 135deg, #5c3b17 135deg 180deg,
+        #24160c 180deg 225deg, #9e7230 225deg 270deg, #18110b 270deg 315deg, #d8b35f 315deg 360deg
       );
     }
     .wheel:before { content: ""; position: absolute; inset: 18px; border: 1px solid rgba(255,255,255,.12); border-radius: 50%; }
@@ -117,8 +129,8 @@ function pageHtml() {
       border: 4px solid #fff1bf; box-shadow: 0 8px 28px rgba(0,0,0,.36);
     }
     .seg {
-      position: absolute; left: 50%; top: 50%; width: 98px; margin-left: -49px; margin-top: -13px;
-      transform-origin: 50% 13px; color: var(--white); font-size: 12px; font-weight: 900; text-align: center;
+      position: absolute; left: 50%; top: 50%; width: 104px; margin-left: -52px; margin-top: -13px;
+      transform-origin: 50% 13px; color: var(--white); font-size: 13px; font-weight: 900; text-align: center;
       text-shadow: 0 2px 6px rgba(0,0,0,.8);
     }
     .jackpot { color: #fff0b5; filter: drop-shadow(0 0 6px rgba(255,218,104,.8)); }
@@ -168,7 +180,7 @@ function pageHtml() {
         <div class="result-note">每2把鑰匙可抽一次幸運轉盤</div>
       </div>
     </section>
-    <button id="openButton">🎯 立即抽獎</button>
+    <button id="openButton">🎡 轉動輪盤</button>
     <button id="againButton" style="display:none">🎯 再抽一次</button>
     <div class="grid">
       <button class="secondary" id="historyButton">📒 抽獎紀錄</button>
@@ -196,11 +208,12 @@ function pageHtml() {
     const $ = (id) => document.getElementById(id);
     const wheel = $("wheel");
 
+    const segmentAngle = 360 / SEGMENTS.length;
     SEGMENTS.forEach((label, index) => {
       const div = document.createElement("div");
       div.className = "seg " + (label === "2888" ? "jackpot" : label.includes("AI") ? "pass" : "");
-      div.style.transform = "rotate(" + (index * 30 + 15) + "deg) translateY(-128px)";
-      div.innerHTML = label === "2888" ? "👑 JACKPOT<br>2888" : label === "AI權限1天" ? "BLACKDOMAIN<br>AI PASS" : label;
+      div.style.transform = "rotate(" + (index * segmentAngle + segmentAngle / 2) + "deg) translateY(-128px)";
+      div.innerHTML = label === "2888" ? "👑 JACKPOT<br>2888" : label;
       wheel.appendChild(div);
     });
 
@@ -238,7 +251,7 @@ function pageHtml() {
       setNotice(data.message);
       $("account").textContent = data.threeAAccount;
       $("vipStatus").textContent = data.vipStatus;
-      $("keys").textContent = data.keys + (data.isAdmin ? " 把（管理員）" : " 把");
+      $("keys").textContent = data.isAdmin ? "無限制（管理員）" : data.keys + " 把";
       $("openTimes").textContent = data.openTimes;
       $("againButton").style.display = data.state === "ready" && (data.isAdmin || latestKeys >= 2) ? "block" : "none";
     }
@@ -262,7 +275,7 @@ function pageHtml() {
         return;
       }
       const index = Math.max(0, prizeIndex(data.prize));
-      const target = 360 - (index * 30 + 15);
+      const target = 360 - (index * segmentAngle + segmentAngle / 2);
       currentRotation += 360 * 7 + target;
       wheel.style.transform = "rotate(" + currentRotation + "deg)";
       setTimeout(async () => {
@@ -307,6 +320,7 @@ function registerBoxRoutes(app) {
   app.get("/api/box/status", async (req, res) => {
     try {
       const lineUserId = String(req.query.lineUserId || "");
+      if (isAdminLineUserId(lineUserId)) return res.json(statusForMember({}, lineUserId));
       const member = await findMemberByLineUserId(lineUserId);
       res.json(statusForMember(member, lineUserId));
     } catch (error) {
