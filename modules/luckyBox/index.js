@@ -311,6 +311,8 @@ function historyFlex(rows) {
 }
 
 function adminBindFlex(member) {
+  const openCommand = `開通 ${member.threeAAccount}`;
+  const bindCommand = `綁定 ${member.threeAAccount}`;
   return flex({
     altText: "新的綁定申請",
     title: "新的綁定申請",
@@ -319,11 +321,43 @@ function adminBindFlex(member) {
       info("LINE名稱", member.lineName || "未取得"),
       info("3A帳號", member.threeAAccount),
       info("申請時間", formatDateTime(member.createdAt)),
-      clipboardButton("複製綁定格式", `綁定 ${member.threeAAccount}`),
-      vipButton("開通會員", `開通 ${member.threeAAccount}`),
+      vipButton("直接開通會員", openCommand),
+      clipboardButton("複製開通指令", openCommand),
+      clipboardButton("複製綁定格式", bindCommand),
       vipButton("拒絕", `拒絕 ${member.threeAAccount}`, "danger"),
     ],
     footer: "3A VIP ADMIN",
+  });
+}
+
+function adminApproveResultFlex(member, ok = true, detail = "") {
+  return flex({
+    altText: ok ? "3A會員已開通" : "3A會員開通失敗",
+    title: ok ? "開通完成" : "開通失敗",
+    subtitle: "3A VIP ADMIN",
+    contents: [
+      info("處理結果", ok ? "完成" : "失敗"),
+      info("3A帳號", member?.threeAAccount || "—"),
+      info("LINE名稱", member?.lineName || "未取得"),
+      info("目前鑰匙", `${member?.keys || 0} 把`),
+      info("狀態", ok ? "已開通" : detail || "無法開通"),
+      vipButton("管理員指令", "管理員指令", "secondary"),
+    ],
+    footer: "3A VIP ADMIN",
+  });
+}
+
+function memberApprovedFlex(member) {
+  return flex({
+    altText: "3A會員綁定已開通",
+    title: "會員已開通",
+    subtitle: "3A VIP CLUB",
+    contents: [
+      info("3A帳號", member?.threeAAccount || "—"),
+      info("目前鑰匙", `${member?.keys || 0} 把`),
+      info("會員狀態", "已開通"),
+      uriButton("前往幸運轉盤", boxUrl()),
+    ],
   });
 }
 
@@ -470,12 +504,13 @@ async function openVipForMember(account, days) {
 
 async function approveThreeAMember(account) {
   const member = await findMemberBy3AAccount(account);
-  if (!member.threeAAccount) return { ok: false, message: "查無3A帳號" };
+  if (!member.threeAAccount) return { ok: false, message: adminApproveResultFlex({ threeAAccount: account }, false, "查無3A帳號") };
   const result = await updateMemberBy3AAccount(account, { status: "approved" });
-  if (!result.ok) return { ok: false, message: result.error };
-  await push(member.lineUserId, `3A會員綁定已開通\n3A帳號：${account}\n目前鑰匙：${member.keys || 0} 把\n可前往3A VIP幸運轉盤使用。`);
-  await notifyAdminsText(`管理員操作完成\n項目：開通3A會員\n3A帳號：${account}\n目前鑰匙：${member.keys || 0} 把`);
-  return { ok: true, message: `已開通3A會員 ${account}\n目前鑰匙：${member.keys || 0} 把` };
+  if (!result.ok) return { ok: false, message: adminApproveResultFlex(member, false, result.error) };
+  const updatedMember = { ...member, status: "approved" };
+  await push(member.lineUserId, memberApprovedFlex(updatedMember));
+  await notifyAdminsText(adminApproveResultFlex(updatedMember, true));
+  return { ok: true, message: adminApproveResultFlex(updatedMember, true) };
 }
 
 function prizeAiDays(prize) {

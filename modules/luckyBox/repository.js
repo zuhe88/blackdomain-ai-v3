@@ -89,7 +89,7 @@ async function createBindRequest({ lineUserId, lineName, threeAAccount, nickname
       three_a_account: threeAAccount,
       nickname: nickname || "未填寫",
       status: "pending",
-      keys: 2,
+      keys: 0,
       first_opened: false,
       created_at: now,
       updated_at: now,
