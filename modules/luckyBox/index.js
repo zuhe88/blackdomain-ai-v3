@@ -365,7 +365,7 @@ function spinResultFlex(member, prize, aiAccess = null) {
   const hasAiAccess = aiAccess?.days > 0;
   return flex({
     altText: "幸運轉盤抽獎完成",
-    title: hasAiAccess ? "中獎與權限更新" : "抽獎完成",
+    title: "中獎通知",
     subtitle: "3A VIP CLUB",
     contents: [
       info("3A帳號", member?.threeAAccount || "—"),
@@ -379,6 +379,24 @@ function spinResultFlex(member, prize, aiAccess = null) {
           ]
         : [info("獎勵狀態", "獎勵已送出")]),
     ],
+  });
+}
+
+function keyChangeFlex(member, amount, nextKeys, { admin = false, ok = true, detail = "" } = {}) {
+  const isAdd = Number(amount) >= 0;
+  return flex({
+    altText: ok ? "鑰匙數量已更新" : "鑰匙異動失敗",
+    title: admin ? (ok ? "鑰匙異動完成" : "鑰匙異動失敗") : "鑰匙已更新",
+    subtitle: admin ? "3A VIP ADMIN" : "3A VIP CLUB",
+    contents: [
+      info("3A帳號", member?.threeAAccount || "—"),
+      info("異動項目", isAdd ? "補鑰匙" : "扣鑰匙"),
+      info("異動數量", `${isAdd ? "+" : "-"}${Math.abs(Number(amount || 0))} 把`),
+      info("目前鑰匙", ok ? `${nextKeys} 把` : "—"),
+      info("處理狀態", ok ? "完成" : detail || "失敗"),
+      ...(admin ? [vipButton("管理員指令", "管理員指令", "secondary")] : [uriButton("前往幸運轉盤", boxUrl())]),
+    ],
+    footer: admin ? "3A VIP ADMIN" : "3A MEMBER CENTER",
   });
 }
 
@@ -543,10 +561,14 @@ function prizeAiDays(prize) {
 
 async function changeKeys(account, amount) {
   const member = await findMemberBy3AAccount(account);
-  if (!member.threeAAccount) return { ok: false, message: "查無3A帳號" };
+  if (!Number.isFinite(Number(amount))) return { ok: false, message: keyChangeFlex({ threeAAccount: account }, 0, 0, { admin: true, ok: false, detail: "鑰匙數量格式錯誤" }) };
+  if (!member.threeAAccount) return { ok: false, message: keyChangeFlex({ threeAAccount: account }, amount, 0, { admin: true, ok: false, detail: "查無3A帳號" }) };
   const keys = Math.max(0, member.keys + amount);
   const result = await updateMemberBy3AAccount(account, { keys });
-  return { ok: result.ok, message: result.ok ? `已更新 ${account} 鑰匙：${keys}` : result.error };
+  if (!result.ok) return { ok: false, message: keyChangeFlex(member, amount, keys, { admin: true, ok: false, detail: result.error }) };
+  const updatedMember = { ...member, keys };
+  await push(member.lineUserId, keyChangeFlex(updatedMember, amount, keys));
+  return { ok: true, message: keyChangeFlex(updatedMember, amount, keys, { admin: true }) };
 }
 
 async function handleAdmin(event, value) {
