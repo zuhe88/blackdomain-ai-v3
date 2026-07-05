@@ -548,7 +548,6 @@ async function approveThreeAMember(account) {
   if (!result.ok) return { ok: false, message: adminApproveResultFlex(member, false, result.error) };
   const updatedMember = { ...member, status: "approved" };
   await push(member.lineUserId, memberApprovedFlex(updatedMember));
-  await notifyAdminsText(adminApproveResultFlex(updatedMember, true));
   return { ok: true, message: adminApproveResultFlex(updatedMember, true) };
 }
 
