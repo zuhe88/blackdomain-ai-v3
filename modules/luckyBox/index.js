@@ -361,6 +361,27 @@ function memberApprovedFlex(member) {
   });
 }
 
+function spinResultFlex(member, prize, aiAccess = null) {
+  const hasAiAccess = aiAccess?.days > 0;
+  return flex({
+    altText: "幸運轉盤抽獎完成",
+    title: hasAiAccess ? "中獎與權限更新" : "抽獎完成",
+    subtitle: "3A VIP CLUB",
+    contents: [
+      info("3A帳號", member?.threeAAccount || "—"),
+      info("中獎獎項", prize),
+      info("抽獎時間", formatDateTime(new Date().toISOString())),
+      ...(hasAiAccess
+        ? [
+            info("AI權限", `已新增 ${aiAccess.days} 天`),
+            info("目前到期", formatDateTime(aiAccess.expiresAt)),
+            info("使用方式", "請回到黑域AI開始使用"),
+          ]
+        : [info("獎勵狀態", "獎勵已送出")]),
+    ],
+  });
+}
+
 async function notifyAdminsBind(member) {
   await Promise.all(adminLineUserIds().map((adminId) => push(adminId, adminBindFlex(member))));
 }
@@ -677,10 +698,7 @@ async function openBoxByLineUserId(lineUserId) {
 async function notifySpinResult(lineUserId, prize, aiAccess = null) {
   const isAdmin = isAdminLineUserId(lineUserId);
   const member = isAdmin ? adminMember(lineUserId) : await findMemberByLineUserId(lineUserId);
-  await push(lineUserId, `幸運轉盤抽獎完成\n獎項：${prize}\n時間：${formatDateTime(new Date().toISOString())}`);
-  if (aiAccess?.days > 0) {
-    await notifyAiAccessUpdated({ ...member, lineUserId }, { days: Number(aiAccess.days), expiresAt: aiAccess.expiresAt });
-  }
+  await push(lineUserId, spinResultFlex(member, prize, aiAccess));
   await notifyAdminsPrize(member, prize, isAdmin);
   return { ok: true };
 }
