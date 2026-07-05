@@ -274,7 +274,7 @@ function probabilityFlex(probability = DEFAULT_SPIN_PROBABILITY) {
 function adminCommandsText() {
   return [
     "管理員功能",
-    "開通 3A帳號 天數",
+    "開通 3A帳號",
     "增加 3A帳號 天數",
     "減少 3A帳號 天數",
     "刪除 3A帳號",
@@ -408,6 +408,36 @@ function parseProbabilityCommand(value) {
   return result;
 }
 
+function isLikely3AAccount(value) {
+  return /^(?=.*\d)[a-z0-9][a-z0-9_-]{2,31}$/i.test(String(value || "").trim());
+}
+
+function normalizeBindAccount(value) {
+  const raw = String(value || "").replace(/\u3000/g, " ").trim();
+  const compact = raw.replace(/\s+/g, "");
+  const placeholders = new Set(["綁定", "綁定3A", "綁定3A帳號", "3A帳號", "帳號", "請輸入您的3A帳號"]);
+  if (placeholders.has(compact)) return { prompt: true, account: null };
+
+  const patterns = [
+    /^綁定\s*3A帳號\s*(.+)$/i,
+    /^綁定\s*3A\s*(.+)$/i,
+    /^綁定\s+(.+)$/i,
+    /^綁定(.+)$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) {
+      const account = match[1].trim().split(/\s+/)[0].toLowerCase();
+      return isLikely3AAccount(account) ? { prompt: false, account } : { prompt: true, account: null };
+    }
+  }
+
+  const accountOnly = raw.split(/\s+/)[0].toLowerCase();
+  if (isLikely3AAccount(accountOnly)) return { prompt: false, account: accountOnly };
+  return { prompt: false, account: null };
+}
+
 async function bindMember(event, parts) {
   const lineUserId = event.source.userId || "";
   const threeAAccount = parts[1];
@@ -436,6 +466,16 @@ async function openVipForMember(account, days) {
   if (days !== "永久") await notifyAiAccessUpdated(member, { days: Number(days), expiresAt });
   await notifyAdminsText(`管理員操作完成\n項目：開通AI\n3A帳號：${account}\n天數：${days}\n到期：${days === "永久" ? "永久" : formatDateTime(expiresAt)}`);
   return { ok: true, message: `已開通 ${account} ${days === "永久" ? "永久VIP" : `${days}天`}` };
+}
+
+async function approveThreeAMember(account) {
+  const member = await findMemberBy3AAccount(account);
+  if (!member.threeAAccount) return { ok: false, message: "查無3A帳號" };
+  const result = await updateMemberBy3AAccount(account, { status: "approved" });
+  if (!result.ok) return { ok: false, message: result.error };
+  await push(member.lineUserId, `3A會員綁定已開通\n3A帳號：${account}\n目前鑰匙：${member.keys || 0} 把\n可前往3A VIP幸運轉盤使用。`);
+  await notifyAdminsText(`管理員操作完成\n項目：開通3A會員\n3A帳號：${account}\n目前鑰匙：${member.keys || 0} 把`);
+  return { ok: true, message: `已開通3A會員 ${account}\n目前鑰匙：${member.keys || 0} 把` };
 }
 
 function prizeAiDays(prize) {
@@ -505,17 +545,9 @@ async function handleAdmin(event, value) {
     if (!result.ok) return reply(event.replyToken, `設定失敗\n${result.error}`);
     return reply(event.replyToken, probabilityFlex(result.value));
   }
-  if (/^\d+$/.test(value) && adminOpenSessions.has(adminId)) {
-    const account = adminOpenSessions.get(adminId);
-    adminOpenSessions.delete(adminId);
-    return reply(event.replyToken, (await openVipForMember(account, Number(value))).message);
-  }
+  if (/^\d+$/.test(value) && adminOpenSessions.has(adminId)) adminOpenSessions.delete(adminId);
   const [command, account, amount] = value.split(/\s+/).filter(Boolean);
-  if (command === "開通" && account && !amount) {
-    adminOpenSessions.set(adminId, account);
-    return reply(event.replyToken, "請輸入開通天數，例如：30");
-  }
-  if (command === "開通" && account && amount) return reply(event.replyToken, (await openVipForMember(account, amount === "永久" ? "永久" : Number(amount))).message);
+  if (command === "開通" && account) return reply(event.replyToken, (await approveThreeAMember(account)).message);
   if (command === "增加" && account && amount) {
     const member = await findMemberBy3AAccount(account);
     if (!member.threeAAccount) return reply(event.replyToken, "查無3A帳號");
@@ -641,8 +673,9 @@ async function handleLuckyBoxEvent(event) {
   const adminResult = await handleAdmin(event, value);
   if (adminResult !== false) return adminResult;
 
-  if (value === "綁定" || value === "綁定3A") return reply(event.replyToken, bindHelpFlex());
-  if (value.startsWith("綁定 ")) return bindMember(event, value.split(/\s+/));
+  const bindInput = normalizeBindAccount(value);
+  if (bindInput.prompt) return reply(event.replyToken, bindHelpFlex());
+  if (bindInput.account) return bindMember(event, ["綁定", bindInput.account]);
 
   const command = normalizeUserCommand(value);
   if (command === "選單" || command === "開始") return reply(event.replyToken, memberCenterFlex(await getViewerMember(userId)));
