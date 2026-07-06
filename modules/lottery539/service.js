@@ -3,23 +3,58 @@ const HISTORY_APIS = [
   "https://www.taiwanlottery.com/api/Lottery/539Result",
 ];
 
-function targetDate() {
-  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
-  const result = new Date(now);
+function taiwanParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("zh-TW", {
+    timeZone: "Asia/Taipei",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
 
-  if (now.getHours() > 20 || (now.getHours() === 20 && now.getMinutes() >= 20)) {
-    result.setDate(result.getDate() + 1);
-  }
+  const map = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+  };
+}
 
-  return result;
+function addTaiwanDays(parts, days) {
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days, 12, 0, 0));
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+function targetDate(now = new Date()) {
+  const parts = taiwanParts(now);
+  const shouldUseNextDraw = parts.hour > 20 || (parts.hour === 20 && parts.minute >= 30);
+  const target = addTaiwanDays(parts, shouldUseNextDraw ? 1 : 0);
+  return new Date(Date.UTC(target.year, target.month - 1, target.day, 12, 0, 0));
 }
 
 function formatDate(date) {
-  return date.toLocaleDateString("zh-TW", { timeZone: "Asia/Taipei" });
+  const value = date instanceof Date ? date : targetDate();
+  return `${value.getUTCFullYear()}/${value.getUTCMonth() + 1}/${value.getUTCDate()}`;
+}
+
+function dateKey(date = targetDate()) {
+  const value = date instanceof Date ? date : targetDate();
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function deriveSet(offset) {
-  const key = targetDate().toISOString().slice(0, 10);
+  const key = dateKey(targetDate());
   let seed = Array.from(`${key}:${offset}`).reduce((sum, char) => sum + char.charCodeAt(0), 539);
   const numbers = [];
 
@@ -32,6 +67,10 @@ function deriveSet(offset) {
   return numbers.sort((a, b) => a - b).map((n) => String(n).padStart(2, "0"));
 }
 
+function taiwanNowText() {
+  return new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
+}
+
 function buildAnalysis(offset) {
   return {
     date: formatDate(targetDate()),
@@ -39,7 +78,7 @@ function buildAnalysis(offset) {
     hot: deriveSet("hot"),
     cold: deriveSet("cold"),
     stable: deriveSet("stable"),
-    updatedAt: new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
+    updatedAt: taiwanNowText(),
   };
 }
 
@@ -61,7 +100,7 @@ function findHistoryRecord(payload) {
   if (payload?.data && !Array.isArray(payload.data)) candidates.push(payload.data);
 
   for (const item of candidates) {
-    const fields = [item?.drawNumber, item?.lotteryNo, item?.numbers, item?.獎號, item?.DrawNumber, item?.Number];
+    const fields = [item?.drawNumber, item?.lotteryNo, item?.numbers, item?.開獎號碼, item?.DrawNumber, item?.Number];
     const numbers = fields.map(normalizeNumbers).find((list) => list.length >= 5) || [];
     if (numbers.length >= 5) {
       return {
@@ -96,7 +135,7 @@ async function loadHistory() {
       const record = findHistoryRecord(payload);
       if (record) return { ok: true, ...record };
     } catch (error) {
-      // try next API
+      // Try next API.
     }
   }
 

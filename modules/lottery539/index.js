@@ -33,7 +33,7 @@ function menuFlex() {
     quickReply: menuQuickReply(),
     footer: "BLACKDOMAIN 539 AI",
     contents: [
-      card("🔥 AI今日預測", "保留熱號、冷號、穩定號完整分析", "AI今日預測"),
+      card("🔥 AI今日預測", "整合今日號碼、熱號、冷號與穩定號分析", "AI今日預測"),
       card("📊 歷史開獎", "查詢台灣539最新歷史開獎資料", "歷史開獎"),
       card("🏠 返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
     ],
