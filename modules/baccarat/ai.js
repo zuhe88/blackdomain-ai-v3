@@ -52,6 +52,12 @@ function getLimit(session) {
   return Math.min(maxBet, bankroll, riskLimit || bankroll);
 }
 
+function getHeavenLimit(session) {
+  const bankroll = Number(session.bankroll || session.capital || 0);
+  const maxBet = Number(session.maxBet || bankroll);
+  return Math.min(maxBet, bankroll);
+}
+
 function getBaseBet(session) {
   const capital = Number(session.bankroll || session.capital || 0);
   const limit = getLimit(session);
@@ -70,8 +76,9 @@ function getHeavenBet(session) {
   const capital = Number(session.bankroll || session.capital || 0);
   const levelMultipliers = [1, 3, 7, 15, 31];
   const level = Math.max(1, Math.min(5, Number(session.tianmenLevel || 1)));
-  const base = getBaseBetAmount(capital);
-  const limit = getLimit(session);
+  const totalMultiplier = levelMultipliers.reduce((sum, value) => sum + value, 0);
+  const base = roundBet(capital / totalMultiplier);
+  const limit = getHeavenLimit(session);
   const bet = clampBet(base * levelMultipliers[level - 1], limit);
 
   session.lastBetMeta = {
@@ -146,7 +153,7 @@ function firstAnalysis(session) {
 
 function getReason(session) {
   if (session.mode === "自由配注") return "自由配注模式下，AI只負責紀錄與統計，不主動建議下注。";
-  if (session.mode === "天門") return "天門模式依五關節奏執行，第一關會依目前本金建立基準注碼，並受單注上限與風險比例限制。";
+  if (session.mode === "天門") return "天門模式依五關節奏執行，第一關會由目前本金反推，確保本金可支撐完整五關，並受單注上限限制。";
   return "AI已依目前紀錄完成監測，建議以單注上限與本金控管為優先。";
 }
 
