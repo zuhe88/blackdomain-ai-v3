@@ -1,8 +1,10 @@
 const MAX_RISK_RATIO = 0.2;
 
 function roundBet(amount) {
-  if (amount < 100) return 100;
-  return Math.floor(Number(amount || 0) / 100) * 100;
+  const numeric = Number(amount || 0);
+  if (numeric < 100) return 100;
+  const unit = numeric > 10000 ? 1000 : 100;
+  return Math.floor(numeric / unit) * unit;
 }
 
 function clampBet(amount, maxBet) {
@@ -24,6 +26,10 @@ function getBaseBetAmount(capital) {
   return roundBet(Math.max(100, capital * 0.15));
 }
 
+function getRiskLimit(capital) {
+  return roundBet(Number(capital || 0) * MAX_RISK_RATIO);
+}
+
 function riskLevelForBet(bet, capital) {
   const ratio = capital > 0 ? bet / capital : 0;
   if (ratio <= 0.08) return "🟢 保守";
@@ -39,11 +45,16 @@ function dynamicBetFromBase(base, limit) {
   return unique[Math.floor(Math.random() * unique.length)] || clampBet(base, limit);
 }
 
+function getLimit(session) {
+  const bankroll = Number(session.bankroll || session.capital || 0);
+  const maxBet = Number(session.maxBet || bankroll);
+  const riskLimit = getRiskLimit(bankroll);
+  return Math.min(maxBet, bankroll, riskLimit || bankroll);
+}
+
 function getBaseBet(session) {
   const capital = Number(session.bankroll || session.capital || 0);
-  const maxBet = Number(session.maxBet || capital);
-  const riskLimit = roundBet(capital * MAX_RISK_RATIO);
-  const limit = Math.min(maxBet, capital, riskLimit || capital);
+  const limit = getLimit(session);
   const base = getBaseBetAmount(capital);
   const bet = dynamicBetFromBase(base, limit);
   session.lastBetMeta = {
@@ -52,6 +63,24 @@ function getBaseBet(session) {
     strategy: "動態配注",
     maxRiskRatio: MAX_RISK_RATIO,
   };
+  return bet;
+}
+
+function getHeavenBet(session) {
+  const capital = Number(session.bankroll || session.capital || 0);
+  const levelMultipliers = [1, 3, 7, 15, 31];
+  const level = Math.max(1, Math.min(5, Number(session.tianmenLevel || 1)));
+  const base = getBaseBetAmount(capital);
+  const limit = getLimit(session);
+  const bet = clampBet(base * levelMultipliers[level - 1], limit);
+
+  session.lastBetMeta = {
+    baseBet: clampBet(base, limit),
+    riskLevel: riskLevelForBet(bet, capital),
+    strategy: `天門五關 第${level}關`,
+    maxRiskRatio: MAX_RISK_RATIO,
+  };
+
   return bet;
 }
 
@@ -66,27 +95,16 @@ function predict(history = []) {
 
 function calculateBet(session) {
   if (session.mode === "自由配注") return 0;
-  if (session.mode === "天門") {
-    const levels = [1, 3, 7, 15, 31];
-    const level = session.tianmenLevel || 1;
-    const bet = clampBet(100 * levels[level - 1], Math.min(session.maxBet, session.bankroll));
-    session.lastBetMeta = {
-      baseBet: bet,
-      riskLevel: riskLevelForBet(bet, Number(session.bankroll || session.capital || 0)),
-      strategy: "天門五關",
-      maxRiskRatio: MAX_RISK_RATIO,
-    };
-    return bet;
-  }
-  return clampBet(getBaseBet(session), Math.min(session.maxBet, session.bankroll));
+  if (session.mode === "天門") return getHeavenBet(session);
+  return clampBet(getBaseBet(session), getLimit(session));
 }
 
 function applyResult(session, outcome) {
   const lastBet = Number(session.lastBet || 0);
   if (!session.lastPrediction) return session;
 
-  if (!session.results.player && session.results.player !== 0) session.results.player = 0;
-  if (!session.results.banker && session.results.banker !== 0) session.results.banker = 0;
+  if (!session.results.pass && session.results.pass !== 0) session.results.pass = session.results.pass || 0;
+  if (!session.results.fail && session.results.fail !== 0) session.results.fail = session.results.fail || 0;
   if (!session.results.tie && session.results.tie !== 0) session.results.tie = 0;
 
   if (outcome === "和") {
@@ -94,14 +112,13 @@ function applyResult(session, outcome) {
     return session;
   }
 
-  if (outcome === "閒") session.results.player += 1;
-  if (outcome === "莊") session.results.banker += 1;
-
   const isWin = outcome === session.lastPrediction;
   if (isWin) {
+    session.results.pass += 1;
     if (session.mode !== "自由配注") session.bankroll += outcome === "莊" ? lastBet * 0.95 : lastBet;
     if (session.mode === "天門") session.tianmenLevel = 1;
   } else {
+    session.results.fail += 1;
     if (session.mode !== "自由配注") session.bankroll -= lastBet;
     if (session.mode === "天門") session.tianmenLevel = Math.min(5, (session.tianmenLevel || 1) + 1);
   }
@@ -129,7 +146,7 @@ function firstAnalysis(session) {
 
 function getReason(session) {
   if (session.mode === "自由配注") return "自由配注模式下，AI只負責紀錄與統計，不主動建議下注。";
-  if (session.mode === "天門") return "天門模式依原五關節奏執行，下注金額會受到單注上限與目前本金限制。";
+  if (session.mode === "天門") return "天門模式依五關節奏執行，第一關會依目前本金建立基準注碼，並受單注上限與風險比例限制。";
   return "AI已依目前紀錄完成監測，建議以單注上限與本金控管為優先。";
 }
 

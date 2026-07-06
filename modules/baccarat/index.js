@@ -59,7 +59,7 @@ function maxBetPrompt(capital) {
 
 function modePrompt(session) {
   return baccaratPromptFlex({
-    title: "請選擇模式",
+    title: "請選擇分析模式",
     lines: [`本金：${session.capital}`, `單注上限：${session.maxBet}`, `模式：${MODES.join("、")}`],
     quickReply: modeQuickReply(),
   });
@@ -150,7 +150,7 @@ async function handleBaccaratMessage(event) {
   if (session.step === "mode") {
     if (!isMode(value)) {
       return reply(token, baccaratPromptFlex({
-        title: "請選擇模式",
+        title: "請選擇分析模式",
         lines: [`可用模式：${MODES.join("、")}`],
         quickReply: modeQuickReply(),
       }));

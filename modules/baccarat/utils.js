@@ -40,11 +40,11 @@ function validateMaxBet(capital, maxBet) {
 }
 
 function isResult(value) {
-  return RESULTS.includes(value);
+  return RESULTS.includes(String(value || "").trim());
 }
 
 function isMode(value) {
-  return MODES.includes(value);
+  return MODES.includes(String(value || "").trim());
 }
 
 function isCancel(value) {
