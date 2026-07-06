@@ -3,9 +3,9 @@ const { COLORS, bubble, infoLine, metric, note, text } = require("./premium");
 const SUMMARY_TEXTS = [
   "近期資料已完成更新，目前符合系統篩選條件。",
   "近期資料波動較明顯，建議持續觀察。",
-  "目前資料仍在追蹤中，等待下一輪更新。",
-  "本輪資料已同步完成，可作為觀察參考。",
-  "系統監測到資料變化，建議以保守節奏觀察。",
+  "本輪資料仍在追蹤中，等待下一輪更新。",
+  "AI即時更新完成，目前資料節奏較集中。",
+  "系統已完成房號監測，建議依照風險控管操作。",
 ];
 
 function summary(seed = "") {
@@ -20,15 +20,15 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
     title: "AI推薦房",
     subtitle: gameName,
     quickReply,
-    footer: "黑域AI 電子分析系統",
+    footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      metric("推薦房號", room, "AI持續監測"),
+      metric("推薦房號", room, "AI監測結果"),
       infoLine("目前狀態", "AI監控中"),
       infoLine("波動", "偏高"),
       infoLine("活躍度", "提升"),
       infoLine("AI分析摘要", summary(`${gameName}:${room}`)),
       infoLine("更新時間", updateTime),
-      note("本分析由黑域AI生成，僅供參考。"),
+      note("本分析由 BLACKDOMAIN AI 生成，僅供參考。"),
     ],
   });
 }
@@ -39,13 +39,13 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply) {
     title: "自選房號分析",
     subtitle: gameName,
     quickReply,
-    footer: "黑域AI 電子分析系統",
+    footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      metric("分析房號", room, "AI持續監測"),
+      metric("分析房號", room, "AI監測結果"),
       infoLine("目前狀態", "AI監控中"),
       infoLine("波動", "偏高"),
       infoLine("活躍度", "提升"),
-      infoLine("AI監測結果", summary(`${gameName}:${room}:custom`)),
+      infoLine("AI分析摘要", summary(`${gameName}:${room}:custom`)),
       infoLine("更新時間", updateTime),
     ],
   });
@@ -60,7 +60,7 @@ function rankCard(room, index, updateTime) {
     paddingAll: "14px",
     cornerRadius: "18px",
     backgroundColor: index === 0 ? "#171814" : COLORS.panel,
-    borderColor: index === 0 ? COLORS.gold : "#163854",
+    borderColor: index === 0 ? COLORS.gold : "#6D5728",
     borderWidth: "1px",
     contents: [
       {
@@ -80,11 +80,11 @@ function rankCard(room, index, updateTime) {
 
 function electronicRankFlex(gameName, rooms, updateTime, quickReply) {
   return bubble({
-    altText: "熱門排行榜",
-    title: "熱門排行榜",
+    altText: "熱門排行",
+    title: "熱門排行",
     subtitle: gameName,
     quickReply,
-    footer: "黑域AI 電子分析系統",
+    footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
       ...rooms.slice(0, 5).map((room, index) => rankCard(room, index, updateTime)),
       note("每30分鐘更新一次"),

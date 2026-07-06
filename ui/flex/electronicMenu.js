@@ -27,7 +27,7 @@ function gameCard({ title, subtitle, image, actionText }) {
       contents: [
         text(title, { size: "lg", weight: "bold", color: COLORS.gold, align: "center" }),
         text(subtitle, { size: "sm", color: COLORS.white, align: "center" }),
-        { type: "separator", margin: "md", color: COLORS.goldDark },
+        { type: "separator", margin: "md", color: COLORS.gold },
         text("點擊卡片進入 AI 分析", { size: "xs", color: COLORS.gray, align: "center" }),
       ],
     },
@@ -49,19 +49,19 @@ function electronicMenuFlex() {
       contents: [
         gameCard({
           title: "戰神賽特1",
-          subtitle: "AI 推薦房、熱門排行、自選分析",
+          subtitle: "AI推薦房、熱門排行、自選分析",
           image: "seth1.png",
           actionText: "戰神賽特1",
         }),
         gameCard({
           title: "戰神賽特2",
-          subtitle: "AI 推薦房、熱門排行、自選分析",
+          subtitle: "AI推薦房、熱門排行、自選分析",
           image: "seth2.png",
           actionText: "戰神賽特2",
         }),
         gameCard({
           title: "古神巴風特",
-          subtitle: "AI 推薦房、熱門排行、自選分析",
+          subtitle: "AI推薦房、熱門排行、自選分析",
           image: "baphomet.png",
           actionText: "古神巴風特",
         }),

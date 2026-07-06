@@ -16,11 +16,11 @@ const GAME_CONFIG = {
   古神巴風特: { name: "古神巴風特", min: 1, max: 1000, pad: 3 },
 };
 
-const MAIN_COMMANDS = new Set(["電子", "電子AI", "Electronic", "electronic"]);
+const MAIN_COMMANDS = new Set(["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
 const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
 const RANK_COMMANDS = new Set(["熱門排行", "熱門房排行"]);
 const CUSTOM_COMMANDS = new Set(["自選分析", "自選房號分析"]);
-const BACK_TO_GAME_COMMANDS = new Set(["返回電子功能", "返回遊戲功能"]);
+const BACK_TO_GAME_COMMANDS = new Set(["返回電子首頁", "返回遊戲選單"]);
 
 function taipeiNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
@@ -73,17 +73,24 @@ function shuffleBySeed(list, seedText) {
   return arr;
 }
 
-function pickBySeed(list, count, seedText) {
-  return shuffleBySeed(list, seedText).slice(0, count);
-}
-
 function buildCyclePools(gameName, cycleKey) {
   const config = GAME_CONFIG[gameName];
   const allRooms = [];
   for (let room = config.min; room <= config.max; room += 1) allRooms.push(room);
-  const goodCount = Math.max(10, Math.ceil(allRooms.length * 0.15));
-  const goodRooms = shuffleBySeed(allRooms, `GOOD:${gameName}:${cycleKey}`).slice(0, goodCount);
-  return { goodRooms };
+
+  const scored = allRooms
+    .map((room) => ({
+      room,
+      score: hashScore(`AI:${gameName}:${cycleKey}:${room}`, 1000000),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const goodCount = Math.max(20, Math.ceil(allRooms.length * 0.15));
+  const goodRooms = scored.slice(0, goodCount).map((item) => item.room);
+  const recommendRooms = shuffleBySeed(goodRooms, `RECOMMEND:${gameName}:${cycleKey}`);
+  const rankRooms = scored.slice(0, 5).map((item) => item.room);
+
+  return { goodRooms, recommendRooms, rankRooms };
 }
 
 function getGameCycle(gameName) {
@@ -103,7 +110,7 @@ function getUserSession(userId) {
     return existing;
   }
   if (existing) electronicSessions.delete(userId);
-  const session = { gameName: null, mode: null, waitingCustomRoom: false, usedRoomsByCycle: {}, updatedAt: Date.now() };
+  const session = { gameName: null, mode: null, waitingCustomRoom: false, recommendCursorByCycle: {}, updatedAt: Date.now() };
   electronicSessions.set(userId, session);
   return session;
 }
@@ -129,26 +136,17 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
   });
 }
 
-function getUsedRooms(session, gameName) {
-  const key = `${gameName}:${getCycleKey()}`;
-  if (!session.usedRoomsByCycle[key]) session.usedRoomsByCycle[key] = [];
-  return session.usedRoomsByCycle[key];
-}
-
 function getNextRecommendRoom(userId, gameName) {
   const session = getUserSession(userId);
   const cycle = getGameCycle(gameName);
-  const usedRooms = getUsedRooms(session, gameName);
-  let availableRooms = cycle.goodRooms.filter((room) => !usedRooms.includes(room));
-  if (availableRooms.length === 0) {
-    session.usedRoomsByCycle[`${gameName}:${getCycleKey()}`] = [];
-    availableRooms = [...cycle.goodRooms];
-  }
-  const roomIndex = hashScore(`${userId}:${gameName}:${getCycleKey()}:${usedRooms.length}`, availableRooms.length);
-  const room = availableRooms[roomIndex % availableRooms.length];
-  getUsedRooms(session, gameName).push(room);
+  const key = `${gameName}:${cycle.cycleKey}`;
+  const cursor = Number(session.recommendCursorByCycle[key] || 0);
+  const room = cycle.recommendRooms[cursor % cycle.recommendRooms.length];
+
+  session.recommendCursorByCycle[key] = cursor + 1;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
+
   return room;
 }
 
@@ -161,10 +159,10 @@ function parseRoomInput(value) {
 
 function validateRoom(gameName, room) {
   const config = GAME_CONFIG[gameName];
-  if (!config) return { ok: false, message: "遊戲不存在，請重新選擇。" };
+  if (!config) return { ok: false, message: "遊戲不存在，請重新選擇電子AI遊戲。" };
   if (!Number.isInteger(room)) return { ok: false, message: "房號格式不正確，請輸入數字房號。" };
   if (room < config.min || room > config.max) {
-    return { ok: false, message: `房號不存在，${gameName} 房號範圍為 ${formatRoom(gameName, config.min)} ~ ${formatRoom(gameName, config.max)}。` };
+    return { ok: false, message: `房號不存在。${gameName} 房號範圍為 ${formatRoom(gameName, config.min)} ~ ${formatRoom(gameName, config.max)}。` };
   }
   return { ok: true };
 }
@@ -174,7 +172,7 @@ function electronicModeQuickReply() {
     { label: "AI推薦房", text: "AI推薦房" },
     { label: "熱門排行", text: "熱門排行" },
     { label: "自選分析", text: "自選分析" },
-    { label: "電子首頁", text: "電子" },
+    { label: "返回首頁", text: "首頁" },
   ]);
 }
 
@@ -190,7 +188,7 @@ function afterRankQuickReply() {
   return quickReply([
     { label: "AI推薦房", text: "AI推薦房" },
     { label: "自選分析", text: "自選分析" },
-    { label: "返回功能", text: "返回電子功能" },
+    { label: "返回遊戲選單", text: "返回遊戲選單" },
   ]);
 }
 
@@ -256,9 +254,7 @@ async function showHotRank(event) {
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
   const cycle = getGameCycle(session.gameName);
-  const rooms = pickBySeed(cycle.goodRooms, 5, `RANK:${session.gameName}:${getCycleKey()}`).map((room) =>
-    formatRoom(session.gameName, room)
-  );
+  const rooms = cycle.rankRooms.map((room) => formatRoom(session.gameName, room));
   return reply(event.replyToken, electronicRankFlex(session.gameName, rooms, getUpdateTimeText(), afterRankQuickReply()));
 }
 
