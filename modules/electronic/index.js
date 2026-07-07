@@ -232,6 +232,11 @@ function validateRoom(gameName, room) {
   return { ok: true };
 }
 
+function isAiSelectedRoom(gameName, room) {
+  const cycle = getGameCycle(gameName);
+  return cycle.goodRooms.includes(room) || cycle.rankRooms.includes(room);
+}
+
 function electronicModeQuickReply() {
   return quickReply([
     { label: "AI推薦房", text: "AI推薦房" },
@@ -349,7 +354,12 @@ async function analyzeCustomRoom(event, value) {
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
-  return reply(event.replyToken, electronicAnalyzeFlex(session.gameName, formatRoom(session.gameName, room), getUpdateTimeText(), afterAnalyzeQuickReply()));
+  return reply(
+    event.replyToken,
+    electronicAnalyzeFlex(session.gameName, formatRoom(session.gameName, room), getUpdateTimeText(), afterAnalyzeQuickReply(), {
+      forceGreen: isAiSelectedRoom(session.gameName, room),
+    })
+  );
 }
 
 async function handleElectronicMessage(event) {
