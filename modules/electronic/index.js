@@ -8,6 +8,7 @@ const {
 
 const electronicSessions = new Map();
 const cycleCache = new Map();
+const recommendCursorStore = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 const GAME_CONFIG = {
@@ -175,7 +176,7 @@ function getUserSession(userId) {
     return existing;
   }
   if (existing) electronicSessions.delete(userId);
-  const session = { gameName: null, mode: null, waitingCustomRoom: false, recommendCursorByCycle: {}, updatedAt: Date.now() };
+  const session = { gameName: null, mode: null, waitingCustomRoom: false, updatedAt: Date.now() };
   electronicSessions.set(userId, session);
   return session;
 }
@@ -202,15 +203,14 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
 }
 
 function getNextRecommendRoom(userId, gameName) {
-  const session = getUserSession(userId);
   const cycle = getGameCycle(gameName);
-  const key = `${gameName}:${cycle.cycleKey}`;
-  const cursor = Number(session.recommendCursorByCycle[key] || 0);
+  const key = `${userId || "guest"}:${gameName}:${cycle.cycleKey}`;
+  const existing = recommendCursorStore.get(key);
+  const initialCursor = hashScore(`START:${key}`, cycle.recommendRooms.length);
+  const cursor = Number.isInteger(existing?.cursor) ? existing.cursor : initialCursor;
   const room = cycle.recommendRooms[cursor % cycle.recommendRooms.length];
 
-  session.recommendCursorByCycle[key] = cursor + 1;
-  session.updatedAt = Date.now();
-  electronicSessions.set(userId, session);
+  recommendCursorStore.set(key, { cursor: cursor + 1, updatedAt: Date.now() });
 
   return room;
 }
@@ -401,6 +401,7 @@ function electronicStatus(userId) {
 function cleanupOldCycles() {
   const currentCycle = getCycleKey();
   for (const [key] of cycleCache.entries()) if (!key.endsWith(currentCycle)) cycleCache.delete(key);
+  for (const [key] of recommendCursorStore.entries()) if (!key.endsWith(`:${currentCycle}`)) recommendCursorStore.delete(key);
 }
 
 setInterval(cleanupOldCycles, 10 * 60 * 1000).unref();
