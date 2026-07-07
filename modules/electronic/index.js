@@ -51,9 +51,17 @@ function formatRoom(gameName, room) {
 }
 
 function hashScore(input, max = 2147483647) {
-  let score = 0;
-  for (const char of String(input)) score = (score * 31 + char.charCodeAt(0)) % max;
-  return score || 1;
+  let hash = 2166136261;
+  for (const char of String(input)) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 2246822507) >>> 0;
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 3266489909) >>> 0;
+  hash ^= hash >>> 16;
+  return (hash % max) || 1;
 }
 
 function seededRandom(seedText) {
@@ -75,6 +83,61 @@ function shuffleBySeed(list, seedText) {
   return arr;
 }
 
+function scoreRoom(gameName, cycleKey, room, purpose = "AI") {
+  return hashScore(`${purpose}:${gameName}:${cycleKey}:${room}`, 1000000);
+}
+
+function pickSpreadRooms(scored, count, minRoom, maxRoom, seedText) {
+  const range = Math.max(1, maxRoom - minRoom + 1);
+  const bucketCount = Math.max(count, Math.min(12, Math.ceil(range / 120)));
+  const buckets = Array.from({ length: bucketCount }, () => []);
+
+  for (const item of scored) {
+    const index = Math.min(bucketCount - 1, Math.floor(((item.room - minRoom) / range) * bucketCount));
+    buckets[index].push(item);
+  }
+
+  const candidates = buckets
+    .flatMap((bucket) => bucket.sort((a, b) => b.score - a.score).slice(0, 3))
+    .filter(Boolean);
+
+  const result = [];
+  const minGap = Math.max(3, Math.floor(range / 25));
+
+  for (const item of shuffleBySeed(candidates, `RANK:${seedText}`)) {
+    if (result.length >= count) break;
+    if (result.every((picked) => Math.abs(picked.room - item.room) >= minGap)) result.push(item);
+  }
+
+  for (const item of shuffleBySeed(scored, `RANK:FILL:${seedText}`)) {
+    if (result.length >= count) break;
+    if (!result.some((picked) => picked.room === item.room)) result.push(item);
+  }
+
+  return result.slice(0, count).map((item) => item.room);
+}
+
+function buildRecommendRooms(scored, gameName, cycleKey, minRoom, maxRoom) {
+  const range = Math.max(1, maxRoom - minRoom + 1);
+  const bucketCount = Math.max(6, Math.min(16, Math.ceil(range / 180)));
+  const buckets = Array.from({ length: bucketCount }, () => []);
+
+  for (const item of scored) {
+    const index = Math.min(bucketCount - 1, Math.floor(((item.room - minRoom) / range) * bucketCount));
+    buckets[index].push(item);
+  }
+
+  const perBucket = Math.max(3, Math.ceil(Math.min(60, Math.max(20, range * 0.04)) / bucketCount));
+  const candidates = buckets.flatMap((bucket) =>
+    bucket
+      .sort((a, b) => b.recommendScore - a.recommendScore)
+      .slice(0, perBucket)
+      .map((item) => item.room)
+  );
+
+  return shuffleBySeed(candidates, `RECOMMEND:${gameName}:${cycleKey}`);
+}
+
 function buildCyclePools(gameName, cycleKey) {
   const config = GAME_CONFIG[gameName];
   const allRooms = [];
@@ -83,14 +146,14 @@ function buildCyclePools(gameName, cycleKey) {
   const scored = allRooms
     .map((room) => ({
       room,
-      score: hashScore(`AI:${gameName}:${cycleKey}:${room}`, 1000000),
+      score: scoreRoom(gameName, cycleKey, room, "RANK"),
+      recommendScore: scoreRoom(gameName, cycleKey, room, "RECOMMEND_POOL"),
     }))
     .sort((a, b) => b.score - a.score);
 
-  const goodCount = Math.max(20, Math.ceil(allRooms.length * 0.15));
-  const goodRooms = scored.slice(0, goodCount).map((item) => item.room);
+  const goodRooms = buildRecommendRooms(scored, gameName, cycleKey, config.min, config.max);
   const recommendRooms = shuffleBySeed(goodRooms, `RECOMMEND:${gameName}:${cycleKey}`);
-  const rankRooms = scored.slice(0, 5).map((item) => item.room);
+  const rankRooms = pickSpreadRooms(scored, 5, config.min, config.max, `${gameName}:${cycleKey}`);
 
   return { goodRooms, recommendRooms, rankRooms };
 }
