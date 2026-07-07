@@ -65,6 +65,18 @@ function electronicMenuFlex() {
           image: "baphomet.png",
           actionText: "古神巴風特",
         }),
+        gameCard({
+          title: "虎小妹",
+          subtitle: "AI推薦房、熱門排行、自選分析",
+          image: "images.jpg",
+          actionText: "虎小妹",
+        }),
+        gameCard({
+          title: "赤三國",
+          subtitle: "AI推薦房、熱門排行、自選分析",
+          image: "urkpyn912egm1u8a.webp",
+          actionText: "赤三國",
+        }),
       ],
     },
   };

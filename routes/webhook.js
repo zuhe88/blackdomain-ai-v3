@@ -30,6 +30,8 @@ const AI_ENTRY_COMMANDS = new Set([
   "戰神賽特1",
   "戰神賽特2",
   "古神巴風特",
+  "虎小妹",
+  "赤三國",
   "539",
   "539AI",
   "今彩539",
@@ -80,7 +82,7 @@ function isAdminCommand(text) {
 
 function moduleNameFromText(text) {
   if (["百家樂", "百家樂AI", "baccarat", "🎲 百家樂AI"].includes(text)) return "baccarat";
-  if (["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI", "戰神賽特1", "戰神賽特2", "古神巴風特"].includes(text)) return "electronic";
+  if (["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI", "戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"].includes(text)) return "electronic";
   if (["539", "539AI", "今彩539", "🎯 539AI", "AI今日預測", "歷史開獎"].includes(text)) return "539";
   if (["體育", "體育AI", "SPORT", "SPORT AI", "世足", "世足AI", "MLB", "MLB AI", "NBA"].includes(text)) return "sports";
   return "AI";

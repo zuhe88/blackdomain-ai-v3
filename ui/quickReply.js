@@ -34,6 +34,14 @@ function electronicGames() {
       text: "古神巴風特",
       imageUrl: process.env.IMG_BAPHOMET,
     },
+    {
+      label: "虎小妹",
+      text: "虎小妹",
+    },
+    {
+      label: "赤三國",
+      text: "赤三國",
+    },
   ]);
 }
 

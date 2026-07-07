@@ -14,6 +14,8 @@ const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
   戰神賽特2: { name: "戰神賽特2", min: 1, max: 4000, pad: 4 },
   古神巴風特: { name: "古神巴風特", min: 1, max: 1000, pad: 3 },
+  虎小妹: { name: "虎小妹", min: 1, max: 3000, pad: 4 },
+  赤三國: { name: "赤三國", min: 1, max: 200, pad: 3 },
 };
 
 const MAIN_COMMANDS = new Set(["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
