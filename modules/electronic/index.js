@@ -57,11 +57,11 @@ function hashScore(input, max = 2147483647) {
     hash ^= char.charCodeAt(0);
     hash = Math.imul(hash, 16777619) >>> 0;
   }
-  hash ^= hash >>> 16;
+  hash = (hash ^ (hash >>> 16)) >>> 0;
   hash = Math.imul(hash, 2246822507) >>> 0;
-  hash ^= hash >>> 13;
+  hash = (hash ^ (hash >>> 13)) >>> 0;
   hash = Math.imul(hash, 3266489909) >>> 0;
-  hash ^= hash >>> 16;
+  hash = (hash ^ (hash >>> 16)) >>> 0;
   return (hash % max) || 1;
 }
 
@@ -204,6 +204,10 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
 
 function getNextRecommendRoom(userId, gameName) {
   const cycle = getGameCycle(gameName);
+  if (!Array.isArray(cycle.recommendRooms) || cycle.recommendRooms.length === 0) {
+    const config = GAME_CONFIG[gameName];
+    return config?.min || 1;
+  }
   const key = `${userId || "guest"}:${gameName}:${cycle.cycleKey}`;
   const existing = recommendCursorStore.get(key);
   const initialCursor = hashScore(`START:${key}`, cycle.recommendRooms.length);
@@ -212,7 +216,7 @@ function getNextRecommendRoom(userId, gameName) {
 
   recommendCursorStore.set(key, { cursor: cursor + 1, updatedAt: Date.now() });
 
-  return room;
+  return Number.isInteger(room) ? room : GAME_CONFIG[gameName]?.min || 1;
 }
 
 function parseRoomInput(value) {
