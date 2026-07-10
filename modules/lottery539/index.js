@@ -52,7 +52,6 @@ function analysisFlex(title, analysis) {
         ? [
             infoLine("熱號", analysis.hot.join("、")),
             infoLine("冷號", analysis.cold.join("、")),
-            infoLine("資料來源", analysis.source === "gpt" ? "歷史資料 + GPT分析" : "歷史資料統計分析"),
           ]
         : [infoLine("資料狀態", analysis.summary)]),
       infoLine("更新時間", analysis.updatedAt),

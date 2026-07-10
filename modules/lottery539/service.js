@@ -85,6 +85,41 @@ function normalizeAiNumbers(value, excluded = []) {
   return result;
 }
 
+function sameSet(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  const left = [...a].sort().join(",");
+  const right = [...b].sort().join(",");
+  return left === right;
+}
+
+function mixedPrediction(rows, hot, cold, offset) {
+  const seed = Array.from(String(offset || dateKey())).reduce((sum, char) => ((sum * 31) + char.charCodeAt(0)) >>> 0, 7);
+  const hotPool = rows
+    .filter((item) => hot.includes(item.number))
+    .sort((a, b) => b.frequency - a.frequency || Number(a.number) - Number(b.number));
+  const coldPool = rows
+    .filter((item) => cold.includes(item.number))
+    .sort((a, b) => b.gap - a.gap || Number(a.number) - Number(b.number));
+  const balancePool = rows
+    .filter((item) => !hot.includes(item.number) && !cold.includes(item.number))
+    .sort((a, b) => (b.frequency + Math.min(b.gap, 12)) - (a.frequency + Math.min(a.gap, 12)) || Number(a.number) - Number(b.number));
+  const pools = [hotPool, balancePool, coldPool, balancePool, hotPool];
+  const result = [];
+
+  for (let index = 0; index < pools.length; index += 1) {
+    const pool = pools[index];
+    const item = pool[(seed + index * 2) % Math.max(1, pool.length)];
+    if (item && !result.includes(item.number)) result.push(item.number);
+  }
+
+  for (const item of [...balancePool, ...hotPool, ...coldPool]) {
+    if (result.length >= 5) break;
+    if (!result.includes(item.number)) result.push(item.number);
+  }
+
+  return result.slice(0, 5).sort((a, b) => Number(a) - Number(b));
+}
+
 function statisticalAnalysis(history, offset) {
   const frequency = new Map();
   const lastSeen = new Map();
@@ -118,15 +153,7 @@ function statisticalAnalysis(history, offset) {
     .slice(0, 5)
     .map((item) => item.number);
 
-  const prediction = rows
-    .map((item) => ({
-      ...item,
-      score: item.frequency * 8 + Math.min(item.gap, 12) * 3 + Number(item.number) % 7 + String(offset || "").length,
-    }))
-    .sort((a, b) => b.score - a.score || Number(a.number) - Number(b.number))
-    .slice(0, 5)
-    .map((item) => item.number)
-    .sort((a, b) => Number(a) - Number(b));
+  const prediction = mixedPrediction(rows, hot, cold, offset);
 
   return {
     prediction,
@@ -148,7 +175,7 @@ async function gptAnalysis(history, offset) {
   const hot = normalizeAiNumbers(parsed.hot);
   const cold = normalizeAiNumbers(parsed.cold, hot);
 
-  if (prediction.length < 5 || hot.length < 5 || cold.length < 5) {
+  if (prediction.length < 5 || hot.length < 5 || cold.length < 5 || sameSet(prediction, hot) || sameSet(prediction, cold)) {
     throw new Error("GPT 539 analysis returned incomplete numbers.");
   }
 
@@ -181,6 +208,10 @@ async function buildAnalysis(offset) {
   } catch (error) {
     console.error("[539 AI] GPT analysis fallback:", error.message);
     result = statisticalAnalysis(history, offset);
+  }
+
+  if (sameSet(result.prediction, result.hot) || sameSet(result.prediction, result.cold)) {
+    result = statisticalAnalysis(history, `${offset}:mixed`);
   }
 
   return {
