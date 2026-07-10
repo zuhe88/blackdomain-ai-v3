@@ -1,3 +1,6 @@
+const { askLottery539AI } = require("../../services/openai");
+const { loadHistory } = require("./repository");
+
 function taiwanParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("zh-TW", {
     timeZone: "Asia/Taipei",
@@ -67,16 +70,122 @@ function taiwanNowText() {
   return new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
 }
 
-function buildAnalysis(offset) {
-  const prediction = deriveSet(offset);
-  const hot = deriveSet("hot");
-  const cold = deriveSet("cold", hot);
+function normalizeAiNumbers(value, excluded = []) {
+  const blocked = new Set(excluded.map((item) => String(item).padStart(2, "0")));
+  const source = Array.isArray(value) ? value : String(value || "").match(/\d{1,2}/g) || [];
+  const result = [];
+
+  for (const item of source) {
+    const number = Number(String(item).replace(/\D/g, ""));
+    const text = String(number).padStart(2, "0");
+    if (number >= 1 && number <= 39 && !blocked.has(text) && !result.includes(text)) result.push(text);
+    if (result.length >= 5) break;
+  }
+
+  return result;
+}
+
+function statisticalAnalysis(history, offset) {
+  const frequency = new Map();
+  const lastSeen = new Map();
+  for (let number = 1; number <= 39; number += 1) {
+    const key = String(number).padStart(2, "0");
+    frequency.set(key, 0);
+    lastSeen.set(key, 999);
+  }
+
+  history.forEach((record, index) => {
+    for (const number of record.numbers || []) {
+      frequency.set(number, (frequency.get(number) || 0) + 1);
+      if ((lastSeen.get(number) || 999) === 999) lastSeen.set(number, index);
+    }
+  });
+
+  const rows = Array.from(frequency.keys()).map((number) => ({
+    number,
+    frequency: frequency.get(number) || 0,
+    gap: lastSeen.get(number) || 999,
+  }));
+
+  const hot = rows
+    .sort((a, b) => b.frequency - a.frequency || a.gap - b.gap || Number(a.number) - Number(b.number))
+    .slice(0, 5)
+    .map((item) => item.number);
+
+  const cold = rows
+    .filter((item) => !hot.includes(item.number))
+    .sort((a, b) => a.frequency - b.frequency || b.gap - a.gap || Number(a.number) - Number(b.number))
+    .slice(0, 5)
+    .map((item) => item.number);
+
+  const prediction = rows
+    .map((item) => ({
+      ...item,
+      score: item.frequency * 8 + Math.min(item.gap, 12) * 3 + Number(item.number) % 7 + String(offset || "").length,
+    }))
+    .sort((a, b) => b.score - a.score || Number(a.number) - Number(b.number))
+    .slice(0, 5)
+    .map((item) => item.number)
+    .sort((a, b) => Number(a) - Number(b));
 
   return {
-    date: formatDate(targetDate()),
+    prediction,
+    hot: hot.sort((a, b) => Number(a) - Number(b)),
+    cold: cold.sort((a, b) => Number(a) - Number(b)),
+    summary: `已分析最近 ${history.length} 期歷史資料。`,
+    source: "history",
+  };
+}
+
+async function gptAnalysis(history, offset) {
+  const content = await askLottery539AI({
+    targetDate: formatDate(targetDate()),
+    history: history.slice(0, 60),
+  });
+  const jsonText = String(content || "").replace(/```json|```/g, "").trim();
+  const parsed = JSON.parse(jsonText);
+  const prediction = normalizeAiNumbers(parsed.prediction);
+  const hot = normalizeAiNumbers(parsed.hot);
+  const cold = normalizeAiNumbers(parsed.cold, hot);
+
+  if (prediction.length < 5 || hot.length < 5 || cold.length < 5) {
+    throw new Error("GPT 539 analysis returned incomplete numbers.");
+  }
+
+  return {
     prediction,
     hot,
     cold,
+    summary: parsed.summary || `已分析最近 ${history.length} 期歷史資料。`,
+    source: "gpt",
+  };
+}
+
+async function buildAnalysis(offset) {
+  const history = await loadHistory();
+  if (!history.length) {
+    return {
+      date: formatDate(targetDate()),
+      prediction: [],
+      hot: [],
+      cold: [],
+      summary: "目前尚未匯入可分析的歷史開獎資料。",
+      source: "missing-history",
+      updatedAt: taiwanNowText(),
+    };
+  }
+
+  let result;
+  try {
+    result = await gptAnalysis(history, offset);
+  } catch (error) {
+    console.error("[539 AI] GPT analysis fallback:", error.message);
+    result = statisticalAnalysis(history, offset);
+  }
+
+  return {
+    date: formatDate(targetDate()),
+    ...result,
     updatedAt: taiwanNowText(),
   };
 }

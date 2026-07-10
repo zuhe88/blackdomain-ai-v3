@@ -37,9 +37,8 @@ function menuFlex() {
   });
 }
 
-function analysisFlex(title, offset) {
-  const analysis = buildAnalysis(offset);
-
+function analysisFlex(title, analysis) {
+  const hasHistory = analysis.source !== "missing-history";
   return bubble({
     altText: "539AI",
     title,
@@ -48,9 +47,14 @@ function analysisFlex(title, offset) {
     footer: "BLACKDOMAIN 539 AI",
     contents: [
       infoLine("預測日期", analysis.date),
-      metric("AI預測", analysis.prediction.join("、"), "號碼範圍 01 ~ 39"),
-      infoLine("熱號", analysis.hot.join("、")),
-      infoLine("冷號", analysis.cold.join("、")),
+      metric("AI預測", hasHistory ? analysis.prediction.join("、") : "資料不足", hasHistory ? "號碼範圍 01 ~ 39" : "等待歷史資料更新"),
+      ...(hasHistory
+        ? [
+            infoLine("熱號", analysis.hot.join("、")),
+            infoLine("冷號", analysis.cold.join("、")),
+            infoLine("資料來源", analysis.source === "gpt" ? "歷史資料 + GPT分析" : "歷史資料統計分析"),
+          ]
+        : [infoLine("資料狀態", analysis.summary)]),
       infoLine("更新時間", analysis.updatedAt),
       note("本分析由 BLACKDOMAIN AI 生成，僅供娛樂參考。"),
     ],
@@ -70,7 +74,7 @@ async function handle539Message(event) {
     return reply(event.replyToken, menuFlex());
   }
 
-  const analysis = buildAnalysis(text);
+  const analysis = await buildAnalysis(text);
   updateSession("539", userId, {
     currentPage: "AI今日預測",
     date: analysis.date,
@@ -79,7 +83,7 @@ async function handle539Message(event) {
     cold: analysis.cold,
     lastUpdated: Date.now(),
   });
-  return reply(event.replyToken, analysisFlex("AI今日預測", text));
+  return reply(event.replyToken, analysisFlex("AI今日預測", analysis));
 }
 
 module.exports = {
