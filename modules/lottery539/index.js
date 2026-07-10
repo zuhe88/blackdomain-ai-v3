@@ -1,9 +1,9 @@
 const { reply, quickReply } = require("../../services/line");
 const { updateSession } = require("../../utils/sessionStore");
-const { bubble, button, card, infoLine, metric, note } = require("../../ui/flex/premium");
-const { buildAnalysis, formatDate, loadHistory, targetDate } = require("./service");
+const { bubble, card, infoLine, metric, note } = require("../../ui/flex/premium");
+const { buildAnalysis, formatDate, targetDate } = require("./service");
 
-const COMMANDS = ["539", "539AI", "今彩539", "🎯 539AI", "AI今日預測", "歷史開獎", "重新分析"];
+const COMMANDS = ["539", "539AI", "今彩539", "🎯 539AI", "AI今日預測", "重新分析"];
 
 function is539Command(text) {
   return COMMANDS.includes(String(text || "").trim());
@@ -12,7 +12,6 @@ function is539Command(text) {
 function lotteryQuickReply() {
   return quickReply([
     { label: "重新分析", text: "重新分析" },
-    { label: "歷史開獎", text: "歷史開獎" },
     { label: "返回首頁", text: "首頁" },
   ]);
 }
@@ -20,7 +19,6 @@ function lotteryQuickReply() {
 function menuQuickReply() {
   return quickReply([
     { label: "AI今日預測", text: "AI今日預測" },
-    { label: "歷史開獎", text: "歷史開獎" },
     { label: "返回首頁", text: "首頁" },
   ]);
 }
@@ -34,7 +32,6 @@ function menuFlex() {
     footer: "BLACKDOMAIN 539 AI",
     contents: [
       card("🔥 AI今日預測", "整合今日號碼、熱號與冷號分析", "AI今日預測"),
-      card("📊 歷史開獎", "查詢台灣539最新歷史開獎資料", "歷史開獎"),
       card("🏠 返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
     ],
   });
@@ -60,33 +57,6 @@ function analysisFlex(title, offset) {
   });
 }
 
-async function historyFlex() {
-  const history = await loadHistory();
-  const contents = history.ok
-    ? [
-        infoLine("最新期別", history.date),
-        metric("開獎號碼", history.numbers.join("、"), "台灣539歷史開獎"),
-        infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
-      ]
-    : [
-        infoLine("歷史開獎", history.message),
-        infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
-      ];
-
-  return bubble({
-    altText: "539AI 歷史開獎",
-    title: "歷史開獎",
-    subtitle: "BLACKDOMAIN 539 AI",
-    quickReply: lotteryQuickReply(),
-    footer: "BLACKDOMAIN 539 AI",
-    contents: [
-      ...contents,
-      button("AI今日預測", "AI今日預測"),
-      button("返回首頁", "首頁", "secondary"),
-    ],
-  });
-}
-
 async function handle539Message(event) {
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
@@ -98,15 +68,6 @@ async function handle539Message(event) {
       lastUpdated: Date.now(),
     });
     return reply(event.replyToken, menuFlex());
-  }
-
-  if (text === "歷史開獎") {
-    updateSession("539", userId, {
-      currentPage: "歷史開獎",
-      date: formatDate(targetDate()),
-      lastUpdated: Date.now(),
-    });
-    return reply(event.replyToken, await historyFlex());
   }
 
   const analysis = buildAnalysis(text);

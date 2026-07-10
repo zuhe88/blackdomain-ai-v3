@@ -111,8 +111,8 @@ function resultActionButton(label, color) {
     type: "box",
     layout: "vertical",
     flex: 1,
-    height: "64px",
-    paddingAll: "14px",
+    height: "54px",
+    paddingAll: "12px",
     backgroundColor: color,
     cornerRadius: "14px",
     justifyContent: "center",
@@ -126,7 +126,7 @@ function resultActionPanel() {
     type: "box",
     layout: "vertical",
     spacing: "sm",
-    margin: "lg",
+    margin: "md",
     contents: [
       text("請回報本局結果", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
       {
@@ -144,10 +144,8 @@ function resultActionPanel() {
 }
 
 function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN AI 已完成分析", quickReply }) {
-  const history = session.history.length ? session.history.join(" ") : "目前尚無歷史";
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
   const betText = session.mode === "自由配注" ? "自由配注不建議下注" : String(bet);
-  const betMeta = session.lastBetMeta || {};
   const results = {
     pass: session.results.pass || 0,
     fail: session.results.fail || 0,
@@ -162,21 +160,12 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
       metric("建議", prediction, session.mode),
-      metric("建議下注", betText, "受單注上限、目前本金與風險比例限制"),
-      infoLine("目前狀態", "AI監控中"),
-      infoLine("AI風險等級", session.mode === "自由配注" ? "-" : betMeta.riskLevel || "🟡 穩健"),
-      infoLine("本金", String(session.capital || session.startBankroll || session.bankroll || "-")),
-      infoLine("AI配注策略", session.mode === "自由配注" ? "自行下注" : betMeta.strategy || "動態配注"),
-      infoLine("AI分析摘要", reason),
-      infoLine("單注上限", String(session.maxBet)),
-      infoLine("目前本金", session.mode === "自由配注" ? "-" : String(session.bankroll)),
+      metric("建議下注", betText, `上限 ${session.maxBet}`),
+      infoLine("目前本金", session.mode === "自由配注" ? String(session.capital || session.startBankroll || "-") : String(session.bankroll)),
       infoLine("目前獲利", String(profit)),
-      infoLine("過", String(results.pass)),
-      infoLine("倒", String(results.fail)),
-      infoLine("和", String(results.tie)),
+      infoLine("紀錄", `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}`),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       resultActionPanel(),
-      note(`歷史紀錄：${history}`),
     ],
   });
 }
