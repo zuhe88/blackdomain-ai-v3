@@ -164,7 +164,9 @@ async function submitVipRequest({ lineUserId, lineName, account3A }) {
 }
 
 function expiresAfterDays(days) {
-  return new Date(Date.now() + Math.max(1, Number(days || 30)) * 86400000).toISOString();
+  const count = Number(days);
+  if (!Number.isFinite(count) || count <= 0) return null;
+  return new Date(Date.now() + count * 86400000).toISOString();
 }
 
 async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPermission, expiresAt, isAdmin = false }) {
@@ -208,7 +210,10 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
   const existingUser = await findVipUserBy3AAccount(account3A);
   const lineUserId = request?.lineUserId || existingUser.lineUserId;
   const lineName = request?.lineName || existingUser.lineName || "未取得";
-  const expiresAt = permanent ? null : expiresAfterDays(days || 30);
+  const numericDays = Number(days);
+  const hasDays = Number.isFinite(numericDays) && numericDays > 0;
+  const expiresAt = permanent ? null : expiresAfterDays(numericDays);
+  const aiPermission = permanent || hasDays;
 
   if (!lineUserId) return { ok: false, error: "找不到此會員的 LINE User ID，無法推送通知。" };
 
@@ -217,7 +222,7 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
     lineName,
     account3A,
     vipStatus: STATUS.APPROVED,
-    aiPermission: true,
+    aiPermission,
     expiresAt,
     isAdmin: false,
   });

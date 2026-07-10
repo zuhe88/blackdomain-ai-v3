@@ -110,6 +110,23 @@ async function pushVipUpdateOrError(user, message) {
 }
 
 async function notifyVipOpened(user, days, permanent = false) {
+  const numericDays = Number(days);
+  if (!permanent && (!Number.isFinite(numericDays) || numericDays <= 0)) {
+    return pushVipUpdateOrError(
+      user,
+      [
+        "✅ 黑域AI綁定已審核",
+        "",
+        "狀態：已綁定",
+        "新增天數：+0天",
+        "目前到期：—",
+        "剩餘天數：—",
+        "",
+        "AI權限尚未開通，請聯絡管理員。",
+      ].join("\n")
+    );
+  }
+
   return pushVipUpdateOrError(
     user,
     [
@@ -403,14 +420,20 @@ async function handleAdminCommand(event) {
 
   if (command === "開通") {
     const permanent = value === "永久";
-    const days = permanent ? 36500 : parseInt(value || "30", 10);
+    const days = permanent ? 36500 : parseInt(value ?? "30", 10);
+    if (!permanent && (!Number.isFinite(days) || days < 0)) {
+      return reply(event.replyToken, adminResultFlex("開通VIP", [
+        ["3A帳號", account3A],
+        ["狀態", "天數格式不正確"],
+      ], false));
+    }
     const result = await approveVip({ account3A, days, permanent, adminLineUserId: userId });
     let notifyResult = { ok: true };
     if (result.ok) notifyResult = await notifyVipOpened(result.user, days, permanent);
     return reply(event.replyToken, adminResultFlex("開通VIP", [
       ["3A帳號", account3A],
       ["天數", permanent ? "永久" : `${days}天`],
-      ["狀態", result.ok && notifyResult.ok ? "已開通並通知會員" : result.error || notifyResult.error || "失敗"],
+      ["狀態", result.ok && notifyResult.ok ? (days === 0 && !permanent ? "已審核綁定，AI權限未開通" : "已開通並通知會員") : result.error || notifyResult.error || "失敗"],
     ], result.ok && notifyResult.ok));
   }
 
