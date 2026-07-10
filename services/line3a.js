@@ -44,20 +44,25 @@ function normalizeMessages(messages) {
 async function reply(replyToken, messages) {
   try {
     const client = getLine3AClient();
-    if (!client) return;
+    if (!client) return { ok: false, error: "LINE_3A channel is not configured." };
     await client.replyMessage(replyToken, normalizeMessages(messages));
+    return { ok: true };
   } catch (error) {
     logError("E001", error);
+    return { ok: false, error: error.message || String(error) };
   }
 }
 
 async function push(userId, messages) {
   try {
     const client = getLine3AClient();
-    if (!client) return;
+    if (!client) return { ok: false, error: "LINE_3A channel is not configured." };
+    if (!userId) return { ok: false, error: "Missing LINE User ID." };
     await client.pushMessage(userId, normalizeMessages(messages));
+    return { ok: true };
   } catch (error) {
     logError("E002", error);
+    return { ok: false, error: error.message || String(error) };
   }
 }
 
