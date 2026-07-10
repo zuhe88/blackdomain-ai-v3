@@ -33,7 +33,7 @@ function menuFlex() {
     quickReply: menuQuickReply(),
     footer: "BLACKDOMAIN 539 AI",
     contents: [
-      card("🔥 AI今日預測", "整合今日號碼、熱號、冷號與穩定號分析", "AI今日預測"),
+      card("🔥 AI今日預測", "整合今日號碼、熱號與冷號分析", "AI今日預測"),
       card("📊 歷史開獎", "查詢台灣539最新歷史開獎資料", "歷史開獎"),
       card("🏠 返回首頁", "回到 BLACKDOMAIN AI 首頁", "首頁"),
     ],
@@ -54,7 +54,6 @@ function analysisFlex(title, offset) {
       metric("AI預測", analysis.prediction.join("、"), "號碼範圍 01 ~ 39"),
       infoLine("熱號", analysis.hot.join("、")),
       infoLine("冷號", analysis.cold.join("、")),
-      infoLine("穩定號", analysis.stable.join("、")),
       infoLine("更新時間", analysis.updatedAt),
       note("本分析由 BLACKDOMAIN AI 生成，僅供娛樂參考。"),
     ],
@@ -117,7 +116,6 @@ async function handle539Message(event) {
     prediction: analysis.prediction,
     hot: analysis.hot,
     cold: analysis.cold,
-    stable: analysis.stable,
     lastUpdated: Date.now(),
   });
   return reply(event.replyToken, analysisFlex("AI今日預測", text));

@@ -53,15 +53,16 @@ function dateKey(date = targetDate()) {
   return `${year}-${month}-${day}`;
 }
 
-function deriveSet(offset) {
+function deriveSet(offset, excluded = []) {
   const key = dateKey(targetDate());
-  let seed = Array.from(`${key}:${offset}`).reduce((sum, char) => sum + char.charCodeAt(0), 539);
+  const blocked = new Set(excluded.map((item) => Number(item)));
+  let seed = Array.from(`${key}:${offset}`).reduce((sum, char) => ((sum * 33) + char.charCodeAt(0)) >>> 0, 539);
   const numbers = [];
 
-  while (numbers.length < 5) {
+  while (numbers.length < 5 && numbers.length + blocked.size < 39) {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
     const value = (seed % 39) + 1;
-    if (!numbers.includes(value)) numbers.push(value);
+    if (!blocked.has(value) && !numbers.includes(value)) numbers.push(value);
   }
 
   return numbers.sort((a, b) => a - b).map((n) => String(n).padStart(2, "0"));
@@ -72,19 +73,25 @@ function taiwanNowText() {
 }
 
 function buildAnalysis(offset) {
+  const prediction = deriveSet(offset);
+  const hot = deriveSet("hot", prediction);
+  const cold = deriveSet("cold", [...prediction, ...hot]);
+
   return {
     date: formatDate(targetDate()),
-    prediction: deriveSet(offset),
-    hot: deriveSet("hot"),
-    cold: deriveSet("cold"),
-    stable: deriveSet("stable"),
+    prediction,
+    hot,
+    cold,
     updatedAt: taiwanNowText(),
   };
 }
 
 function normalizeNumbers(value) {
   if (Array.isArray(value)) {
-    return value.map((item) => String(item).padStart(2, "0")).filter((item) => /^\d{2}$/.test(item)).slice(0, 5);
+    return value
+      .map((item) => String(item).replace(/\D/g, "").padStart(2, "0"))
+      .filter((item) => Number(item) >= 1 && Number(item) <= 39)
+      .slice(0, 5);
   }
   const matches = String(value || "").match(/\d{1,2}/g) || [];
   return matches.map((item) => item.padStart(2, "0")).filter((item) => Number(item) >= 1 && Number(item) <= 39).slice(0, 5);
@@ -96,15 +103,33 @@ function findHistoryRecord(payload) {
   if (Array.isArray(payload?.content)) candidates.push(...payload.content);
   if (Array.isArray(payload?.data)) candidates.push(...payload.data);
   if (Array.isArray(payload?.result)) candidates.push(...payload.result);
+  if (Array.isArray(payload?.rows)) candidates.push(...payload.rows);
+  if (Array.isArray(payload?.list)) candidates.push(...payload.list);
+  if (Array.isArray(payload?.drawTermList)) candidates.push(...payload.drawTermList);
   if (payload?.content && !Array.isArray(payload.content)) candidates.push(payload.content);
   if (payload?.data && !Array.isArray(payload.data)) candidates.push(payload.data);
+  if (payload?.result && !Array.isArray(payload.result)) candidates.push(payload.result);
 
   for (const item of candidates) {
-    const fields = [item?.drawNumber, item?.lotteryNo, item?.numbers, item?.開獎號碼, item?.DrawNumber, item?.Number];
+    const fields = [
+      item?.drawNumber,
+      item?.lotteryNo,
+      item?.numbers,
+      item?.number,
+      item?.winNumber,
+      item?.winningNumbers,
+      item?.獎號,
+      item?.開獎號碼,
+      item?.DrawNumber,
+      item?.Number,
+      [item?.drawNumber1, item?.drawNumber2, item?.drawNumber3, item?.drawNumber4, item?.drawNumber5].filter(Boolean),
+      [item?.num1, item?.num2, item?.num3, item?.num4, item?.num5].filter(Boolean),
+      [item?.n1, item?.n2, item?.n3, item?.n4, item?.n5].filter(Boolean),
+    ];
     const numbers = fields.map(normalizeNumbers).find((list) => list.length >= 5) || [];
     if (numbers.length >= 5) {
       return {
-        date: item?.drawTerm || item?.drawDate || item?.date || item?.期別 || "最新一期",
+        date: item?.drawTerm || item?.drawDate || item?.lotteryDate || item?.date || item?.期別 || item?.開獎日期 || "最新一期",
         numbers,
       };
     }
@@ -135,7 +160,7 @@ async function loadHistory() {
       const record = findHistoryRecord(payload);
       if (record) return { ok: true, ...record };
     } catch (error) {
-      // Try next API.
+      console.error(`[539 history] ${url} failed:`, error.message);
     }
   }
 
