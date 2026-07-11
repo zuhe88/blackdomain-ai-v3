@@ -17,6 +17,7 @@ const {
   listPendingRequests,
   listVipUsers,
   logAiUsage,
+  normalizeAccount3A,
 } = require("./repository");
 
 const AI_FEATURES = "百家樂AI / 電子AI / 體育AI / 539AI";
@@ -400,7 +401,8 @@ async function handleAdminCommand(event) {
 
   if (text === "管理指令" || text === "管理員指令") return reply(event.replyToken, adminHelpFlex());
 
-  const [command, account3A, value] = text.split(/\s+/).filter(Boolean);
+  const [command, rawAccount3A, value] = text.split(/\s+/).filter(Boolean);
+  const account3A = normalizeAccount3A(rawAccount3A);
   if (command === "待審核") return reply(event.replyToken, adminResultFlex("待審核", memberRows(await listPendingRequests())));
   if (command === "會員列表") return reply(event.replyToken, adminResultFlex("會員列表", memberRows(await listVipUsers())));
   if (!account3A) return reply(event.replyToken, adminHelpFlex());
@@ -508,7 +510,7 @@ async function handleBindCommand(event) {
 
 async function handleBindInput(event) {
   const lineUserId = event.source.userId || "";
-  const account3A = event.message.text.trim();
+  const account3A = normalizeAccount3A(event.message.text);
 
   const accountUser = await findVipUserBy3AAccount(account3A);
   if (accountUser.account3A) {

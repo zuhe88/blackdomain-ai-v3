@@ -13,6 +13,10 @@ function isConnected() {
   return Boolean(supabase);
 }
 
+function normalizeAccount3A(account3A) {
+  return String(account3A || "").trim().toLowerCase();
+}
+
 function normalizeUser(record) {
   if (!record) {
     return {
@@ -73,24 +77,40 @@ async function findVipUserByLineUserId(lineUserId) {
 }
 
 async function findVipUserBy3AAccount(account3A) {
-  if (!isConnected() || !account3A) return normalizeUser(null);
+  const normalizedAccount = normalizeAccount3A(account3A);
+  if (!isConnected() || !normalizedAccount) return normalizeUser(null);
   const { data, error } = await supabase
     .from("vip_users")
     .select("*")
-    .eq("three_a_account", account3A)
+    .eq("three_a_account", normalizedAccount)
     .maybeSingle();
-  if (error) return normalizeUser(null);
-  return normalizeUser(data);
+  if (!error && data) return normalizeUser(data);
+
+  const { data: ciData, error: ciError } = await supabase
+    .from("vip_users")
+    .select("*")
+    .ilike("three_a_account", normalizedAccount)
+    .maybeSingle();
+  if (ciError) return normalizeUser(null);
+  return normalizeUser(ciData);
 }
 
 async function listRequestsByField(field, value) {
-  if (!isConnected() || !value) return [];
+  const queryValue = field === "three_a_account" ? normalizeAccount3A(value) : value;
+  if (!isConnected() || !queryValue) return [];
   const { data, error } = await supabase
     .from("vip_requests")
     .select("*")
-    .eq(field, value);
-  if (error || !Array.isArray(data)) return [];
-  return data.map(normalizeRequest);
+    .eq(field, queryValue);
+  if (!error && Array.isArray(data) && data.length) return data.map(normalizeRequest);
+  if (field !== "three_a_account") return [];
+
+  const { data: ciData, error: ciError } = await supabase
+    .from("vip_requests")
+    .select("*")
+    .ilike(field, queryValue);
+  if (ciError || !Array.isArray(ciData)) return [];
+  return ciData.map(normalizeRequest);
 }
 
 async function findRequestBy3AAccount(account3A) {
@@ -119,6 +139,7 @@ function duplicateErrorMessage(error) {
 
 async function submitVipRequest({ lineUserId, lineName, account3A }) {
   if (!isConnected()) return { ok: false, code: "NO_SUPABASE", error: "Supabase尚未連線" };
+  const normalizedAccount = normalizeAccount3A(account3A);
 
   const boundUser = await findVipUserByLineUserId(lineUserId);
   if (boundUser.account3A) {
@@ -134,12 +155,12 @@ async function submitVipRequest({ lineUserId, lineName, account3A }) {
     };
   }
 
-  const accountUser = await findVipUserBy3AAccount(account3A);
+  const accountUser = await findVipUserBy3AAccount(normalizedAccount);
   if (accountUser.account3A) {
     return { ok: false, code: "ACCOUNT_TAKEN", user: accountUser };
   }
 
-  const activeAccountRequest = await findActiveRequestBy3AAccount(account3A);
+  const activeAccountRequest = await findActiveRequestBy3AAccount(normalizedAccount);
   if (activeAccountRequest) {
     return { ok: false, code: "ACCOUNT_TAKEN", request: activeAccountRequest };
   }
@@ -150,7 +171,7 @@ async function submitVipRequest({ lineUserId, lineName, account3A }) {
     .insert({
       line_user_id: lineUserId,
       line_name: lineName || "未取得",
-      three_a_account: account3A,
+      three_a_account: normalizedAccount,
       status: STATUS.PENDING,
       request_time: now,
       created_at: now,
@@ -173,10 +194,11 @@ async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPer
   if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
 
   const now = new Date().toISOString();
+  const normalizedAccount = normalizeAccount3A(account3A);
   const payload = {
     line_user_id: lineUserId || null,
     line_name: lineName || "未取得",
-    three_a_account: account3A,
+    three_a_account: normalizedAccount,
     vip_status: vipStatus,
     ai_permission: Boolean(aiPermission),
     expires_at: expiresAt || null,
@@ -184,12 +206,12 @@ async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPer
     updated_at: now,
   };
 
-  const existing = await findVipUserBy3AAccount(account3A);
+  const existing = await findVipUserBy3AAccount(normalizedAccount);
   if (existing.account3A) {
     const { data, error } = await supabase
       .from("vip_users")
       .update(payload)
-      .eq("three_a_account", account3A)
+      .eq("three_a_account", existing.account3A)
       .select("*")
       .maybeSingle();
     if (error) return { ok: false, error: duplicateErrorMessage(error) };
@@ -206,8 +228,9 @@ async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPer
 }
 
 async function approveVip({ account3A, days, permanent = false, adminLineUserId }) {
-  const request = await findRequestBy3AAccount(account3A);
-  const existingUser = await findVipUserBy3AAccount(account3A);
+  const normalizedAccount = normalizeAccount3A(account3A);
+  const request = await findRequestBy3AAccount(normalizedAccount);
+  const existingUser = await findVipUserBy3AAccount(normalizedAccount);
   const lineUserId = request?.lineUserId || existingUser.lineUserId;
   const lineName = request?.lineName || existingUser.lineName || "未取得";
   const numericDays = Number(days);
@@ -220,7 +243,7 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
   const result = await upsertVipUser({
     lineUserId,
     lineName,
-    account3A,
+    account3A: normalizedAccount,
     vipStatus: STATUS.APPROVED,
     aiPermission,
     expiresAt,
@@ -238,15 +261,16 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
         review_admin: adminLineUserId,
         updated_at: new Date().toISOString(),
       })
-      .eq("three_a_account", account3A);
-    await logAdminAction(adminLineUserId, permanent ? "永久VIP" : "開通VIP", account3A, result.ok ? "success" : "failed");
+      .ilike("three_a_account", normalizedAccount);
+    await logAdminAction(adminLineUserId, permanent ? "永久VIP" : "開通VIP", normalizedAccount, result.ok ? "success" : "failed");
   }
 
   return result;
 }
 
 async function extendVip(account3A, days, adminLineUserId) {
-  const user = await findVipUserBy3AAccount(account3A);
+  const normalizedAccount = normalizeAccount3A(account3A);
+  const user = await findVipUserBy3AAccount(normalizedAccount);
   if (!user.account3A) return { ok: false, error: "查無3A帳號" };
   const base = user.expiresAt && new Date(user.expiresAt).getTime() > Date.now()
     ? new Date(user.expiresAt).getTime()
@@ -255,18 +279,19 @@ async function extendVip(account3A, days, adminLineUserId) {
   const result = await upsertVipUser({
     lineUserId: user.lineUserId,
     lineName: user.lineName,
-    account3A,
+    account3A: user.account3A,
     vipStatus: STATUS.APPROVED,
     aiPermission: true,
     expiresAt,
     isAdmin: false,
   });
-  await logAdminAction(adminLineUserId, "延長VIP", account3A, result.ok ? "success" : "failed");
+  await logAdminAction(adminLineUserId, "延長VIP", user.account3A, result.ok ? "success" : "failed");
   return result;
 }
 
 async function reduceVip(account3A, days, adminLineUserId) {
-  const user = await findVipUserBy3AAccount(account3A);
+  const normalizedAccount = normalizeAccount3A(account3A);
+  const user = await findVipUserBy3AAccount(normalizedAccount);
   if (!user.account3A) return { ok: false, error: "查無3A帳號" };
   const base = user.expiresAt && new Date(user.expiresAt).getTime() > Date.now()
     ? new Date(user.expiresAt).getTime()
@@ -275,29 +300,30 @@ async function reduceVip(account3A, days, adminLineUserId) {
   const result = await upsertVipUser({
     lineUserId: user.lineUserId,
     lineName: user.lineName,
-    account3A,
+    account3A: user.account3A,
     vipStatus: STATUS.APPROVED,
     aiPermission: true,
     expiresAt,
     isAdmin: false,
   });
-  await logAdminAction(adminLineUserId, "扣除VIP天數", account3A, result.ok ? "success" : "failed");
+  await logAdminAction(adminLineUserId, "扣除VIP天數", user.account3A, result.ok ? "success" : "failed");
   return result;
 }
 
 async function cancelVip(account3A, adminLineUserId) {
-  const user = await findVipUserBy3AAccount(account3A);
+  const normalizedAccount = normalizeAccount3A(account3A);
+  const user = await findVipUserBy3AAccount(normalizedAccount);
   if (!user.account3A) return { ok: false, error: "查無3A帳號" };
   const result = await upsertVipUser({
     lineUserId: user.lineUserId,
     lineName: user.lineName,
-    account3A,
+    account3A: user.account3A,
     vipStatus: STATUS.CANCELLED,
     aiPermission: false,
     expiresAt: new Date().toISOString(),
     isAdmin: false,
   });
-  await logAdminAction(adminLineUserId, "取消VIP", account3A, result.ok ? "success" : "failed");
+  await logAdminAction(adminLineUserId, "取消VIP", user.account3A, result.ok ? "success" : "failed");
   return result;
 }
 
@@ -355,4 +381,5 @@ module.exports = {
   listVipUsers,
   logAdminAction,
   logAiUsage,
+  normalizeAccount3A,
 };
