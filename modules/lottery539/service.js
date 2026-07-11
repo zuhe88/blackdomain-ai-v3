@@ -31,11 +31,23 @@ function addTaiwanDays(parts, days) {
   };
 }
 
+function addDrawDateDays(date, days) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() + days, 12, 0, 0));
+}
+
+function nextAvailableDrawDate(date) {
+  let drawDate = date;
+  while (drawDate.getUTCDay() === 0) {
+    drawDate = addDrawDateDays(drawDate, 1);
+  }
+  return drawDate;
+}
+
 function targetDate(now = new Date()) {
   const parts = taiwanParts(now);
   const shouldUseNextDraw = parts.hour > 20 || (parts.hour === 20 && parts.minute >= 30);
   const target = addTaiwanDays(parts, shouldUseNextDraw ? 1 : 0);
-  return new Date(Date.UTC(target.year, target.month - 1, target.day, 12, 0, 0));
+  return nextAvailableDrawDate(new Date(Date.UTC(target.year, target.month - 1, target.day, 12, 0, 0)));
 }
 
 function formatDate(date) {
