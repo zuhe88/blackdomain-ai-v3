@@ -1,4 +1,4 @@
-const { askSportsAI } = require("../../services/openai");
+const { askSportsAI, askSportsPredictionAI } = require("../../services/openai");
 const { WORLD_CUP_TEAMS_ZH, MLB_TEAMS_ZH, NBA_TEAMS_ZH } = require("./constants");
 
 const REQUEST_TIMEOUT = 3000;
@@ -215,6 +215,64 @@ function applyHomeAwayScore(match, score) {
   };
 }
 
+function parseJsonObject(value) {
+  const text = String(value || "").replace(/```json|```/g, "").trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("Sports prediction JSON missing.");
+  return JSON.parse(text.slice(start, end + 1));
+}
+
+function normalizeScoreText(value) {
+  const match = String(value || "").match(/(\d{1,3})\s*[：:]\s*(\d{1,3})/);
+  if (!match) return "";
+  return `${Number(match[1])}：${Number(match[2])}`;
+}
+
+function isValidScoreForLeague(score, league) {
+  const parts = String(score || "").split("：").map((item) => Number(item));
+  if (parts.length !== 2 || parts.some((item) => !Number.isFinite(item) || item < 0)) return false;
+  if (parts[0] === parts[1]) return league === "世足";
+  if (league === "世足") return parts[0] <= 8 && parts[1] <= 8;
+  if (league === "MLB") return parts[0] <= 25 && parts[1] <= 25;
+  if (league === "NBA") return parts[0] >= 70 && parts[1] >= 70 && parts[0] <= 180 && parts[1] <= 180;
+  return true;
+}
+
+function normalizePoints(value, fallback = []) {
+  const source = Array.isArray(value) ? value : [];
+  const points = source
+    .map((item) => String(item || "").replace(/^[-•\d.\s]+/, "").trim())
+    .filter(Boolean)
+    .filter((item) => !/[A-Za-z]{3,}/.test(item))
+    .slice(0, 6);
+  return points.length >= 4 ? points : fallback;
+}
+
+function normalizeSportsPrediction(match, parsed) {
+  const winner = String(parsed.winner || "").trim();
+  if (![match.home, match.away].includes(winner)) throw new Error("Sports prediction winner is not in match teams.");
+
+  const score = normalizeScoreText(parsed.score);
+  if (!isValidScoreForLeague(score, match.league)) throw new Error("Sports prediction score is invalid.");
+
+  const totalGoals = String(parsed.totalGoals || "").trim() || match.totalGoals;
+  const halfTime = String(parsed.halfTime || "").trim() || match.halfTime;
+  const spread = String(parsed.spread || "").trim() || match.spread;
+  const total = String(parsed.total || "").trim() || match.total;
+
+  return {
+    ...match,
+    prediction: winner,
+    score,
+    spread,
+    total,
+    totalGoals,
+    halfTime,
+    points: normalizePoints(parsed.points, []),
+  };
+}
+
 function fallbackPoints(match) {
   const leader = match.prediction || match.home;
   return [
@@ -227,16 +285,48 @@ function fallbackPoints(match) {
   ];
 }
 
+async function attachPrediction(match) {
+  try {
+    const payload = {
+      instruction: "請依照資料做賽前預測，回傳指定 JSON。比分必須主隊在前、客隊在後。",
+      league: match.league,
+      home: match.home,
+      away: match.away,
+      startTime: match.startTime,
+      baseline: {
+        winner: match.prediction,
+        score: match.score,
+        spread: match.spread,
+        total: match.total,
+        totalGoals: match.totalGoals,
+        halfTime: match.halfTime,
+      },
+      teamData: match.teamData || null,
+    };
+    const content = await askSportsPredictionAI(payload);
+    const parsed = parseJsonObject(content);
+    const predicted = normalizeSportsPrediction(match, parsed);
+    return {
+      ...predicted,
+      points: predicted.points.length >= 4 ? predicted.points : fallbackPoints(predicted),
+    };
+  } catch (error) {
+    console.error("[Sports AI] prediction fallback:", error.message);
+    return match;
+  }
+}
+
 async function attachPreview(match) {
+  const predictedMatch = await attachPrediction(match);
   try {
     const aiText = await askSportsAI([
-      `聯盟：${match.league}`,
-      `賽事：${match.away} VS ${match.home}`,
-      `開賽時間：${match.startTime}`,
-      `AI預測勝方：${match.prediction}`,
-      `讓分建議：${match.spread}`,
-      `大小分建議：${match.total}`,
-      `預測比分：${match.score}`,
+      `聯盟：${predictedMatch.league}`,
+      `賽事：${predictedMatch.away} VS ${predictedMatch.home}`,
+      `開賽時間：${predictedMatch.startTime}`,
+      `AI預測勝方：${predictedMatch.prediction}`,
+      `讓分建議：${predictedMatch.spread}`,
+      `大小分建議：${predictedMatch.total}`,
+      `預測比分：${predictedMatch.score}`,
       "請提供四到六點繁體中文賽前分析重點。",
     ].join("\n"));
 
@@ -246,9 +336,9 @@ async function attachPreview(match) {
       .filter(Boolean)
       .slice(0, 6);
 
-    return { ...match, points: points.length >= 4 ? points : fallbackPoints(match) };
+    return { ...predictedMatch, points: points.length >= 4 ? points : predictedMatch.points?.length >= 4 ? predictedMatch.points : fallbackPoints(predictedMatch) };
   } catch (error) {
-    return { ...match, points: fallbackPoints(match) };
+    return { ...predictedMatch, points: predictedMatch.points?.length >= 4 ? predictedMatch.points : fallbackPoints(predictedMatch) };
   }
 }
 
@@ -276,6 +366,10 @@ function worldCupFallbackMatches() {
         spread: spreadAdvice("世足", pick, match.strength, seed),
         total: score.totalAdvice,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
+        teamData: {
+          home: { name: match.home, strength: match.strength },
+          away: { name: match.away, strength: Number((1 - match.strength).toFixed(2)) },
+        },
       }, score);
     });
 }
@@ -310,6 +404,7 @@ async function loadWorldCupMatches() {
         spread: spreadAdvice("世足", pick.winner, pick.stronger, seed),
         total: score.totalAdvice,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
+        teamData: { home, away, stronger: pick.stronger },
       }, score);
     });
 
@@ -359,6 +454,7 @@ async function loadMlbMatches() {
       spread: spreadAdvice("MLB", pick.winner, pick.stronger, seed),
       total: score.totalAdvice,
       updatedAt: formatTaiwanTime(new Date().toISOString()),
+      teamData: { home, away, stronger: pick.stronger },
     }, score);
   });
 }
@@ -403,6 +499,7 @@ async function loadNbaMatches() {
         spread: spreadAdvice("NBA", pick.winner, pick.stronger, seed),
         total: score.totalAdvice,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
+        teamData: { home, away, stronger: pick.stronger },
       }, score);
     });
 }

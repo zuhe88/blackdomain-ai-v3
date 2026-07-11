@@ -40,6 +40,30 @@ async function askSportsAI(prompt) {
   return response.choices?.[0]?.message?.content || "";
 }
 
+async function askSportsPredictionAI(payload) {
+  if (!openai) {
+    throw new Error("OPENAI_API_KEY 尚未設定");
+  }
+
+  const response = await openai.chat.completions.create({
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content:
+          "你是 BLACKDOMAIN AI 體育賽前預測助理。只能根據使用者提供的賽事資料分析，不可編造隊伍或額外賽事。請使用繁體中文，不要英文，不要提到 OpenAI，不要保證結果，不要顯示勝率或信心百分比。請只輸出 JSON，不要 markdown。JSON 格式必須為 {\"winner\":\"隊名\",\"score\":\"主隊分：客隊分\",\"spread\":\"讓分建議\",\"total\":\"大小分建議\",\"totalGoals\":\"總進球或總分\",\"halfTime\":\"半場或前五局預測\",\"points\":[\"分析重點\"]}。winner 必須等於 home 或 away；score 必須主隊在前、客隊在後；points 必須4到6點。",
+      },
+      {
+        role: "user",
+        content: JSON.stringify(payload),
+      },
+    ],
+    temperature: 0.45,
+  });
+
+  return response.choices?.[0]?.message?.content || "";
+}
+
 async function askLottery539AI({ targetDate, history }) {
   if (!openai) {
     throw new Error("OPENAI_API_KEY 尚未設定");
@@ -70,5 +94,6 @@ async function askLottery539AI({ targetDate, history }) {
 
 module.exports = {
   askSportsAI,
+  askSportsPredictionAI,
   askLottery539AI,
 };
