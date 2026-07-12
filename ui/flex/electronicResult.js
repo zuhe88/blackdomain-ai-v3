@@ -10,9 +10,9 @@ function entrySignal(seed = "", mode = "recommend") {
   const value = score(seed);
   const isGreen = mode === "green" || (mode === "custom" ? value >= 820 : true);
   return {
-    text: isGreen ? "🟢 可進場" : "🔴 不建議進場",
+    text: isGreen ? "🟢 可進場" : "🔴 暫不進場",
     volatility: isGreen ? "穩定" : "偏高",
-    activity: isGreen ? "提升" : "觀察中",
+    activity: isGreen ? "符合條件" : "未達條件",
   };
 }
 
@@ -27,9 +27,9 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
     contents: [
       metric("推薦房號", room, "AI監測結果"),
       infoLine("目前狀態", "AI監控中"),
-      infoLine("進場建議", signal.text),
-      infoLine("波動", signal.volatility),
-      infoLine("活躍度", signal.activity),
+      infoLine("進場燈號", signal.text),
+      infoLine("資料波動", signal.volatility),
+      infoLine("監測結果", signal.activity),
       infoLine("更新時間", updateTime),
       note("每30分鐘刷新一次"),
       note("本分析由 BLACKDOMAIN AI 生成，僅供參考。"),
@@ -48,9 +48,9 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply, options =
     contents: [
       metric("分析房號", room, "AI監測結果"),
       infoLine("目前狀態", "AI監控中"),
-      infoLine("進場建議", signal.text),
-      infoLine("波動", signal.volatility),
-      infoLine("活躍度", signal.activity),
+      infoLine("進場燈號", signal.text),
+      infoLine("資料波動", signal.volatility),
+      infoLine("監測結果", signal.activity),
       infoLine("更新時間", updateTime),
       note("每30分鐘刷新一次"),
     ],
@@ -79,7 +79,7 @@ function rankCard(room, index, updateTime) {
           text(`房號：${room}`, { size: "lg", weight: "bold", flex: 4, align: "end", color: COLORS.white, wrap: false }),
         ],
       },
-      infoLine("進場建議", signal.text),
+      infoLine("進場燈號", signal.text),
       infoLine("更新時間", updateTime),
     ],
   };
