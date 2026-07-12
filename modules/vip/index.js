@@ -110,56 +110,83 @@ async function pushVipUpdateOrError(user, message) {
   }
 }
 
+function vipUpdateFlex({ title, status, account3A, daysText, expiresAt, remainText, noteText }) {
+  return bubble({
+    altText: title,
+    title,
+    subtitle: "BLACKDOMAIN VIP",
+    quickReply: vipQuickReply(false),
+    footer: "BLACKDOMAIN VIP",
+    contents: [
+      metric("會員狀態", status, "黑域AI會員通知"),
+      infoLine("3A帳號", account3A || "未綁定"),
+      infoLine("異動天數", daysText || "—"),
+      infoLine("目前到期", expiresAt || "—"),
+      infoLine("剩餘天數", remainText || "—"),
+      note(noteText || "請輸入「黑域AI」開始使用。"),
+      button("開啟黑域AI", "黑域AI"),
+    ],
+  });
+}
+
 async function notifyVipOpened(user, days, permanent = false) {
   const numericDays = Number(days);
   if (!permanent && (!Number.isFinite(numericDays) || numericDays <= 0)) {
     return pushVipUpdateOrError(
       user,
-      [
-        "✅ 黑域AI綁定已審核",
-        "",
-        "狀態：已綁定",
-        "新增天數：+0天",
-        "目前到期：—",
-        "剩餘天數：—",
-        "",
-        "AI權限尚未開通，請聯絡管理員。",
-      ].join("\n")
+      vipUpdateFlex({
+        title: "黑域AI綁定已審核",
+        status: "已綁定",
+        account3A: user.account3A,
+        daysText: "+0天",
+        expiresAt: "—",
+        remainText: "—",
+        noteText: "AI權限尚未開通，請聯絡管理員。",
+      })
     );
   }
 
   return pushVipUpdateOrError(
     user,
-    [
-      "🎉 黑域AI會員已更新",
-      "",
-      "狀態：已開通",
-      `新增天數：${permanent ? "永久" : `+${days}天`}`,
-      `目前到期：${formatDateTime(user.expiresAt, permanent)}`,
-      `剩餘天數：${daysLeft(user.expiresAt, permanent)}${permanent ? "" : "天"}`,
-      "",
-      "請輸入「黑域AI」開始使用。",
-    ].join("\n")
+    vipUpdateFlex({
+      title: "黑域AI會員已更新",
+      status: "已開通",
+      account3A: user.account3A,
+      daysText: permanent ? "永久" : `+${days}天`,
+      expiresAt: formatDateTime(user.expiresAt, permanent),
+      remainText: `${daysLeft(user.expiresAt, permanent)}${permanent ? "" : "天"}`,
+      noteText: "請輸入「黑域AI」開始使用。",
+    })
   );
 }
 
 async function notifyVipReduced(user, days) {
   return pushVipUpdateOrError(
     user,
-    [
-      "⚠️ 黑域AI會員天數已調整",
-      "",
-      `異動天數：-${days}天`,
-      `目前到期：${formatDateTime(user.expiresAt)}`,
-      `剩餘天數：${daysLeft(user.expiresAt)}天`,
-    ].join("\n")
+    vipUpdateFlex({
+      title: "黑域AI會員天數已調整",
+      status: "已調整",
+      account3A: user.account3A,
+      daysText: `-${days}天`,
+      expiresAt: formatDateTime(user.expiresAt),
+      remainText: `${daysLeft(user.expiresAt)}天`,
+      noteText: "會員期限已同步更新。",
+    })
   );
 }
 
 async function notifyVipCancelled(user) {
   return pushVipUpdateOrError(
     user,
-    ["⚠️ 黑域AI會員權限已關閉", "", "如需重新開通，請聯絡管理員。"].join("\n")
+    vipUpdateFlex({
+      title: "黑域AI會員權限已關閉",
+      status: "已關閉",
+      account3A: user.account3A,
+      daysText: "—",
+      expiresAt: "—",
+      remainText: "—",
+      noteText: "如需重新開通，請聯絡管理員。",
+    })
   );
 }
 

@@ -17,6 +17,26 @@ function normalizeAccount3A(account3A) {
   return String(account3A || "").trim().toLowerCase();
 }
 
+async function selectCaseInsensitive(table, field, value) {
+  const normalizedValue = normalizeAccount3A(value);
+  const query = supabase.from(table).select("*");
+  if (typeof query.ilike === "function") {
+    return query.ilike(field, normalizedValue);
+  }
+
+  const { data, error } = await query;
+  if (error || !Array.isArray(data)) return { data: [], error };
+  return {
+    data: data.filter((row) => normalizeAccount3A(row?.[field]) === normalizedValue),
+    error: null,
+  };
+}
+
+async function maybeSingleCaseInsensitive(table, field, value) {
+  const { data, error } = await selectCaseInsensitive(table, field, value);
+  return { data: Array.isArray(data) ? data[0] || null : null, error };
+}
+
 function normalizeUser(record) {
   if (!record) {
     return {
@@ -86,11 +106,11 @@ async function findVipUserBy3AAccount(account3A) {
     .maybeSingle();
   if (!error && data) return normalizeUser(data);
 
-  const { data: ciData, error: ciError } = await supabase
-    .from("vip_users")
-    .select("*")
-    .ilike("three_a_account", normalizedAccount)
-    .maybeSingle();
+  const { data: ciData, error: ciError } = await maybeSingleCaseInsensitive(
+    "vip_users",
+    "three_a_account",
+    normalizedAccount
+  );
   if (ciError) return normalizeUser(null);
   return normalizeUser(ciData);
 }
@@ -105,10 +125,7 @@ async function listRequestsByField(field, value) {
   if (!error && Array.isArray(data) && data.length) return data.map(normalizeRequest);
   if (field !== "three_a_account") return [];
 
-  const { data: ciData, error: ciError } = await supabase
-    .from("vip_requests")
-    .select("*")
-    .ilike(field, queryValue);
+  const { data: ciData, error: ciError } = await selectCaseInsensitive("vip_requests", field, queryValue);
   if (ciError || !Array.isArray(ciData)) return [];
   return ciData.map(normalizeRequest);
 }
@@ -253,15 +270,19 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
   if (!result.ok) return result;
 
   if (isConnected()) {
-    await supabase
+    const requestUpdate = supabase
       .from("vip_requests")
       .update({
         status: STATUS.APPROVED,
         review_time: new Date().toISOString(),
         review_admin: adminLineUserId,
         updated_at: new Date().toISOString(),
-      })
-      .ilike("three_a_account", normalizedAccount);
+      });
+    if (typeof requestUpdate.ilike === "function") {
+      await requestUpdate.ilike("three_a_account", normalizedAccount);
+    } else {
+      await requestUpdate.eq("three_a_account", normalizedAccount);
+    }
     await logAdminAction(adminLineUserId, permanent ? "永久VIP" : "開通VIP", normalizedAccount, result.ok ? "success" : "failed");
   }
 
