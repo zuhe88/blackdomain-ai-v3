@@ -11,7 +11,7 @@ function entrySignal(seed = "", mode = "recommend") {
   const isGreen = mode === "green" || (mode === "custom" ? value >= 820 : true);
   return {
     text: isGreen ? "🟢 可進場" : "🔴 暫不進場",
-    volatility: isGreen ? "穩定" : "偏高",
+    volatility: isGreen ? "穩定" : "不穩定",
     activity: isGreen ? "符合條件" : "未達條件",
   };
 }
@@ -28,7 +28,7 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
       metric("推薦房號", room, "AI監測結果"),
       infoLine("目前狀態", "AI監控中"),
       infoLine("進場燈號", signal.text),
-      infoLine("資料波動", signal.volatility),
+      infoLine("房況狀態", signal.volatility),
       infoLine("監測結果", signal.activity),
       infoLine("更新時間", updateTime),
       note("每30分鐘刷新一次"),
@@ -49,7 +49,7 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply, options =
       metric("分析房號", room, "AI監測結果"),
       infoLine("目前狀態", "AI監控中"),
       infoLine("進場燈號", signal.text),
-      infoLine("資料波動", signal.volatility),
+      infoLine("房況狀態", signal.volatility),
       infoLine("監測結果", signal.activity),
       infoLine("更新時間", updateTime),
       note("每30分鐘刷新一次"),
