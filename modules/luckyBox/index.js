@@ -22,6 +22,7 @@ const {
 const BLACKDOMAIN_LINE_URL = "https://line.me/ti/p/@391wiftp";
 const DEFAULT_BASE_URL = "https://blackdomain-ai-v3-production.up.railway.app";
 const adminOpenSessions = new Map();
+const bindingSessions = new Map();
 
 const WHEEL_SEGMENTS = ["AI權限1天", "88", "AI權限1天", "888", "88", "2888"];
 
@@ -216,8 +217,8 @@ function bindHelpFlex() {
     altText: "3A帳號綁定",
     title: "會員綁定",
     contents: [
-      info("綁定格式", "綁定 3A帳號"),
-      info("範例", "綁定 abc888"),
+      info("操作方式", "請直接輸入您的3A帳號"),
+      info("範例", "abc888"),
       info("審核狀態", "送出後等待管理員審核"),
     ],
   });
@@ -604,7 +605,25 @@ function isLikely3AAccount(value) {
   return /^(?=.*\d)[a-z0-9][a-z0-9_-]{2,31}$/i.test(String(value || "").trim());
 }
 
-function normalizeBindAccount(value) {
+function setBindingSession(userId) {
+  if (userId) bindingSessions.set(userId, Date.now());
+}
+
+function clearBindingSession(userId) {
+  if (userId) bindingSessions.delete(userId);
+}
+
+function hasBindingSession(userId) {
+  const startedAt = bindingSessions.get(userId);
+  if (!startedAt) return false;
+  if (Date.now() - startedAt > 10 * 60 * 1000) {
+    bindingSessions.delete(userId);
+    return false;
+  }
+  return true;
+}
+
+function normalizeBindAccount(value, allowAccountOnly = false) {
   const raw = String(value || "").replace(/\u3000/g, " ").trim();
   const compact = raw.replace(/\s+/g, "");
   const placeholders = new Set(["綁定", "綁定3A", "綁定3A帳號", "3A帳號", "帳號", "請輸入您的3A帳號"]);
@@ -626,7 +645,7 @@ function normalizeBindAccount(value) {
   }
 
   const accountOnly = raw.split(/\s+/)[0].toLowerCase();
-  if (isLikely3AAccount(accountOnly)) return { prompt: false, account: accountOnly };
+  if (allowAccountOnly && isLikely3AAccount(accountOnly)) return { prompt: false, account: accountOnly };
   return { prompt: false, account: null };
 }
 
@@ -634,6 +653,7 @@ async function bindMember(event, parts) {
   const lineUserId = event.source.userId || "";
   const threeAAccount = parts[1];
   if (!threeAAccount) return reply(event.replyToken, bindHelpFlex());
+  clearBindingSession(lineUserId);
   const existing = await findMemberByLineUserId(lineUserId);
   if (existing.threeAAccount) {
     return reply(event.replyToken, resultFlex({
@@ -1008,8 +1028,12 @@ async function handleLuckyBoxEvent(event) {
   const adminResult = await handleAdmin(event, value);
   if (adminResult !== false) return adminResult;
 
-  const bindInput = normalizeBindAccount(value);
-  if (bindInput.prompt) return reply(event.replyToken, bindHelpFlex());
+  const isBinding = hasBindingSession(userId);
+  const bindInput = normalizeBindAccount(value, isBinding);
+  if (bindInput.prompt) {
+    setBindingSession(userId);
+    return reply(event.replyToken, bindHelpFlex());
+  }
   if (bindInput.account) return bindMember(event, ["綁定", bindInput.account]);
 
   const command = normalizeUserCommand(value);
