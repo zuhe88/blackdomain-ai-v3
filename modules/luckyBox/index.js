@@ -602,7 +602,7 @@ function parseProbabilityCommand(value) {
 }
 
 function isLikely3AAccount(value) {
-  return /^(?=.*\d)[a-z0-9][a-z0-9_-]{2,31}$/i.test(String(value || "").trim());
+  return /^[a-z0-9][a-z0-9_-]{2,31}$/i.test(String(value || "").trim());
 }
 
 function setBindingSession(userId) {
@@ -630,6 +630,10 @@ function normalizeBindAccount(value, allowAccountOnly = false) {
   if (placeholders.has(compact)) return { prompt: true, account: null };
 
   const patterns = [
+    /^輸入\s*綁定\s*3A帳號\s*(.+)$/i,
+    /^輸入\s*綁定\s*3A\s*(.+)$/i,
+    /^輸入\s*綁定\s+(.+)$/i,
+    /^輸入\s*綁定(.+)$/i,
     /^綁定\s*3A帳號\s*(.+)$/i,
     /^綁定\s*3A\s*(.+)$/i,
     /^綁定\s+(.+)$/i,
