@@ -5,15 +5,9 @@ const REQUEST_TIMEOUT = 3000;
 const NO_DATA_TEXT = "目前尚無可分析賽事";
 const MAX_MATCHES = 5;
 
-const WORLD_CUP_ROUND16_FALLBACK = [
-  { away: "加拿大", home: "摩洛哥", start: "2026-07-05T00:00:00+08:00", strength: 0.56 },
-  { away: "巴拉圭", home: "法國", start: "2026-07-05T04:00:00+08:00", strength: 0.62 },
-  { away: "巴西", home: "挪威", start: "2026-07-06T03:00:00+08:00", strength: 0.6 },
-  { away: "墨西哥", home: "英格蘭", start: "2026-07-06T07:00:00+08:00", strength: 0.57 },
-  { away: "葡萄牙", home: "西班牙", start: "2026-07-07T02:00:00+08:00", strength: 0.54 },
-  { away: "美國", home: "比利時", start: "2026-07-07T07:00:00+08:00", strength: 0.56 },
-  { away: "阿根廷", home: "埃及", start: "2026-07-07T23:00:00+08:00", strength: 0.61 },
-  { away: "瑞士", home: "哥倫比亞", start: "2026-07-08T03:00:00+08:00", strength: 0.55 },
+const WORLD_CUP_FALLBACK_MATCHES = [
+  { stage: "季軍賽", home: "法國", away: "英格蘭", start: "2026-07-19T04:00:00+08:00", strength: 0.53 },
+  { stage: "決賽", home: "西班牙", away: "阿根廷", start: "2026-07-20T02:00:00+08:00", strength: 0.52 },
 ];
 
 const WORLD_CUP_DISPLAY_NAMES_ZH = {
@@ -349,7 +343,7 @@ function teamNameFromCompetitor(entry = {}) {
 
 function worldCupFallbackMatches() {
   const now = Date.now();
-  return WORLD_CUP_ROUND16_FALLBACK
+  return WORLD_CUP_FALLBACK_MATCHES
     .filter((match) => new Date(match.start).getTime() >= now)
     .slice(0, MAX_MATCHES)
     .map((match) => {
@@ -376,11 +370,20 @@ function worldCupFallbackMatches() {
 
 async function loadWorldCupMatches() {
   const today = taiwanNow();
-  const data = await requestJson("https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard", {
-    dates: compactDate(today),
-  });
+  const events = [];
+  for (let offset = 0; offset <= 7; offset += 1) {
+    try {
+      const data = await requestJson("https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard", {
+        dates: compactDate(addDays(today, offset)),
+      });
+      if (Array.isArray(data.events)) events.push(...data.events);
+    } catch (error) {
+      // Keep fallback available when one schedule date is empty or temporarily unavailable.
+    }
+    if (events.length >= MAX_MATCHES) break;
+  }
 
-  const matches = (data.events || [])
+  const matches = events
     .filter((event) => new Date(event.date) >= new Date())
     .slice(0, MAX_MATCHES)
     .map((event) => {
