@@ -308,6 +308,8 @@
 
   <script type="module">
     import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
+    import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+    import * as SkeletonUtils from "https://unpkg.com/three@0.160.0/examples/jsm/utils/SkeletonUtils.js";
 
     const canvas = document.getElementById("game");
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -326,6 +328,10 @@
 
     const clock = new THREE.Clock();
     const textureLoader = new THREE.TextureLoader();
+    const gltfLoader = new GLTFLoader();
+    const PLAYER_MODEL_URL = "https://threejs.org/examples/models/gltf/Xbot.glb";
+    const modelMixers = [];
+    let usingExternalModels = false;
 
     const players = [
       { country: "阿根廷", name: "梅西", kit: 0x82c9ff, shorts: 0xffffff, skin: 0xc58a63 },
@@ -576,6 +582,65 @@
       return group;
     }
 
+    function prepareImportedModel(model, role) {
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (child.material) {
+          child.material = child.material.clone();
+          child.material.roughness = .62;
+          child.material.metalness = .04;
+        }
+      });
+      model.scale.setScalar(role === "keeper" ? 1.08 : 1.02);
+      model.position.set(0, 0, 0);
+      model.rotation.set(0, 0, 0);
+      return model;
+    }
+
+    function playBestAnimation(target, gltf, mode = "idle") {
+      if (!gltf.animations || !gltf.animations.length) return;
+      const mixer = new THREE.AnimationMixer(target.userData.importedModel);
+      const preferred = mode === "run"
+        ? [/run/i, /walk/i, /idle/i]
+        : [/idle/i, /stand/i, /walk/i];
+      let clip = gltf.animations[0];
+      for (const pattern of preferred) {
+        const found = gltf.animations.find((item) => pattern.test(item.name));
+        if (found) {
+          clip = found;
+          break;
+        }
+      }
+      const action = mixer.clipAction(clip);
+      action.play();
+      target.userData.importedMixer = mixer;
+      modelMixers.push(mixer);
+    }
+
+    async function installImportedPlayers() {
+      try {
+        const gltf = await gltfLoader.loadAsync(PLAYER_MODEL_URL);
+        const strikerModel = prepareImportedModel(SkeletonUtils.clone(gltf.scene), "striker");
+        const keeperModel = prepareImportedModel(SkeletonUtils.clone(gltf.scene), "keeper");
+
+        striker.children.forEach((child) => { child.visible = false; });
+        keeper.children.forEach((child) => { child.visible = false; });
+
+        striker.userData.importedModel = strikerModel;
+        keeper.userData.importedModel = keeperModel;
+        striker.add(strikerModel);
+        keeper.add(keeperModel);
+
+        playBestAnimation(striker, gltf, "run");
+        playBestAnimation(keeper, gltf, "idle");
+        usingExternalModels = true;
+      } catch (error) {
+        console.warn("3D player model load failed, fallback character remains active.", error);
+      }
+    }
+
     function setPlayer(index) {
       state.playerIndex = index;
       const p = players[index];
@@ -583,10 +648,12 @@
       $("playerName").textContent = `${p.country} ${p.name} VS 英格蘭門將`;
       document.querySelectorAll(".country-dock button").forEach((btn, i) => btn.classList.toggle("active", i === index));
 
-      const next = buildPlayerModel(p);
-      while (striker.children.length) striker.remove(striker.children[0]);
-      next.children.slice().forEach((child) => striker.add(child));
-      striker.userData.parts = next.userData.parts;
+      if (!usingExternalModels) {
+        const next = buildPlayerModel(p);
+        while (striker.children.length) striker.remove(striker.children[0]);
+        next.children.slice().forEach((child) => striker.add(child));
+        striker.userData.parts = next.userData.parts;
+      }
       resetPose();
     }
 
@@ -756,6 +823,7 @@
     function animate() {
       const dt = clock.getDelta();
       const t = clock.elapsedTime;
+      modelMixers.forEach((mixer) => mixer.update(dt));
 
       const breathe = Math.sin(t * 1.6) * .018;
       camera.position.x = Math.sin(t * .25) * .24;
@@ -853,6 +921,7 @@
     renderCountries();
     setPlayer(0);
     resetGame();
+    installImportedPlayers();
 
     document.querySelectorAll("[data-shot]").forEach((button) => {
       button.addEventListener("click", () => kick(button.dataset.shot));
