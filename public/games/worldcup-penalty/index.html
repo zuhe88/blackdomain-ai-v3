@@ -366,7 +366,11 @@
       keeper: "center",
       keeperPose: 0,
       strikerPose: 0,
-      ball: { x: .5, y: .83, z: 0, active: false },
+      runup: 0,
+      legSwing: 0,
+      cameraShake: 0,
+      netRipple: { x: .5, y: .5, power: 0 },
+      ball: { x: .5, y: .83, z: 0, active: false, spin: 0, squash: 0 },
       trail: [],
       resultGlow: 0,
       clock: 0
@@ -512,16 +516,39 @@
       const gh = Math.min(h * .22, 190);
       ctx.save();
       ctx.translate(cx - gw / 2, y - gh);
+      if (state.netRipple.power > .01) {
+        const rx = state.netRipple.x * gw;
+        const ry = state.netRipple.y * gh;
+        const glow = ctx.createRadialGradient(rx, ry, 0, rx, ry, gw * .32);
+        glow.addColorStop(0, `rgba(255,255,255,${.24 * state.netRipple.power})`);
+        glow.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, gw, gh);
+      }
       ctx.strokeStyle = "rgba(255,255,255,.92)";
       ctx.lineWidth = 6;
       ctx.strokeRect(0, 0, gw, gh);
       ctx.strokeStyle = "rgba(255,255,255,.22)";
       ctx.lineWidth = 1;
       for (let x = 18; x < gw; x += 24) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, gh); ctx.stroke();
+        ctx.beginPath();
+        for (let yy = 0; yy <= gh; yy += 12) {
+          const ripple = state.netRipple.power * Math.sin((yy * .08) + state.clock * 18) * 8 * Math.max(0, 1 - Math.abs((x / gw) - state.netRipple.x) * 2.8);
+          const px = x + ripple;
+          if (yy === 0) ctx.moveTo(px, yy);
+          else ctx.lineTo(px, yy);
+        }
+        ctx.stroke();
       }
       for (let yy = 18; yy < gh; yy += 24) {
-        ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(gw, yy); ctx.stroke();
+        ctx.beginPath();
+        for (let x = 0; x <= gw; x += 12) {
+          const ripple = state.netRipple.power * Math.sin((x * .07) + state.clock * 18) * 7 * Math.max(0, 1 - Math.abs((yy / gh) - state.netRipple.y) * 2.8);
+          const py = yy + ripple;
+          if (x === 0) ctx.moveTo(x, py);
+          else ctx.lineTo(x, py);
+        }
+        ctx.stroke();
       }
       ctx.restore();
 
@@ -554,49 +581,101 @@
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(scale, scale);
-      ctx.rotate(pose * .08);
+      ctx.rotate(isKeeper ? pose * .18 : pose * .035);
+      const run = isKeeper ? 0 : state.runup;
+      const swing = isKeeper ? 0 : state.legSwing;
+      const keeperReach = isKeeper ? Math.abs(pose) : 0;
+
+      ctx.fillStyle = "rgba(0,0,0,.28)";
+      ctx.beginPath();
+      ctx.ellipse(0, 84, 48, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.strokeStyle = colors[0];
-      ctx.lineWidth = 9;
+      ctx.lineWidth = isKeeper ? 11 : 10;
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(-24, -28); ctx.lineTo(-54 - pose * 16, -5 + pose * 10);
-      ctx.moveTo(24, -28); ctx.lineTo(54 + pose * 16, -5 - pose * 10);
+      ctx.moveTo(-24, -28); ctx.lineTo(-54 - pose * 34 - keeperReach * 36, -4 + pose * 16);
+      ctx.moveTo(24, -28); ctx.lineTo(54 + pose * 34 + keeperReach * 36, -4 - pose * 16);
       ctx.stroke();
+
       const shirt = ctx.createLinearGradient(-30, -40, 30, 28);
       shirt.addColorStop(0, colors[0]); shirt.addColorStop(1, colors[1]);
       ctx.fillStyle = shirt;
       ctx.beginPath();
       ctx.roundRect(-30, -50, 60, 72, 18);
       ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,.16)";
+      ctx.fillRect(-24, -28, 48, 4);
+
+      ctx.fillStyle = "rgba(0,0,0,.34)";
+      ctx.beginPath();
+      ctx.roundRect(-24, 16, 48, 30, 8);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,.82)";
+      ctx.font = "900 18px Microsoft JhengHei";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(isKeeper ? "1" : "10", 0, -14);
+
       ctx.fillStyle = skin;
       ctx.beginPath();
-      ctx.arc(0, -76, 20, 0, Math.PI * 2);
+      ctx.arc(0 + pose * 4, -76, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,.18)";
+      ctx.beginPath();
+      ctx.arc(-6 + pose * 4, -82, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(0,0,0,.52)";
+      ctx.beginPath();
+      ctx.arc(-6 + pose * 4, -76, 2, 0, Math.PI * 2);
+      ctx.arc(7 + pose * 4, -76, 2, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#111";
       ctx.beginPath();
-      ctx.arc(0, -86, 18, Math.PI, Math.PI * 2);
+      ctx.arc(0 + pose * 4, -86, 18, Math.PI, Math.PI * 2);
       ctx.fill();
+
       ctx.strokeStyle = isKeeper ? "#7cffb5" : "#f2f2f2";
       ctx.lineWidth = 12;
       ctx.beginPath();
-      ctx.moveTo(-16, 18); ctx.lineTo(-28 - pose * 14, 70);
-      ctx.moveTo(16, 18); ctx.lineTo(34 + pose * 20, 70 - pose * 8);
+      if (isKeeper) {
+        ctx.moveTo(-16, 18); ctx.lineTo(-36 - pose * 22, 70 - keeperReach * 12);
+        ctx.moveTo(16, 18); ctx.lineTo(42 + pose * 18, 68 + keeperReach * 10);
+      } else {
+        ctx.moveTo(-16, 18); ctx.lineTo(-24 - run * 18, 70 - Math.sin(run * Math.PI) * 10);
+        ctx.moveTo(16, 18); ctx.lineTo(24 + swing * 54, 70 - swing * 54);
+      }
       ctx.stroke();
+
+      ctx.fillStyle = "#0a0a0a";
+      ctx.beginPath();
+      if (isKeeper) {
+        ctx.ellipse(-38 - pose * 24, 72 - keeperReach * 12, 16, 6, pose * .5, 0, Math.PI * 2);
+        ctx.ellipse(44 + pose * 20, 70 + keeperReach * 10, 16, 6, pose * .5, 0, Math.PI * 2);
+      } else {
+        ctx.ellipse(-25 - run * 18, 74 - Math.sin(run * Math.PI) * 10, 15, 6, -.1, 0, Math.PI * 2);
+        ctx.ellipse(28 + swing * 54, 74 - swing * 54, 15, 6, -.7, 0, Math.PI * 2);
+      }
+      ctx.fill();
       ctx.restore();
     }
 
     function drawBall() {
       const p = pitchPoint(state.ball.x, state.ball.y);
-      const r = Math.max(11, 22 - state.ball.z * 9);
+      const r = Math.max(8, 24 - state.ball.z * 11);
       ctx.save();
       ctx.globalAlpha = state.ball.active ? .96 : 1;
       for (let i = 0; i < state.trail.length; i++) {
         const t = state.trail[i];
         const tp = pitchPoint(t.x, t.y);
-        ctx.globalAlpha = (i / state.trail.length) * .26;
-        ctx.fillStyle = "#ffffff";
+        const alpha = (i / state.trail.length) * .28;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = i > state.trail.length - 4 ? "#ffffff" : "rgba(255,255,255,.7)";
         ctx.beginPath();
-        ctx.arc(tp.x, tp.y, r * .55, 0, Math.PI * 2);
+        ctx.ellipse(tp.x, tp.y - t.z * 70, r * 1.4, r * .38, t.angle || 0, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
@@ -604,13 +683,25 @@
       ctx.beginPath();
       ctx.ellipse(p.x, p.y + 16, r * 1.25, r * .35, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.translate(p.x, p.y - state.ball.z * 70);
+      ctx.rotate(state.ball.spin);
+      ctx.scale(1 + state.ball.squash * .12, 1 - state.ball.squash * .08);
       ctx.fillStyle = "#f8f8f8";
       ctx.beginPath();
-      ctx.arc(p.x, p.y - state.ball.z * 70, r, 0, Math.PI * 2);
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#111";
       ctx.beginPath();
-      ctx.arc(p.x, p.y - state.ball.z * 70, r * .34, 0, Math.PI * 2);
+      ctx.arc(0, 0, r * .34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,.75)";
+      ctx.lineWidth = Math.max(1, r * .12);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * .68, -.8, .8);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, 0, r * .68, 2.35, 3.95);
+      ctx.stroke();
       ctx.fill();
       ctx.restore();
     }
@@ -626,12 +717,18 @@
     function render() {
       state.clock += 1 / 60;
       ctx.clearRect(0, 0, innerWidth, innerHeight);
+      const shake = state.cameraShake;
+      ctx.save();
+      if (shake > .01) ctx.translate((Math.random() - .5) * shake * 10, (Math.random() - .5) * shake * 6);
       drawStadium();
       drawAdBoards();
       drawPitch();
       drawGoal();
       drawActors();
       drawBall();
+      ctx.restore();
+      state.cameraShake *= .9;
+      state.netRipple.power *= .92;
       requestAnimationFrame(render);
     }
 
@@ -668,6 +765,10 @@
       state.keeper = "center";
       state.keeperPose = 0;
       state.strikerPose = 0;
+      state.runup = 0;
+      state.legSwing = 0;
+      state.cameraShake = 0;
+      state.netRipple = { x: .5, y: .5, power: 0 };
     }
 
     function setResult(title, sub = "") {
@@ -692,35 +793,91 @@
       const saved = onTarget && keeper === zone && Math.random() > .2;
       const goal = onTarget && !saved;
       const cpuGoal = Math.random() > .4;
-      const targetX = zone === "left" ? .29 : zone === "right" ? .71 : .5;
-      const targetY = zone === "center" ? .29 : .2;
+      const goalX = zone === "left" ? .29 : zone === "right" ? .71 : .5;
+      const goalY = zone === "center" ? .31 : .2;
+      const missSide = zone === "left" ? -.08 : zone === "right" ? 1.08 : .5;
+      const missHigh = zone === "center" ? .13 : .16;
+      const saveX = keeper === "left" ? .24 : keeper === "right" ? .76 : .5;
+      const saveY = keeper === "center" ? .38 : .26;
+      const targetX = goal ? goalX : saved ? saveX : missSide;
+      const targetY = goal ? goalY : saved ? saveY : missHigh;
       const start = performance.now();
 
       state.keeper = keeper;
       state.ball.active = true;
       state.trail = [];
+      state.runup = 0;
+      state.legSwing = 0;
+      state.cameraShake = 0;
+      state.netRipple = { x: goalX, y: goalY, power: 0 };
 
       function animate(now) {
-        const t = Math.min(1, (now - start) / 850);
-        const e = easeOutCubic(t);
-        state.strikerPose = Math.sin(Math.min(1, t * 2.2) * Math.PI) * 1.1;
-        state.keeperPose = easeOutCubic(Math.max(0, t - .18) / .82);
-        state.ball.x = lerp(.5, targetX, e);
-        state.ball.y = lerp(.83, targetY, e);
-        state.ball.z = Math.sin(t * Math.PI) * .72;
-        state.trail.push({ x: state.ball.x, y: state.ball.y });
+        const elapsed = now - start;
+        const runT = Math.min(1, elapsed / 360);
+        const kickT = Math.min(1, Math.max(0, elapsed - 260) / 250);
+        const flyT = Math.min(1, Math.max(0, elapsed - 440) / 760);
+        const settleT = Math.min(1, Math.max(0, elapsed - 1120) / 340);
+        const e = easeOutCubic(flyT);
+
+        state.runup = Math.sin(runT * Math.PI * 2.8) * (1 - Math.min(1, kickT));
+        state.legSwing = Math.sin(kickT * Math.PI) * 1.2;
+        state.strikerPose = state.runup * .55 + state.legSwing * .9;
+        state.keeperPose = easeOutCubic(Math.max(0, flyT - .16) / .84);
+
+        if (flyT > 0) {
+          const curve = zone === "left" ? -.035 : zone === "right" ? .035 : 0;
+          const bend = Math.sin(flyT * Math.PI) * curve;
+          state.ball.x = lerp(.5, targetX, e) + bend;
+          state.ball.y = lerp(.83, targetY, e);
+          state.ball.z = Math.sin(flyT * Math.PI) * (goal ? .92 : saved ? .68 : 1.05);
+          state.ball.spin += (zone === "left" ? -1 : zone === "right" ? 1 : .65) * .48;
+          state.ball.squash = Math.max(0, Math.sin(kickT * Math.PI)) * .7;
+          state.cameraShake = Math.max(state.cameraShake, .22 * (1 - flyT));
+        } else {
+          state.ball.x = .5;
+          state.ball.y = .83;
+          state.ball.z = 0;
+          state.ball.squash = Math.sin(kickT * Math.PI) * .8;
+        }
+
+        if (saved && flyT > .78) {
+          const deflect = easeOutCubic((flyT - .78) / .22);
+          state.ball.x += (keeper === "left" ? -.16 : keeper === "right" ? .16 : .04) * deflect;
+          state.ball.y += .06 * deflect;
+          state.ball.z *= (1 - .35 * deflect);
+        }
+
+        if (goal && flyT > .9) {
+          state.netRipple.power = Math.max(state.netRipple.power, (flyT - .9) * 8);
+          state.cameraShake = Math.max(state.cameraShake, .42 * (1 - settleT));
+        }
+
+        if (!goal && !saved && flyT > .88) {
+          state.ball.z += .35 * ((flyT - .88) / .12);
+        }
+
+        if (flyT > 0) state.trail.push({ x: state.ball.x, y: state.ball.y, z: state.ball.z, angle: state.ball.spin });
         if (state.trail.length > 10) state.trail.shift();
-        if (t < 1) requestAnimationFrame(animate);
+
+        if (settleT < 1) requestAnimationFrame(animate);
         else {
           state.shot += 1;
           if (goal) state.goals += 1;
           if (cpuGoal) state.cpu += 1;
           const flash = $("flash");
-          flash.classList.add("show");
-          setTimeout(() => flash.classList.remove("show"), 130);
-          if (goal) setResult("漂亮進球", `${state.player.name} 射向${zoneLabel[zone]}，守門員撲${zoneLabel[keeper]}。`);
-          else if (saved) setResult("被守門員撲出", `射向${zoneLabel[zone]}，門將判斷正確。`);
-          else setResult("射門偏出", "力量太滿，皮球擦柱而出。");
+          if (goal) {
+            state.ball.x = goalX;
+            state.ball.y = goalY + .035;
+            state.ball.z = .12;
+            state.netRipple.power = 1;
+            flash.classList.add("show");
+            setTimeout(() => flash.classList.remove("show"), 130);
+            setResult("進球！球鑽進網內", `${state.player.name} 射向${zoneLabel[zone]}，皮球撞網彈回。`);
+          } else if (saved) {
+            setResult("未進！守門員撲出", `射向${zoneLabel[zone]}，門將撲${zoneLabel[keeper]}成功擋下。`);
+          } else {
+            setResult("未進！皮球飛出門框", zone === "center" ? "球速太高，直接越過橫樑。" : "角度太刁，擦著門柱外側飛出。");
+          }
           if (state.shot >= 5) setTimeout(finishMatch, 900);
           state.locked = false;
           updateScore();
