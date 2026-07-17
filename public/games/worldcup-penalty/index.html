@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>世足 12 碼點球</title>
+  <title>世足點球大戰</title>
   <style>
     * { box-sizing: border-box; }
     html, body {
@@ -85,7 +85,9 @@
       border-radius: 17px;
       display: grid;
       place-items: center;
-      font-size: 28px;
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: .03em;
       background: linear-gradient(145deg, rgba(255,255,255,.18), rgba(255,255,255,.04));
       border: 1px solid rgba(255,255,255,.18);
     }
@@ -134,9 +136,11 @@
     }
 
     .country-dock button {
-      min-width: 54px;
+      min-width: 78px;
       height: 40px;
-      font-size: 20px;
+      padding: 0 14px;
+      font-size: 14px;
+      letter-spacing: .04em;
     }
 
     .country-dock button.active {
@@ -268,11 +272,11 @@
 
   <div class="hud">
     <div class="score">
-      <small>世足 12 碼點球</small>
-      <strong id="scoreText">0 : 0</strong>
+      <small>世足點球大戰</small>
+      <strong id="scoreText">進 0｜未進 0</strong>
     </div>
 
-    <div class="hint" id="hintText">選擇射門方向，球員會自動助跑射門</div>
+    <div class="hint" id="hintText">選擇射門方向開始挑戰</div>
 
     <div class="result" id="resultBox">
       <strong id="resultTitle">準備射門</strong>
@@ -280,7 +284,7 @@
     </div>
 
     <div class="player-card">
-      <div class="avatar" id="flagBox">🇦🇷</div>
+      <div class="avatar" id="flagBox">阿根廷</div>
       <div>
         <small>目前射手</small>
         <strong id="playerName">阿根廷名將</strong>
@@ -324,18 +328,19 @@
     const textureLoader = new THREE.TextureLoader();
 
     const players = [
-      { flag: "🇦🇷", country: "阿根廷", name: "阿根廷名將", kit: 0x82c9ff, shorts: 0xffffff, skin: 0xc58a63 },
-      { flag: "🇧🇷", country: "巴西", name: "巴西名將", kit: 0xf6dc32, shorts: 0x1f5faa, skin: 0x9a613f },
-      { flag: "🇫🇷", country: "法國", name: "法國名將", kit: 0x173d8f, shorts: 0xffffff, skin: 0x8a5a43 },
-      { flag: "🇵🇹", country: "葡萄牙", name: "葡萄牙名將", kit: 0xc51d2d, shorts: 0x174c2a, skin: 0xb8754d },
-      { flag: "🇪🇸", country: "西班牙", name: "西班牙名將", kit: 0xd7252c, shorts: 0x142b7c, skin: 0xc98a63 },
-      { flag: "🇯🇵", country: "日本", name: "日本名將", kit: 0x2450aa, shorts: 0xffffff, skin: 0xd0a06f }
+      { country: "阿根廷", name: "梅西", kit: 0x82c9ff, shorts: 0xffffff, skin: 0xc58a63 },
+      { country: "巴西", name: "內馬爾", kit: 0xf6dc32, shorts: 0x1f5faa, skin: 0x9a613f },
+      { country: "法國", name: "姆巴佩", kit: 0x173d8f, shorts: 0xffffff, skin: 0x8a5a43 },
+      { country: "葡萄牙", name: "C羅", kit: 0xc51d2d, shorts: 0x174c2a, skin: 0xb8754d },
+      { country: "西班牙", name: "莫拉塔", kit: 0xd7252c, shorts: 0x142b7c, skin: 0xc98a63 },
+      { country: "日本", name: "三笘薰", kit: 0x2450aa, shorts: 0xffffff, skin: 0xd0a06f },
+      { country: "挪威", name: "哈蘭德", kit: 0xd61f2f, shorts: 0x173d8f, skin: 0xd1a074 }
     ];
 
     const state = {
       playerIndex: 0,
       goals: 0,
-      opponent: 0,
+      misses: 0,
       shots: 0,
       locked: false,
       anim: null,
@@ -402,12 +407,13 @@
       addBox([.08, .05, 5.2], [3.75, .025, -30.6], mat.line, scene, false, true);
       addBox([7.5, .05, .08], [0, .025, -28], mat.line, scene, false, true);
       addCylinder(.12, .04, [0, .06, 0], mat.line, scene);
+
     }
 
     function makeBoardTexture(text, logoSrc) {
       const c = document.createElement("canvas");
-      c.width = 1024;
-      c.height = 256;
+      c.width = 1600;
+      c.height = 360;
       const ctx = c.getContext("2d");
       const texture = new THREE.CanvasTexture(c);
       texture.colorSpace = THREE.SRGBColorSpace;
@@ -418,23 +424,36 @@
         g.addColorStop(1, "#09202a");
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, c.width, c.height);
-        ctx.strokeStyle = "rgba(19, 202, 220, .55)";
-        ctx.lineWidth = 6;
-        ctx.strokeRect(10, 10, c.width - 20, c.height - 20);
+        ctx.strokeStyle = "rgba(19, 202, 220, .72)";
+        ctx.lineWidth = 9;
+        ctx.strokeRect(14, 14, c.width - 28, c.height - 28);
         ctx.fillStyle = "#ffffff";
-        ctx.font = "900 46px Microsoft JhengHei, sans-serif";
+        ctx.font = "900 78px Microsoft JhengHei, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(text, c.width / 2 + 70, 102);
+        ctx.fillText(text, c.width / 2 + 135, 136);
         ctx.fillStyle = "#ffe18a";
-        ctx.font = "900 34px Microsoft JhengHei, sans-serif";
-        ctx.fillText("首儲1000送1000　LINE:@893jrweh", c.width / 2 + 70, 162);
+        ctx.font = "900 58px Microsoft JhengHei, sans-serif";
+        ctx.fillText("首儲1000送1000　LINE:@893jrweh", c.width / 2 + 135, 228);
         texture.needsUpdate = true;
       };
       draw();
       const img = new Image();
       img.onload = () => {
         draw();
-        ctx.drawImage(img, 36, 58, 245, 85);
+        const temp = document.createElement("canvas");
+        temp.width = img.naturalWidth || img.width;
+        temp.height = img.naturalHeight || img.height;
+        const tctx = temp.getContext("2d");
+        tctx.drawImage(img, 0, 0);
+        const data = tctx.getImageData(0, 0, temp.width, temp.height);
+        for (let i = 0; i < data.data.length; i += 4) {
+          const r = data.data[i];
+          const g = data.data[i + 1];
+          const b = data.data[i + 2];
+          if (r > 238 && g > 238 && b > 238) data.data[i + 3] = 0;
+        }
+        tctx.putImageData(data, 0, 0);
+        ctx.drawImage(temp, 46, 90, 360, 126);
         texture.needsUpdate = true;
       };
       img.src = logoSrc;
@@ -461,11 +480,11 @@
       const boardTex = makeBoardTexture("3A娛樂城", "assets/3a-logo.png");
       const boardMat = new THREE.MeshBasicMaterial({ map: boardTex });
       for (const x of [-14, 0, 14]) {
-        const board = addBox([11.8, 2.2, .24], [x, 1.22, -36.4], boardMat, scene, false, false);
+        const board = addBox([14.8, 3.1, .24], [x, 1.75, -36.0], boardMat, scene, false, false);
         board.rotation.x = -.02;
       }
       for (const x of [-20, 20]) {
-        const board = addBox([10.5, 2.05, .24], [x, 1.1, -22.5], boardMat, scene, false, false);
+        const board = addBox([12.5, 2.65, .24], [x, 1.42, -22.0], boardMat, scene, false, false);
         board.rotation.y = x < 0 ? .52 : -.52;
       }
     }
@@ -514,6 +533,25 @@
       parts.head.castShadow = true;
       group.add(parts.head);
 
+      const hairMat = new THREE.MeshStandardMaterial({ color: 0x17110d, roughness: .72 });
+      parts.hair = new THREE.Mesh(new THREE.SphereGeometry(.272, 24, 12, 0, Math.PI * 2, 0, Math.PI * .58), hairMat);
+      parts.hair.position.set(0, 2.57, -.02);
+      parts.hair.castShadow = true;
+      group.add(parts.hair);
+
+      const eyeMat = new THREE.MeshBasicMaterial({ color: 0x101820 });
+      parts.leftEye = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 8), eyeMat);
+      parts.rightEye = new THREE.Mesh(new THREE.SphereGeometry(.025, 8, 8), eyeMat);
+      parts.leftEye.position.set(-.075, 2.5, -.248);
+      parts.rightEye.position.set(.075, 2.5, -.248);
+      group.add(parts.leftEye, parts.rightEye);
+
+      const noseMat = new THREE.MeshStandardMaterial({ color: options.skin, roughness: .68 });
+      parts.nose = new THREE.Mesh(new THREE.ConeGeometry(.035, .09, 8), noseMat);
+      parts.nose.position.set(0, 2.455, -.27);
+      parts.nose.rotation.x = Math.PI / 2;
+      group.add(parts.nose);
+
       const makeLimb = (name, x, y, z, length, material, radius = .105) => {
         const limb = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 10, 18), material);
         limb.position.set(x, y, z);
@@ -541,8 +579,8 @@
     function setPlayer(index) {
       state.playerIndex = index;
       const p = players[index];
-      $("flagBox").textContent = p.flag;
-      $("playerName").textContent = `${p.country}名將`;
+      $("flagBox").textContent = p.country;
+      $("playerName").textContent = `${p.country} ${p.name} VS 英格蘭門將`;
       document.querySelectorAll(".country-dock button").forEach((btn, i) => btn.classList.toggle("active", i === index));
 
       const next = buildPlayerModel(p);
@@ -614,7 +652,7 @@
       players.forEach((p, i) => {
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.textContent = p.flag;
+        btn.textContent = p.country;
         btn.title = p.country;
         btn.addEventListener("click", () => {
           if (!state.locked) setPlayer(i);
@@ -641,35 +679,42 @@
     }
 
     function updateScore() {
-      $("scoreText").textContent = `${state.goals} : ${state.opponent}`;
-      $("hintText").textContent = `第 ${Math.min(state.shots + 1, 12)} 球｜${players[state.playerIndex].country}名將主罰`;
+      const p = players[state.playerIndex];
+      $("scoreText").textContent = `進 ${state.goals}｜未進 ${state.misses}`;
+      $("hintText").textContent = `第 ${state.shots + 1} 球｜${p.country} ${p.name} 主罰`;
     }
 
     function chooseOutcome(zone) {
       const roll = Math.random();
-      const targetX = zone === "left" ? -2.7 : zone === "right" ? 2.7 : (Math.random() - .5) * .9;
-      const targetY = zone === "center" ? 1.55 : 2.28 + Math.random() * .38;
-      const saved = roll > .72 && roll <= .9;
-      const miss = roll > .9;
+      const aimX = zone === "left" ? -2.65 : zone === "right" ? 2.65 : (Math.random() - .5) * .7;
+      const aimY = zone === "center" ? 1.45 : 2.18 + Math.random() * .42;
+      const saved = roll > .68 && roll <= .88;
+      const miss = roll > .88;
       const goal = !saved && !miss;
+      const keeperDive = saved
+        ? zone
+        : zone === "left"
+          ? "right"
+          : zone === "right"
+            ? "left"
+            : (Math.random() > .5 ? "left" : "right");
+      const target = saved
+        ? { x: zone === "left" ? -2.35 : zone === "right" ? 2.35 : 0, y: zone === "center" ? 1.35 : 2.05, z: -29.95 }
+        : miss
+          ? { x: zone === "left" ? -4.6 : zone === "right" ? 4.6 : aimX, y: zone === "center" ? 3.95 : 3.45, z: -30.6 }
+          : { x: aimX, y: aimY, z: -32.7 };
       return {
         zone,
         goal,
         saved,
         miss,
-        cpuGoal: Math.random() > .34,
-        keeperDive: saved ? zone : ["left", "center", "right"][Math.floor(Math.random() * 3)],
-        target: {
-          x: miss ? targetX * 1.45 : targetX,
-          y: miss ? targetY + .9 : targetY,
-          z: goal ? -32.35 : -30.8
-        }
+        keeperDive,
+        target
       };
     }
 
     function kick(zone) {
       if (state.locked) return;
-      if (state.shots >= 12) resetGame();
       clearTimeout(state.autoResetTimer);
       state.locked = true;
       setButtons(true);
@@ -686,11 +731,12 @@
     function finishShot(outcome) {
       state.shots += 1;
       if (outcome.goal) state.goals += 1;
-      if (outcome.cpuGoal) state.opponent += 1;
+      else state.misses += 1;
 
       if (outcome.goal) {
         ball.position.set(outcome.target.x, outcome.target.y - .45, -32.85);
-        showResult("進球！", `皮球鑽進網內，${players[state.playerIndex].country}名將冷靜命中。`);
+        const p = players[state.playerIndex];
+        showResult("進球！", `皮球鑽進網內，${p.country} ${p.name} 冷靜命中。`);
       } else if (outcome.saved) {
         ball.position.x += outcome.keeperDive === "left" ? -1.2 : outcome.keeperDive === "right" ? 1.2 : .35;
         ball.position.z += .9;
@@ -699,21 +745,7 @@
         showResult("未進！", "射門力量過大，皮球飛出門框。");
       }
 
-      if (state.shots >= 12) {
-        const finalText = state.goals > state.opponent
-          ? "12 碼結束，你拿下這場點球戰。"
-          : state.goals === state.opponent
-            ? "12 碼結束，雙方踢成平手。"
-            : "12 碼結束，守門員守住勝利。";
-        setTimeout(() => showResult("點球戰結束", finalText, true), 850);
-        state.autoResetTimer = setTimeout(() => resetGame(), 4300);
-      } else {
-        setTimeout(() => {
-          state.playerIndex = (state.playerIndex + 1) % players.length;
-          setPlayer(state.playerIndex);
-          resetPose();
-        }, 900);
-      }
+      setTimeout(() => resetPose(), 900);
 
       state.locked = false;
       state.anim = null;
@@ -792,7 +824,7 @@
 
     function resetGame() {
       state.goals = 0;
-      state.opponent = 0;
+      state.misses = 0;
       state.shots = 0;
       state.locked = false;
       state.anim = null;
@@ -826,7 +858,13 @@
       button.addEventListener("click", () => kick(button.dataset.shot));
     });
     $("nextBtn").addEventListener("click", () => {
-      if (!state.locked) setPlayer((state.playerIndex + 1) % players.length);
+      if (!state.locked) {
+        state.goals = 0;
+        state.misses = 0;
+        state.shots = 0;
+        setPlayer((state.playerIndex + 1) % players.length);
+        updateScore();
+      }
     });
     $("resetBtn").addEventListener("click", resetGame);
     addEventListener("resize", resize);
