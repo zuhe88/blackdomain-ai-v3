@@ -381,7 +381,7 @@
     <div class="player-card">
       <div class="avatar" id="flagBox">阿根廷</div>
       <div>
-        <small>目前射手</small>
+        <small>本輪對戰</small>
         <strong id="playerName">阿根廷名將</strong>
       </div>
     </div>
@@ -507,7 +507,7 @@
 
     }
 
-    function makeBoardTexture(text, logoSrc) {
+    function makeBoardTexture(text) {
       const c = document.createElement("canvas");
       c.width = 1600;
       c.height = 360;
@@ -528,35 +528,18 @@
         ctx.lineWidth = 12;
         ctx.strokeRect(16, 16, c.width - 32, c.height - 32);
         ctx.fillStyle = "#ffffff";
-        ctx.font = "900 108px Microsoft JhengHei, sans-serif";
+        ctx.font = "900 116px Microsoft JhengHei, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(text, c.width / 2 + 170, 142);
+        ctx.fillText(text, c.width / 2, 142);
         ctx.fillStyle = "#ffe18a";
-        ctx.font = "900 76px Microsoft JhengHei, sans-serif";
-        ctx.fillText("首儲1000送1000  LINE:@893jrweh", c.width / 2 + 170, 244);
+        ctx.font = "900 64px Microsoft JhengHei, sans-serif";
+        ctx.fillText("首儲1000送1000", c.width / 2, 224);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "900 48px Microsoft JhengHei, sans-serif";
+        ctx.fillText("LINE:@893jrweh", c.width / 2, 292);
         texture.needsUpdate = true;
       };
       draw();
-      const img = new Image();
-      img.onload = () => {
-        draw();
-        const temp = document.createElement("canvas");
-        temp.width = img.naturalWidth || img.width;
-        temp.height = img.naturalHeight || img.height;
-        const tctx = temp.getContext("2d");
-        tctx.drawImage(img, 0, 0);
-        const data = tctx.getImageData(0, 0, temp.width, temp.height);
-        for (let i = 0; i < data.data.length; i += 4) {
-          const r = data.data[i];
-          const g = data.data[i + 1];
-          const b = data.data[i + 2];
-          if (r > 238 && g > 238 && b > 238) data.data[i + 3] = 0;
-        }
-        tctx.putImageData(data, 0, 0);
-        ctx.drawImage(temp, 46, 82, 440, 154);
-        texture.needsUpdate = true;
-      };
-      img.src = logoSrc;
       return texture;
     }
 
@@ -577,7 +560,7 @@
       }
       addBox([52, 5.2, .5], [0, 2.8, -52.5], new THREE.MeshStandardMaterial({ color: 0x8898a8, roughness: .8 }), scene, false, true);
 
-      const boardTex = makeBoardTexture("3A娛樂城", "assets/3a-logo.png");
+      const boardTex = makeBoardTexture("3A娛樂城");
       const boardMat = new THREE.MeshBasicMaterial({ map: boardTex });
       const mainBoard = addBox([24, 4.2, .24], [0, 5.25, -36.2], boardMat, scene, false, false);
       mainBoard.rotation.x = -.04;
@@ -624,6 +607,9 @@
       const skinMat = new THREE.MeshStandardMaterial({ color: options.skin, roughness: .62 });
       const sockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6 });
       const bootMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .45 });
+      const sleeveMat = options.role === "keeper" ? kitMat : skinMat;
+      const gloveMat = new THREE.MeshStandardMaterial({ color: 0xf4f7ff, roughness: .38, metalness: .02 });
+      const trimMat = new THREE.MeshStandardMaterial({ color: 0x9ee8ff, roughness: .42, metalness: .06 });
 
       const parts = {};
       parts.body = addBox([.72, 1.15, .38], [0, 1.75, 0], kitMat, group);
@@ -661,8 +647,8 @@
         return limb;
       };
 
-      parts.lArm = makeLimb("lArm", -.52, 1.82, .02, .85, skinMat, .08);
-      parts.rArm = makeLimb("rArm", .52, 1.82, .02, .85, skinMat, .08);
+      parts.lArm = makeLimb("lArm", -.52, 1.82, .02, .85, sleeveMat, .08);
+      parts.rArm = makeLimb("rArm", .52, 1.82, .02, .85, sleeveMat, .08);
       parts.lArm.rotation.z = .55;
       parts.rArm.rotation.z = -.55;
       parts.lLeg = makeLimb("lLeg", -.22, .86, 0, 1.0, shortsMat, .11);
@@ -671,6 +657,37 @@
       parts.rSock = makeLimb("rSock", .22, .32, .02, .45, sockMat, .08);
       parts.lBoot = addBox([.22, .11, .38], [-.22, .08, -.04], bootMat, group);
       parts.rBoot = addBox([.22, .11, .38], [.22, .08, -.04], bootMat, group);
+      if (options.role === "keeper") {
+        parts.chestPanel = addBox([.46, .055, .405], [0, 1.94, -.205], trimMat, group);
+        parts.chestPanel.rotation.x = .02;
+        parts.lGlove = new THREE.Mesh(new THREE.SphereGeometry(.135, 18, 14), gloveMat);
+        parts.rGlove = new THREE.Mesh(new THREE.SphereGeometry(.135, 18, 14), gloveMat);
+        parts.lGlove.position.set(-.82, 1.48, -.03);
+        parts.rGlove.position.set(.82, 1.48, -.03);
+        parts.lGlove.castShadow = true;
+        parts.rGlove.castShadow = true;
+        group.add(parts.lGlove, parts.rGlove);
+
+        const numberCanvas = document.createElement("canvas");
+        numberCanvas.width = 128;
+        numberCanvas.height = 128;
+        const nctx = numberCanvas.getContext("2d");
+        nctx.clearRect(0, 0, 128, 128);
+        nctx.fillStyle = "#ffffff";
+        nctx.font = "900 86px Microsoft JhengHei, sans-serif";
+        nctx.textAlign = "center";
+        nctx.textBaseline = "middle";
+        nctx.fillText("1", 64, 68);
+        const numberTexture = new THREE.CanvasTexture(numberCanvas);
+        const number = new THREE.Mesh(
+          new THREE.PlaneGeometry(.34, .34),
+          new THREE.MeshBasicMaterial({ map: numberTexture, transparent: true })
+        );
+        number.position.set(0, 1.78, -.216);
+        number.rotation.x = .02;
+        group.add(number);
+        parts.number = number;
+      }
       group.userData.parts = parts;
       return group;
     }
@@ -743,7 +760,7 @@
       state.playerIndex = index;
       const p = players[index];
       $("flagBox").textContent = p.country;
-      $("playerName").textContent = `${p.country} ${p.name} VS 英格蘭門將`;
+      $("playerName").textContent = `${p.country} ${p.name} 對戰 英格蘭 皮克福德`;
       document.querySelectorAll(".country-dock button").forEach((btn, i) => btn.classList.toggle("active", i === index));
 
       if (!usingExternalModels) {
@@ -761,7 +778,7 @@
       striker.rotation.y = Math.PI;
       scene.add(striker);
 
-      keeper = buildPlayerModel({ kit: 0xcc1f1f, shorts: 0x9b1010, skin: 0xb8754d });
+      keeper = buildPlayerModel({ role: "keeper", kit: 0x182b44, shorts: 0x0b1626, skin: 0xb8754d });
       keeper.position.set(0, 0, -29.7);
       keeper.rotation.y = 0;
       keeper.scale.set(1.05, 1.05, 1.05);
