@@ -308,8 +308,6 @@
 
   <script type="module">
     import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
-    import { GLTFLoader } from "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
-    import * as SkeletonUtils from "https://unpkg.com/three@0.160.0/examples/jsm/utils/SkeletonUtils.js";
 
     const canvas = document.getElementById("game");
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -327,8 +325,6 @@
     camera.lookAt(0, 1.4, -23);
 
     const clock = new THREE.Clock();
-    const textureLoader = new THREE.TextureLoader();
-    const gltfLoader = new GLTFLoader();
     const PLAYER_MODEL_URL = "https://threejs.org/examples/models/gltf/Xbot.glb";
     const modelMixers = [];
     let usingExternalModels = false;
@@ -621,6 +617,11 @@
 
     async function installImportedPlayers() {
       try {
+        const [{ GLTFLoader }, SkeletonUtils] = await Promise.all([
+          import("https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js"),
+          import("https://unpkg.com/three@0.160.0/examples/jsm/utils/SkeletonUtils.js")
+        ]);
+        const gltfLoader = new GLTFLoader();
         const gltf = await gltfLoader.loadAsync(PLAYER_MODEL_URL);
         const strikerModel = prepareImportedModel(SkeletonUtils.clone(gltf.scene), "striker");
         const keeperModel = prepareImportedModel(SkeletonUtils.clone(gltf.scene), "keeper");
