@@ -528,15 +528,12 @@
         ctx.lineWidth = 12;
         ctx.strokeRect(16, 16, c.width - 32, c.height - 32);
         ctx.fillStyle = "#ffffff";
-        ctx.font = "900 96px Microsoft JhengHei, sans-serif";
+        ctx.font = "900 108px Microsoft JhengHei, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(text, c.width / 2 + 150, 140);
+        ctx.fillText(text, c.width / 2 + 170, 142);
         ctx.fillStyle = "#ffe18a";
-        ctx.font = "900 72px Microsoft JhengHei, sans-serif";
-        ctx.fillText("首儲1000送1000", c.width / 2 + 150, 230);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "900 46px Microsoft JhengHei, sans-serif";
-        ctx.fillText("LINE:@893jrweh", c.width / 2 + 150, 300);
+        ctx.font = "900 76px Microsoft JhengHei, sans-serif";
+        ctx.fillText("首儲1000送1000  LINE:@893jrweh", c.width / 2 + 170, 244);
         texture.needsUpdate = true;
       };
       draw();
@@ -556,7 +553,7 @@
           if (r > 238 && g > 238 && b > 238) data.data[i + 3] = 0;
         }
         tctx.putImageData(data, 0, 0);
-        ctx.drawImage(temp, 42, 82, 420, 148);
+        ctx.drawImage(temp, 46, 82, 440, 154);
         texture.needsUpdate = true;
       };
       img.src = logoSrc;
@@ -582,22 +579,13 @@
 
       const boardTex = makeBoardTexture("3A娛樂城", "assets/3a-logo.png");
       const boardMat = new THREE.MeshBasicMaterial({ map: boardTex });
-      for (const x of [-14, 0, 14]) {
-        const board = addBox([16.8, 3.7, .24], [x, 2.05, -35.1], boardMat, scene, false, false);
-        board.rotation.x = -.02;
-      }
-      for (const x of [-20, 20]) {
-        const board = addBox([13.8, 3.1, .24], [x, 1.72, -19.4], boardMat, scene, false, false);
-        board.rotation.y = x < 0 ? .68 : -.68;
-      }
+      const mainBoard = addBox([24, 4.2, .24], [0, 5.25, -36.2], boardMat, scene, false, false);
+      mainBoard.rotation.x = -.04;
 
-      for (const x of [-11, 11]) {
-        const nearBoard = addBox([13.5, 2.55, .24], [x, 1.45, -8.8], boardMat, scene, false, false);
-        nearBoard.rotation.y = x < 0 ? .24 : -.24;
+      for (const x of [-21.8, 21.8]) {
+        const sideBoard = addBox([13.8, 2.4, .24], [x, 1.55, -27.0], boardMat, scene, false, false);
+        sideBoard.rotation.y = x < 0 ? .52 : -.52;
       }
-
-      const lowBoard = addBox([22, 2.7, .24], [0, 1.52, -25.6], boardMat, scene, false, false);
-      lowBoard.rotation.x = -.02;
     }
 
     const goal = new THREE.Group();
@@ -947,8 +935,8 @@
 
       const breathe = Math.sin(t * 1.6) * .018;
       camera.position.x = Math.sin(t * .25) * .24;
-      camera.position.y = (innerWidth < 760 ? 5.35 : 4.7) + breathe;
-      camera.lookAt(0, 1.45, -23);
+      camera.position.y = (innerWidth < 760 ? 4.85 : 4.7) + breathe;
+      camera.lookAt(0, innerWidth < 760 ? 1.85 : 1.45, -24);
 
       if (!state.anim) {
         renderer.render(scene, camera);
@@ -1051,8 +1039,8 @@
       const h = innerHeight;
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
-      camera.position.z = w < 760 ? 24.2 : 18.5;
-      camera.fov = w < 760 ? 63 : 48;
+      camera.position.z = w < 760 ? 22.4 : 18.5;
+      camera.fov = w < 760 ? 60 : 48;
       camera.updateProjectionMatrix();
     }
 
