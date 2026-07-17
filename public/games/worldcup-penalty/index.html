@@ -3,908 +3,835 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>世足 12碼點球</title>
+  <title>世足 12 碼點球</title>
   <style>
-    :root {
-      --gold: #d9b66a;
-      --gold2: #f4dc9a;
-      --text: #f8fafc;
-      --muted: rgba(248,250,252,.68);
-      --glass: rgba(8,12,16,.58);
-      --line: rgba(255,255,255,.16);
-      --green: #27d17f;
-      --red: #ff4f59;
-    }
-
     * { box-sizing: border-box; }
     html, body {
       margin: 0;
       width: 100%;
-      min-height: 100%;
+      height: 100%;
       overflow: hidden;
-      background: #050607;
-      color: var(--text);
+      background: #06100b;
+      color: #fff;
       font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
     }
 
-    #scene {
+    #game {
       position: fixed;
       inset: 0;
       width: 100vw;
       height: 100vh;
       display: block;
-      background: #050607;
-    }
-
-    .vignette {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(circle at 50% 52%, transparent 0 45%, rgba(0,0,0,.44) 78%, rgba(0,0,0,.76) 100%),
-        linear-gradient(180deg, rgba(0,0,0,.28), transparent 28%, rgba(0,0,0,.34));
-      z-index: 2;
     }
 
     .hud {
       position: fixed;
-      z-index: 5;
-      left: max(18px, env(safe-area-inset-left));
-      right: max(18px, env(safe-area-inset-right));
-      top: max(16px, env(safe-area-inset-top));
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: start;
-      gap: 14px;
+      inset: 0;
       pointer-events: none;
-    }
-
-    .title-panel,
-    .score-panel,
-    .player-panel,
-    .result-panel,
-    .controls,
-    .country-dock {
-      border: 1px solid rgba(255,255,255,.16);
-      background: linear-gradient(180deg, rgba(8,12,16,.72), rgba(8,12,16,.44));
-      backdrop-filter: blur(18px);
-      box-shadow: 0 18px 54px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
-      border-radius: 22px;
-    }
-
-    .title-panel {
-      padding: 14px 16px;
-      min-width: 0;
-    }
-
-    .eyebrow {
-      color: var(--gold2);
-      font-size: 12px;
-      font-weight: 800;
-      letter-spacing: .18em;
-      text-shadow: 0 0 16px rgba(217,182,106,.25);
-    }
-
-    h1 {
-      margin: 4px 0 0;
-      font-size: clamp(24px, 5vw, 44px);
-      line-height: 1;
-      letter-spacing: .04em;
-      text-shadow: 0 8px 24px rgba(0,0,0,.46);
-    }
-
-    .score-panel {
-      min-width: 132px;
-      padding: 12px 14px;
-      text-align: center;
-    }
-
-    .score-label {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
+      z-index: 10;
     }
 
     .score {
-      margin-top: 2px;
-      font-size: clamp(28px, 5vw, 44px);
-      font-weight: 900;
-      letter-spacing: .12em;
-      color: #fff;
+      position: absolute;
+      top: max(14px, env(safe-area-inset-top));
+      left: 50%;
+      transform: translateX(-50%);
+      min-width: 230px;
+      padding: 10px 18px 12px;
+      border-radius: 18px;
+      background: rgba(4, 8, 10, .62);
+      border: 1px solid rgba(255,255,255,.18);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0,0,0,.35);
+      text-align: center;
     }
 
-    .player-panel {
-      position: fixed;
-      z-index: 5;
-      left: max(18px, env(safe-area-inset-left));
-      bottom: calc(124px + env(safe-area-inset-bottom));
-      width: min(360px, calc(100vw - 36px));
-      padding: 12px;
+    .score small {
+      display: block;
+      color: rgba(255,255,255,.72);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .18em;
+    }
+
+    .score strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 34px;
+      letter-spacing: .14em;
+      line-height: 1;
+    }
+
+    .player-card {
+      position: absolute;
+      left: max(16px, env(safe-area-inset-left));
+      bottom: max(18px, env(safe-area-inset-bottom));
+      width: min(340px, calc(100vw - 32px));
       display: grid;
       grid-template-columns: 58px 1fr;
       gap: 12px;
       align-items: center;
+      padding: 12px;
+      border-radius: 18px;
+      background: rgba(4, 8, 10, .70);
+      border: 1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0,0,0,.35);
     }
 
     .avatar {
       width: 58px;
       height: 58px;
-      border-radius: 50%;
+      border-radius: 17px;
       display: grid;
       place-items: center;
-      font-size: 22px;
-      font-weight: 900;
-      color: #101010;
-      background:
-        radial-gradient(circle at 35% 25%, rgba(255,255,255,.55), transparent 24%),
-        linear-gradient(135deg, #ffe7a5, #9c6a1e);
-      box-shadow: 0 0 34px rgba(217,182,106,.26);
+      font-size: 28px;
+      background: linear-gradient(145deg, rgba(255,255,255,.18), rgba(255,255,255,.04));
+      border: 1px solid rgba(255,255,255,.18);
     }
 
-    .player-name {
-      font-size: 20px;
-      font-weight: 900;
-      line-height: 1.15;
+    .player-card small {
+      display: block;
+      color: rgba(255,255,255,.66);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .14em;
     }
 
-    .player-meta {
+    .player-card strong {
+      display: block;
       margin-top: 4px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.35;
+      font-size: 18px;
+      line-height: 1.2;
     }
 
     .country-dock {
-      position: fixed;
-      z-index: 5;
+      pointer-events: auto;
+      position: absolute;
       left: 50%;
-      bottom: calc(18px + env(safe-area-inset-bottom));
-      width: min(720px, calc(100vw - 28px));
+      bottom: max(18px, env(safe-area-inset-bottom));
       transform: translateX(-50%);
-      padding: 10px;
-      display: grid;
-      grid-template-columns: repeat(6, 1fr);
-      gap: 8px;
-    }
-
-    .country {
-      border: 1px solid rgba(255,255,255,.14);
-      color: var(--text);
-      background: rgba(255,255,255,.06);
-      min-height: 58px;
-      border-radius: 16px;
-      cursor: pointer;
-      display: grid;
-      place-items: center;
-      gap: 2px;
-      transition: transform .18s ease, border-color .18s ease, background .18s ease;
-    }
-
-    .country.active {
-      border-color: rgba(244,220,154,.9);
-      background: linear-gradient(180deg, rgba(217,182,106,.26), rgba(255,255,255,.07));
-      transform: translateY(-3px);
-    }
-
-    .flag { font-size: 23px; line-height: 1; }
-    .country-name { font-size: 12px; font-weight: 900; }
-
-    .controls {
-      position: fixed;
-      z-index: 6;
-      right: max(18px, env(safe-area-inset-right));
-      bottom: calc(124px + env(safe-area-inset-bottom));
-      width: min(330px, calc(100vw - 36px));
-      padding: 12px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 9px;
-    }
-
-    .shoot {
-      border: 1px solid rgba(244,220,154,.5);
-      border-radius: 16px;
-      min-height: 52px;
-      color: #fff;
-      font-weight: 900;
-      font-size: 14px;
-      background:
-        radial-gradient(circle at 50% 0%, rgba(244,220,154,.22), transparent 60%),
-        linear-gradient(180deg, rgba(22,24,24,.84), rgba(8,10,11,.92));
-      box-shadow: 0 12px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
-      cursor: pointer;
-    }
-
-    .shoot:disabled {
-      opacity: .48;
-      cursor: wait;
-    }
-
-    .result-panel {
-      position: fixed;
-      z-index: 6;
-      left: 50%;
-      bottom: calc(206px + env(safe-area-inset-bottom));
-      transform: translateX(-50%);
-      width: min(460px, calc(100vw - 36px));
-      padding: 13px 16px;
-      text-align: center;
-      font-size: 18px;
-      font-weight: 900;
-      line-height: 1.45;
-    }
-
-    .result-panel small {
-      display: block;
-      margin-top: 3px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .mini-actions {
-      position: fixed;
-      z-index: 6;
-      top: max(112px, calc(88px + env(safe-area-inset-top)));
-      right: max(18px, env(safe-area-inset-right));
       display: flex;
       gap: 8px;
-    }
-
-    .mini {
-      border: 1px solid rgba(255,255,255,.16);
-      background: rgba(0,0,0,.38);
-      color: var(--text);
+      padding: 8px;
       border-radius: 999px;
-      padding: 10px 13px;
-      font-weight: 800;
+      background: rgba(4, 8, 10, .52);
+      border: 1px solid rgba(255,255,255,.14);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0,0,0,.28);
+    }
+
+    .country-dock button,
+    .controls button {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      border-radius: 999px;
+      font-weight: 900;
       cursor: pointer;
-      backdrop-filter: blur(12px);
+      transition: transform .18s ease, background .18s ease, border-color .18s ease;
+      font-family: inherit;
     }
 
-    .flash {
-      position: fixed;
-      inset: 0;
-      z-index: 4;
-      pointer-events: none;
+    .country-dock button {
+      min-width: 54px;
+      height: 40px;
+      font-size: 20px;
+    }
+
+    .country-dock button.active {
+      background: linear-gradient(135deg, rgba(0,163,255,.45), rgba(255,255,255,.12));
+      border-color: rgba(92, 204, 255, .7);
+      box-shadow: 0 0 26px rgba(0,163,255,.25);
+    }
+
+    .controls {
+      pointer-events: auto;
+      position: absolute;
+      right: max(16px, env(safe-area-inset-right));
+      bottom: max(18px, env(safe-area-inset-bottom));
+      display: grid;
+      gap: 8px;
+      width: min(300px, calc(100vw - 32px));
+      padding: 12px;
+      border-radius: 20px;
+      background: rgba(4, 8, 10, .68);
+      border: 1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 48px rgba(0,0,0,.35);
+    }
+
+    .shot-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .controls button {
+      min-height: 44px;
+      font-size: 14px;
+    }
+
+    .controls button:hover,
+    .country-dock button:hover {
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.14);
+    }
+
+    .controls button:disabled {
+      opacity: .48;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .wide {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .result {
+      position: absolute;
+      left: 50%;
+      top: 17%;
+      transform: translateX(-50%);
+      width: min(430px, calc(100vw - 28px));
+      padding: 16px;
+      border-radius: 22px;
+      background: rgba(4, 8, 10, .68);
+      border: 1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 18px 60px rgba(0,0,0,.36);
+      text-align: center;
       opacity: 0;
-      background: radial-gradient(circle at 50% 38%, rgba(255,255,255,.5), transparent 32%);
-      transition: opacity .28s ease;
+      translate: 0 -10px;
+      transition: opacity .25s ease, translate .25s ease;
     }
 
-    .flash.show { opacity: 1; }
+    .result.show {
+      opacity: 1;
+      translate: 0 0;
+    }
 
-    @media (max-width: 760px) {
-      .hud { grid-template-columns: 1fr; }
-      .score-panel { justify-self: end; margin-top: -6px; }
-      .player-panel {
-        bottom: calc(154px + env(safe-area-inset-bottom));
-        width: min(330px, calc(100vw - 28px));
+    .result strong {
+      display: block;
+      font-size: 28px;
+      margin-bottom: 6px;
+    }
+
+    .result span {
+      color: rgba(255,255,255,.78);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.5;
+    }
+
+    .hint {
+      position: absolute;
+      top: calc(max(14px, env(safe-area-inset-top)) + 78px);
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,.76);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .06em;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.36);
+      border: 1px solid rgba(255,255,255,.12);
+    }
+
+    @media (max-width: 860px) {
+      .player-card {
+        bottom: calc(max(18px, env(safe-area-inset-bottom)) + 150px);
+        width: min(300px, calc(100vw - 32px));
       }
-      .controls {
-        left: 50%;
-        right: auto;
-        bottom: calc(92px + env(safe-area-inset-bottom));
-        transform: translateX(-50%);
-        width: min(420px, calc(100vw - 28px));
-      }
+
       .country-dock {
-        grid-template-columns: repeat(3, 1fr);
+        bottom: calc(max(18px, env(safe-area-inset-bottom)) + 88px);
       }
-      .result-panel {
-        bottom: calc(238px + env(safe-area-inset-bottom));
+
+      .controls {
+        left: max(16px, env(safe-area-inset-left));
+        right: max(16px, env(safe-area-inset-right));
+        bottom: max(14px, env(safe-area-inset-bottom));
+        width: auto;
       }
+
+      .score strong { font-size: 28px; }
+      .result { top: 15%; }
     }
   </style>
 </head>
 <body>
-  <canvas id="scene"></canvas>
-  <div class="flash" id="flash"></div>
-  <div class="vignette"></div>
+  <canvas id="game"></canvas>
 
-  <header class="hud">
-    <div class="title-panel">
-      <div class="eyebrow">WORLD CUP STADIUM</div>
-      <h1>世足 12碼點球</h1>
+  <div class="hud">
+    <div class="score">
+      <small>世足 12 碼點球</small>
+      <strong id="scoreText">0 : 0</strong>
     </div>
-    <div class="score-panel">
-      <div class="score-label">五球決勝</div>
-      <div class="score"><span id="scoreUs">0</span> : <span id="scoreCpu">0</span></div>
-    </div>
-  </header>
 
-  <div class="mini-actions">
-    <button class="mini" id="resetBtn">重新開始</button>
-    <button class="mini" id="randomBtn">隨機名將</button>
+    <div class="hint" id="hintText">選擇射門方向，球員會自動助跑射門</div>
+
+    <div class="result" id="resultBox">
+      <strong id="resultTitle">準備射門</strong>
+      <span id="resultText">選擇方向後開始 12 碼。</span>
+    </div>
+
+    <div class="player-card">
+      <div class="avatar" id="flagBox">🇦🇷</div>
+      <div>
+        <small>目前射手</small>
+        <strong id="playerName">阿根廷名將</strong>
+      </div>
+    </div>
+
+    <div class="country-dock" id="countryDock"></div>
+
+    <div class="controls">
+      <div class="shot-grid">
+        <button data-shot="left">左上角</button>
+        <button data-shot="center">中路</button>
+        <button data-shot="right">右上角</button>
+      </div>
+      <div class="wide">
+        <button id="nextBtn">下一位名將</button>
+        <button id="resetBtn">重新開始</button>
+      </div>
+    </div>
   </div>
 
-  <section class="result-panel" id="resultText">
-    選擇名將，點擊射門方向。
-    <small>球場看板已啟用，準備開踢。</small>
-  </section>
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.0/build/three.module.js";
 
-  <section class="player-panel">
-    <div class="avatar" id="avatar">梅</div>
-    <div>
-      <div class="player-name" id="playerName">梅西</div>
-      <div class="player-meta" id="playerMeta">阿根廷名將｜左腳精準、冷靜推射</div>
-    </div>
-  </section>
+    const canvas = document.getElementById("game");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-  <section class="controls">
-    <button class="shoot" data-shot="left">左上角</button>
-    <button class="shoot" data-shot="center">中路</button>
-    <button class="shoot" data-shot="right">右下角</button>
-  </section>
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x7db5e8);
+    scene.fog = new THREE.Fog(0x7db5e8, 38, 135);
 
-  <section class="country-dock" id="countryDock"></section>
+    const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, .1, 220);
+    camera.position.set(0, 4.7, 18.5);
+    camera.lookAt(0, 1.4, -23);
 
-  <script>
-    const canvas = document.getElementById("scene");
-    const ctx = canvas.getContext("2d");
-    const logo = new Image();
-    logo.src = "./assets/3a-logo.png";
+    const clock = new THREE.Clock();
+    const textureLoader = new THREE.TextureLoader();
 
     const players = [
-      { country: "阿根廷", flag: "🇦🇷", name: "梅西", initials: "梅", meta: "左腳精準、冷靜推射", kit: ["#8fd5ff", "#ffffff"], skin: "#c98d62", power: 86 },
-      { country: "法國", flag: "🇫🇷", name: "姆巴佩", initials: "姆", meta: "爆發速度、右腳重砲", kit: ["#143aad", "#e43b45"], skin: "#8e5a37", power: 88 },
-      { country: "葡萄牙", flag: "🇵🇹", name: "C羅", initials: "羅", meta: "強力抽射、心理素質", kit: ["#c7232c", "#138a4a"], skin: "#c8845a", power: 90 },
-      { country: "巴西", flag: "🇧🇷", name: "內馬爾", initials: "內", meta: "節奏變化、刁鑽角度", kit: ["#ffe34f", "#20a85d"], skin: "#b8784e", power: 85 },
-      { country: "英格蘭", flag: "🏴", name: "凱恩", initials: "凱", meta: "穩定助跑、低角度射門", kit: ["#ffffff", "#d8d8d8"], skin: "#d19b75", power: 87 },
-      { country: "西班牙", flag: "🇪🇸", name: "莫拉塔", initials: "莫", meta: "禁區嗅覺、節奏停頓", kit: ["#d71920", "#f6c343"], skin: "#c48964", power: 81 }
+      { flag: "🇦🇷", country: "阿根廷", name: "阿根廷名將", kit: 0x82c9ff, shorts: 0xffffff, skin: 0xc58a63 },
+      { flag: "🇧🇷", country: "巴西", name: "巴西名將", kit: 0xf6dc32, shorts: 0x1f5faa, skin: 0x9a613f },
+      { flag: "🇫🇷", country: "法國", name: "法國名將", kit: 0x173d8f, shorts: 0xffffff, skin: 0x8a5a43 },
+      { flag: "🇵🇹", country: "葡萄牙", name: "葡萄牙名將", kit: 0xc51d2d, shorts: 0x174c2a, skin: 0xb8754d },
+      { flag: "🇪🇸", country: "西班牙", name: "西班牙名將", kit: 0xd7252c, shorts: 0x142b7c, skin: 0xc98a63 },
+      { flag: "🇯🇵", country: "日本", name: "日本名將", kit: 0x2450aa, shorts: 0xffffff, skin: 0xd0a06f }
     ];
 
-    const zones = ["left", "center", "right"];
-    const zoneLabel = { left: "左路", center: "中路", right: "右路" };
-    const $ = (id) => document.getElementById(id);
     const state = {
-      player: players[0],
-      shot: 0,
+      playerIndex: 0,
       goals: 0,
-      cpu: 0,
+      opponent: 0,
+      shots: 0,
       locked: false,
-      keeper: "center",
-      keeperPose: 0,
-      strikerPose: 0,
-      runup: 0,
-      legSwing: 0,
-      cameraShake: 0,
-      netRipple: { x: .5, y: .5, power: 0 },
-      ball: { x: .5, y: .83, z: 0, active: false, spin: 0, squash: 0 },
-      trail: [],
-      resultGlow: 0,
-      clock: 0
+      anim: null,
+      resultTimer: null,
+      autoResetTimer: null
     };
 
-    function resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(innerWidth * dpr);
-      canvas.height = Math.floor(innerHeight * dpr);
-      canvas.style.width = innerWidth + "px";
-      canvas.style.height = innerHeight + "px";
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const $ = (id) => document.getElementById(id);
+    const buttons = [...document.querySelectorAll("button")];
+
+    const mat = {
+      grass: new THREE.MeshStandardMaterial({ color: 0x248b3a, roughness: .9 }),
+      grassDark: new THREE.MeshStandardMaterial({ color: 0x1f7b32, roughness: .95 }),
+      line: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .5 }),
+      post: new THREE.MeshStandardMaterial({ color: 0xf4f7ff, roughness: .42, metalness: .08 }),
+      net: new THREE.LineBasicMaterial({ color: 0xe8f2ff, transparent: true, opacity: .62 }),
+      black: new THREE.MeshStandardMaterial({ color: 0x050505, roughness: .6 }),
+      ball: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .48 }),
+      ballDark: new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .5 })
+    };
+
+    scene.add(new THREE.HemisphereLight(0xd9eeff, 0x276334, 1.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.7);
+    sun.position.set(-13, 20, 18);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -32;
+    sun.shadow.camera.right = 32;
+    sun.shadow.camera.top = 32;
+    sun.shadow.camera.bottom = -32;
+    scene.add(sun);
+
+    function addBox(size, position, material, parent = scene, cast = true, receive = true) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(size[0], size[1], size[2]), material);
+      mesh.position.set(position[0], position[1], position[2]);
+      mesh.castShadow = cast;
+      mesh.receiveShadow = receive;
+      parent.add(mesh);
+      return mesh;
     }
 
-    function lerp(a, b, t) { return a + (b - a) * t; }
-    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-
-    function pitchPoint(x, y) {
-      const w = innerWidth;
-      const h = innerHeight;
-      const horizon = h * .34;
-      const bottom = h * 1.03;
-      const widthTop = w * .42;
-      const widthBottom = w * 1.22;
-      const py = lerp(horizon, bottom, y);
-      const half = lerp(widthTop, widthBottom, y) / 2;
-      return { x: w / 2 + (x - .5) * half * 2, y: py };
+    function addCylinder(radius, depth, position, material, parent = scene, rotation = [0, 0, 0]) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, depth, 24), material);
+      mesh.position.set(position[0], position[1], position[2]);
+      mesh.rotation.set(rotation[0], rotation[1], rotation[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
     }
 
-    function drawStadium() {
-      const w = innerWidth, h = innerHeight;
-      const sky = ctx.createLinearGradient(0, 0, 0, h);
-      sky.addColorStop(0, "#080b11");
-      sky.addColorStop(.34, "#121821");
-      sky.addColorStop(.35, "#17351f");
-      sky.addColorStop(1, "#0a2615");
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, w, h);
+    function buildPitch() {
+      addBox([42, .08, 96], [0, -.05, -23], mat.grass, scene, false, true);
+      for (let i = 0; i < 12; i += 1) {
+        const z = 22 - i * 8;
+        addBox([42, .09, 4], [0, -.03, z], i % 2 ? mat.grassDark : mat.grass, scene, false, true);
+      }
+      addBox([18.4, .05, .08], [0, .02, -33.2], mat.line, scene, false, true);
+      addBox([.08, .05, 12.5], [-9.2, .02, -27], mat.line, scene, false, true);
+      addBox([.08, .05, 12.5], [9.2, .02, -27], mat.line, scene, false, true);
+      addBox([18.4, .05, .08], [0, .02, -20.8], mat.line, scene, false, true);
+      addBox([7.5, .05, .08], [0, .025, -33.2], mat.line, scene, false, true);
+      addBox([.08, .05, 5.2], [-3.75, .025, -30.6], mat.line, scene, false, true);
+      addBox([.08, .05, 5.2], [3.75, .025, -30.6], mat.line, scene, false, true);
+      addBox([7.5, .05, .08], [0, .025, -28], mat.line, scene, false, true);
+      addCylinder(.12, .04, [0, .06, 0], mat.line, scene);
+    }
 
-      for (let i = 0; i < 7; i++) {
-        const x = (i + .5) * w / 7;
-        const g = ctx.createRadialGradient(x, h * .14, 0, x, h * .16, w * .18);
-        g.addColorStop(0, "rgba(255,255,230,.38)");
-        g.addColorStop(.28, "rgba(244,220,154,.12)");
-        g.addColorStop(1, "rgba(244,220,154,0)");
+    function makeBoardTexture(text, logoSrc) {
+      const c = document.createElement("canvas");
+      c.width = 1024;
+      c.height = 256;
+      const ctx = c.getContext("2d");
+      const texture = new THREE.CanvasTexture(c);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const draw = () => {
+        const g = ctx.createLinearGradient(0, 0, c.width, 0);
+        g.addColorStop(0, "#071214");
+        g.addColorStop(.5, "#111111");
+        g.addColorStop(1, "#09202a");
         ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h * .52);
-      }
-
-      ctx.fillStyle = "#0c1016";
-      ctx.fillRect(0, h * .19, w, h * .17);
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < Math.ceil(w / 18); c++) {
-          const sparkle = (c * 17 + r * 29 + Math.floor(state.clock * 2)) % 9;
-          ctx.fillStyle = sparkle === 0 ? "rgba(244,220,154,.75)" : sparkle < 3 ? "rgba(105,205,255,.42)" : "rgba(255,255,255,.20)";
-          ctx.beginPath();
-          ctx.arc(c * 18 + (r % 2) * 8, h * .205 + r * 13, 1.3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-
-    function drawAdBoards() {
-      const w = innerWidth, h = innerHeight;
-      const boardY = h * .355;
-      const boardH = Math.max(34, h * .045);
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,.82)";
-      ctx.fillRect(0, boardY, w, boardH);
-      ctx.strokeStyle = "rgba(217,182,106,.55)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0, boardY, w, boardH);
-
-      const text = "3A娛樂城　首儲1000送1000　LINE:@893jrweh";
-      const speed = (state.clock * 62) % 420;
-      ctx.font = `900 ${Math.max(16, boardH * .46)}px Microsoft JhengHei`;
-      ctx.textBaseline = "middle";
-      for (let x = -speed; x < w + 420; x += 420) {
-        if (logo.complete) {
-          ctx.fillStyle = "rgba(255,255,255,.95)";
-          ctx.roundRect(x + 12, boardY + 5, 96, boardH - 10, 8);
-          ctx.fill();
-          ctx.drawImage(logo, x + 18, boardY + 9, 84, boardH - 18);
-        }
-        ctx.fillStyle = "#fff0bc";
-        ctx.shadowColor = "rgba(217,182,106,.55)";
-        ctx.shadowBlur = 12;
-        ctx.fillText(text, x + 122, boardY + boardH / 2);
-        ctx.shadowBlur = 0;
-      }
-      ctx.restore();
-    }
-
-    function drawPitch() {
-      const w = innerWidth, h = innerHeight;
-      const topL = pitchPoint(.07, 0), topR = pitchPoint(.93, 0), botR = pitchPoint(1.05, 1), botL = pitchPoint(-.05, 1);
-      const grass = ctx.createLinearGradient(0, h * .35, 0, h);
-      grass.addColorStop(0, "#124c2a");
-      grass.addColorStop(.55, "#0d6a35");
-      grass.addColorStop(1, "#08421f");
-      ctx.fillStyle = grass;
-      ctx.beginPath();
-      ctx.moveTo(topL.x, topL.y);
-      ctx.lineTo(topR.x, topR.y);
-      ctx.lineTo(botR.x, botR.y);
-      ctx.lineTo(botL.x, botL.y);
-      ctx.closePath();
-      ctx.fill();
-
-      for (let i = 0; i < 10; i++) {
-        const a = pitchPoint(i / 10, 0), b = pitchPoint(i / 10, 1);
-        ctx.strokeStyle = i % 2 ? "rgba(255,255,255,.055)" : "rgba(0,0,0,.10)";
-        ctx.lineWidth = w * .06;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      }
-
-      ctx.strokeStyle = "rgba(255,255,255,.72)";
-      ctx.lineWidth = 2;
-      const boxTopL = pitchPoint(.28, .18), boxTopR = pitchPoint(.72, .18), boxBotR = pitchPoint(.82, .53), boxBotL = pitchPoint(.18, .53);
-      ctx.beginPath();
-      ctx.moveTo(boxTopL.x, boxTopL.y);
-      ctx.lineTo(boxTopR.x, boxTopR.y);
-      ctx.lineTo(boxBotR.x, boxBotR.y);
-      ctx.lineTo(boxBotL.x, boxBotL.y);
-      ctx.closePath();
-      ctx.stroke();
-
-      const spot = pitchPoint(.5, .72);
-      ctx.fillStyle = "rgba(255,255,255,.95)";
-      ctx.beginPath();
-      ctx.arc(spot.x, spot.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    function drawGoal() {
-      const w = innerWidth, h = innerHeight;
-      const cx = w / 2;
-      const y = h * .405;
-      const gw = Math.min(w * .54, 620);
-      const gh = Math.min(h * .22, 190);
-      ctx.save();
-      ctx.translate(cx - gw / 2, y - gh);
-      if (state.netRipple.power > .01) {
-        const rx = state.netRipple.x * gw;
-        const ry = state.netRipple.y * gh;
-        const glow = ctx.createRadialGradient(rx, ry, 0, rx, ry, gw * .32);
-        glow.addColorStop(0, `rgba(255,255,255,${.24 * state.netRipple.power})`);
-        glow.addColorStop(1, "rgba(255,255,255,0)");
-        ctx.fillStyle = glow;
-        ctx.fillRect(0, 0, gw, gh);
-      }
-      ctx.strokeStyle = "rgba(255,255,255,.92)";
-      ctx.lineWidth = 6;
-      ctx.strokeRect(0, 0, gw, gh);
-      ctx.strokeStyle = "rgba(255,255,255,.22)";
-      ctx.lineWidth = 1;
-      for (let x = 18; x < gw; x += 24) {
-        ctx.beginPath();
-        for (let yy = 0; yy <= gh; yy += 12) {
-          const ripple = state.netRipple.power * Math.sin((yy * .08) + state.clock * 18) * 8 * Math.max(0, 1 - Math.abs((x / gw) - state.netRipple.x) * 2.8);
-          const px = x + ripple;
-          if (yy === 0) ctx.moveTo(px, yy);
-          else ctx.lineTo(px, yy);
-        }
-        ctx.stroke();
-      }
-      for (let yy = 18; yy < gh; yy += 24) {
-        ctx.beginPath();
-        for (let x = 0; x <= gw; x += 12) {
-          const ripple = state.netRipple.power * Math.sin((x * .07) + state.clock * 18) * 7 * Math.max(0, 1 - Math.abs((yy / gh) - state.netRipple.y) * 2.8);
-          const py = yy + ripple;
-          if (x === 0) ctx.moveTo(x, py);
-          else ctx.lineTo(x, py);
-        }
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      const sideY = h * .5;
-      const adW = Math.min(180, w * .24);
-      [["left", w * .13], ["right", w * .87 - adW]].forEach(([side, x]) => {
-        ctx.save();
-        ctx.translate(x, sideY);
-        ctx.transform(1, 0, side === "left" ? -.14 : .14, 1, 0, 0);
-        ctx.fillStyle = "rgba(0,0,0,.72)";
-        ctx.strokeStyle = "rgba(217,182,106,.62)";
-        ctx.lineWidth = 1;
-        ctx.roundRect(0, 0, adW, 72, 12);
-        ctx.fill(); ctx.stroke();
-        if (logo.complete) {
-          ctx.fillStyle = "rgba(255,255,255,.96)";
-          ctx.roundRect(12, 9, adW - 24, 28, 7);
-          ctx.fill();
-          ctx.drawImage(logo, 18, 13, adW - 36, 20);
-        }
-        ctx.fillStyle = "#ffe9a9";
-        ctx.font = "900 15px Microsoft JhengHei";
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.strokeStyle = "rgba(19, 202, 220, .55)";
+        ctx.lineWidth = 6;
+        ctx.strokeRect(10, 10, c.width - 20, c.height - 20);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "900 46px Microsoft JhengHei, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(side === "left" ? "首儲1000送1000" : "LINE:@893jrweh", adW / 2, 58);
-        ctx.restore();
-      });
+        ctx.fillText(text, c.width / 2 + 70, 102);
+        ctx.fillStyle = "#ffe18a";
+        ctx.font = "900 34px Microsoft JhengHei, sans-serif";
+        ctx.fillText("首儲1000送1000　LINE:@893jrweh", c.width / 2 + 70, 162);
+        texture.needsUpdate = true;
+      };
+      draw();
+      const img = new Image();
+      img.onload = () => {
+        draw();
+        ctx.drawImage(img, 36, 58, 245, 85);
+        texture.needsUpdate = true;
+      };
+      img.src = logoSrc;
+      return texture;
     }
 
-    function drawPlayer(x, y, scale, colors, skin, pose, isKeeper = false) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.scale(scale, scale);
-      ctx.rotate(isKeeper ? pose * .18 : pose * .035);
-      const run = isKeeper ? 0 : state.runup;
-      const swing = isKeeper ? 0 : state.legSwing;
-      const keeperReach = isKeeper ? Math.abs(pose) : 0;
-
-      ctx.fillStyle = "rgba(0,0,0,.28)";
-      ctx.beginPath();
-      ctx.ellipse(0, 84, 48, 11, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = colors[0];
-      ctx.lineWidth = isKeeper ? 11 : 10;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(-24, -28); ctx.lineTo(-54 - pose * 34 - keeperReach * 36, -4 + pose * 16);
-      ctx.moveTo(24, -28); ctx.lineTo(54 + pose * 34 + keeperReach * 36, -4 - pose * 16);
-      ctx.stroke();
-
-      const shirt = ctx.createLinearGradient(-30, -40, 30, 28);
-      shirt.addColorStop(0, colors[0]); shirt.addColorStop(1, colors[1]);
-      ctx.fillStyle = shirt;
-      ctx.beginPath();
-      ctx.roundRect(-30, -50, 60, 72, 18);
-      ctx.fill();
-
-      ctx.fillStyle = "rgba(255,255,255,.16)";
-      ctx.fillRect(-24, -28, 48, 4);
-
-      ctx.fillStyle = "rgba(0,0,0,.34)";
-      ctx.beginPath();
-      ctx.roundRect(-24, 16, 48, 30, 8);
-      ctx.fill();
-
-      ctx.fillStyle = "rgba(255,255,255,.82)";
-      ctx.font = "900 18px Microsoft JhengHei";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(isKeeper ? "1" : "10", 0, -14);
-
-      ctx.fillStyle = skin;
-      ctx.beginPath();
-      ctx.arc(0 + pose * 4, -76, 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,.18)";
-      ctx.beginPath();
-      ctx.arc(-6 + pose * 4, -82, 7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(0,0,0,.52)";
-      ctx.beginPath();
-      ctx.arc(-6 + pose * 4, -76, 2, 0, Math.PI * 2);
-      ctx.arc(7 + pose * 4, -76, 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#111";
-      ctx.beginPath();
-      ctx.arc(0 + pose * 4, -86, 18, Math.PI, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = isKeeper ? "#7cffb5" : "#f2f2f2";
-      ctx.lineWidth = 12;
-      ctx.beginPath();
-      if (isKeeper) {
-        ctx.moveTo(-16, 18); ctx.lineTo(-36 - pose * 22, 70 - keeperReach * 12);
-        ctx.moveTo(16, 18); ctx.lineTo(42 + pose * 18, 68 + keeperReach * 10);
-      } else {
-        ctx.moveTo(-16, 18); ctx.lineTo(-24 - run * 18, 70 - Math.sin(run * Math.PI) * 10);
-        ctx.moveTo(16, 18); ctx.lineTo(24 + swing * 54, 70 - swing * 54);
+    function buildStadium() {
+      const seatMat = new THREE.MeshStandardMaterial({ color: 0x345e91, roughness: .72 });
+      const stairMat = new THREE.MeshStandardMaterial({ color: 0xb7c4d7, roughness: .7 });
+      for (let row = 0; row < 13; row += 1) {
+        const y = 1.1 + row * .42;
+        const z = -41.5 - row * .9;
+        for (let col = -22; col <= 22; col += 2) {
+          const seat = addBox([1.1, .18, .44], [col, y, z], seatMat, scene, false, true);
+          seat.rotation.x = -.08;
+        }
+        if (row % 3 === 0) {
+          addBox([.35, .14, 36], [-12, y + .02, z], stairMat, scene, false, true);
+          addBox([.35, .14, 36], [12, y + .02, z], stairMat, scene, false, true);
+        }
       }
-      ctx.stroke();
+      addBox([52, 5.2, .5], [0, 2.8, -52.5], new THREE.MeshStandardMaterial({ color: 0x8898a8, roughness: .8 }), scene, false, true);
 
-      ctx.fillStyle = "#0a0a0a";
-      ctx.beginPath();
-      if (isKeeper) {
-        ctx.ellipse(-38 - pose * 24, 72 - keeperReach * 12, 16, 6, pose * .5, 0, Math.PI * 2);
-        ctx.ellipse(44 + pose * 20, 70 + keeperReach * 10, 16, 6, pose * .5, 0, Math.PI * 2);
-      } else {
-        ctx.ellipse(-25 - run * 18, 74 - Math.sin(run * Math.PI) * 10, 15, 6, -.1, 0, Math.PI * 2);
-        ctx.ellipse(28 + swing * 54, 74 - swing * 54, 15, 6, -.7, 0, Math.PI * 2);
+      const boardTex = makeBoardTexture("3A娛樂城", "assets/3a-logo.png");
+      const boardMat = new THREE.MeshBasicMaterial({ map: boardTex });
+      for (const x of [-14, 0, 14]) {
+        const board = addBox([11.8, 2.2, .24], [x, 1.22, -36.4], boardMat, scene, false, false);
+        board.rotation.x = -.02;
       }
-      ctx.fill();
-      ctx.restore();
-    }
-
-    function drawBall() {
-      const p = pitchPoint(state.ball.x, state.ball.y);
-      const r = Math.max(8, 24 - state.ball.z * 11);
-      ctx.save();
-      ctx.globalAlpha = state.ball.active ? .96 : 1;
-      for (let i = 0; i < state.trail.length; i++) {
-        const t = state.trail[i];
-        const tp = pitchPoint(t.x, t.y);
-        const alpha = (i / state.trail.length) * .28;
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = i > state.trail.length - 4 ? "#ffffff" : "rgba(255,255,255,.7)";
-        ctx.beginPath();
-        ctx.ellipse(tp.x, tp.y - t.z * 70, r * 1.4, r * .38, t.angle || 0, 0, Math.PI * 2);
-        ctx.fill();
+      for (const x of [-20, 20]) {
+        const board = addBox([10.5, 2.05, .24], [x, 1.1, -22.5], boardMat, scene, false, false);
+        board.rotation.y = x < 0 ? .52 : -.52;
       }
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "rgba(0,0,0,.35)";
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y + 16, r * 1.25, r * .35, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.translate(p.x, p.y - state.ball.z * 70);
-      ctx.rotate(state.ball.spin);
-      ctx.scale(1 + state.ball.squash * .12, 1 - state.ball.squash * .08);
-      ctx.fillStyle = "#f8f8f8";
-      ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#111";
-      ctx.beginPath();
-      ctx.arc(0, 0, r * .34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,.75)";
-      ctx.lineWidth = Math.max(1, r * .12);
-      ctx.beginPath();
-      ctx.arc(0, 0, r * .68, -.8, .8);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, r * .68, 2.35, 3.95);
-      ctx.stroke();
-      ctx.fill();
-      ctx.restore();
     }
 
-    function drawActors() {
-      const keeperBase = pitchPoint(.5, .28);
-      const dive = state.keeper === "left" ? -95 : state.keeper === "right" ? 95 : 0;
-      drawPlayer(keeperBase.x + dive * state.keeperPose, keeperBase.y + 14 - Math.abs(dive) * .08 * state.keeperPose, .72, ["#30db87", "#0a6b42"], "#d6a27a", state.keeperPose * (state.keeper === "left" ? -1 : 1), true);
-      const striker = pitchPoint(.5, .83);
-      drawPlayer(striker.x, striker.y, .9, state.player.kit, state.player.skin, state.strikerPose, false);
+    const goal = new THREE.Group();
+    scene.add(goal);
+    function buildGoal() {
+      const postW = .16;
+      addBox([postW, 3.3, postW], [-3.65, 1.65, -31], mat.post, goal);
+      addBox([postW, 3.3, postW], [3.65, 1.65, -31], mat.post, goal);
+      addBox([7.45, postW, postW], [0, 3.3, -31], mat.post, goal);
+      addBox([postW, 3.05, postW], [-3.65, 1.52, -34.3], mat.post, goal);
+      addBox([postW, 3.05, postW], [3.65, 1.52, -34.3], mat.post, goal);
+      addBox([7.45, postW, postW], [0, 3.05, -34.3], mat.post, goal);
+
+      const netGroup = new THREE.Group();
+      goal.add(netGroup);
+      const addLine = (a, b) => {
+        const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+        netGroup.add(new THREE.Line(geo, mat.net));
+      };
+      for (let x = -3.6; x <= 3.61; x += .45) addLine([x, .08, -31], [x, 3.1, -34.2]);
+      for (let y = .25; y <= 3.1; y += .38) addLine([-3.6, y, -31], [3.6, y, -31]);
+      for (let y = .25; y <= 3.0; y += .38) addLine([-3.6, y, -34.2], [3.6, y, -34.2]);
+      for (let z = -31; z >= -34.25; z -= .42) addLine([-3.6, .1, z], [3.6, .1, z]);
+      goal.userData.net = netGroup;
     }
 
-    function render() {
-      state.clock += 1 / 60;
-      ctx.clearRect(0, 0, innerWidth, innerHeight);
-      const shake = state.cameraShake;
-      ctx.save();
-      if (shake > .01) ctx.translate((Math.random() - .5) * shake * 10, (Math.random() - .5) * shake * 6);
-      drawStadium();
-      drawAdBoards();
-      drawPitch();
-      drawGoal();
-      drawActors();
-      drawBall();
-      ctx.restore();
-      state.cameraShake *= .9;
-      state.netRipple.power *= .92;
-      requestAnimationFrame(render);
+    let striker;
+    let keeper;
+    let ball;
+    const trail = [];
+
+    function buildPlayerModel(options) {
+      const group = new THREE.Group();
+      const kitMat = new THREE.MeshStandardMaterial({ color: options.kit, roughness: .55, metalness: .02 });
+      const shortsMat = new THREE.MeshStandardMaterial({ color: options.shorts, roughness: .58 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: options.skin, roughness: .62 });
+      const sockMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6 });
+      const bootMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: .45 });
+
+      const parts = {};
+      parts.body = addBox([.72, 1.15, .38], [0, 1.75, 0], kitMat, group);
+      parts.head = new THREE.Mesh(new THREE.SphereGeometry(.26, 24, 18), skinMat);
+      parts.head.position.set(0, 2.48, 0);
+      parts.head.castShadow = true;
+      group.add(parts.head);
+
+      const makeLimb = (name, x, y, z, length, material, radius = .105) => {
+        const limb = new THREE.Mesh(new THREE.CapsuleGeometry(radius, length, 10, 18), material);
+        limb.position.set(x, y, z);
+        limb.castShadow = true;
+        limb.receiveShadow = true;
+        group.add(limb);
+        parts[name] = limb;
+        return limb;
+      };
+
+      parts.lArm = makeLimb("lArm", -.52, 1.82, .02, .85, skinMat, .08);
+      parts.rArm = makeLimb("rArm", .52, 1.82, .02, .85, skinMat, .08);
+      parts.lArm.rotation.z = .55;
+      parts.rArm.rotation.z = -.55;
+      parts.lLeg = makeLimb("lLeg", -.22, .86, 0, 1.0, shortsMat, .11);
+      parts.rLeg = makeLimb("rLeg", .22, .86, 0, 1.0, shortsMat, .11);
+      parts.lSock = makeLimb("lSock", -.22, .32, .02, .45, sockMat, .08);
+      parts.rSock = makeLimb("rSock", .22, .32, .02, .45, sockMat, .08);
+      parts.lBoot = addBox([.22, .11, .38], [-.22, .08, -.04], bootMat, group);
+      parts.rBoot = addBox([.22, .11, .38], [.22, .08, -.04], bootMat, group);
+      group.userData.parts = parts;
+      return group;
+    }
+
+    function setPlayer(index) {
+      state.playerIndex = index;
+      const p = players[index];
+      $("flagBox").textContent = p.flag;
+      $("playerName").textContent = `${p.country}名將`;
+      document.querySelectorAll(".country-dock button").forEach((btn, i) => btn.classList.toggle("active", i === index));
+
+      const next = buildPlayerModel(p);
+      while (striker.children.length) striker.remove(striker.children[0]);
+      next.children.slice().forEach((child) => striker.add(child));
+      striker.userData.parts = next.userData.parts;
+      resetPose();
+    }
+
+    function buildCharacters() {
+      striker = new THREE.Group();
+      striker.position.set(0, 0, 5.5);
+      striker.rotation.y = Math.PI;
+      scene.add(striker);
+
+      keeper = buildPlayerModel({ kit: 0xcc1f1f, shorts: 0x9b1010, skin: 0xb8754d });
+      keeper.position.set(0, 0, -29.7);
+      keeper.rotation.y = 0;
+      keeper.scale.set(1.05, 1.05, 1.05);
+      scene.add(keeper);
+
+      ball = new THREE.Group();
+      const sphere = new THREE.Mesh(new THREE.SphereGeometry(.24, 32, 22), mat.ball);
+      sphere.castShadow = true;
+      sphere.receiveShadow = true;
+      ball.add(sphere);
+      for (let i = 0; i < 6; i += 1) {
+        const patch = new THREE.Mesh(new THREE.CircleGeometry(.055, 6), mat.ballDark);
+        patch.position.set(Math.sin(i) * .18, Math.cos(i * 1.7) * .13, .238);
+        patch.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        ball.add(patch);
+      }
+      scene.add(ball);
+
+      const trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .16 });
+      for (let i = 0; i < 12; i += 1) {
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(.035 + i * .003, 10, 8), trailMat.clone());
+        dot.visible = false;
+        scene.add(dot);
+        trail.push(dot);
+      }
+    }
+
+    function resetPose() {
+      striker.position.set(0, 0, 5.5);
+      striker.rotation.set(0, Math.PI, 0);
+      keeper.position.set(0, 0, -29.7);
+      keeper.rotation.set(0, 0, 0);
+      ball.position.set(0, .24, 1.0);
+      ball.rotation.set(0, 0, 0);
+      goal.userData.net.scale.set(1, 1, 1);
+      trail.forEach((dot) => { dot.visible = false; dot.material.opacity = .16; });
+
+      const p = striker.userData.parts || {};
+      if (p.lArm) p.lArm.rotation.set(0, 0, .55);
+      if (p.rArm) p.rArm.rotation.set(0, 0, -.55);
+      if (p.lLeg) p.lLeg.rotation.set(0, 0, 0);
+      if (p.rLeg) p.rLeg.rotation.set(0, 0, 0);
+      const k = keeper.userData.parts || {};
+      if (k.lArm) k.lArm.rotation.set(0, 0, .85);
+      if (k.rArm) k.rArm.rotation.set(0, 0, -.85);
+      if (k.lLeg) k.lLeg.rotation.set(0, 0, 0);
+      if (k.rLeg) k.rLeg.rotation.set(0, 0, 0);
     }
 
     function renderCountries() {
       const dock = $("countryDock");
       dock.innerHTML = "";
-      players.forEach((p, index) => {
+      players.forEach((p, i) => {
         const btn = document.createElement("button");
-        btn.className = "country" + (p.name === state.player.name ? " active" : "");
-        btn.innerHTML = `<span class="flag">${p.flag}</span><span class="country-name">${p.country}</span>`;
-        btn.addEventListener("click", () => selectPlayer(index));
+        btn.type = "button";
+        btn.textContent = p.flag;
+        btn.title = p.country;
+        btn.addEventListener("click", () => {
+          if (!state.locked) setPlayer(i);
+        });
         dock.appendChild(btn);
       });
     }
 
-    function selectPlayer(index) {
-      if (state.locked) return;
-      state.player = players[index];
-      $("avatar").textContent = state.player.initials;
-      $("playerName").textContent = state.player.name;
-      $("playerMeta").textContent = `${state.player.country}名將｜${state.player.meta}`;
-      renderCountries();
+    function setButtons(disabled) {
+      buttons.forEach((button) => {
+        if (button.id === "resetBtn") return;
+        button.disabled = disabled;
+      });
+    }
+
+    function showResult(title, text, sticky = false) {
+      clearTimeout(state.resultTimer);
+      $("resultTitle").textContent = title;
+      $("resultText").textContent = text;
+      $("resultBox").classList.add("show");
+      if (!sticky) {
+        state.resultTimer = setTimeout(() => $("resultBox").classList.remove("show"), 2600);
+      }
     }
 
     function updateScore() {
-      $("scoreUs").textContent = state.goals;
-      $("scoreCpu").textContent = state.cpu;
-      document.querySelectorAll(".shoot").forEach((b) => b.disabled = state.locked || state.shot >= 5);
+      $("scoreText").textContent = `${state.goals} : ${state.opponent}`;
+      $("hintText").textContent = `第 ${Math.min(state.shots + 1, 12)} 球｜${players[state.playerIndex].country}名將主罰`;
     }
 
-    function resetBall() {
-      state.ball = { x: .5, y: .83, z: 0, active: false };
-      state.trail = [];
-      state.keeper = "center";
-      state.keeperPose = 0;
-      state.strikerPose = 0;
-      state.runup = 0;
-      state.legSwing = 0;
-      state.cameraShake = 0;
-      state.netRipple = { x: .5, y: .5, power: 0 };
+    function chooseOutcome(zone) {
+      const roll = Math.random();
+      const targetX = zone === "left" ? -2.7 : zone === "right" ? 2.7 : (Math.random() - .5) * .9;
+      const targetY = zone === "center" ? 1.55 : 2.28 + Math.random() * .38;
+      const saved = roll > .72 && roll <= .9;
+      const miss = roll > .9;
+      const goal = !saved && !miss;
+      return {
+        zone,
+        goal,
+        saved,
+        miss,
+        cpuGoal: Math.random() > .34,
+        keeperDive: saved ? zone : ["left", "center", "right"][Math.floor(Math.random() * 3)],
+        target: {
+          x: miss ? targetX * 1.45 : targetX,
+          y: miss ? targetY + .9 : targetY,
+          z: goal ? -32.35 : -30.8
+        }
+      };
     }
 
-    function setResult(title, sub = "") {
-      $("resultText").innerHTML = `${title}${sub ? `<small>${sub}</small>` : ""}`;
-    }
-
-    function finishMatch() {
-      if (state.goals > state.cpu) setResult("點球大戰勝利", "全場歡呼，名將完成致勝一擊。");
-      else if (state.goals === state.cpu) setResult("雙方平手", "壓力還在，下一輪重新開始。");
-      else setResult("守門員守住勝利", "調整角度，再挑戰一次。");
-    }
-
-    function shoot(zone) {
-      if (state.locked || state.shot >= 5) return;
+    function kick(zone) {
+      if (state.locked) return;
+      if (state.shots >= 12) resetGame();
+      clearTimeout(state.autoResetTimer);
       state.locked = true;
-      updateScore();
-      setResult("助跑中...", "看準角度，準備起腳。");
+      setButtons(true);
+      $("resultBox").classList.remove("show");
+      resetPose();
+      state.anim = {
+        start: performance.now(),
+        duration: 2100,
+        outcome: chooseOutcome(zone),
+        trailPoints: []
+      };
+    }
 
-      const keeper = zones[Math.floor(Math.random() * zones.length)];
-      const quality = state.player.power + Math.floor(Math.random() * 18) - 9;
-      const onTarget = quality >= 73 || zone === "center";
-      const saved = onTarget && keeper === zone && Math.random() > .2;
-      const goal = onTarget && !saved;
-      const cpuGoal = Math.random() > .4;
-      const goalX = zone === "left" ? .29 : zone === "right" ? .71 : .5;
-      const goalY = zone === "center" ? .31 : .2;
-      const missSide = zone === "left" ? -.08 : zone === "right" ? 1.08 : .5;
-      const missHigh = zone === "center" ? .13 : .16;
-      const saveX = keeper === "left" ? .24 : keeper === "right" ? .76 : .5;
-      const saveY = keeper === "center" ? .38 : .26;
-      const targetX = goal ? goalX : saved ? saveX : missSide;
-      const targetY = goal ? goalY : saved ? saveY : missHigh;
-      const start = performance.now();
+    function finishShot(outcome) {
+      state.shots += 1;
+      if (outcome.goal) state.goals += 1;
+      if (outcome.cpuGoal) state.opponent += 1;
 
-      state.keeper = keeper;
-      state.ball.active = true;
-      state.trail = [];
-      state.runup = 0;
-      state.legSwing = 0;
-      state.cameraShake = 0;
-      state.netRipple = { x: goalX, y: goalY, power: 0 };
-
-      function animate(now) {
-        const elapsed = now - start;
-        const runT = Math.min(1, elapsed / 360);
-        const kickT = Math.min(1, Math.max(0, elapsed - 260) / 250);
-        const flyT = Math.min(1, Math.max(0, elapsed - 440) / 760);
-        const settleT = Math.min(1, Math.max(0, elapsed - 1120) / 340);
-        const e = easeOutCubic(flyT);
-
-        state.runup = Math.sin(runT * Math.PI * 2.8) * (1 - Math.min(1, kickT));
-        state.legSwing = Math.sin(kickT * Math.PI) * 1.2;
-        state.strikerPose = state.runup * .55 + state.legSwing * .9;
-        state.keeperPose = easeOutCubic(Math.max(0, flyT - .16) / .84);
-
-        if (flyT > 0) {
-          const curve = zone === "left" ? -.035 : zone === "right" ? .035 : 0;
-          const bend = Math.sin(flyT * Math.PI) * curve;
-          state.ball.x = lerp(.5, targetX, e) + bend;
-          state.ball.y = lerp(.83, targetY, e);
-          state.ball.z = Math.sin(flyT * Math.PI) * (goal ? .92 : saved ? .68 : 1.05);
-          state.ball.spin += (zone === "left" ? -1 : zone === "right" ? 1 : .65) * .48;
-          state.ball.squash = Math.max(0, Math.sin(kickT * Math.PI)) * .7;
-          state.cameraShake = Math.max(state.cameraShake, .22 * (1 - flyT));
-        } else {
-          state.ball.x = .5;
-          state.ball.y = .83;
-          state.ball.z = 0;
-          state.ball.squash = Math.sin(kickT * Math.PI) * .8;
-        }
-
-        if (saved && flyT > .78) {
-          const deflect = easeOutCubic((flyT - .78) / .22);
-          state.ball.x += (keeper === "left" ? -.16 : keeper === "right" ? .16 : .04) * deflect;
-          state.ball.y += .06 * deflect;
-          state.ball.z *= (1 - .35 * deflect);
-        }
-
-        if (goal && flyT > .9) {
-          state.netRipple.power = Math.max(state.netRipple.power, (flyT - .9) * 8);
-          state.cameraShake = Math.max(state.cameraShake, .42 * (1 - settleT));
-        }
-
-        if (!goal && !saved && flyT > .88) {
-          state.ball.z += .35 * ((flyT - .88) / .12);
-        }
-
-        if (flyT > 0) state.trail.push({ x: state.ball.x, y: state.ball.y, z: state.ball.z, angle: state.ball.spin });
-        if (state.trail.length > 10) state.trail.shift();
-
-        if (settleT < 1) requestAnimationFrame(animate);
-        else {
-          state.shot += 1;
-          if (goal) state.goals += 1;
-          if (cpuGoal) state.cpu += 1;
-          const flash = $("flash");
-          if (goal) {
-            state.ball.x = goalX;
-            state.ball.y = goalY + .035;
-            state.ball.z = .12;
-            state.netRipple.power = 1;
-            flash.classList.add("show");
-            setTimeout(() => flash.classList.remove("show"), 130);
-            setResult("進球！球鑽進網內", `${state.player.name} 射向${zoneLabel[zone]}，皮球撞網彈回。`);
-          } else if (saved) {
-            setResult("未進！守門員撲出", `射向${zoneLabel[zone]}，門將撲${zoneLabel[keeper]}成功擋下。`);
-          } else {
-            setResult("未進！皮球飛出門框", zone === "center" ? "球速太高，直接越過橫樑。" : "角度太刁，擦著門柱外側飛出。");
-          }
-          if (state.shot >= 5) setTimeout(finishMatch, 900);
-          state.locked = false;
-          updateScore();
-        }
+      if (outcome.goal) {
+        ball.position.set(outcome.target.x, outcome.target.y - .45, -32.85);
+        showResult("進球！", `皮球鑽進網內，${players[state.playerIndex].country}名將冷靜命中。`);
+      } else if (outcome.saved) {
+        ball.position.x += outcome.keeperDive === "left" ? -1.2 : outcome.keeperDive === "right" ? 1.2 : .35;
+        ball.position.z += .9;
+        showResult("未進！", "守門員判斷正確，完成撲救。");
+      } else {
+        showResult("未進！", "射門力量過大，皮球飛出門框。");
       }
+
+      if (state.shots >= 12) {
+        const finalText = state.goals > state.opponent
+          ? "12 碼結束，你拿下這場點球戰。"
+          : state.goals === state.opponent
+            ? "12 碼結束，雙方踢成平手。"
+            : "12 碼結束，守門員守住勝利。";
+        setTimeout(() => showResult("點球戰結束", finalText, true), 850);
+        state.autoResetTimer = setTimeout(() => resetGame(), 4300);
+      } else {
+        setTimeout(() => {
+          state.playerIndex = (state.playerIndex + 1) % players.length;
+          setPlayer(state.playerIndex);
+          resetPose();
+        }, 900);
+      }
+
+      state.locked = false;
+      state.anim = null;
+      setButtons(false);
+      updateScore();
+    }
+
+    function animate() {
+      const dt = clock.getDelta();
+      const t = clock.elapsedTime;
+
+      const breathe = Math.sin(t * 1.6) * .018;
+      camera.position.x = Math.sin(t * .25) * .24;
+      camera.position.y = 4.7 + breathe;
+      camera.lookAt(0, 1.45, -23);
+
+      if (!state.anim) {
+        renderer.render(scene, camera);
+        requestAnimationFrame(animate);
+        return;
+      }
+
+      const anim = state.anim;
+      const outcome = anim.outcome;
+      const p = Math.min(1, (performance.now() - anim.start) / anim.duration);
+      const run = Math.min(1, p / .34);
+      const swing = Math.max(0, Math.min(1, (p - .26) / .24));
+      const fly = Math.max(0, Math.min(1, (p - .38) / .48));
+      const settle = Math.max(0, (p - .88) / .12);
+
+      striker.position.z = THREE.MathUtils.lerp(5.5, 1.25, run);
+      striker.position.y = Math.sin(run * Math.PI * 7) * .035;
+      const sp = striker.userData.parts || {};
+      if (sp.rLeg) sp.rLeg.rotation.x = -Math.sin(swing * Math.PI) * 1.45;
+      if (sp.lLeg) sp.lLeg.rotation.x = Math.sin(run * Math.PI * 5.5) * .28;
+      if (sp.lArm) sp.lArm.rotation.z = .55 + Math.sin(run * Math.PI * 5) * .18;
+      if (sp.rArm) sp.rArm.rotation.z = -.55 - Math.sin(swing * Math.PI) * .38;
+
+      const dive = Math.max(0, (fly - .04) / .86);
+      const diveX = outcome.keeperDive === "left" ? -2.7 : outcome.keeperDive === "right" ? 2.7 : 0;
+      keeper.position.x = diveX * Math.min(1, dive);
+      keeper.position.y = outcome.keeperDive === "center" ? 0 : Math.sin(Math.min(1, dive) * Math.PI) * .62;
+      keeper.rotation.z = outcome.keeperDive === "left" ? .96 * dive : outcome.keeperDive === "right" ? -.96 * dive : 0;
+      const kp = keeper.userData.parts || {};
+      if (kp.lArm) kp.lArm.rotation.z = .85 + dive * .72;
+      if (kp.rArm) kp.rArm.rotation.z = -.85 - dive * .72;
+
+      if (fly > 0) {
+        const e = 1 - Math.pow(1 - fly, 3);
+        const curve = outcome.zone === "left" ? -.28 : outcome.zone === "right" ? .28 : .06;
+        ball.position.x = THREE.MathUtils.lerp(0, outcome.target.x, e) + Math.sin(fly * Math.PI) * curve;
+        ball.position.z = THREE.MathUtils.lerp(1.0, outcome.target.z, e);
+        ball.position.y = THREE.MathUtils.lerp(.24, outcome.target.y, e) + Math.sin(fly * Math.PI) * (outcome.goal ? 1.08 : 1.48);
+        ball.rotation.x += .52;
+        ball.rotation.y += outcome.zone === "left" ? -.35 : .35;
+        anim.trailPoints.unshift(ball.position.clone());
+        anim.trailPoints.length = Math.min(anim.trailPoints.length, trail.length);
+        trail.forEach((dot, i) => {
+          if (!anim.trailPoints[i]) return;
+          dot.position.copy(anim.trailPoints[i]);
+          dot.visible = true;
+          dot.material.opacity = Math.max(.02, .18 - i * .012);
+        });
+      }
+
+      if (outcome.goal && fly > .82) {
+        const pulse = Math.sin((fly - .82) / .18 * Math.PI);
+        goal.userData.net.scale.z = 1 + pulse * .22;
+      }
+
+      if (settle >= 1) finishShot(outcome);
+
+      renderer.render(scene, camera);
       requestAnimationFrame(animate);
     }
 
     function resetGame() {
-      state.shot = 0;
       state.goals = 0;
-      state.cpu = 0;
+      state.opponent = 0;
+      state.shots = 0;
       state.locked = false;
-      resetBall();
-      setResult("選擇名將，點擊射門方向。", "球場看板已啟用，準備開踢。");
+      state.anim = null;
+      clearTimeout(state.autoResetTimer);
+      setButtons(false);
+      setPlayer(state.playerIndex);
+      resetPose();
+      showResult("準備射門", "選擇方向後開始 12 碼。");
       updateScore();
     }
 
-    document.querySelectorAll(".shoot").forEach((b) => b.addEventListener("click", () => shoot(b.dataset.shot)));
-    $("resetBtn").addEventListener("click", resetGame);
-    $("randomBtn").addEventListener("click", () => selectPlayer(Math.floor(Math.random() * players.length)));
-    window.addEventListener("resize", resize);
+    function resize() {
+      const w = innerWidth;
+      const h = innerHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h;
+      camera.position.z = w < 760 ? 20.5 : 18.5;
+      camera.fov = w < 760 ? 56 : 48;
+      camera.updateProjectionMatrix();
+    }
 
+    buildPitch();
+    buildStadium();
+    buildGoal();
+    buildCharacters();
+    renderCountries();
+    setPlayer(0);
+    resetGame();
+
+    document.querySelectorAll("[data-shot]").forEach((button) => {
+      button.addEventListener("click", () => kick(button.dataset.shot));
+    });
+    $("nextBtn").addEventListener("click", () => {
+      if (!state.locked) setPlayer((state.playerIndex + 1) % players.length);
+    });
+    $("resetBtn").addEventListener("click", resetGame);
+    addEventListener("resize", resize);
     resize();
-    selectPlayer(0);
-    updateScore();
-    render();
+    requestAnimationFrame(animate);
   </script>
 </body>
 </html>
