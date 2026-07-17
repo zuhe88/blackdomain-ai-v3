@@ -861,9 +861,9 @@
       const roll = Math.random();
       const aimX = zone === "left" ? -2.65 : zone === "right" ? 2.65 : (Math.random() - .5) * .7;
       const aimY = zone === "center" ? 1.45 : 2.18 + Math.random() * .42;
-      const streakPressure = Math.min(.12, Math.max(0, state.goals - state.misses) * .025);
-      const saveChance = (zone === "center" ? .48 : .34) + streakPressure;
-      const missChance = zone === "center" ? .10 : .20;
+      const streakPressure = Math.min(.18, Math.max(0, state.goals - state.misses) * .04);
+      const saveChance = (zone === "center" ? .58 : .42) + streakPressure;
+      const missChance = zone === "center" ? .12 : .28;
       const saved = roll < saveChance;
       const miss = !saved && roll < saveChance + missChance;
       const goal = !saved && !miss;
