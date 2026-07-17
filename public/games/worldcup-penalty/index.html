@@ -246,24 +246,119 @@
     }
 
     @media (max-width: 860px) {
+      .score {
+        top: max(8px, env(safe-area-inset-top));
+        min-width: 186px;
+        padding: 8px 13px 9px;
+        border-radius: 15px;
+      }
+
+      .score small {
+        font-size: 10px;
+        letter-spacing: .12em;
+      }
+
+      .hint {
+        top: calc(max(8px, env(safe-area-inset-top)) + 62px);
+        width: max-content;
+        max-width: calc(100vw - 28px);
+        font-size: 11px;
+        white-space: nowrap;
+      }
+
       .player-card {
-        bottom: calc(max(18px, env(safe-area-inset-bottom)) + 150px);
-        width: min(300px, calc(100vw - 32px));
+        top: calc(max(8px, env(safe-area-inset-top)) + 96px);
+        bottom: auto;
+        left: max(10px, env(safe-area-inset-left));
+        width: min(270px, calc(100vw - 20px));
+        grid-template-columns: 48px 1fr;
+        gap: 9px;
+        padding: 9px;
+        border-radius: 16px;
+      }
+
+      .avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        font-size: 13px;
+      }
+
+      .player-card small {
+        font-size: 10px;
+      }
+
+      .player-card strong {
+        font-size: 15px;
       }
 
       .country-dock {
-        bottom: calc(max(18px, env(safe-area-inset-bottom)) + 88px);
+        left: max(10px, env(safe-area-inset-left));
+        right: max(10px, env(safe-area-inset-right));
+        bottom: calc(max(14px, env(safe-area-inset-bottom)) + 106px);
+        transform: none;
+        overflow-x: auto;
+        scrollbar-width: none;
+        justify-content: flex-start;
+        border-radius: 18px;
+        padding: 7px;
+      }
+
+      .country-dock::-webkit-scrollbar {
+        display: none;
+      }
+
+      .country-dock button {
+        min-width: 70px;
+        height: 34px;
+        padding: 0 10px;
+        font-size: 12px;
+        flex: 0 0 auto;
       }
 
       .controls {
-        left: max(16px, env(safe-area-inset-left));
-        right: max(16px, env(safe-area-inset-right));
-        bottom: max(14px, env(safe-area-inset-bottom));
+        left: max(10px, env(safe-area-inset-left));
+        right: max(10px, env(safe-area-inset-right));
+        bottom: max(10px, env(safe-area-inset-bottom));
         width: auto;
+        padding: 9px;
+        border-radius: 18px;
       }
 
-      .score strong { font-size: 28px; }
-      .result { top: 15%; }
+      .controls button {
+        min-height: 38px;
+        font-size: 12px;
+      }
+
+      .shot-grid,
+      .wide {
+        gap: 7px;
+      }
+
+      .score strong { font-size: 24px; }
+      .result {
+        top: 35%;
+        width: min(330px, calc(100vw - 24px));
+        padding: 13px;
+      }
+
+      .result strong {
+        font-size: 22px;
+      }
+    }
+
+    @media (max-width: 430px) and (max-height: 760px) {
+      .player-card {
+        top: calc(max(8px, env(safe-area-inset-top)) + 86px);
+      }
+
+      .country-dock {
+        bottom: calc(max(10px, env(safe-area-inset-bottom)) + 96px);
+      }
+
+      .controls button {
+        min-height: 34px;
+      }
     }
   </style>
 </head>
@@ -482,12 +577,12 @@
       const boardTex = makeBoardTexture("3A娛樂城", "assets/3a-logo.png");
       const boardMat = new THREE.MeshBasicMaterial({ map: boardTex });
       for (const x of [-14, 0, 14]) {
-        const board = addBox([14.8, 3.1, .24], [x, 1.75, -36.0], boardMat, scene, false, false);
+        const board = addBox([16.8, 3.7, .24], [x, 2.05, -35.1], boardMat, scene, false, false);
         board.rotation.x = -.02;
       }
       for (const x of [-20, 20]) {
-        const board = addBox([12.5, 2.65, .24], [x, 1.42, -22.0], boardMat, scene, false, false);
-        board.rotation.y = x < 0 ? .52 : -.52;
+        const board = addBox([13.8, 3.1, .24], [x, 1.72, -19.4], boardMat, scene, false, false);
+        board.rotation.y = x < 0 ? .68 : -.68;
       }
     }
 
@@ -756,8 +851,10 @@
       const roll = Math.random();
       const aimX = zone === "left" ? -2.65 : zone === "right" ? 2.65 : (Math.random() - .5) * .7;
       const aimY = zone === "center" ? 1.45 : 2.18 + Math.random() * .42;
-      const saved = roll > .68 && roll <= .88;
-      const miss = roll > .88;
+      const saveChance = zone === "center" ? .38 : .26;
+      const missChance = zone === "center" ? .08 : .16;
+      const saved = roll < saveChance;
+      const miss = !saved && roll < saveChance + missChance;
       const goal = !saved && !miss;
       const keeperDive = saved
         ? zone
@@ -766,8 +863,14 @@
           : zone === "right"
             ? "left"
             : (Math.random() > .5 ? "left" : "right");
+      const savePoint = { x: zone === "left" ? -2.45 : zone === "right" ? 2.45 : 0, y: zone === "center" ? 1.35 : 2.08, z: -29.35 };
+      const deflectTarget = {
+        x: savePoint.x + (zone === "left" ? -1.05 : zone === "right" ? 1.05 : .55),
+        y: Math.max(.42, savePoint.y - .55),
+        z: -27.7
+      };
       const target = saved
-        ? { x: zone === "left" ? -2.35 : zone === "right" ? 2.35 : 0, y: zone === "center" ? 1.35 : 2.05, z: -29.95 }
+        ? savePoint
         : miss
           ? { x: zone === "left" ? -4.6 : zone === "right" ? 4.6 : aimX, y: zone === "center" ? 3.95 : 3.45, z: -30.6 }
           : { x: aimX, y: aimY, z: -32.7 };
@@ -777,7 +880,10 @@
         saved,
         miss,
         keeperDive,
-        target
+        target,
+        savePoint,
+        deflectTarget,
+        impactFly: .62
       };
     }
 
@@ -806,8 +912,7 @@
         const p = players[state.playerIndex];
         showResult("進球！", `皮球鑽進網內，${p.country} ${p.name} 冷靜命中。`);
       } else if (outcome.saved) {
-        ball.position.x += outcome.keeperDive === "left" ? -1.2 : outcome.keeperDive === "right" ? 1.2 : .35;
-        ball.position.z += .9;
+        ball.position.set(outcome.deflectTarget.x, outcome.deflectTarget.y, outcome.deflectTarget.z);
         showResult("未進！", "守門員判斷正確，完成撲救。");
       } else {
         showResult("未進！", "射門力量過大，皮球飛出門框。");
@@ -828,7 +933,7 @@
 
       const breathe = Math.sin(t * 1.6) * .018;
       camera.position.x = Math.sin(t * .25) * .24;
-      camera.position.y = 4.7 + breathe;
+      camera.position.y = (innerWidth < 760 ? 5.35 : 4.7) + breathe;
       camera.lookAt(0, 1.45, -23);
 
       if (!state.anim) {
@@ -861,13 +966,35 @@
       const kp = keeper.userData.parts || {};
       if (kp.lArm) kp.lArm.rotation.z = .85 + dive * .72;
       if (kp.rArm) kp.rArm.rotation.z = -.85 - dive * .72;
+      if (outcome.saved && fly > outcome.impactFly - .05) {
+        const block = Math.max(0, 1 - Math.abs(fly - outcome.impactFly) / .12);
+        ball.scale.set(1 + block * .18, 1 - block * .12, 1 + block * .08);
+      } else {
+        ball.scale.set(1, 1, 1);
+      }
 
       if (fly > 0) {
-        const e = 1 - Math.pow(1 - fly, 3);
-        const curve = outcome.zone === "left" ? -.28 : outcome.zone === "right" ? .28 : .06;
-        ball.position.x = THREE.MathUtils.lerp(0, outcome.target.x, e) + Math.sin(fly * Math.PI) * curve;
-        ball.position.z = THREE.MathUtils.lerp(1.0, outcome.target.z, e);
-        ball.position.y = THREE.MathUtils.lerp(.24, outcome.target.y, e) + Math.sin(fly * Math.PI) * (outcome.goal ? 1.08 : 1.48);
+        if (outcome.saved) {
+          const impact = outcome.impactFly;
+          if (fly <= impact) {
+            const e = 1 - Math.pow(1 - fly / impact, 3);
+            const curve = outcome.zone === "left" ? -.18 : outcome.zone === "right" ? .18 : .03;
+            ball.position.x = THREE.MathUtils.lerp(0, outcome.savePoint.x, e) + Math.sin((fly / impact) * Math.PI) * curve;
+            ball.position.z = THREE.MathUtils.lerp(1.0, outcome.savePoint.z, e);
+            ball.position.y = THREE.MathUtils.lerp(.24, outcome.savePoint.y, e) + Math.sin((fly / impact) * Math.PI) * .9;
+          } else {
+            const e = 1 - Math.pow(1 - (fly - impact) / (1 - impact), 2);
+            ball.position.x = THREE.MathUtils.lerp(outcome.savePoint.x, outcome.deflectTarget.x, e);
+            ball.position.z = THREE.MathUtils.lerp(outcome.savePoint.z, outcome.deflectTarget.z, e);
+            ball.position.y = THREE.MathUtils.lerp(outcome.savePoint.y, outcome.deflectTarget.y, e) + Math.sin(e * Math.PI) * .22;
+          }
+        } else {
+          const e = 1 - Math.pow(1 - fly, 3);
+          const curve = outcome.zone === "left" ? -.28 : outcome.zone === "right" ? .28 : .06;
+          ball.position.x = THREE.MathUtils.lerp(0, outcome.target.x, e) + Math.sin(fly * Math.PI) * curve;
+          ball.position.z = THREE.MathUtils.lerp(1.0, outcome.target.z, e);
+          ball.position.y = THREE.MathUtils.lerp(.24, outcome.target.y, e) + Math.sin(fly * Math.PI) * (outcome.goal ? 1.08 : 1.48);
+        }
         ball.rotation.x += .52;
         ball.rotation.y += outcome.zone === "left" ? -.35 : .35;
         anim.trailPoints.unshift(ball.position.clone());
@@ -910,8 +1037,8 @@
       const h = innerHeight;
       renderer.setSize(w, h, false);
       camera.aspect = w / h;
-      camera.position.z = w < 760 ? 20.5 : 18.5;
-      camera.fov = w < 760 ? 56 : 48;
+      camera.position.z = w < 760 ? 24.2 : 18.5;
+      camera.fov = w < 760 ? 63 : 48;
       camera.updateProjectionMatrix();
     }
 
