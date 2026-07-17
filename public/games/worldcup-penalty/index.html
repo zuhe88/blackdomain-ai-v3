@@ -521,16 +521,22 @@
         g.addColorStop(1, "#09202a");
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, c.width, c.height);
-        ctx.strokeStyle = "rgba(19, 202, 220, .72)";
-        ctx.lineWidth = 9;
-        ctx.strokeRect(14, 14, c.width - 28, c.height - 28);
+        ctx.fillStyle = "rgba(0, 225, 255, .12)";
+        ctx.fillRect(0, 0, c.width, 42);
+        ctx.fillRect(0, c.height - 42, c.width, 42);
+        ctx.strokeStyle = "rgba(19, 202, 220, .92)";
+        ctx.lineWidth = 12;
+        ctx.strokeRect(16, 16, c.width - 32, c.height - 32);
         ctx.fillStyle = "#ffffff";
-        ctx.font = "900 78px Microsoft JhengHei, sans-serif";
+        ctx.font = "900 96px Microsoft JhengHei, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText(text, c.width / 2 + 135, 136);
+        ctx.fillText(text, c.width / 2 + 150, 140);
         ctx.fillStyle = "#ffe18a";
-        ctx.font = "900 58px Microsoft JhengHei, sans-serif";
-        ctx.fillText("首儲1000送1000　LINE:@893jrweh", c.width / 2 + 135, 228);
+        ctx.font = "900 72px Microsoft JhengHei, sans-serif";
+        ctx.fillText("首儲1000送1000", c.width / 2 + 150, 230);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "900 46px Microsoft JhengHei, sans-serif";
+        ctx.fillText("LINE:@893jrweh", c.width / 2 + 150, 300);
         texture.needsUpdate = true;
       };
       draw();
@@ -550,7 +556,7 @@
           if (r > 238 && g > 238 && b > 238) data.data[i + 3] = 0;
         }
         tctx.putImageData(data, 0, 0);
-        ctx.drawImage(temp, 46, 90, 360, 126);
+        ctx.drawImage(temp, 42, 82, 420, 148);
         texture.needsUpdate = true;
       };
       img.src = logoSrc;
@@ -584,6 +590,14 @@
         const board = addBox([13.8, 3.1, .24], [x, 1.72, -19.4], boardMat, scene, false, false);
         board.rotation.y = x < 0 ? .68 : -.68;
       }
+
+      for (const x of [-11, 11]) {
+        const nearBoard = addBox([13.5, 2.55, .24], [x, 1.45, -8.8], boardMat, scene, false, false);
+        nearBoard.rotation.y = x < 0 ? .24 : -.24;
+      }
+
+      const lowBoard = addBox([22, 2.7, .24], [0, 1.52, -25.6], boardMat, scene, false, false);
+      lowBoard.rotation.x = -.02;
     }
 
     const goal = new THREE.Group();
