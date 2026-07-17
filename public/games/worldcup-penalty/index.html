@@ -6,666 +6,644 @@
   <title>世足 12碼點球</title>
   <style>
     :root {
-      --bg: #060708;
-      --panel: rgba(12, 15, 18, .86);
-      --panel-2: rgba(22, 26, 29, .76);
-      --line: rgba(255, 255, 255, .13);
-      --gold: #d8b764;
-      --green: #31d47b;
-      --red: #ff5d5d;
-      --blue: #68d8ff;
-      --text: #f7f8fa;
-      --muted: #9fa8b4;
-      --shadow: 0 24px 70px rgba(0, 0, 0, .45);
+      --gold: #d9b66a;
+      --gold2: #f4dc9a;
+      --text: #f8fafc;
+      --muted: rgba(248,250,252,.68);
+      --glass: rgba(8,12,16,.58);
+      --line: rgba(255,255,255,.16);
+      --green: #27d17f;
+      --red: #ff4f59;
     }
 
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif; }
-    body {
-      min-height: 100vh;
-      overflow-x: hidden;
-      background:
-        radial-gradient(circle at 50% -20%, rgba(216,183,100,.20), transparent 32%),
-        radial-gradient(circle at 12% 20%, rgba(104,216,255,.12), transparent 24%),
-        linear-gradient(180deg, #060708 0%, #0d1210 48%, #061008 100%);
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      overflow: hidden;
+      background: #050607;
+      color: var(--text);
+      font-family: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
     }
 
-    .pitch-lines {
+    #scene {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      background: #050607;
+    }
+
+    .vignette {
       position: fixed;
       inset: 0;
       pointer-events: none;
-      opacity: .22;
       background:
-        linear-gradient(90deg, transparent 49.8%, rgba(255,255,255,.16) 50%, transparent 50.2%),
-        linear-gradient(0deg, transparent 14%, rgba(255,255,255,.10) 14.15%, transparent 14.35%),
-        linear-gradient(0deg, transparent 84%, rgba(255,255,255,.10) 84.15%, transparent 84.35%),
-        repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 86px);
+        radial-gradient(circle at 50% 52%, transparent 0 45%, rgba(0,0,0,.44) 78%, rgba(0,0,0,.76) 100%),
+        linear-gradient(180deg, rgba(0,0,0,.28), transparent 28%, rgba(0,0,0,.34));
+      z-index: 2;
     }
 
-    .app {
-      width: min(440px, 100%);
-      min-height: 100vh;
-      margin: 0 auto;
-      padding: 18px 14px 26px;
-      position: relative;
+    .hud {
+      position: fixed;
+      z-index: 5;
+      left: max(18px, env(safe-area-inset-left));
+      right: max(18px, env(safe-area-inset-right));
+      top: max(16px, env(safe-area-inset-top));
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: start;
+      gap: 14px;
+      pointer-events: none;
     }
 
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
+    .title-panel,
+    .score-panel,
+    .player-panel,
+    .result-panel,
+    .controls,
+    .country-dock {
+      border: 1px solid rgba(255,255,255,.16);
+      background: linear-gradient(180deg, rgba(8,12,16,.72), rgba(8,12,16,.44));
+      backdrop-filter: blur(18px);
+      box-shadow: 0 18px 54px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
+      border-radius: 22px;
     }
 
-    .brand {
+    .title-panel {
+      padding: 14px 16px;
       min-width: 0;
     }
 
     .eyebrow {
-      color: var(--gold);
+      color: var(--gold2);
       font-size: 12px;
-      letter-spacing: .14em;
-      font-weight: 700;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-shadow: 0 0 16px rgba(217,182,106,.25);
     }
 
     h1 {
-      margin: 3px 0 0;
-      font-size: 28px;
-      line-height: 1.1;
+      margin: 4px 0 0;
+      font-size: clamp(24px, 5vw, 44px);
+      line-height: 1;
       letter-spacing: .04em;
+      text-shadow: 0 8px 24px rgba(0,0,0,.46);
     }
 
-    .scoreboard {
-      flex: 0 0 auto;
-      min-width: 112px;
-      padding: 10px 12px;
-      border: 1px solid rgba(216,183,100,.42);
-      border-radius: 18px;
-      background: rgba(0,0,0,.36);
+    .score-panel {
+      min-width: 132px;
+      padding: 12px 14px;
       text-align: center;
-      box-shadow: 0 0 26px rgba(216,183,100,.08);
     }
 
-    .score-label { color: var(--muted); font-size: 11px; }
-    .score-value { font-size: 24px; font-weight: 800; letter-spacing: .12em; }
-
-    .card {
-      border: 1px solid var(--line);
-      background: var(--panel);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(16px);
-    }
-
-    .hero-card { padding: 16px; margin-bottom: 12px; }
-
-    .selector-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+    .score-label {
       color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 10px;
+      font-size: 12px;
+      font-weight: 700;
     }
 
-    .country-grid {
+    .score {
+      margin-top: 2px;
+      font-size: clamp(28px, 5vw, 44px);
+      font-weight: 900;
+      letter-spacing: .12em;
+      color: #fff;
+    }
+
+    .player-panel {
+      position: fixed;
+      z-index: 5;
+      left: max(18px, env(safe-area-inset-left));
+      bottom: calc(124px + env(safe-area-inset-bottom));
+      width: min(360px, calc(100vw - 36px));
+      padding: 12px;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .country {
-      border: 1px solid rgba(255,255,255,.11);
-      border-radius: 16px;
-      background: rgba(255,255,255,.055);
-      color: var(--text);
-      min-height: 62px;
-      padding: 8px 6px;
-      display: grid;
-      place-items: center;
-      gap: 3px;
-      cursor: pointer;
-      transition: transform .16s ease, border-color .16s ease, background .16s ease;
-    }
-
-    .country.active {
-      border-color: rgba(216,183,100,.9);
-      background: linear-gradient(180deg, rgba(216,183,100,.22), rgba(255,255,255,.05));
-      transform: translateY(-1px);
-    }
-
-    .flag { font-size: 25px; }
-    .country-name { font-size: 12px; font-weight: 700; }
-
-    .player-strip {
-      display: grid;
-      grid-template-columns: 56px 1fr;
+      grid-template-columns: 58px 1fr;
       gap: 12px;
       align-items: center;
-      padding: 12px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, rgba(216,183,100,.16), rgba(104,216,255,.07));
-      border: 1px solid rgba(216,183,100,.28);
     }
 
     .avatar {
-      width: 56px;
-      height: 56px;
+      width: 58px;
+      height: 58px;
       border-radius: 50%;
       display: grid;
       place-items: center;
+      font-size: 22px;
       font-weight: 900;
-      background:
-        radial-gradient(circle at 35% 25%, rgba(255,255,255,.45), transparent 22%),
-        linear-gradient(135deg, #d8b764, #5e4116);
       color: #101010;
-      box-shadow: 0 8px 22px rgba(216,183,100,.22);
-    }
-
-    .player-name { font-size: 18px; font-weight: 800; }
-    .player-meta { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.4; }
-
-    .stadium {
-      position: relative;
-      margin: 12px 0;
-      height: min(58vh, 520px);
-      min-height: 440px;
-      overflow: hidden;
       background:
-        radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.18), transparent 26%),
-        linear-gradient(180deg, rgba(7,10,14,.98) 0 16%, rgba(9,49,31,.96) 16% 100%);
+        radial-gradient(circle at 35% 25%, rgba(255,255,255,.55), transparent 24%),
+        linear-gradient(135deg, #ffe7a5, #9c6a1e);
+      box-shadow: 0 0 34px rgba(217,182,106,.26);
     }
 
-    .crowd {
-      position: absolute;
-      inset: 0 0 auto;
-      height: 90px;
-      background:
-        radial-gradient(circle, rgba(216,183,100,.82) 0 1.5px, transparent 2px) 0 0 / 18px 13px,
-        radial-gradient(circle, rgba(104,216,255,.55) 0 1.5px, transparent 2px) 6px 5px / 22px 14px;
-      opacity: .7;
-      mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+    .player-name {
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1.15;
     }
 
-    .ad-ribbon {
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 72px;
-      height: 34px;
-      overflow: hidden;
-      border-top: 1px solid rgba(255,255,255,.16);
-      border-bottom: 1px solid rgba(216,183,100,.42);
-      background:
-        linear-gradient(180deg, rgba(7,11,13,.96), rgba(0,0,0,.84)),
-        repeating-linear-gradient(90deg, rgba(216,183,100,.12) 0 1px, transparent 1px 8px);
-      box-shadow: 0 8px 22px rgba(0,0,0,.34), 0 0 24px rgba(216,183,100,.12);
-      z-index: 2;
-    }
-
-    .ad-track {
-      display: flex;
-      align-items: center;
-      width: max-content;
-      height: 100%;
-      animation: marquee 18s linear infinite;
-      white-space: nowrap;
-    }
-
-    .ad-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 12px;
-      padding: 0 24px;
-      color: #fff7dc;
+    .player-meta {
+      margin-top: 4px;
+      color: var(--muted);
       font-size: 13px;
-      font-weight: 900;
-      letter-spacing: .08em;
-      text-shadow: 0 0 10px rgba(216,183,100,.38);
+      line-height: 1.35;
     }
 
-    .ad-item img {
-      width: 78px;
-      max-height: 24px;
-      object-fit: contain;
-      filter: drop-shadow(0 0 8px rgba(42,205,216,.45));
-      background: rgba(255,255,255,.92);
-      border-radius: 7px;
-      padding: 2px 5px;
-    }
-
-    @keyframes marquee {
-      from { transform: translateX(0); }
-      to { transform: translateX(-50%); }
-    }
-
-    .side-ads {
-      position: absolute;
-      left: 6%;
-      right: 6%;
-      top: 252px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    .sideline-board {
-      width: 120px;
-      min-height: 52px;
-      padding: 6px 8px;
-      border: 1px solid rgba(216,183,100,.54);
-      border-radius: 10px;
-      background: linear-gradient(180deg, rgba(0,0,0,.78), rgba(12,18,16,.72));
-      box-shadow: inset 0 0 14px rgba(216,183,100,.08), 0 10px 20px rgba(0,0,0,.3);
-      transform: perspective(220px) rotateX(9deg);
-      display: grid;
-      place-items: center;
-      text-align: center;
-    }
-
-    .sideline-board img {
-      width: 92px;
-      background: rgba(255,255,255,.94);
-      border-radius: 6px;
-      padding: 2px 5px;
-      margin-bottom: 3px;
-    }
-
-    .sideline-board span {
-      color: #ffe6a0;
-      font-size: 10px;
-      font-weight: 900;
-      line-height: 1.25;
-    }
-
-    .goal {
-      position: absolute;
-      left: 50%;
-      top: 84px;
-      width: 78%;
-      height: 158px;
-      transform: translateX(-50%);
-      border: 5px solid rgba(255,255,255,.88);
-      border-bottom: 0;
-      border-radius: 8px 8px 0 0;
-      background:
-        linear-gradient(90deg, rgba(255,255,255,.14) 1px, transparent 1px) 0 0 / 28px 28px,
-        linear-gradient(0deg, rgba(255,255,255,.14) 1px, transparent 1px) 0 0 / 28px 28px;
-      box-shadow: 0 0 38px rgba(255,255,255,.16), inset 0 0 28px rgba(255,255,255,.08);
-    }
-
-    .keeper {
-      position: absolute;
-      top: 155px;
-      left: 50%;
-      width: 68px;
-      height: 92px;
-      transform: translateX(-50%);
-      transition: transform .42s cubic-bezier(.2,.8,.2,1);
-      z-index: 3;
-    }
-
-    .keeper::before {
-      content: "";
-      position: absolute;
-      left: 20px;
-      top: 0;
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: #f1c29b;
-    }
-
-    .keeper::after {
-      content: "";
-      position: absolute;
-      left: 14px;
-      top: 31px;
-      width: 42px;
-      height: 46px;
-      border-radius: 15px 15px 8px 8px;
-      background: linear-gradient(135deg, #53e08c, #08723c);
-      box-shadow:
-        -24px 6px 0 -8px #53e08c,
-        24px 6px 0 -8px #53e08c,
-        -12px 46px 0 -10px #16191d,
-        12px 46px 0 -10px #16191d;
-    }
-
-    .keeper.left { transform: translateX(-162%) rotate(-18deg); }
-    .keeper.right { transform: translateX(62%) rotate(18deg); }
-    .keeper.center { transform: translateX(-50%) scale(1.04); }
-
-    .penalty-dot {
-      position: absolute;
-      left: 50%;
-      bottom: 98px;
-      width: 10px;
-      height: 10px;
-      transform: translateX(-50%);
-      border-radius: 50%;
-      background: rgba(255,255,255,.9);
-    }
-
-    .ball {
-      position: absolute;
-      left: 50%;
-      bottom: 78px;
-      width: 36px;
-      height: 36px;
-      transform: translate(-50%, 0);
-      border-radius: 50%;
-      background:
-        radial-gradient(circle at 35% 30%, #fff 0 12px, transparent 13px),
-        conic-gradient(from 20deg, #fff, #111 0 18%, #fff 0 35%, #111 0 48%, #fff 0 100%);
-      box-shadow: 0 11px 24px rgba(0,0,0,.5);
-      transition: transform .62s cubic-bezier(.18,.84,.24,1.02), opacity .3s;
-      z-index: 4;
-    }
-
-    .striker {
-      position: absolute;
-      left: 50%;
-      bottom: 22px;
-      width: 64px;
-      height: 100px;
-      transform: translateX(-50%);
-      transition: transform .28s ease;
-      z-index: 2;
-    }
-
-    .striker::before {
-      content: "";
-      position: absolute;
-      left: 18px;
-      top: 0;
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      background: #bd805e;
-    }
-
-    .striker::after {
-      content: "";
-      position: absolute;
-      left: 12px;
-      top: 31px;
-      width: 42px;
-      height: 48px;
-      border-radius: 15px 15px 10px 10px;
-      background: var(--kit, linear-gradient(135deg, #fff, #ddd));
-      box-shadow: -10px 48px 0 -9px #f7f7f7, 12px 48px 0 -9px #f7f7f7;
-    }
-
-    .striker.kick { transform: translateX(-50%) translateY(-8px) rotate(-4deg); }
-
-    .target-grid {
-      position: absolute;
-      left: 50%;
-      top: 86px;
-      width: 78%;
-      height: 158px;
-      transform: translateX(-50%);
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+    .country-dock {
+      position: fixed;
       z-index: 5;
+      left: 50%;
+      bottom: calc(18px + env(safe-area-inset-bottom));
+      width: min(720px, calc(100vw - 28px));
+      transform: translateX(-50%);
+      padding: 10px;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
     }
 
-    .target {
-      border: 0;
-      background: transparent;
-      color: transparent;
+    .country {
+      border: 1px solid rgba(255,255,255,.14);
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      min-height: 58px;
+      border-radius: 16px;
       cursor: pointer;
-    }
-
-    .target:hover { background: rgba(216,183,100,.12); }
-
-    .result-banner {
-      position: absolute;
-      left: 16px;
-      right: 16px;
-      bottom: 136px;
-      padding: 13px 14px;
-      border-radius: 18px;
-      background: rgba(0,0,0,.56);
-      border: 1px solid rgba(255,255,255,.16);
-      text-align: center;
-      font-weight: 800;
-      min-height: 50px;
       display: grid;
       place-items: center;
-      z-index: 8;
+      gap: 2px;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease;
     }
+
+    .country.active {
+      border-color: rgba(244,220,154,.9);
+      background: linear-gradient(180deg, rgba(217,182,106,.26), rgba(255,255,255,.07));
+      transform: translateY(-3px);
+    }
+
+    .flag { font-size: 23px; line-height: 1; }
+    .country-name { font-size: 12px; font-weight: 900; }
 
     .controls {
+      position: fixed;
+      z-index: 6;
+      right: max(18px, env(safe-area-inset-right));
+      bottom: calc(124px + env(safe-area-inset-bottom));
+      width: min(330px, calc(100vw - 36px));
+      padding: 12px;
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 12px;
+      gap: 9px;
     }
 
-    .shot-btn, .secondary-btn {
-      border: 1px solid rgba(216,183,100,.42);
-      background: linear-gradient(180deg, rgba(216,183,100,.18), rgba(255,255,255,.05));
-      color: var(--text);
-      min-height: 48px;
+    .shoot {
+      border: 1px solid rgba(244,220,154,.5);
       border-radius: 16px;
-      font-weight: 800;
+      min-height: 52px;
+      color: #fff;
+      font-weight: 900;
+      font-size: 14px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(244,220,154,.22), transparent 60%),
+        linear-gradient(180deg, rgba(22,24,24,.84), rgba(8,10,11,.92));
+      box-shadow: 0 12px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
       cursor: pointer;
-      box-shadow: 0 10px 24px rgba(0,0,0,.22);
     }
 
-    .shot-btn:disabled, .secondary-btn:disabled { opacity: .55; cursor: wait; }
-    .shot-btn:active, .secondary-btn:active { transform: translateY(1px); }
-
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-bottom: 12px;
+    .shoot:disabled {
+      opacity: .48;
+      cursor: wait;
     }
 
-    .stat {
-      padding: 10px 8px;
-      border-radius: 16px;
-      background: var(--panel-2);
-      border: 1px solid rgba(255,255,255,.1);
+    .result-panel {
+      position: fixed;
+      z-index: 6;
+      left: 50%;
+      bottom: calc(206px + env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      width: min(460px, calc(100vw - 36px));
+      padding: 13px 16px;
       text-align: center;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1.45;
     }
 
-    .stat span { display: block; color: var(--muted); font-size: 11px; }
-    .stat strong { display: block; margin-top: 3px; font-size: 18px; }
-
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .secondary-btn {
-      min-height: 44px;
-      background: rgba(255,255,255,.055);
-      border-color: rgba(255,255,255,.16);
-    }
-
-    .history {
-      padding: 14px;
-      margin-top: 12px;
-    }
-
-    .history h2 {
-      margin: 0 0 9px;
-      font-size: 15px;
-      color: var(--gold);
-    }
-
-    .log {
-      display: grid;
-      gap: 7px;
-      max-height: 124px;
-      overflow: auto;
-      padding-right: 2px;
-    }
-
-    .log-item {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 8px 10px;
-      border-radius: 12px;
-      background: rgba(255,255,255,.055);
+    .result-panel small {
+      display: block;
+      margin-top: 3px;
       color: var(--muted);
       font-size: 12px;
+      font-weight: 700;
     }
 
-    .log-item b { color: var(--text); }
+    .mini-actions {
+      position: fixed;
+      z-index: 6;
+      top: max(112px, calc(88px + env(safe-area-inset-top)));
+      right: max(18px, env(safe-area-inset-right));
+      display: flex;
+      gap: 8px;
+    }
 
-    @media (max-width: 370px) {
-      h1 { font-size: 24px; }
-      .stadium { min-height: 405px; }
-      .country-grid { grid-template-columns: repeat(2, 1fr); }
-      .sideline-board { width: 104px; }
-      .ad-item { font-size: 12px; padding: 0 18px; }
+    .mini {
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(0,0,0,.38);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 13px;
+      font-weight: 800;
+      cursor: pointer;
+      backdrop-filter: blur(12px);
+    }
+
+    .flash {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(circle at 50% 38%, rgba(255,255,255,.5), transparent 32%);
+      transition: opacity .28s ease;
+    }
+
+    .flash.show { opacity: 1; }
+
+    @media (max-width: 760px) {
+      .hud { grid-template-columns: 1fr; }
+      .score-panel { justify-self: end; margin-top: -6px; }
+      .player-panel {
+        bottom: calc(154px + env(safe-area-inset-bottom));
+        width: min(330px, calc(100vw - 28px));
+      }
+      .controls {
+        left: 50%;
+        right: auto;
+        bottom: calc(92px + env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        width: min(420px, calc(100vw - 28px));
+      }
+      .country-dock {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .result-panel {
+        bottom: calc(238px + env(safe-area-inset-bottom));
+      }
     }
   </style>
 </head>
 <body>
-  <div class="pitch-lines"></div>
-  <main class="app">
-    <section class="topbar">
-      <div class="brand">
-        <div class="eyebrow">WORLD FOOTBALL</div>
-        <h1>世足 12碼點球</h1>
-      </div>
-      <div class="scoreboard">
-        <div class="score-label">五球決勝</div>
-        <div class="score-value"><span id="scoreUs">0</span> : <span id="scoreCpu">0</span></div>
-      </div>
-    </section>
+  <canvas id="scene"></canvas>
+  <div class="flash" id="flash"></div>
+  <div class="vignette"></div>
 
-    <section class="card hero-card">
-      <div class="selector-title">
-        <span>選擇國家名將</span>
-        <span id="roundText">第 1 球</span>
-      </div>
-      <div class="country-grid" id="countryGrid"></div>
-      <div class="player-strip">
-        <div class="avatar" id="avatar">梅</div>
-        <div>
-          <div class="player-name" id="playerName">梅西</div>
-          <div class="player-meta" id="playerMeta">阿根廷名將｜左腳精準、冷靜推射</div>
-        </div>
-      </div>
-    </section>
+  <header class="hud">
+    <div class="title-panel">
+      <div class="eyebrow">WORLD CUP STADIUM</div>
+      <h1>世足 12碼點球</h1>
+    </div>
+    <div class="score-panel">
+      <div class="score-label">五球決勝</div>
+      <div class="score"><span id="scoreUs">0</span> : <span id="scoreCpu">0</span></div>
+    </div>
+  </header>
 
-    <section class="card stadium" id="stadium">
-      <div class="crowd"></div>
-      <div class="ad-ribbon" aria-label="球場廣告看板">
-        <div class="ad-track">
-          <span class="ad-item"><img src="./assets/3a-logo.png" alt="3A娛樂城">首儲1000送1000　LINE:@893jrweh</span>
-          <span class="ad-item"><img src="./assets/3a-logo.png" alt="3A娛樂城">世足場邊合作看板　3A娛樂城</span>
-          <span class="ad-item"><img src="./assets/3a-logo.png" alt="3A娛樂城">首儲1000送1000　LINE:@893jrweh</span>
-          <span class="ad-item"><img src="./assets/3a-logo.png" alt="3A娛樂城">世足場邊合作看板　3A娛樂城</span>
-        </div>
-      </div>
-      <div class="goal"></div>
-      <div class="side-ads" aria-hidden="true">
-        <div class="sideline-board">
-          <img src="./assets/3a-logo.png" alt="">
-          <span>首儲1000<br>送1000</span>
-        </div>
-        <div class="sideline-board">
-          <img src="./assets/3a-logo.png" alt="">
-          <span>LINE<br>@893jrweh</span>
-        </div>
-      </div>
-      <div class="keeper" id="keeper"></div>
-      <div class="target-grid" id="targetGrid" aria-label="射門方向">
-        <button class="target" data-zone="left" aria-label="射向左邊">左</button>
-        <button class="target" data-zone="center" aria-label="射向中路">中</button>
-        <button class="target" data-zone="right" aria-label="射向右邊">右</button>
-      </div>
-      <div class="penalty-dot"></div>
-      <div class="ball" id="ball"></div>
-      <div class="striker" id="striker"></div>
-      <div class="result-banner" id="resultText">選好名將，點擊射門方向。</div>
-    </section>
+  <div class="mini-actions">
+    <button class="mini" id="resetBtn">重新開始</button>
+    <button class="mini" id="randomBtn">隨機名將</button>
+  </div>
 
-    <section class="controls">
-      <button class="shot-btn" data-shot="left">左上角</button>
-      <button class="shot-btn" data-shot="center">中路</button>
-      <button class="shot-btn" data-shot="right">右下角</button>
-    </section>
+  <section class="result-panel" id="resultText">
+    選擇名將，點擊射門方向。
+    <small>球場看板已啟用，準備開踢。</small>
+  </section>
 
-    <section class="stats">
-      <div class="stat"><span>射門</span><strong id="shots">0</strong></div>
-      <div class="stat"><span>進球</span><strong id="goals">0</strong></div>
-      <div class="stat"><span>撲救</span><strong id="saves">0</strong></div>
-      <div class="stat"><span>連勝</span><strong id="streak">0</strong></div>
-    </section>
+  <section class="player-panel">
+    <div class="avatar" id="avatar">梅</div>
+    <div>
+      <div class="player-name" id="playerName">梅西</div>
+      <div class="player-meta" id="playerMeta">阿根廷名將｜左腳精準、冷靜推射</div>
+    </div>
+  </section>
 
-    <section class="actions">
-      <button class="secondary-btn" id="resetBtn">重新開始</button>
-      <button class="secondary-btn" id="randomBtn">隨機名將</button>
-    </section>
+  <section class="controls">
+    <button class="shoot" data-shot="left">左上角</button>
+    <button class="shoot" data-shot="center">中路</button>
+    <button class="shoot" data-shot="right">右下角</button>
+  </section>
 
-    <section class="card history">
-      <h2>射門紀錄</h2>
-      <div class="log" id="log"></div>
-    </section>
-  </main>
+  <section class="country-dock" id="countryDock"></section>
 
   <script>
+    const canvas = document.getElementById("scene");
+    const ctx = canvas.getContext("2d");
+    const logo = new Image();
+    logo.src = "./assets/3a-logo.png";
+
     const players = [
-      { country: "阿根廷", flag: "🇦🇷", name: "梅西", initials: "梅", meta: "左腳精準、冷靜推射", kit: "linear-gradient(135deg,#8fd5ff 0 45%,#fff 45% 58%,#8fd5ff 58%)", power: 82 },
-      { country: "法國", flag: "🇫🇷", name: "姆巴佩", initials: "姆", meta: "爆發速度、右腳重砲", kit: "linear-gradient(135deg,#163aa8,#e63535)", power: 86 },
-      { country: "葡萄牙", flag: "🇵🇹", name: "C羅", initials: "羅", meta: "強力抽射、心理素質", kit: "linear-gradient(135deg,#c92323 0 55%,#0c8a4a 55%)", power: 88 },
-      { country: "巴西", flag: "🇧🇷", name: "內馬爾", initials: "內", meta: "節奏變化、刁鑽角度", kit: "linear-gradient(135deg,#ffe34f,#24a35a)", power: 84 },
-      { country: "英格蘭", flag: "🏴", name: "凱恩", initials: "凱", meta: "穩定助跑、低角度射門", kit: "linear-gradient(135deg,#ffffff,#d8d8d8)", power: 85 },
-      { country: "西班牙", flag: "🇪🇸", name: "莫拉塔", initials: "莫", meta: "禁區嗅覺、節奏停頓", kit: "linear-gradient(135deg,#d71920,#f6c343)", power: 78 }
+      { country: "阿根廷", flag: "🇦🇷", name: "梅西", initials: "梅", meta: "左腳精準、冷靜推射", kit: ["#8fd5ff", "#ffffff"], skin: "#c98d62", power: 86 },
+      { country: "法國", flag: "🇫🇷", name: "姆巴佩", initials: "姆", meta: "爆發速度、右腳重砲", kit: ["#143aad", "#e43b45"], skin: "#8e5a37", power: 88 },
+      { country: "葡萄牙", flag: "🇵🇹", name: "C羅", initials: "羅", meta: "強力抽射、心理素質", kit: ["#c7232c", "#138a4a"], skin: "#c8845a", power: 90 },
+      { country: "巴西", flag: "🇧🇷", name: "內馬爾", initials: "內", meta: "節奏變化、刁鑽角度", kit: ["#ffe34f", "#20a85d"], skin: "#b8784e", power: 85 },
+      { country: "英格蘭", flag: "🏴", name: "凱恩", initials: "凱", meta: "穩定助跑、低角度射門", kit: ["#ffffff", "#d8d8d8"], skin: "#d19b75", power: 87 },
+      { country: "西班牙", flag: "🇪🇸", name: "莫拉塔", initials: "莫", meta: "禁區嗅覺、節奏停頓", kit: ["#d71920", "#f6c343"], skin: "#c48964", power: 81 }
     ];
 
     const zones = ["left", "center", "right"];
-    const zoneText = { left: "左路", center: "中路", right: "右路" };
-    const ballTarget = {
-      left: "translate(-190px, -270px) scale(.72)",
-      center: "translate(-50%, -286px) scale(.72)",
-      right: "translate(154px, -270px) scale(.72)"
-    };
-
+    const zoneLabel = { left: "左路", center: "中路", right: "右路" };
+    const $ = (id) => document.getElementById(id);
     const state = {
       player: players[0],
       shot: 0,
       goals: 0,
       cpu: 0,
-      saves: 0,
-      streak: Number(localStorage.getItem("penalty_streak") || 0),
       locked: false,
-      log: []
+      keeper: "center",
+      keeperPose: 0,
+      strikerPose: 0,
+      ball: { x: .5, y: .83, z: 0, active: false },
+      trail: [],
+      resultGlow: 0,
+      clock: 0
     };
 
-    const $ = (id) => document.getElementById(id);
-    const countryGrid = $("countryGrid");
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(innerWidth * dpr);
+      canvas.height = Math.floor(innerHeight * dpr);
+      canvas.style.width = innerWidth + "px";
+      canvas.style.height = innerHeight + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
-    function keeperPick() {
-      const bias = Math.random();
-      if (bias < .35) return "left";
-      if (bias < .68) return "right";
-      return "center";
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+
+    function pitchPoint(x, y) {
+      const w = innerWidth;
+      const h = innerHeight;
+      const horizon = h * .34;
+      const bottom = h * 1.03;
+      const widthTop = w * .42;
+      const widthBottom = w * 1.22;
+      const py = lerp(horizon, bottom, y);
+      const half = lerp(widthTop, widthBottom, y) / 2;
+      return { x: w / 2 + (x - .5) * half * 2, y: py };
+    }
+
+    function drawStadium() {
+      const w = innerWidth, h = innerHeight;
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, "#080b11");
+      sky.addColorStop(.34, "#121821");
+      sky.addColorStop(.35, "#17351f");
+      sky.addColorStop(1, "#0a2615");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h);
+
+      for (let i = 0; i < 7; i++) {
+        const x = (i + .5) * w / 7;
+        const g = ctx.createRadialGradient(x, h * .14, 0, x, h * .16, w * .18);
+        g.addColorStop(0, "rgba(255,255,230,.38)");
+        g.addColorStop(.28, "rgba(244,220,154,.12)");
+        g.addColorStop(1, "rgba(244,220,154,0)");
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h * .52);
+      }
+
+      ctx.fillStyle = "#0c1016";
+      ctx.fillRect(0, h * .19, w, h * .17);
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < Math.ceil(w / 18); c++) {
+          const sparkle = (c * 17 + r * 29 + Math.floor(state.clock * 2)) % 9;
+          ctx.fillStyle = sparkle === 0 ? "rgba(244,220,154,.75)" : sparkle < 3 ? "rgba(105,205,255,.42)" : "rgba(255,255,255,.20)";
+          ctx.beginPath();
+          ctx.arc(c * 18 + (r % 2) * 8, h * .205 + r * 13, 1.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    function drawAdBoards() {
+      const w = innerWidth, h = innerHeight;
+      const boardY = h * .355;
+      const boardH = Math.max(34, h * .045);
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.82)";
+      ctx.fillRect(0, boardY, w, boardH);
+      ctx.strokeStyle = "rgba(217,182,106,.55)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, boardY, w, boardH);
+
+      const text = "3A娛樂城　首儲1000送1000　LINE:@893jrweh";
+      const speed = (state.clock * 62) % 420;
+      ctx.font = `900 ${Math.max(16, boardH * .46)}px Microsoft JhengHei`;
+      ctx.textBaseline = "middle";
+      for (let x = -speed; x < w + 420; x += 420) {
+        if (logo.complete) {
+          ctx.fillStyle = "rgba(255,255,255,.95)";
+          ctx.roundRect(x + 12, boardY + 5, 96, boardH - 10, 8);
+          ctx.fill();
+          ctx.drawImage(logo, x + 18, boardY + 9, 84, boardH - 18);
+        }
+        ctx.fillStyle = "#fff0bc";
+        ctx.shadowColor = "rgba(217,182,106,.55)";
+        ctx.shadowBlur = 12;
+        ctx.fillText(text, x + 122, boardY + boardH / 2);
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+    }
+
+    function drawPitch() {
+      const w = innerWidth, h = innerHeight;
+      const topL = pitchPoint(.07, 0), topR = pitchPoint(.93, 0), botR = pitchPoint(1.05, 1), botL = pitchPoint(-.05, 1);
+      const grass = ctx.createLinearGradient(0, h * .35, 0, h);
+      grass.addColorStop(0, "#124c2a");
+      grass.addColorStop(.55, "#0d6a35");
+      grass.addColorStop(1, "#08421f");
+      ctx.fillStyle = grass;
+      ctx.beginPath();
+      ctx.moveTo(topL.x, topL.y);
+      ctx.lineTo(topR.x, topR.y);
+      ctx.lineTo(botR.x, botR.y);
+      ctx.lineTo(botL.x, botL.y);
+      ctx.closePath();
+      ctx.fill();
+
+      for (let i = 0; i < 10; i++) {
+        const a = pitchPoint(i / 10, 0), b = pitchPoint(i / 10, 1);
+        ctx.strokeStyle = i % 2 ? "rgba(255,255,255,.055)" : "rgba(0,0,0,.10)";
+        ctx.lineWidth = w * .06;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "rgba(255,255,255,.72)";
+      ctx.lineWidth = 2;
+      const boxTopL = pitchPoint(.28, .18), boxTopR = pitchPoint(.72, .18), boxBotR = pitchPoint(.82, .53), boxBotL = pitchPoint(.18, .53);
+      ctx.beginPath();
+      ctx.moveTo(boxTopL.x, boxTopL.y);
+      ctx.lineTo(boxTopR.x, boxTopR.y);
+      ctx.lineTo(boxBotR.x, boxBotR.y);
+      ctx.lineTo(boxBotL.x, boxBotL.y);
+      ctx.closePath();
+      ctx.stroke();
+
+      const spot = pitchPoint(.5, .72);
+      ctx.fillStyle = "rgba(255,255,255,.95)";
+      ctx.beginPath();
+      ctx.arc(spot.x, spot.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawGoal() {
+      const w = innerWidth, h = innerHeight;
+      const cx = w / 2;
+      const y = h * .405;
+      const gw = Math.min(w * .54, 620);
+      const gh = Math.min(h * .22, 190);
+      ctx.save();
+      ctx.translate(cx - gw / 2, y - gh);
+      ctx.strokeStyle = "rgba(255,255,255,.92)";
+      ctx.lineWidth = 6;
+      ctx.strokeRect(0, 0, gw, gh);
+      ctx.strokeStyle = "rgba(255,255,255,.22)";
+      ctx.lineWidth = 1;
+      for (let x = 18; x < gw; x += 24) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, gh); ctx.stroke();
+      }
+      for (let yy = 18; yy < gh; yy += 24) {
+        ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(gw, yy); ctx.stroke();
+      }
+      ctx.restore();
+
+      const sideY = h * .5;
+      const adW = Math.min(180, w * .24);
+      [["left", w * .13], ["right", w * .87 - adW]].forEach(([side, x]) => {
+        ctx.save();
+        ctx.translate(x, sideY);
+        ctx.transform(1, 0, side === "left" ? -.14 : .14, 1, 0, 0);
+        ctx.fillStyle = "rgba(0,0,0,.72)";
+        ctx.strokeStyle = "rgba(217,182,106,.62)";
+        ctx.lineWidth = 1;
+        ctx.roundRect(0, 0, adW, 72, 12);
+        ctx.fill(); ctx.stroke();
+        if (logo.complete) {
+          ctx.fillStyle = "rgba(255,255,255,.96)";
+          ctx.roundRect(12, 9, adW - 24, 28, 7);
+          ctx.fill();
+          ctx.drawImage(logo, 18, 13, adW - 36, 20);
+        }
+        ctx.fillStyle = "#ffe9a9";
+        ctx.font = "900 15px Microsoft JhengHei";
+        ctx.textAlign = "center";
+        ctx.fillText(side === "left" ? "首儲1000送1000" : "LINE:@893jrweh", adW / 2, 58);
+        ctx.restore();
+      });
+    }
+
+    function drawPlayer(x, y, scale, colors, skin, pose, isKeeper = false) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.rotate(pose * .08);
+      ctx.strokeStyle = colors[0];
+      ctx.lineWidth = 9;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-24, -28); ctx.lineTo(-54 - pose * 16, -5 + pose * 10);
+      ctx.moveTo(24, -28); ctx.lineTo(54 + pose * 16, -5 - pose * 10);
+      ctx.stroke();
+      const shirt = ctx.createLinearGradient(-30, -40, 30, 28);
+      shirt.addColorStop(0, colors[0]); shirt.addColorStop(1, colors[1]);
+      ctx.fillStyle = shirt;
+      ctx.beginPath();
+      ctx.roundRect(-30, -50, 60, 72, 18);
+      ctx.fill();
+      ctx.fillStyle = skin;
+      ctx.beginPath();
+      ctx.arc(0, -76, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#111";
+      ctx.beginPath();
+      ctx.arc(0, -86, 18, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = isKeeper ? "#7cffb5" : "#f2f2f2";
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(-16, 18); ctx.lineTo(-28 - pose * 14, 70);
+      ctx.moveTo(16, 18); ctx.lineTo(34 + pose * 20, 70 - pose * 8);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawBall() {
+      const p = pitchPoint(state.ball.x, state.ball.y);
+      const r = Math.max(11, 22 - state.ball.z * 9);
+      ctx.save();
+      ctx.globalAlpha = state.ball.active ? .96 : 1;
+      for (let i = 0; i < state.trail.length; i++) {
+        const t = state.trail[i];
+        const tp = pitchPoint(t.x, t.y);
+        ctx.globalAlpha = (i / state.trail.length) * .26;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(tp.x, tp.y, r * .55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "rgba(0,0,0,.35)";
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + 16, r * 1.25, r * .35, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f8f8f8";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - state.ball.z * 70, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#111";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - state.ball.z * 70, r * .34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawActors() {
+      const keeperBase = pitchPoint(.5, .28);
+      const dive = state.keeper === "left" ? -95 : state.keeper === "right" ? 95 : 0;
+      drawPlayer(keeperBase.x + dive * state.keeperPose, keeperBase.y + 14 - Math.abs(dive) * .08 * state.keeperPose, .72, ["#30db87", "#0a6b42"], "#d6a27a", state.keeperPose * (state.keeper === "left" ? -1 : 1), true);
+      const striker = pitchPoint(.5, .83);
+      drawPlayer(striker.x, striker.y, .9, state.player.kit, state.player.skin, state.strikerPose, false);
+    }
+
+    function render() {
+      state.clock += 1 / 60;
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      drawStadium();
+      drawAdBoards();
+      drawPitch();
+      drawGoal();
+      drawActors();
+      drawBall();
+      requestAnimationFrame(render);
     }
 
     function renderCountries() {
-      countryGrid.innerHTML = "";
-      players.forEach((player, index) => {
-        const button = document.createElement("button");
-        button.className = "country" + (player.country === state.player.country ? " active" : "");
-        button.innerHTML = `<div class="flag">${player.flag}</div><div class="country-name">${player.country}</div>`;
-        button.addEventListener("click", () => selectPlayer(index));
-        countryGrid.appendChild(button);
+      const dock = $("countryDock");
+      dock.innerHTML = "";
+      players.forEach((p, index) => {
+        const btn = document.createElement("button");
+        btn.className = "country" + (p.name === state.player.name ? " active" : "");
+        btn.innerHTML = `<span class="flag">${p.flag}</span><span class="country-name">${p.country}</span>`;
+        btn.addEventListener("click", () => selectPlayer(index));
+        dock.appendChild(btn);
       });
     }
 
@@ -675,99 +653,101 @@
       $("avatar").textContent = state.player.initials;
       $("playerName").textContent = state.player.name;
       $("playerMeta").textContent = `${state.player.country}名將｜${state.player.meta}`;
-      $("striker").style.setProperty("--kit", state.player.kit);
       renderCountries();
     }
 
-    function updateUi() {
+    function updateScore() {
       $("scoreUs").textContent = state.goals;
       $("scoreCpu").textContent = state.cpu;
-      $("shots").textContent = state.shot;
-      $("goals").textContent = state.goals;
-      $("saves").textContent = state.saves;
-      $("streak").textContent = state.streak;
-      $("roundText").textContent = state.shot >= 5 ? "PK 結束" : `第 ${state.shot + 1} 球`;
-      document.querySelectorAll(".shot-btn").forEach((button) => button.disabled = state.locked || state.shot >= 5);
-      $("log").innerHTML = state.log.length
-        ? state.log.map((item) => `<div class="log-item"><span>${item.left}</span><b>${item.right}</b></div>`).join("")
-        : `<div class="log-item"><span>尚未射門</span><b>等待開始</b></div>`;
+      document.querySelectorAll(".shoot").forEach((b) => b.disabled = state.locked || state.shot >= 5);
     }
 
     function resetBall() {
-      $("ball").style.opacity = "1";
-      $("ball").style.transform = "translate(-50%, 0)";
-      $("keeper").className = "keeper";
-      $("striker").className = "striker";
+      state.ball = { x: .5, y: .83, z: 0, active: false };
+      state.trail = [];
+      state.keeper = "center";
+      state.keeperPose = 0;
+      state.strikerPose = 0;
+    }
+
+    function setResult(title, sub = "") {
+      $("resultText").innerHTML = `${title}${sub ? `<small>${sub}</small>` : ""}`;
     }
 
     function finishMatch() {
-      const won = state.goals > state.cpu;
-      const tied = state.goals === state.cpu;
-      if (won) state.streak += 1;
-      if (!won) state.streak = 0;
-      localStorage.setItem("penalty_streak", String(state.streak));
-      $("resultText").innerHTML = tied ? "平手收場，再來一輪。" : won ? "你贏下點球大戰！" : "守門員笑到了最後。";
+      if (state.goals > state.cpu) setResult("點球大戰勝利", "全場歡呼，名將完成致勝一擊。");
+      else if (state.goals === state.cpu) setResult("雙方平手", "壓力還在，下一輪重新開始。");
+      else setResult("守門員守住勝利", "調整角度，再挑戰一次。");
     }
 
     function shoot(zone) {
       if (state.locked || state.shot >= 5) return;
       state.locked = true;
-      updateUi();
-      resetBall();
+      updateScore();
+      setResult("助跑中...", "看準角度，準備起腳。");
 
-      const keeper = keeperPick();
-      const quality = state.player.power + Math.floor(Math.random() * 16) - 8;
-      const onTarget = quality >= 74 || zone === "center";
-      const saved = onTarget && keeper === zone && Math.random() > .22;
+      const keeper = zones[Math.floor(Math.random() * zones.length)];
+      const quality = state.player.power + Math.floor(Math.random() * 18) - 9;
+      const onTarget = quality >= 73 || zone === "center";
+      const saved = onTarget && keeper === zone && Math.random() > .2;
       const goal = onTarget && !saved;
-      const cpuGoal = Math.random() > .38;
+      const cpuGoal = Math.random() > .4;
+      const targetX = zone === "left" ? .29 : zone === "right" ? .71 : .5;
+      const targetY = zone === "center" ? .29 : .2;
+      const start = performance.now();
 
-      requestAnimationFrame(() => {
-        $("striker").classList.add("kick");
-        $("keeper").classList.add(keeper);
-        $("ball").style.transform = ballTarget[zone];
-      });
+      state.keeper = keeper;
+      state.ball.active = true;
+      state.trail = [];
 
-      setTimeout(() => {
-        state.shot += 1;
-        if (goal) state.goals += 1;
-        if (cpuGoal) state.cpu += 1;
-        if (saved) state.saves += 1;
-
-        const title = goal ? "漂亮進球" : saved ? "被守門員撲出" : "射門偏出";
-        const keeperLine = `你射${zoneText[zone]}，門將撲${zoneText[keeper]}`;
-        $("resultText").innerHTML = `${title}<br><small>${state.player.name}｜${keeperLine}</small>`;
-        state.log.unshift({
-          left: `第 ${state.shot} 球・${state.player.country}`,
-          right: goal ? "進球" : "未進"
-        });
-
-        if (state.shot >= 5) finishMatch();
-        state.locked = false;
-        updateUi();
-      }, 720);
+      function animate(now) {
+        const t = Math.min(1, (now - start) / 850);
+        const e = easeOutCubic(t);
+        state.strikerPose = Math.sin(Math.min(1, t * 2.2) * Math.PI) * 1.1;
+        state.keeperPose = easeOutCubic(Math.max(0, t - .18) / .82);
+        state.ball.x = lerp(.5, targetX, e);
+        state.ball.y = lerp(.83, targetY, e);
+        state.ball.z = Math.sin(t * Math.PI) * .72;
+        state.trail.push({ x: state.ball.x, y: state.ball.y });
+        if (state.trail.length > 10) state.trail.shift();
+        if (t < 1) requestAnimationFrame(animate);
+        else {
+          state.shot += 1;
+          if (goal) state.goals += 1;
+          if (cpuGoal) state.cpu += 1;
+          const flash = $("flash");
+          flash.classList.add("show");
+          setTimeout(() => flash.classList.remove("show"), 130);
+          if (goal) setResult("漂亮進球", `${state.player.name} 射向${zoneLabel[zone]}，守門員撲${zoneLabel[keeper]}。`);
+          else if (saved) setResult("被守門員撲出", `射向${zoneLabel[zone]}，門將判斷正確。`);
+          else setResult("射門偏出", "力量太滿，皮球擦柱而出。");
+          if (state.shot >= 5) setTimeout(finishMatch, 900);
+          state.locked = false;
+          updateScore();
+        }
+      }
+      requestAnimationFrame(animate);
     }
 
     function resetGame() {
       state.shot = 0;
       state.goals = 0;
       state.cpu = 0;
-      state.saves = 0;
       state.locked = false;
-      state.log = [];
       resetBall();
-      $("resultText").textContent = "選好名將，點擊射門方向。";
-      updateUi();
+      setResult("選擇名將，點擊射門方向。", "球場看板已啟用，準備開踢。");
+      updateScore();
     }
 
-    document.querySelectorAll("[data-shot], [data-zone]").forEach((button) => {
-      button.addEventListener("click", () => shoot(button.dataset.shot || button.dataset.zone));
-    });
+    document.querySelectorAll(".shoot").forEach((b) => b.addEventListener("click", () => shoot(b.dataset.shot)));
     $("resetBtn").addEventListener("click", resetGame);
     $("randomBtn").addEventListener("click", () => selectPlayer(Math.floor(Math.random() * players.length)));
+    window.addEventListener("resize", resize);
 
+    resize();
     selectPlayer(0);
-    updateUi();
+    updateScore();
+    render();
   </script>
 </body>
 </html>
