@@ -284,17 +284,6 @@
       filter: drop-shadow(0 28px 34px rgba(0, 0, 0, 0.48)) drop-shadow(0 0 22px rgba(67, 197, 216, 0.12));
     }
 
-    .character-tag {
-      position: absolute;
-      right: -6px;
-      bottom: 36px;
-      padding: 8px 0;
-      color: #d8e5e9;
-      background: transparent;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
     .topbar {
       position: absolute;
       inset: max(20px, env(safe-area-inset-top)) 0 auto;
@@ -349,6 +338,9 @@
 
     .system-badge {
       padding: 6px 9px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
       color: #b8c7ce;
       background: rgba(7, 16, 20, 0.62);
       border: 1px solid rgba(67, 197, 216, 0.28);
@@ -356,6 +348,16 @@
       font-size: 11px;
       font-weight: 700;
       backdrop-filter: blur(10px);
+    }
+
+    .system-badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      flex: 0 0 6px;
+      border-radius: 50%;
+      background: var(--neon-blue);
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.9);
     }
 
     .system-badge.live { color: #8fe2ed; }
@@ -481,32 +483,13 @@
       margin: 0 auto;
     }
 
-    .section-head {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(260px, 440px);
-      gap: 48px;
-      align-items: end;
-      margin-bottom: 38px;
-    }
+    .section-head { margin-bottom: 24px; }
 
     .section-kicker {
       margin: 0 0 10px;
       color: var(--cyan);
       font-size: 12px;
       font-weight: 800;
-    }
-
-    h2 {
-      margin: 0;
-      font-size: clamp(30px, 5vw, 48px);
-      line-height: 1.2;
-    }
-
-    .section-note {
-      margin: 0;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.8;
     }
 
     .link-grid {
@@ -687,8 +670,6 @@
         opacity: 1;
       }
 
-      .character-tag { display: none; }
-
       .topbar,
       .hero-inner { width: calc(100% - 36px); }
 
@@ -704,7 +685,7 @@
 
       .links-section { padding: 54px 18px 62px; }
       .links-section::before { width: calc(100% - 36px); }
-      .section-head { grid-template-columns: 1fr; gap: 18px; margin-bottom: 28px; }
+      .section-head { margin-bottom: 20px; }
       .link-grid { grid-template-columns: 1fr; }
       .line-card { grid-column: auto; }
       .link-card { min-height: 132px; padding: 21px; }
@@ -764,13 +745,12 @@
 
     <figure class="hero-character" aria-label="周賀人物形象">
       <img src="/3a/zhouhe-character.webp" alt="周賀人物形象" width="1023" height="1537" fetchpriority="high">
-      <figcaption class="character-tag">主角上線｜周賀</figcaption>
     </figure>
 
     <div class="hero-inner">
       <div class="hero-content">
         <div class="system-row" aria-label="頁面狀態">
-          <span class="system-badge live">● 本人在線</span>
+          <span class="system-badge live">本人在線</span>
           <span class="system-badge">官方認證入口</span>
           <span class="system-badge">顏值穩定運行</span>
         </div>
@@ -780,7 +760,7 @@
           <span class="title-main">最帥代理</span>
           <span class="title-name">周賀</span>
         </h1>
-        <p class="hero-copy"><strong>最帥只是基本，服務到位才是本事。</strong><br>周賀 LINE、黑域AI與官方社群資訊都在這裡。</p>
+        <p class="hero-copy"><strong>最帥只是基本，服務到位才是本事。</strong></p>
         <div class="hero-actions">
           <a class="hero-line" href="https://line.me/ti/p/@893jrweh" rel="noopener noreferrer">
             <span>周賀 LINE</span>
@@ -795,11 +775,7 @@
   <main class="links-section" id="official-links">
     <div class="links-inner">
       <div class="section-head">
-        <div>
-          <p class="section-kicker">官方連結</p>
-          <h2>找到正確的入口</h2>
-        </div>
-        <p class="section-note">請由下方連結前往官方 LINE、黑域AI討論群與 Instagram。</p>
+        <p class="section-kicker">官方連結</p>
       </div>
 
       <div class="link-grid">
