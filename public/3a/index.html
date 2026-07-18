@@ -8,7 +8,7 @@
   <meta property="og:title" content="3A / 大老爺｜最帥代理・周賀">
   <meta property="og:description" content="周賀 LINE、黑域AI與官方社群入口。">
   <meta property="og:type" content="website">
-  <meta property="og:image" content="/3a/hero-architecture.webp">
+  <meta property="og:image" content="/3a/zhouhe-character.webp">
   <title>3A / 大老爺｜最帥代理・周賀</title>
   <style>
     :root {
@@ -51,47 +51,16 @@
       display: flex;
       align-items: flex-end;
       overflow: hidden;
-      background-color: #0a1216;
-      background-image: url("/3a/hero-architecture.webp");
-      background-position: center;
-      background-size: cover;
+      background: #091115;
     }
-
-    .hud-lines {
-      position: absolute;
-      inset: 0;
-      z-index: -1;
-      pointer-events: none;
-    }
-
-    .hud-line {
-      position: absolute;
-      display: block;
-      background: rgba(67, 197, 216, 0.16);
-    }
-
-    .hud-line.horizontal-one { inset: 28% 0 auto; height: 1px; }
-    .hud-line.horizontal-two { inset: auto 0 18%; height: 1px; }
-    .hud-line.vertical-one { inset: 0 auto 0 8%; width: 1px; }
-    .hud-line.vertical-two { inset: 0 8% 0 auto; width: 1px; }
-
-    .hud-corner {
-      position: absolute;
-      width: 42px;
-      height: 42px;
-      border-color: rgba(67, 197, 216, 0.55);
-      border-style: solid;
-    }
-
-    .hud-corner.top-left { top: 86px; left: 8%; border-width: 1px 0 0 1px; }
-    .hud-corner.bottom-right { right: 8%; bottom: 58px; border-width: 0 1px 1px 0; }
 
     .hero::before {
       content: "";
       position: absolute;
-      inset: 0;
+      inset: 0 0 0 58%;
       z-index: -1;
-      background: rgba(4, 11, 14, 0.46);
+      background: #111c21;
+      clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
     }
 
     .hero::after {
@@ -99,8 +68,8 @@
       position: absolute;
       inset: auto 0 0;
       z-index: -1;
-      height: 42%;
-      background: rgba(4, 11, 14, 0.72);
+      height: 34%;
+      background: #071014;
     }
 
     .hero-character {
@@ -117,15 +86,6 @@
       pointer-events: none;
     }
 
-    .hero-character::before {
-      content: "";
-      position: absolute;
-      inset: 12% 4% 8%;
-      z-index: -1;
-      border: 1px solid rgba(67, 197, 216, 0.22);
-      border-right-color: rgba(213, 189, 120, 0.34);
-    }
-
     .hero-character img {
       max-width: 100%;
       max-height: 100%;
@@ -138,14 +98,11 @@
       position: absolute;
       right: -6px;
       bottom: 36px;
-      padding: 8px 11px;
+      padding: 8px 0;
       color: #d8e5e9;
-      background: rgba(7, 16, 20, 0.8);
-      border: 1px solid rgba(67, 197, 216, 0.3);
-      border-radius: 4px;
+      background: transparent;
       font-size: 11px;
       font-weight: 700;
-      backdrop-filter: blur(10px);
     }
 
     .topbar {
@@ -472,19 +429,17 @@
     @media (max-width: 720px) {
       .hero {
         min-height: 68svh;
-        background-position: 67% center;
       }
 
       .hero-character {
-        top: 66px;
-        right: -12px;
+        top: 150px;
+        right: 8px;
         bottom: auto;
-        width: 158px;
-        height: 244px;
-        opacity: 0.92;
+        width: 160px;
+        height: 240px;
+        opacity: 1;
       }
 
-      .hero-character::before { inset: 14% 2% 4%; }
       .character-tag { display: none; }
 
       .topbar,
@@ -512,10 +467,6 @@
 
     @media (max-width: 390px) {
       .official-mark { font-size: 11px; }
-      .hud-corner.top-left { top: 76px; left: 18px; }
-      .hud-corner.bottom-right { right: 18px; bottom: 34px; }
-      .hud-line.vertical-one { left: 18px; }
-      .hud-line.vertical-two { right: 18px; }
       .hero-actions { align-items: stretch; flex-direction: column; }
       .hero-line, .hero-more { width: 100%; }
       .bottom-row { align-items: flex-start; flex-direction: column; gap: 8px; }
@@ -529,14 +480,6 @@
 </head>
 <body>
   <header class="hero" id="top">
-    <div class="hud-lines" aria-hidden="true">
-      <span class="hud-line horizontal-one"></span>
-      <span class="hud-line horizontal-two"></span>
-      <span class="hud-line vertical-one"></span>
-      <span class="hud-line vertical-two"></span>
-      <span class="hud-corner top-left"></span>
-      <span class="hud-corner bottom-right"></span>
-    </div>
     <div class="topbar">
       <span class="wordmark">3A / 大老爺</span>
       <span class="official-mark">周賀系統在線</span>
