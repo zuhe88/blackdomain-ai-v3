@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#071014">
-  <meta name="description" content="3A-周賀官方品牌與社群入口。">
-  <meta property="og:title" content="3A-周賀">
+  <meta name="description" content="3A / 大老爺，最帥代理周賀官方品牌與社群入口。">
+  <meta property="og:title" content="3A / 大老爺｜最帥代理・周賀">
   <meta property="og:description" content="周賀 LINE、黑域AI與官方社群入口。">
   <meta property="og:type" content="website">
   <meta property="og:image" content="/3a/hero-architecture.webp">
-  <title>3A-周賀｜官方入口</title>
+  <title>3A / 大老爺｜最帥代理・周賀</title>
   <style>
     :root {
       color-scheme: dark;
@@ -57,6 +57,35 @@
       background-size: cover;
     }
 
+    .hud-lines {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .hud-line {
+      position: absolute;
+      display: block;
+      background: rgba(67, 197, 216, 0.16);
+    }
+
+    .hud-line.horizontal-one { inset: 28% 0 auto; height: 1px; }
+    .hud-line.horizontal-two { inset: auto 0 18%; height: 1px; }
+    .hud-line.vertical-one { inset: 0 auto 0 8%; width: 1px; }
+    .hud-line.vertical-two { inset: 0 8% 0 auto; width: 1px; }
+
+    .hud-corner {
+      position: absolute;
+      width: 42px;
+      height: 42px;
+      border-color: rgba(67, 197, 216, 0.55);
+      border-style: solid;
+    }
+
+    .hud-corner.top-left { top: 86px; left: 8%; border-width: 1px 0 0 1px; }
+    .hud-corner.bottom-right { right: 8%; bottom: 58px; border-width: 0 1px 1px 0; }
+
     .hero::before {
       content: "";
       position: absolute;
@@ -74,6 +103,51 @@
       background: rgba(4, 11, 14, 0.72);
     }
 
+    .hero-character {
+      position: absolute;
+      right: clamp(34px, 8vw, 132px);
+      bottom: -8px;
+      z-index: 1;
+      width: clamp(300px, 31vw, 470px);
+      height: min(90%, 690px);
+      margin: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .hero-character::before {
+      content: "";
+      position: absolute;
+      inset: 12% 4% 8%;
+      z-index: -1;
+      border: 1px solid rgba(67, 197, 216, 0.22);
+      border-right-color: rgba(213, 189, 120, 0.34);
+    }
+
+    .hero-character img {
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+      object-fit: contain;
+      filter: drop-shadow(0 28px 34px rgba(0, 0, 0, 0.48)) drop-shadow(0 0 22px rgba(67, 197, 216, 0.12));
+    }
+
+    .character-tag {
+      position: absolute;
+      right: -6px;
+      bottom: 36px;
+      padding: 8px 11px;
+      color: #d8e5e9;
+      background: rgba(7, 16, 20, 0.8);
+      border: 1px solid rgba(67, 197, 216, 0.3);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      backdrop-filter: blur(10px);
+    }
+
     .topbar {
       position: absolute;
       inset: max(20px, env(safe-area-inset-top)) 0 auto;
@@ -83,11 +157,13 @@
       width: min(1180px, calc(100% - 48px));
       margin: auto;
       font-size: 13px;
+      z-index: 3;
     }
 
     .wordmark {
       font-size: 18px;
       font-weight: 800;
+      color: #ffffff;
     }
 
     .official-mark {
@@ -107,10 +183,35 @@
     }
 
     .hero-inner {
+      position: relative;
+      z-index: 2;
       width: min(1180px, calc(100% - 48px));
       margin: 0 auto;
       padding: 130px 0 74px;
     }
+
+    .hero-content { max-width: min(660px, 58vw); }
+
+    .system-row {
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex-wrap: wrap;
+    }
+
+    .system-badge {
+      padding: 6px 9px;
+      color: #b8c7ce;
+      background: rgba(7, 16, 20, 0.62);
+      border: 1px solid rgba(67, 197, 216, 0.28);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      backdrop-filter: blur(10px);
+    }
+
+    .system-badge.live { color: #8fe2ed; }
 
     .eyebrow {
       margin: 0 0 16px;
@@ -132,9 +233,33 @@
     h1 {
       max-width: 780px;
       margin: 0;
-      font-size: clamp(52px, 8vw, 104px);
-      line-height: 0.98;
       font-weight: 800;
+    }
+
+    .title-prefix,
+    .title-main,
+    .title-name { display: block; }
+
+    .title-prefix {
+      margin-bottom: 8px;
+      color: #8fe2ed;
+      font-size: clamp(18px, 2.2vw, 27px);
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .title-main {
+      color: rgba(255, 255, 255, 0.76);
+      font-size: clamp(30px, 4.6vw, 58px);
+      line-height: 1.08;
+    }
+
+    .title-name {
+      margin-top: 5px;
+      color: #ffffff;
+      font-size: clamp(60px, 9.4vw, 118px);
+      line-height: 0.94;
+      text-shadow: 0 12px 42px rgba(0, 0, 0, 0.42);
     }
 
     .hero-copy {
@@ -144,6 +269,8 @@
       font-size: clamp(16px, 2vw, 19px);
       line-height: 1.8;
     }
+
+    .hero-copy strong { color: #ffffff; }
 
     .hero-actions {
       margin-top: 30px;
@@ -348,11 +475,27 @@
         background-position: 67% center;
       }
 
+      .hero-character {
+        top: 66px;
+        right: -12px;
+        bottom: auto;
+        width: 158px;
+        height: 244px;
+        opacity: 0.92;
+      }
+
+      .hero-character::before { inset: 14% 2% 4%; }
+      .character-tag { display: none; }
+
       .topbar,
       .hero-inner { width: calc(100% - 36px); }
 
+      .hero-content { max-width: 100%; }
+
       .hero-inner { padding: 120px 0 44px; }
-      h1 { font-size: clamp(48px, 15vw, 70px); }
+      .title-prefix { font-size: 17px; }
+      .title-main { font-size: clamp(29px, 8vw, 38px); }
+      .title-name { font-size: clamp(62px, 19vw, 82px); }
       .hero-copy { margin-top: 18px; font-size: 15px; }
       .hero-actions { margin-top: 24px; }
       .hero-line, .hero-more { min-height: 48px; padding: 0 16px; font-size: 14px; }
@@ -369,6 +512,10 @@
 
     @media (max-width: 390px) {
       .official-mark { font-size: 11px; }
+      .hud-corner.top-left { top: 76px; left: 18px; }
+      .hud-corner.bottom-right { right: 18px; bottom: 34px; }
+      .hud-line.vertical-one { left: 18px; }
+      .hud-line.vertical-two { right: 18px; }
       .hero-actions { align-items: stretch; flex-direction: column; }
       .hero-line, .hero-more { width: 100%; }
       .bottom-row { align-items: flex-start; flex-direction: column; gap: 8px; }
@@ -382,21 +529,45 @@
 </head>
 <body>
   <header class="hero" id="top">
+    <div class="hud-lines" aria-hidden="true">
+      <span class="hud-line horizontal-one"></span>
+      <span class="hud-line horizontal-two"></span>
+      <span class="hud-line vertical-one"></span>
+      <span class="hud-line vertical-two"></span>
+      <span class="hud-corner top-left"></span>
+      <span class="hud-corner bottom-right"></span>
+    </div>
     <div class="topbar">
-      <span class="wordmark">3A-周賀</span>
-      <span class="official-mark">官方社群入口</span>
+      <span class="wordmark">3A / 大老爺</span>
+      <span class="official-mark">周賀系統在線</span>
     </div>
 
+    <figure class="hero-character" aria-label="周賀人物形象">
+      <img src="/3a/zhouhe-character.webp" alt="周賀人物形象" width="1023" height="1537" fetchpriority="high">
+      <figcaption class="character-tag">主角上線｜周賀</figcaption>
+    </figure>
+
     <div class="hero-inner">
-      <p class="eyebrow">唯一官方入口</p>
-      <h1>3A-周賀</h1>
-      <p class="hero-copy">周賀 LINE、黑域AI與官方社群資訊，集中於此頁面。</p>
-      <div class="hero-actions">
-        <a class="hero-line" href="https://line.me/ti/p/@893jrweh" rel="noopener noreferrer">
-          <span>周賀 LINE</span>
-          <span aria-hidden="true">↗</span>
-        </a>
-        <a class="hero-more" href="#official-links">查看全部入口</a>
+      <div class="hero-content">
+        <div class="system-row" aria-label="頁面狀態">
+          <span class="system-badge live">● 本人在線</span>
+          <span class="system-badge">官方認證入口</span>
+          <span class="system-badge">顏值穩定運行</span>
+        </div>
+        <p class="eyebrow">最高顏值代理人</p>
+        <h1 aria-label="3A 大老爺，最帥代理周賀">
+          <span class="title-prefix">3A / 大老爺</span>
+          <span class="title-main">最帥代理</span>
+          <span class="title-name">周賀</span>
+        </h1>
+        <p class="hero-copy"><strong>最帥只是基本，服務到位才是本事。</strong><br>周賀 LINE、黑域AI與官方社群資訊都在這裡。</p>
+        <div class="hero-actions">
+          <a class="hero-line" href="https://line.me/ti/p/@893jrweh" rel="noopener noreferrer">
+            <span>周賀 LINE</span>
+            <span aria-hidden="true">↗</span>
+          </a>
+          <a class="hero-more" href="#official-links">查看全部入口</a>
+        </div>
       </div>
     </div>
   </header>
@@ -454,7 +625,7 @@
       </div>
 
       <footer class="bottom-row">
-        <span>3A-周賀</span>
+        <span>3A / 大老爺・周賀</span>
         <span>請認明本頁官方連結</span>
       </footer>
     </div>
@@ -476,8 +647,8 @@
 
       shareButton.addEventListener("click", async () => {
         const shareData = {
-          title: "3A-周賀",
-          text: "3A-周賀官方品牌與社群入口",
+          title: "3A / 大老爺｜最帥代理・周賀",
+          text: "最帥代理周賀官方品牌與社群入口",
           url: window.location.href,
         };
 
