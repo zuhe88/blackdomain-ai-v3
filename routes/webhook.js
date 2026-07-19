@@ -136,18 +136,19 @@ async function handleEvent(event) {
     return vip.handleVipMessage(event);
   }
 
-  if (vip.hasActiveVipSession && vip.hasActiveVipSession(userId)) {
-    return vip.handleVipMessage(event);
-  }
-
   if (OFFICIAL_WEBSITE_COMMANDS.has(text) || CONTACT_COMMANDS.has(text) || official.isOfficialCommand(text)) {
     clearAllUserSessions(userId);
     return official.handleOfficialMessage(event);
   }
 
   if (AI_ENTRY_COMMANDS.has(text)) {
+    clearAllUserSessions(userId);
     const allowed = await ensureVipOrReply(event, moduleNameFromText(text));
     if (!allowed) return;
+  }
+
+  if (vip.hasActiveVipSession && vip.hasActiveVipSession(userId)) {
+    return vip.handleVipMessage(event);
   }
 
   if (["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"].includes(text)) {

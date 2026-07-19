@@ -3,6 +3,7 @@ const { adminLineUserIds, isAdminLineUserId } = require("../../config/admin");
 const { getSession, updateSession } = require("../../utils/sessionStore");
 const { bubble, button, infoLine, metric, note, text } = require("../../ui/flex/premium");
 const { COMMANDS, BIND_COMMANDS, ADMIN_COMMANDS, STATUSES } = require("./constants");
+const { validateAccount3A } = require("./validator");
 const {
   STATUS,
   findVipUserByLineUserId,
@@ -249,6 +250,21 @@ function bindPromptFlex() {
     contents: [
       metric("請輸入", "您的3A帳號", "範例：abc123"),
       note("LINE User ID 只作為身分識別，不會顯示為會員ID。"),
+    ],
+  });
+}
+
+function invalidAccountFlex(error) {
+  return bubble({
+    altText: "3A帳號格式不正確",
+    title: "帳號格式不正確",
+    subtitle: "BLACKDOMAIN VIP",
+    quickReply: quickReply([{ label: "取消", text: "取消" }]),
+    footer: "BLACKDOMAIN VIP",
+    contents: [
+      metric("正確格式", "半形英文與數字", "可使用純英文、純數字或英文加數字"),
+      infoLine("範例", "abc123"),
+      note(error),
     ],
   });
 }
@@ -537,7 +553,12 @@ async function handleBindCommand(event) {
 
 async function handleBindInput(event) {
   const lineUserId = event.source.userId || "";
-  const account3A = normalizeAccount3A(event.message.text);
+  const validation = validateAccount3A(event.message.text);
+  if (!validation.ok) {
+    updateSession("vip", lineUserId, { binding3A: true, lastUpdated: Date.now() });
+    return reply(event.replyToken, invalidAccountFlex(validation.error));
+  }
+  const account3A = validation.value;
 
   const accountUser = await findVipUserBy3AAccount(account3A);
   if (accountUser.account3A) {
@@ -556,6 +577,10 @@ async function handleBindInput(event) {
   updateSession("vip", lineUserId, { binding3A: false, account3A, vipStatus: STATUS.PENDING, lastUpdated: Date.now() });
 
   if (!result.ok) {
+    if (result.code === "INVALID_ACCOUNT") {
+      updateSession("vip", lineUserId, { binding3A: true, lastUpdated: Date.now() });
+      return reply(event.replyToken, invalidAccountFlex(result.error));
+    }
     if (result.code === "LINE_ALREADY_BOUND") return reply(event.replyToken, alreadyBoundFlex(result.user?.account3A || result.request?.account3A));
     if (result.code === "LINE_PENDING") return reply(event.replyToken, pendingBindFlex(result.request?.account3A));
     if (result.code === "ACCOUNT_TAKEN" || result.code === "DUPLICATE") return reply(event.replyToken, accountTakenFlex());

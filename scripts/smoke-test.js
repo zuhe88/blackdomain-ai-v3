@@ -225,6 +225,24 @@ async function main() {
   assertIncludes(values, "已收到您的3A帳號綁定申請", "Bind success");
   if (!captured.pushes.length) throw new Error("Admin bind notification was not pushed");
 
+  values = await sendAndTexts("綁定", "invalid-account-user");
+  assertIncludes(values, "請輸入", "Invalid account bind prompt");
+  values = await sendAndTexts("中文 帳號!", "invalid-account-user");
+  assertIncludes(values, "帳號格式不正確", "Invalid account validation");
+  assertIncludes(values, "不可包含中文、空白或其他符號", "Invalid account explanation");
+  values = await sendAndTexts("valid123", "invalid-account-user");
+  assertIncludes(values, "已收到您的3A帳號綁定申請", "Valid account retry");
+
+  values = await sendAndTexts("綁定", "global-command-user");
+  assertIncludes(values, "請輸入", "Global command bind prompt");
+  values = await sendAndTexts("黑域官網", "global-command-user");
+  assertIncludes(values, "BLACKDOMAIN AI 官方入口", "Official website command overrides binding session");
+
+  values = await sendAndTexts("綁定", "global-ai-entry-user");
+  assertIncludes(values, "請輸入", "AI entry bind prompt");
+  values = await sendAndTexts("電子", "global-ai-entry-user");
+  assertIncludes(values, "尚未開通黑域AI", "AI entry overrides binding session");
+
   await send("電子", "user-smoke");
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");

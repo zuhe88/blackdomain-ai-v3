@@ -1,4 +1,5 @@
 const supabase = require("../../services/supabase");
+const { validateAccount3A } = require("./validator");
 
 const STATUS = {
   PENDING: "pending",
@@ -156,7 +157,9 @@ function duplicateErrorMessage(error) {
 
 async function submitVipRequest({ lineUserId, lineName, account3A }) {
   if (!isConnected()) return { ok: false, code: "NO_SUPABASE", error: "Supabase尚未連線" };
-  const normalizedAccount = normalizeAccount3A(account3A);
+  const validation = validateAccount3A(account3A);
+  if (!validation.ok) return { ok: false, code: "INVALID_ACCOUNT", error: validation.error };
+  const normalizedAccount = validation.value;
 
   const boundUser = await findVipUserByLineUserId(lineUserId);
   if (boundUser.account3A) {
@@ -211,7 +214,9 @@ async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPer
   if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
 
   const now = new Date().toISOString();
-  const normalizedAccount = normalizeAccount3A(account3A);
+  const validation = validateAccount3A(account3A);
+  if (!validation.ok) return { ok: false, code: "INVALID_ACCOUNT", error: validation.error };
+  const normalizedAccount = validation.value;
   const payload = {
     line_user_id: lineUserId || null,
     line_name: lineName || "未取得",
