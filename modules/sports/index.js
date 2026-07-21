@@ -11,7 +11,7 @@ function isSportsCommand(input) {
 
 function sportsQuickReply() {
   return quickReply([
-    { label: "CPBL AI", text: "CPBL" },
+    { label: "CPBL", text: "CPBL" },
     { label: "MLB AI", text: "MLB" },
     { label: "NBA", text: "NBA" },
     { label: "返回首頁", text: "首頁" },
@@ -64,7 +64,7 @@ function leagueImageBubble({ title, subtitle, image, actionText }) {
 
 function menuFlex() {
   const message = carousel("體育AI", [
-    leagueImageBubble({ title: "CPBL AI", subtitle: "中華職棒賽程、戰績與賽前分析", image: "mlb.png", actionText: "CPBL" }),
+    leagueImageBubble({ title: "CPBL", subtitle: "中華職棒賽程、戰績與賽前分析", image: "cpbl.png", actionText: "CPBL" }),
     leagueImageBubble({ title: "MLB AI", subtitle: "賽前分析、勝方與大小分", image: "mlb.png", actionText: "MLB" }),
     leagueImageBubble({ title: "NBA", subtitle: "賽前分析、勝方與節奏判斷", image: "nba.png", actionText: "NBA" }),
   ]);

@@ -248,7 +248,7 @@ async function main() {
   assertIncludes(values, "S07", "Baccarat rooms");
 
   values = await sendAndTexts("體育", "user-smoke");
-  assertIncludes(values, "CPBL AI", "Sports menu");
+  assertIncludes(values, "CPBL", "Sports menu");
 
   values = await sendAndTexts("CPBL", "user-smoke");
   assertIncludes(values, "AI預測勝方", "Sports analysis");
