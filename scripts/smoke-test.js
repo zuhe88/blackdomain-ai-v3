@@ -41,24 +41,19 @@ const pendingRequest = {
 
 global.fetch = async function mockedFetch(url) {
   const value = String(url || "");
-  if (value.includes("fifa.world")) {
+  if (value.includes("stats.cpbl.com.tw/api/proxy/v1/games/schedule")) {
     return {
       ok: true,
       async json() {
         return {
-          events: [
-            {
-              date: "2099-07-03T18:00Z",
-              competitions: [
-                {
-                  competitors: [
-                    { homeAway: "home", form: "WWDDL", team: { abbreviation: "AUS", displayName: "Australia" } },
-                    { homeAway: "away", form: "DLWDL", team: { abbreviation: "EGY", displayName: "Egypt" } },
-                  ],
-                },
-              ],
-            },
-          ],
+          Data: { Games: [{
+            GameId: "2099-A-1",
+            GameStatus: "SCHEDULED",
+            PreExeDate: "2099-07-03T18:35:00",
+            Visiting: { Team: { Code: "AJL011", Name: "樂天桃猿" }, AccumulationScore: { W: 35, L: 25, T: 1 } },
+            Home: { Team: { Code: "ACN011", Name: "中信兄弟" }, AccumulationScore: { W: 40, L: 20, T: 1 } },
+            Field: { No: "F19", Abbe: "洲際" },
+          }] },
         };
       },
     };
@@ -253,9 +248,9 @@ async function main() {
   assertIncludes(values, "S07", "Baccarat rooms");
 
   values = await sendAndTexts("體育", "user-smoke");
-  assertIncludes(values, "世足AI", "Sports menu");
+  assertIncludes(values, "CPBL AI", "Sports menu");
 
-  values = await sendAndTexts("世足", "user-smoke");
+  values = await sendAndTexts("CPBL", "user-smoke");
   assertIncludes(values, "AI預測勝方", "Sports analysis");
 
   await push("push-user", "測試推播");

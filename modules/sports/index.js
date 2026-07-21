@@ -11,7 +11,7 @@ function isSportsCommand(input) {
 
 function sportsQuickReply() {
   return quickReply([
-    { label: "世足AI", text: "世足" },
+    { label: "CPBL AI", text: "CPBL" },
     { label: "MLB AI", text: "MLB" },
     { label: "NBA", text: "NBA" },
     { label: "返回首頁", text: "首頁" },
@@ -64,7 +64,7 @@ function leagueImageBubble({ title, subtitle, image, actionText }) {
 
 function menuFlex() {
   const message = carousel("體育AI", [
-    leagueImageBubble({ title: "世足AI", subtitle: "賽前分析、比分、讓分與大小分", image: "football.png", actionText: "世足" }),
+    leagueImageBubble({ title: "CPBL AI", subtitle: "中華職棒賽程、戰績與賽前分析", image: "mlb.png", actionText: "CPBL" }),
     leagueImageBubble({ title: "MLB AI", subtitle: "賽前分析、勝方與大小分", image: "mlb.png", actionText: "MLB" }),
     leagueImageBubble({ title: "NBA", subtitle: "賽前分析、勝方與節奏判斷", image: "nba.png", actionText: "NBA" }),
   ]);
@@ -112,6 +112,7 @@ function matchBubble(league, match, index, total) {
     contents: [
       infoLine("賽事", `${match.home} VS ${match.away}`),
       infoLine("開賽時間", match.startTime),
+      ...(match.teamData?.venue ? [infoLine("比賽場地", match.teamData.venue)] : []),
       metric("AI預測勝方", match.prediction, "賽前分析"),
       metric("預測比分", match.score, "主隊在前"),
       infoLine("讓分建議", match.spread),
@@ -186,7 +187,7 @@ async function handleSportsMessage(event) {
     return reply(event.replyToken, menuFlex());
   }
 
-  if (["世足", "世足AI"].includes(value)) return pushLeagueAfterLoading(event, "世足");
+  if (["CPBL", "CPBL AI", "中華職棒", "中職"].includes(value)) return pushLeagueAfterLoading(event, "CPBL");
   if (["MLB", "MLB AI"].includes(value)) return pushLeagueAfterLoading(event, "MLB");
   if (value === "NBA") return pushLeagueAfterLoading(event, "NBA");
 

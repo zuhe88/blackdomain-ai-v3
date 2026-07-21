@@ -1,26 +1,5 @@
-const COMMANDS = ["體育", "體育AI", "SPORT", "SPORT AI", "世足", "世足AI", "MLB", "MLB AI", "NBA"];
-const LEAGUES = ["世足", "MLB", "NBA"];
-
-const WORLD_CUP_TEAMS_ZH = {
-  ARG: "阿根廷",
-  AUS: "澳洲",
-  BEL: "比利時",
-  BRA: "巴西",
-  CAN: "加拿大",
-  CRO: "克羅埃西亞",
-  ENG: "英格蘭",
-  ESP: "西班牙",
-  FRA: "法國",
-  GER: "德國",
-  ITA: "義大利",
-  JPN: "日本",
-  KOR: "韓國",
-  MEX: "墨西哥",
-  NED: "荷蘭",
-  POR: "葡萄牙",
-  SUI: "瑞士",
-  USA: "美國",
-};
+const COMMANDS = ["體育", "體育AI", "SPORT", "SPORT AI", "CPBL", "CPBL AI", "中華職棒", "中職", "MLB", "MLB AI", "NBA"];
+const LEAGUES = ["CPBL", "MLB", "NBA"];
 
 const MLB_TEAMS_ZH = {
   108: "洛杉磯天使",
@@ -91,7 +70,6 @@ const NBA_TEAMS_ZH = {
 module.exports = {
   COMMANDS,
   LEAGUES,
-  WORLD_CUP_TEAMS_ZH,
   MLB_TEAMS_ZH,
   NBA_TEAMS_ZH,
 };

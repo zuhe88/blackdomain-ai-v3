@@ -1,35 +1,11 @@
 const { askSportsAI, askSportsPredictionAI } = require("../../services/openai");
-const { WORLD_CUP_TEAMS_ZH, MLB_TEAMS_ZH, NBA_TEAMS_ZH } = require("./constants");
+const { MLB_TEAMS_ZH, NBA_TEAMS_ZH } = require("./constants");
 
 const REQUEST_TIMEOUT = 3000;
 const NO_DATA_TEXT = "目前尚無可分析賽事";
 const MAX_MATCHES = 5;
 
-const WORLD_CUP_FALLBACK_MATCHES = [
-  { stage: "季軍賽", home: "法國", away: "英格蘭", start: "2026-07-19T04:00:00+08:00", strength: 0.53 },
-  { stage: "決賽", home: "西班牙", away: "阿根廷", start: "2026-07-20T02:00:00+08:00", strength: 0.52 },
-];
-
-const WORLD_CUP_DISPLAY_NAMES_ZH = {
-  Argentina: "阿根廷",
-  Australia: "澳洲",
-  Belgium: "比利時",
-  Brazil: "巴西",
-  Canada: "加拿大",
-  Colombia: "哥倫比亞",
-  Egypt: "埃及",
-  England: "英格蘭",
-  France: "法國",
-  Mexico: "墨西哥",
-  Morocco: "摩洛哥",
-  Norway: "挪威",
-  Paraguay: "巴拉圭",
-  Portugal: "葡萄牙",
-  Spain: "西班牙",
-  Switzerland: "瑞士",
-  "United States": "美國",
-  USA: "美國",
-};
+const CPBL_SCHEDULE_API = "https://stats.cpbl.com.tw/api/proxy/v1/games/schedule";
 
 function taiwanNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
@@ -40,10 +16,6 @@ function formatDate(date) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-function compactDate(date) {
-  return formatDate(date).replace(/-/g, "");
 }
 
 function addDays(date, days) {
@@ -116,24 +88,6 @@ function makeScore(homeScore, awayScore) {
   return `${homeScore}：${awayScore}`;
 }
 
-function soccerScore(stronger, seed) {
-  const variants = stronger >= 0.64
-    ? [[3, 1], [2, 0], [3, 0], [2, 1]]
-    : stronger >= 0.58
-      ? [[2, 1], [1, 0], [2, 0], [3, 2]]
-      : [[1, 0], [2, 1], [1, 0], [2, 0]];
-  const [fav, dog] = pickVariant(seed, variants);
-  const halfFav = fav >= 2 ? 1 : 0;
-  const halfDog = dog >= 2 ? 1 : 0;
-  const total = fav + dog;
-  return {
-    score: makeScore(fav, dog),
-    totalGoals: `${total}球`,
-    halfTime: makeScore(halfFav, halfDog),
-    totalAdvice: total >= 3 ? "大分" : "小分",
-  };
-}
-
 function baseballScore(stronger, seed) {
   const variants = stronger >= 0.64
     ? [[7, 3], [6, 2], [6, 4], [5, 2]]
@@ -169,12 +123,7 @@ function basketballScore(stronger, seed) {
 }
 
 function spreadAdvice(league, winner, stronger, seed) {
-  if (league === "世足") {
-    if (stronger >= 0.65) return `${winner} -1`;
-    if (stronger >= 0.57) return `${winner} -0.5`;
-    return `${winner} 不讓分`;
-  }
-  if (league === "MLB") {
+  if (["CPBL", "MLB"].includes(league)) {
     if (stronger >= 0.62 || seed % 3 === 0) return `${winner} -1.5`;
     return `${winner} 不讓分`;
   }
@@ -226,9 +175,8 @@ function normalizeScoreText(value) {
 function isValidScoreForLeague(score, league) {
   const parts = String(score || "").split("：").map((item) => Number(item));
   if (parts.length !== 2 || parts.some((item) => !Number.isFinite(item) || item < 0)) return false;
-  if (parts[0] === parts[1]) return league === "世足";
-  if (league === "世足") return parts[0] <= 8 && parts[1] <= 8;
-  if (league === "MLB") return parts[0] <= 25 && parts[1] <= 25;
+  if (parts[0] === parts[1]) return false;
+  if (["CPBL", "MLB"].includes(league)) return parts[0] <= 25 && parts[1] <= 25;
   if (league === "NBA") return parts[0] >= 70 && parts[1] >= 70 && parts[0] <= 180 && parts[1] <= 180;
   return true;
 }
@@ -336,82 +284,83 @@ async function attachPreview(match) {
   }
 }
 
-function teamNameFromCompetitor(entry = {}) {
-  const team = entry.team || {};
-  return WORLD_CUP_TEAMS_ZH[team.abbreviation] || WORLD_CUP_DISPLAY_NAMES_ZH[team.displayName] || WORLD_CUP_DISPLAY_NAMES_ZH[team.shortDisplayName] || "未定隊伍";
+function cpblStartDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return new Date(NaN);
+  return new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(text) ? text : `${text}+08:00`);
 }
 
-function worldCupFallbackMatches() {
-  const now = Date.now();
-  return WORLD_CUP_FALLBACK_MATCHES
-    .filter((match) => new Date(match.start).getTime() >= now)
+function monthAtOffset(date, offset) {
+  const value = new Date(date);
+  value.setDate(1);
+  value.setMonth(value.getMonth() + offset);
+  return { year: value.getFullYear(), month: value.getMonth() + 1 };
+}
+
+async function loadCpblMatches() {
+  const today = taiwanNow();
+  const gamesById = new Map();
+
+  for (let offset = 0; offset <= 2 && gamesById.size < MAX_MATCHES; offset += 1) {
+    const { year, month } = monthAtOffset(today, offset);
+    const response = await requestJson(CPBL_SCHEDULE_API, {
+      kindCode: "A",
+      year,
+      month,
+    }, {
+      Accept: "application/json",
+      "User-Agent": "BLACKDOMAIN-Sports/3.0",
+    });
+
+    for (const game of response?.Data?.Games || []) {
+      const start = cpblStartDate(game.PreExeDate);
+      if (game.GameStatus !== "SCHEDULED" || !Number.isFinite(start.getTime()) || start.getTime() < Date.now()) continue;
+      gamesById.set(game.GameId || `${game.PreExeDate}-${game.GameSno}`, { game, start });
+    }
+  }
+
+  return [...gamesById.values()]
+    .sort((left, right) => left.start - right.start)
     .slice(0, MAX_MATCHES)
-    .map((match) => {
-      const pick = match.strength >= 0.57 ? match.home : match.away;
-      const seed = matchSeed("世足", match.home, match.away, match.start);
-      const score = soccerScore(match.strength, seed);
+    .map(({ game, start }) => {
+      const homeRecord = game.Home?.AccumulationScore || {};
+      const awayRecord = game.Visiting?.AccumulationScore || {};
+      const home = {
+        name: game.Home?.Team?.Name || "主隊",
+        wins: homeRecord.W,
+        losses: homeRecord.L,
+        ties: homeRecord.T,
+      };
+      const away = {
+        name: game.Visiting?.Team?.Name || "客隊",
+        wins: awayRecord.W,
+        losses: awayRecord.L,
+        ties: awayRecord.T,
+      };
+      const pick = pickByRecord(home, away);
+      const seed = matchSeed("CPBL", home.name, away.name, game.PreExeDate);
+      const score = baseballScore(pick.stronger, seed);
+
       return applyHomeAwayScore({
-        league: "世足",
-        date: formatDate(new Date(match.start)),
-        home: match.home,
-        away: match.away,
-        startTime: formatTaiwanTime(match.start),
-        prediction: pick,
-        spread: spreadAdvice("世足", pick, match.strength, seed),
+        league: "CPBL",
+        date: String(game.PreExeDate || "").slice(0, 10),
+        home: home.name,
+        away: away.name,
+        startTime: formatTaiwanTime(start.toISOString()),
+        prediction: pick.winner,
+        spread: spreadAdvice("CPBL", pick.winner, pick.stronger, seed),
         total: score.totalAdvice,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
         teamData: {
-          home: { name: match.home, strength: match.strength },
-          away: { name: match.away, strength: Number((1 - match.strength).toFixed(2)) },
+          home,
+          away,
+          stronger: pick.stronger,
+          gameId: game.GameId,
+          venue: game.Field?.Abbe || "",
+          source: "CPBL 官方進階數據",
         },
       }, score);
     });
-}
-
-async function loadWorldCupMatches() {
-  const today = taiwanNow();
-  const events = [];
-  for (let offset = 0; offset <= 7; offset += 1) {
-    try {
-      const data = await requestJson("https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard", {
-        dates: compactDate(addDays(today, offset)),
-      });
-      if (Array.isArray(data.events)) events.push(...data.events);
-    } catch (error) {
-      // Keep fallback available when one schedule date is empty or temporarily unavailable.
-    }
-    if (events.length >= MAX_MATCHES) break;
-  }
-
-  const matches = events
-    .filter((event) => new Date(event.date) >= new Date())
-    .slice(0, MAX_MATCHES)
-    .map((event) => {
-      const competition = event.competitions?.[0] || {};
-      const competitors = competition.competitors || [];
-      const homeEntry = competitors.find((item) => item.homeAway === "home") || competitors[0] || {};
-      const awayEntry = competitors.find((item) => item.homeAway === "away") || competitors[1] || {};
-      const home = { name: teamNameFromCompetitor(homeEntry), wins: 1, losses: 0 };
-      const away = { name: teamNameFromCompetitor(awayEntry), wins: 0, losses: 1 };
-      const pick = pickByRecord(home, away);
-      const seed = matchSeed("世足", home.name, away.name, event.date);
-      const score = soccerScore(pick.stronger, seed);
-
-      return applyHomeAwayScore({
-        league: "世足",
-        date: formatDate(new Date(event.date)),
-        home: home.name,
-        away: away.name,
-        startTime: formatTaiwanTime(event.date),
-        prediction: pick.winner,
-        spread: spreadAdvice("世足", pick.winner, pick.stronger, seed),
-        total: score.totalAdvice,
-        updatedAt: formatTaiwanTime(new Date().toISOString()),
-        teamData: { home, away, stronger: pick.stronger },
-      }, score);
-    });
-
-  return matches.length ? matches : worldCupFallbackMatches();
 }
 
 async function loadMlbMatches() {
@@ -510,7 +459,7 @@ async function loadNbaMatches() {
 async function loadAvailableMatches(league) {
   try {
     let matches = [];
-    if (league === "世足") matches = await loadWorldCupMatches();
+    if (league === "CPBL") matches = await loadCpblMatches();
     if (league === "MLB") matches = await loadMlbMatches();
     if (league === "NBA") matches = await loadNbaMatches();
     return await Promise.all(matches.slice(0, MAX_MATCHES).map(attachPreview));
