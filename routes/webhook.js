@@ -9,6 +9,7 @@ const sports = require("../modules/sports");
 const lottery539 = require("../modules/lottery539");
 const vip = require("../modules/vip");
 const official = require("../modules/official");
+const { isAdminLineUserId } = require("../config/admin");
 const { clearUser, updateSession } = require("../utils/sessionStore");
 
 const HOME_COMMANDS = new Set(["黑域AI", "首頁", "開始", "menu", "選單", "主選單"]);
@@ -17,6 +18,7 @@ const VIP_COMMANDS = new Set(["VIP", "vip", "VIP中心", "VIP查詢", "我的VIP
 const ADMIN_COMMANDS = new Set(["管理指令", "管理員指令", "待審核", "會員列表"]);
 const OFFICIAL_WEBSITE_COMMANDS = new Set(["官網", "黑域官網", "🌐 黑域官網"]);
 const CONTACT_COMMANDS = new Set(["管理員", "客服", "聯繫管理員", "📞 聯繫管理員"]);
+const WELCOME_PREVIEW_COMMANDS = new Set(["歡迎訊息", "測試歡迎訊息"]);
 
 const AI_ENTRY_COMMANDS = new Set([
   "百家樂",
@@ -129,6 +131,10 @@ async function handleEvent(event) {
 
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
+
+  if (WELCOME_PREVIEW_COMMANDS.has(text) && isAdminLineUserId(userId)) {
+    return reply(event.replyToken, welcomeFlex());
+  }
 
   if (text === "重新開始" && baccarat.hasActiveBaccaratSession && baccarat.hasActiveBaccaratSession(userId)) {
     return baccarat.handleBaccaratMessage(event);

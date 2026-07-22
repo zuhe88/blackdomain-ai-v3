@@ -1,86 +1,101 @@
-const { COLORS, bubble, button, note, text } = require("./flex/premium");
+const { publicBaseUrl } = require("../utils/moduleImage");
+const { COLORS, text } = require("./flex/premium");
 
-function statusBadge() {
+function actionButton(label, actionText, primary = false) {
   return {
-    type: "box",
-    layout: "horizontal",
-    spacing: "xs",
-    paddingTop: "7px",
-    paddingBottom: "7px",
-    paddingStart: "11px",
-    paddingEnd: "11px",
-    cornerRadius: "999px",
-    backgroundColor: "#11100E",
-    borderColor: "#5C4823",
-    borderWidth: "1px",
-    contents: [
-      text("●", { size: "xxs", color: COLORS.green, flex: 0, wrap: false }),
-      text("系統運行中", { size: "xxs", color: COLORS.gray, flex: 0, wrap: false }),
-    ],
-  };
-}
-
-function feature(label) {
-  return {
-    type: "box",
-    layout: "vertical",
-    flex: 1,
-    paddingAll: "10px",
-    cornerRadius: "12px",
-    backgroundColor: "#11100E",
-    borderColor: "#4C3C1E",
-    borderWidth: "1px",
-    contents: [text(label, { size: "xs", weight: "bold", color: COLORS.white, align: "center", wrap: false })],
+    type: "button",
+    style: primary ? "primary" : "link",
+    height: "sm",
+    color: primary ? COLORS.gold : COLORS.blueSoft,
+    action: {
+      type: "message",
+      label,
+      text: actionText,
+    },
   };
 }
 
 function welcomeFlex() {
-  return bubble({
-    altText: "歡迎加入黑域AI｜點此開始使用",
-    title: "歡迎加入黑域AI",
-    subtitle: "你的 AI 即時分析中心",
-    footer: "BLACKDOMAIN AI",
-    contents: [
-      {
-        type: "box",
-        layout: "horizontal",
-        contents: [statusBadge()],
+  return {
+    type: "flex",
+    altText: "歡迎加入黑域AI｜立即開始使用",
+    contents: {
+      type: "bubble",
+      size: "mega",
+      styles: {
+        hero: { backgroundColor: COLORS.black },
+        body: { backgroundColor: COLORS.black },
+        footer: { backgroundColor: COLORS.black },
       },
-      {
+      hero: {
+        type: "image",
+        url: `${publicBaseUrl()}/brand/blackdomain-ai-fb-cover-mobile-640x360.png`,
+        size: "full",
+        aspectRatio: "16:9",
+        aspectMode: "cover",
+        action: { type: "message", text: "黑域AI" },
+      },
+      body: {
         type: "box",
         layout: "vertical",
-        spacing: "sm",
-        paddingAll: "15px",
-        cornerRadius: "16px",
-        backgroundColor: "#0F0E0C",
-        borderColor: "#5C4823",
-        borderWidth: "1px",
+        spacing: "md",
+        paddingAll: "22px",
         contents: [
-          text("從這裡開始", { size: "md", weight: "bold", color: COLORS.gold }),
-          text("選擇主選單中的分析模組，即可查看功能；尚未開通的會員可先進入 VIP 中心完成綁定。", {
+          text("WELCOME TO THE DOMAIN", {
+            size: "xxs",
+            weight: "bold",
+            color: COLORS.gold,
+            wrap: false,
+          }),
+          text("歡迎進入黑域 AI", {
+            size: "xl",
+            weight: "bold",
+            color: COLORS.white,
+          }),
+          text("AI 分析系統已就緒。從主選單選擇你的分析項目，立即開始。", {
             size: "sm",
             color: COLORS.gray,
           }),
+          {
+            type: "separator",
+            margin: "sm",
+            color: "#5C4823",
+          },
+          text("百家樂  ·  電子  ·  體育  ·  539", {
+            size: "xs",
+            color: COLORS.muted,
+            align: "center",
+            wrap: false,
+          }),
         ],
       },
-      {
+      footer: {
         type: "box",
-        layout: "horizontal",
-        spacing: "sm",
-        contents: [feature("🎲 百家樂"), feature("⚡ 電子")],
+        layout: "vertical",
+        spacing: "xs",
+        paddingStart: "18px",
+        paddingEnd: "18px",
+        paddingTop: "0px",
+        paddingBottom: "16px",
+        contents: [
+          actionButton("開始使用", "黑域AI", true),
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              actionButton("VIP 權限", "VIP"),
+              actionButton("聯繫管理員", "聯繫管理員"),
+            ],
+          },
+          text("AI 分析結果僅供參考", {
+            size: "xxs",
+            color: COLORS.muted,
+            align: "center",
+          }),
+        ],
       },
-      {
-        type: "box",
-        layout: "horizontal",
-        spacing: "sm",
-        contents: [feature("⚾ 體育"), feature("🎯 539")],
-      },
-      button("立即開始使用", "黑域AI"),
-      button("VIP 綁定與權限", "VIP", "secondary"),
-      button("聯繫管理員", "聯繫管理員", "secondary"),
-      note("BLACKDOMAIN AI 提供 AI 分析、預測、建議與統計，結果僅供參考。"),
-    ],
-  });
+    },
+  };
 }
 
 module.exports = welcomeFlex;

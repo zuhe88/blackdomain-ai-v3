@@ -45,6 +45,7 @@ function hasModuleImage(fileName) {
 }
 
 module.exports = {
+  publicBaseUrl,
   moduleImageUrl,
   hasModuleImage,
 };

@@ -208,8 +208,16 @@ async function main() {
 
   await handleEvent(followEvent());
   let values = captured.replies[captured.replies.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(values, "歡迎加入黑域AI", "Follow welcome");
-  assertIncludes(values, "立即開始使用", "Follow welcome CTA");
+  assertIncludes(values, "歡迎進入黑域 AI", "Follow welcome");
+  assertIncludes(values, "AI 分析系統已就緒", "Follow welcome intro");
+
+  values = await sendAndTexts("歡迎訊息", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "歡迎進入黑域 AI", "Admin welcome preview");
+
+  values = await sendAndTexts("歡迎訊息", "regular-user");
+  if (values.some((value) => String(value).includes("歡迎進入黑域 AI"))) {
+    throw new Error("Welcome preview command must be admin-only");
+  }
 
   values = await sendAndTexts("VIP", "user-smoke");
   assertIncludes(values, "VIP狀態", "VIP center");
