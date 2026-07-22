@@ -83,7 +83,7 @@ function welcomeFlex() {
             type: "box",
             layout: "horizontal",
             contents: [
-              actionButton("已開通，直接開始", "黑域AI"),
+              actionButton("主選單", "黑域AI"),
               actionButton("聯繫管理員", "聯繫管理員"),
             ],
           },
