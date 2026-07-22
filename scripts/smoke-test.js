@@ -164,6 +164,10 @@ function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
 }
 
+function followEvent(userId = "new-follower") {
+  return { type: "follow", replyToken: `reply-${captured.replies.length + 1}`, source: { userId } };
+}
+
 async function send(text, userId = "user-smoke") {
   await handleEvent(event(text, userId));
   return captured.replies[captured.replies.length - 1];
@@ -202,7 +206,12 @@ async function main() {
   const staticPath = captured.routes.static[0];
   if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) throw new Error("Static image route points to the wrong directory");
 
-  let values = await sendAndTexts("VIP", "user-smoke");
+  await handleEvent(followEvent());
+  let values = captured.replies[captured.replies.length - 1].messages.flatMap((message) => collectText(message));
+  assertIncludes(values, "歡迎加入黑域AI", "Follow welcome");
+  assertIncludes(values, "立即開始使用", "Follow welcome CTA");
+
+  values = await sendAndTexts("VIP", "user-smoke");
   assertIncludes(values, "VIP狀態", "VIP center");
   assertIncludes(values, "test3a", "VIP center");
 

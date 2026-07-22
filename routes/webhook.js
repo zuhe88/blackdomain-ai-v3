@@ -1,6 +1,7 @@
 const { line, lineConfig, reply } = require("../services/line");
 const { logError } = require("../utils/errorCodes");
 const mainMenuFlex = require("../ui/mainMenuFlex");
+const welcomeFlex = require("../ui/welcomeFlex");
 const electronicMenuFlex = require("../ui/flex/electronicMenu");
 const electronic = require("../modules/electronic");
 const baccarat = require("../modules/baccarat");
@@ -119,6 +120,10 @@ async function replyHome(event) {
 }
 
 async function handleEvent(event) {
+  if (event.type === "follow") {
+    return reply(event.replyToken, welcomeFlex());
+  }
+
   if (event.type !== "message") return;
   if (event.message.type !== "text") return;
 
