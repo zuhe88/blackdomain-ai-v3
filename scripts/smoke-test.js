@@ -183,6 +183,16 @@ function collectText(value, output = []) {
   return output;
 }
 
+function collectActions(value, output = []) {
+  if (!value || typeof value !== "object") return output;
+  if (value.action) output.push(value.action);
+  for (const child of Object.values(value)) {
+    if (Array.isArray(child)) child.forEach((item) => collectActions(item, output));
+    else if (child && typeof child === "object" && child !== value.action) collectActions(child, output);
+  }
+  return output;
+}
+
 async function sendAndTexts(text, userId) {
   const result = await send(text, userId);
   return result.messages.flatMap((message) => collectText(message));
@@ -205,11 +215,19 @@ async function main() {
   const root = path.join(__dirname, "..");
   const staticPath = captured.routes.static[0];
   if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) throw new Error("Static image route points to the wrong directory");
+  if (!captured.routes.static.some((staticRoot) => path.resolve(staticRoot) === path.join(root, "public", "brand"))) {
+    throw new Error("Brand image route is not registered");
+  }
 
   await handleEvent(followEvent());
-  let values = captured.replies[captured.replies.length - 1].messages.flatMap((message) => collectText(message));
+  const followReply = captured.replies[captured.replies.length - 1];
+  let values = followReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "歡迎進入黑域 AI", "Follow welcome");
-  assertIncludes(values, "AI 分析系統已就緒", "Follow welcome intro");
+  assertIncludes(values, "綁定 3A 帳號", "Follow welcome binding guide");
+  const welcomeActions = followReply.messages.flatMap((message) => collectActions(message));
+  if (!welcomeActions.some((action) => action.label === "綁定 3A 開通全部權限" && action.text === "綁定")) {
+    throw new Error("Welcome binding CTA does not open the 3A binding flow");
+  }
 
   values = await sendAndTexts("歡迎訊息", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "歡迎進入黑域 AI", "Admin welcome preview");

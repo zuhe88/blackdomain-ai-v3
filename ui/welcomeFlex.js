@@ -29,7 +29,7 @@ function welcomeFlex() {
       },
       hero: {
         type: "image",
-        url: `${publicBaseUrl()}/brand/blackdomain-ai-fb-cover-mobile-640x360.png`,
+        url: `${publicBaseUrl()}/brand/blackdomain-ai-fb-cover-mobile-640x360.png?v=2`,
         size: "full",
         aspectRatio: "16:9",
         aspectMode: "cover",
@@ -52,7 +52,7 @@ function welcomeFlex() {
             weight: "bold",
             color: COLORS.white,
           }),
-          text("AI 分析系統已就緒。從主選單選擇你的分析項目，立即開始。", {
+          text("首次使用請先綁定 3A 帳號，開通全部 AI 權限；已開通會員可直接進入主選單。", {
             size: "sm",
             color: COLORS.gray,
           }),
@@ -78,12 +78,12 @@ function welcomeFlex() {
         paddingTop: "0px",
         paddingBottom: "16px",
         contents: [
-          actionButton("開始使用", "黑域AI", true),
+          actionButton("綁定 3A 開通全部權限", "綁定", true),
           {
             type: "box",
             layout: "horizontal",
             contents: [
-              actionButton("VIP 權限", "VIP"),
+              actionButton("已開通，直接開始", "黑域AI"),
               actionButton("聯繫管理員", "聯繫管理員"),
             ],
           },
