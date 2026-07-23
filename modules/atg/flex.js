@@ -28,9 +28,24 @@ function atgMenuFlex() {
 }
 
 function sourceLabel(analysis) {
-  if (analysis.source === "live") return `即時資料 · ${analysis.historyCount}期`;
+  if (analysis.source === "live" || analysis.source === "relay") return `即時資料 · ${analysis.historyCount}期`;
   if (analysis.source === "seed") return `歷史樣本 · ${analysis.historyCount}期`;
   return `資料不足 · ${analysis.historyCount}期`;
+}
+
+function syncTimeLabel(value) {
+  if (!value) return "尚未同步";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "尚未同步";
+  return date.toLocaleString("zh-TW", {
+    timeZone: "Asia/Taipei",
+    hour12: false,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function recentResultLine(record) {
@@ -72,7 +87,7 @@ function atgAnalysisFlex(analysis) {
     text("最近 3 場開獎", { size: "sm", weight: "bold", color: "#D4AF37" }),
     ...analysis.recentResults.map(recentResultLine),
   ];
-  const targetPeriod = analysis.source === "seed"
+  const targetPeriod = analysis.source === "seed" || analysis.source === "unavailable"
     ? "等待即時同步"
     : (analysis.targetPeriodId || "下一期");
 
@@ -85,6 +100,7 @@ function atgAnalysisFlex(analysis) {
     contents: [
       infoLine("預測期號", targetPeriod),
       infoLine("分析資料", sourceLabel(analysis)),
+      infoLine("最後同步", syncTimeLabel(analysis.updatedAt)),
       section(recentResults),
       section(firstHalf),
       section(secondHalf),

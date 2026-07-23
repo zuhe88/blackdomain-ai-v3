@@ -80,6 +80,9 @@ function createExpress() {
     captured.routes.static.push(staticPath);
     return function staticHandler(req, res, next) { if (next) next(); };
   };
+  express.json = function jsonMiddleware() {
+    return function jsonHandler(req, res, next) { if (next) next(); };
+  };
   return express;
 }
 

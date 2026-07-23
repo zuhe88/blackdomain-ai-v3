@@ -101,6 +101,7 @@ function buildAnalysis(records, pickCount, metadata = {}) {
       historyCount: history.length,
       source: metadata.source || "unavailable",
       targetPeriodId: metadata.targetPeriodId || null,
+      updatedAt: metadata.updatedAt || null,
       rows: [],
     };
   }
@@ -111,6 +112,7 @@ function buildAnalysis(records, pickCount, metadata = {}) {
     historyCount: history.length,
     source: metadata.source || "history",
     targetPeriodId: metadata.targetPeriodId || null,
+    updatedAt: metadata.updatedAt || null,
     latestPeriodId: history[0].periodId,
     recentResults: history.slice(0, 3).map((record) => ({
       periodId: record.periodId,

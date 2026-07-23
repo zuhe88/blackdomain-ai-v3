@@ -46,6 +46,28 @@ function addResult(record) {
   source = "live";
 }
 
+function ingestSnapshot(payload = {}) {
+  const normalized = normalizeHistory(payload.results || []);
+  if (!normalized.length) return false;
+  history = normalized;
+  targetPeriodId = payload.targetPeriodId ? String(payload.targetPeriodId) : targetPeriodId;
+  updatedAt = new Date().toISOString();
+  source = "relay";
+  return true;
+}
+
+function ingestResult(payload = {}) {
+  if (!payload.periodId || !isPermutation(payload.result)) return false;
+  addResult({
+    periodId: String(payload.periodId),
+    time: Number(payload.time) || Date.now(),
+    result: payload.result,
+  });
+  source = "relay";
+  if (payload.nextPeriodId) targetPeriodId = String(payload.nextPeriodId);
+  return true;
+}
+
 function handleInitial(payload) {
   const engine = payload?.engine;
   if (!engine || !Array.isArray(engine.results)) return;
@@ -149,5 +171,7 @@ if (process.env.ATG_DISABLE_LIVE !== "true" && process.env.ATG_SOCKET_AUTH_TOKEN
 module.exports = {
   parseSocketEvent,
   getSnapshot,
+  ingestSnapshot,
+  ingestResult,
   start,
 };
