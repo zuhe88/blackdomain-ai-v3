@@ -6,6 +6,7 @@ const { atgMenuFlex, atgAnalysisFlex } = require("./flex");
 
 const sessions = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
+const REFRESH_COMMAND = "ATG 即時刷新";
 
 function isEntryCommand(value) {
   return ENTRY_COMMANDS.has(String(value || "").trim());
@@ -19,18 +20,23 @@ function parsePickCount(value) {
 }
 
 function isAtgCommand(value) {
-  return isEntryCommand(value) || parsePickCount(value) !== null;
+  return isEntryCommand(value) || parsePickCount(value) !== null || String(value || "").trim() === REFRESH_COMMAND;
 }
 
-function setActive(userId) {
-  sessions.set(String(userId || "anonymous"), Date.now());
+function setActive(userId, pickCount = null) {
+  const key = String(userId || "anonymous");
+  const existing = sessions.get(key);
+  sessions.set(key, {
+    updatedAt: Date.now(),
+    pickCount: pickCount || existing?.pickCount || 5,
+  });
 }
 
 function hasActiveAtgSession(userId) {
   const key = String(userId || "anonymous");
-  const updatedAt = sessions.get(key);
-  if (!updatedAt) return false;
-  if (Date.now() - updatedAt > SESSION_TIMEOUT) {
+  const session = sessions.get(key);
+  if (!session) return false;
+  if (Date.now() - session.updatedAt > SESSION_TIMEOUT) {
     sessions.delete(key);
     return false;
   }
@@ -51,10 +57,11 @@ async function handleAtgMessage(event) {
     return reply(event.replyToken, atgMenuFlex());
   }
 
-  const count = parsePickCount(text);
+  const session = sessions.get(String(userId || "anonymous"));
+  const count = text === REFRESH_COMMAND ? (session?.pickCount || 5) : parsePickCount(text);
   if (!count) return false;
 
-  setActive(userId);
+  setActive(userId, count);
   source.start();
   const snapshot = source.getSnapshot();
   const analysis = buildAnalysis(snapshot.history, count, snapshot);

@@ -312,6 +312,8 @@ async function main() {
   assertIncludes(values, "冠軍至第十名定位推薦", "ATG analysis");
   assertIncludes(values, "離線樣本", "ATG seeded history");
   assertIncludes(values, "最近 3 場開獎", "ATG recent results");
+  values = await sendAndTexts("ATG 即時刷新", "user-smoke");
+  assertIncludes(values, "ATG賽馬AI · 5碼", "ATG instant refresh");
 
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");

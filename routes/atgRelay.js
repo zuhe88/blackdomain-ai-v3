@@ -56,9 +56,17 @@ function userscript(baseUrl) {
     return relayKey;
   }
 
-  function send(body) {
+  function send(body, attempt = 0) {
     const key = ensureRelayKey();
     if (!key) return;
+    const retry = () => {
+      if (attempt >= 5) {
+        console.warn("[BLACKDOMAIN ATG] 重試失敗", body.type);
+        return;
+      }
+      const delay = Math.min(30000, 1000 * (2 ** attempt));
+      setTimeout(() => send(body, attempt + 1), delay);
+    };
     GM_xmlhttpRequest({
       method: "POST",
       url: ENDPOINT,
@@ -76,10 +84,12 @@ function userscript(baseUrl) {
           console.warn("[BLACKDOMAIN ATG] 密鑰錯誤，下一次同步時會重新詢問");
         } else {
           console.warn("[BLACKDOMAIN ATG] 同步失敗", response.status);
+          retry();
         }
       },
       onerror() {
         console.warn("[BLACKDOMAIN ATG] 無法連接後端");
+        retry();
       },
     });
   }

@@ -15,6 +15,20 @@ let socket = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
 
+function isNewerOrEqualPeriod(candidate, current) {
+  if (!candidate) return false;
+  if (!current) return true;
+  try {
+    return BigInt(String(candidate)) >= BigInt(String(current));
+  } catch {
+    return String(candidate).localeCompare(String(current), "en", { numeric: true }) >= 0;
+  }
+}
+
+function advanceTargetPeriod(candidate) {
+  if (isNewerOrEqualPeriod(candidate, targetPeriodId)) targetPeriodId = String(candidate);
+}
+
 function loadSeed() {
   try {
     const parsed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
@@ -49,8 +63,8 @@ function addResult(record) {
 function ingestSnapshot(payload = {}) {
   const normalized = normalizeHistory(payload.results || []);
   if (!normalized.length) return false;
-  history = normalized;
-  targetPeriodId = payload.targetPeriodId ? String(payload.targetPeriodId) : targetPeriodId;
+  history = normalizeHistory([...normalized, ...history]);
+  advanceTargetPeriod(payload.targetPeriodId);
   updatedAt = new Date().toISOString();
   source = "relay";
   return true;
@@ -64,13 +78,13 @@ function ingestResult(payload = {}) {
     result: payload.result,
   });
   source = "relay";
-  if (payload.nextPeriodId) targetPeriodId = String(payload.nextPeriodId);
+  advanceTargetPeriod(payload.nextPeriodId);
   return true;
 }
 
 function ingestState(payload = {}) {
   if (!payload.targetPeriodId) return false;
-  targetPeriodId = String(payload.targetPeriodId);
+  advanceTargetPeriod(payload.targetPeriodId);
   updatedAt = new Date().toISOString();
   source = "relay";
   return true;

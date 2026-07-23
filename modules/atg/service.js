@@ -116,6 +116,7 @@ function buildAnalysis(records, pickCount, metadata = {}) {
     latestPeriodId: history[0].periodId,
     recentResults: history.slice(0, 3).map((record) => ({
       periodId: record.periodId,
+      time: record.time,
       result: [...record.result],
     })),
     rows: RANK_LABELS.map((label, rankIndex) => ({
