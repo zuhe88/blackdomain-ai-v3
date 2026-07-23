@@ -77,7 +77,7 @@ function handleSocketMessage(raw) {
   const value = raw.toString();
   if (value.startsWith("0")) {
     const authToken = String(process.env.ATG_SOCKET_AUTH_TOKEN || "").trim();
-    socket.send(`40${JSON.stringify({ token: authToken })}`);
+    socket.send(authToken ? `40${JSON.stringify({ token: authToken })}` : "40");
     return;
   }
   if (value === "2") {
@@ -93,7 +93,7 @@ function handleSocketMessage(raw) {
 }
 
 function scheduleReconnect() {
-  if (reconnectTimer || !process.env.ATG_SOCKET_AUTH_TOKEN) return;
+  if (reconnectTimer || process.env.ATG_DISABLE_LIVE === "true" || !process.env.ATG_SOCKET_AUTH_TOKEN) return;
   const delay = Math.min(60000, 2000 * (2 ** reconnectAttempt));
   reconnectAttempt += 1;
   reconnectTimer = setTimeout(() => {
@@ -105,7 +105,7 @@ function scheduleReconnect() {
 
 function connect() {
   const authToken = String(process.env.ATG_SOCKET_AUTH_TOKEN || "").trim();
-  if (!authToken || socket) return false;
+  if (process.env.ATG_DISABLE_LIVE === "true" || !authToken || socket) return false;
 
   const options = {};
   const origin = String(process.env.ATG_SOCKET_ORIGIN || "").trim();
@@ -140,6 +140,11 @@ function getSnapshot() {
 }
 
 loadSeed();
+
+if (process.env.ATG_DISABLE_LIVE !== "true" && process.env.ATG_SOCKET_AUTH_TOKEN) {
+  const startupTimer = setTimeout(start, 0);
+  startupTimer.unref();
+}
 
 module.exports = {
   parseSocketEvent,

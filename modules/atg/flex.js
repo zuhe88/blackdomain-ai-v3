@@ -33,6 +33,23 @@ function sourceLabel(analysis) {
   return `資料不足 · ${analysis.historyCount}期`;
 }
 
+function recentResultLine(record) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "xs",
+    paddingAll: "9px",
+    backgroundColor: "#11100E",
+    cornerRadius: "12px",
+    borderColor: "#4C3C1E",
+    borderWidth: "1px",
+    contents: [
+      text(record.periodId, { size: "xs", color: "#F0D58A", weight: "bold", wrap: false }),
+      text(record.result.join("-"), { size: "sm", color: "#FFFFFF", wrap: false }),
+    ],
+  };
+}
+
 function atgAnalysisFlex(analysis) {
   if (!analysis.available) {
     return bubble({
@@ -53,8 +70,11 @@ function atgAnalysisFlex(analysis) {
   const secondHalf = analysis.rows.slice(5).map((row) => infoLine(row.label, row.picks.join("、")));
   const recentResults = [
     text("最近 3 場開獎", { size: "sm", weight: "bold", color: "#D4AF37" }),
-    ...analysis.recentResults.map((record) => infoLine(record.periodId, record.result.join("-"))),
+    ...analysis.recentResults.map(recentResultLine),
   ];
+  const targetPeriod = analysis.source === "seed"
+    ? "等待即時同步"
+    : (analysis.targetPeriodId || "下一期");
 
   return bubble({
     altText: `ATG賽馬AI ${analysis.count}碼`,
@@ -63,7 +83,7 @@ function atgAnalysisFlex(analysis) {
     quickReply: atgQuickReply(),
     footer: "BLACKDOMAIN ATG AI",
     contents: [
-      infoLine("預測期號", analysis.targetPeriodId || "下一期"),
+      infoLine("預測期號", targetPeriod),
       infoLine("分析資料", sourceLabel(analysis)),
       section(recentResults),
       section(firstHalf),
