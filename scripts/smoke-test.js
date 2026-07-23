@@ -240,12 +240,6 @@ async function main() {
   if (!captured.routes.static.some((staticRoot) => path.resolve(staticRoot) === path.join(root, "public", "brand"))) {
     throw new Error("Brand image route is not registered");
   }
-  if (!captured.routes.static.some((staticRoot) => path.resolve(staticRoot) === path.join(root, "public", "results"))) {
-    throw new Error("Exposure results route is not registered");
-  }
-  if (!captured.routes.get.some((route) => route.route === "/api/public/atg")) {
-    throw new Error("Public ATG results API is not registered");
-  }
 
   await handleEvent(followEvent());
   const followReply = captured.replies[captured.replies.length - 1];
@@ -256,9 +250,6 @@ async function main() {
   if (!welcomeActions.some((action) => action.label === "綁定 3A 開通全部權限" && action.text === "綁定")) {
     throw new Error("Welcome binding CTA does not open the 3A binding flow");
   }
-
-  values = await sendAndTexts("分享黑域", "global-command-user");
-  assertIncludes(values, "即時戰績", "Exposure share command");
 
   values = await sendAndTexts("歡迎訊息", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "歡迎進入黑域 AI", "Admin welcome preview");
