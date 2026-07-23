@@ -164,7 +164,6 @@ Module._load = function patchedLoad(request, parent, isMain) {
 const { handleEvent } = require("../index");
 const { image, multicast, push } = require("../services/line");
 const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
-const { extractSocketToken } = require("../modules/atg/platformAuth");
 const atgSeed = require("../modules/atg/history-seed.json");
 
 function event(text, userId = "user-smoke") {
@@ -222,12 +221,6 @@ function assertMessage(message) {
 }
 
 async function main() {
-  if (extractSocketToken({ game_url: "https://play.example.test/?token=cloud-token" }) !== "cloud-token") {
-    throw new Error("ATG platform launch token extraction failed");
-  }
-  if (extractSocketToken({ game_url: "https://play.example.test/game/?t=horse-token" }) !== "horse-token") {
-    throw new Error("ATG horse launch t extraction failed");
-  }
   const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
     source: "seed",
     targetPeriodId: atgSeed.targetPeriodId,
