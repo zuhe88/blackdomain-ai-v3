@@ -26,7 +26,7 @@ function userscript(baseUrl) {
   return `// ==UserScript==
 // @name         BLACKDOMAIN ATG 即時轉送
 // @namespace    blackdomain-ai
-// @version      1.0.0
+// @version      1.1.0
 // @description  將 ATG 開獎期號與十名結果安全轉送至 BLACKDOMAIN AI
 // @match        https://play.godeebxp.com/*
 // @run-at       document-start
@@ -35,6 +35,8 @@ function userscript(baseUrl) {
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @connect      ${host}
+// @updateURL    ${baseUrl}/atg-relay.user.js
+// @downloadURL  ${baseUrl}/atg-relay.user.js
 // ==/UserScript==
 
 (function () {
@@ -83,7 +85,29 @@ function userscript(baseUrl) {
   }
 
   function handleSocketMessage(raw) {
-    if (typeof raw !== "string" || !raw.startsWith("42")) return;
+    if (typeof raw !== "string") return;
+
+    const ack = raw.match(/^43\\d+(\\[.*)$/s);
+    if (ack) {
+      try {
+        const response = JSON.parse(ack[1])[0] || {};
+        const data = response.data || {};
+        if (response.eventName === "result" && Array.isArray(data.result)) {
+          send({
+            type: "result",
+            periodId: String(data.periodId || ""),
+            nextPeriodId: String(data.nextPeriodId || ""),
+            time: Number(data.resultTime || data.serverCurrentTime) || Date.now(),
+            result: data.result,
+          });
+        }
+      } catch {
+        // Ignore malformed Socket.IO acknowledgements.
+      }
+      return;
+    }
+
+    if (!raw.startsWith("42")) return;
     let packet;
     try {
       packet = JSON.parse(raw.slice(2));
@@ -113,6 +137,14 @@ function userscript(baseUrl) {
         nextPeriodId: String(data.nextPeriodId || ""),
         time: Number(data.serverCurrentTime) || Date.now(),
       };
+      if (data.nextPeriodId) {
+        send({
+          type: "state",
+          targetPeriodId: String(data.nextPeriodId),
+          currentPeriodId: String(data.periodId || ""),
+          time: Number(data.serverCurrentTime) || Date.now(),
+        });
+      }
       return;
     }
 
@@ -168,7 +200,9 @@ function registerAtgRelayRoutes(app) {
     const body = req.body || {};
     const accepted = body.type === "snapshot"
       ? atgSource.ingestSnapshot(body)
-      : body.type === "result" && atgSource.ingestResult(body);
+      : body.type === "result"
+        ? atgSource.ingestResult(body)
+        : body.type === "state" && atgSource.ingestState(body);
 
     if (!accepted) return res.status(400).json({ ok: false, error: "Invalid ATG payload." });
     return res.status(202).json({ ok: true });

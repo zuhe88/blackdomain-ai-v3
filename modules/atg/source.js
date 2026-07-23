@@ -68,6 +68,14 @@ function ingestResult(payload = {}) {
   return true;
 }
 
+function ingestState(payload = {}) {
+  if (!payload.targetPeriodId) return false;
+  targetPeriodId = String(payload.targetPeriodId);
+  updatedAt = new Date().toISOString();
+  source = "relay";
+  return true;
+}
+
 function handleInitial(payload) {
   const engine = payload?.engine;
   if (!engine || !Array.isArray(engine.results)) return;
@@ -173,5 +181,6 @@ module.exports = {
   getSnapshot,
   ingestSnapshot,
   ingestResult,
+  ingestState,
   start,
 };
