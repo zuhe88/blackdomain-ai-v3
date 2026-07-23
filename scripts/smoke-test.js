@@ -159,6 +159,8 @@ Module._load = function patchedLoad(request, parent, isMain) {
 
 const { handleEvent } = require("../index");
 const { image, multicast, push } = require("../services/line");
+const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
+const atgSeed = require("../modules/atg/history-seed.json");
 
 function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
@@ -211,6 +213,18 @@ function assertMessage(message) {
 }
 
 async function main() {
+  const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
+    source: "seed",
+    targetPeriodId: atgSeed.targetPeriodId,
+  });
+  if (!atgAnalysis.available || atgAnalysis.rows.length !== 10) throw new Error("ATG analysis must cover all 10 ranks");
+  if (atgAnalysis.recentResults.length !== 3) throw new Error("ATG analysis must expose the latest 3 results");
+  for (const row of atgAnalysis.rows) {
+    if (row.picks.length !== 5 || new Set(row.picks).size !== 5) {
+      throw new Error(`ATG ${row.label} must contain 5 unique picks`);
+    }
+  }
+
   require("../app");
   const root = path.join(__dirname, "..");
   const staticPath = captured.routes.static[0];
@@ -287,6 +301,13 @@ async function main() {
 
   values = await sendAndTexts("CPBL", "user-smoke");
   assertIncludes(values, "AI預測勝方", "Sports analysis");
+
+  values = await sendAndTexts("ATG賽馬", "user-smoke");
+  assertIncludes(values, "主流 5碼", "ATG menu");
+  values = await sendAndTexts("ATG 5碼", "user-smoke");
+  assertIncludes(values, "冠軍至第十名定位推薦", "ATG analysis");
+  assertIncludes(values, "歷史樣本", "ATG seeded history");
+  assertIncludes(values, "最近 3 場開獎", "ATG recent results");
 
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");

@@ -3,6 +3,8 @@ node_modules
 .npm
 .vscode
 .DS_Store
+atg-*-sample.txt
+atg-socket-url.txt
 package-lock.json
 
 logs
