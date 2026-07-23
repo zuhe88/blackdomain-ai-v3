@@ -299,7 +299,12 @@ async function main() {
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
 
-  values = await sendAndTexts("ATG", "user-smoke");
+  const atgGameMenuReply = await send("ATG", "user-smoke");
+  const firstAtgGame = atgGameMenuReply.messages[0]?.contents?.contents?.[0];
+  if (firstAtgGame?.hero?.action?.text !== "ATG賽馬") {
+    throw new Error("ATG horse must be the first game in the ATG carousel");
+  }
+  values = atgGameMenuReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "ATG賽馬", "ATG combined game menu");
   assertIncludes(values, "戰神賽特1", "ATG combined game menu");
 
