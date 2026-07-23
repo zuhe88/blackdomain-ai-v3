@@ -1,7 +1,7 @@
 const { COLORS, text } = require("./premium");
-const { moduleImageUrl } = require("../../utils/moduleImage");
+const { moduleImageUrl, publicBaseUrl } = require("../../utils/moduleImage");
 
-function gameCard({ title, subtitle, image, actionText }) {
+function gameCard({ title, subtitle, image, imageUrl, actionText }) {
   return {
     type: "bubble",
     size: "kilo",
@@ -12,7 +12,7 @@ function gameCard({ title, subtitle, image, actionText }) {
     },
     hero: {
       type: "image",
-      url: moduleImageUrl(image),
+      url: imageUrl || moduleImageUrl(image),
       size: "full",
       aspectRatio: "8:9",
       aspectMode: "cover",
@@ -35,7 +35,7 @@ function gameCard({ title, subtitle, image, actionText }) {
       type: "box",
       layout: "vertical",
       paddingAll: "10px",
-      contents: [text("BLACKDOMAIN ELECTRONIC AI", { size: "xxs", color: COLORS.muted, align: "center", wrap: false })],
+      contents: [text("BLACKDOMAIN ATG AI", { size: "xxs", color: COLORS.muted, align: "center", wrap: false })],
     },
   };
 }
@@ -43,7 +43,7 @@ function gameCard({ title, subtitle, image, actionText }) {
 function electronicMenuFlex() {
   return {
     type: "flex",
-    altText: "電子AI",
+    altText: "ATG AI 遊戲選單",
     contents: {
       type: "carousel",
       contents: [
@@ -76,6 +76,12 @@ function electronicMenuFlex() {
           subtitle: "AI推薦房、熱門排行、自選分析",
           image: "urkpyn912egm1u8a.webp",
           actionText: "赤三國",
+        }),
+        gameCard({
+          title: "ATG賽馬",
+          subtitle: "即時期數、開獎與冠亞季軍推薦",
+          imageUrl: `${publicBaseUrl()}/brand/blackdomain-ai-fb-cover-mobile-640x360.png`,
+          actionText: "ATG賽馬",
         }),
       ],
     },

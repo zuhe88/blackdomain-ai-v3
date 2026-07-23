@@ -113,10 +113,9 @@ function mainMenuFlex() {
         spacing: "sm",
         contents: [
           featureRow({ icon: "🎲", title: "百家樂AI", subtitle: "配注分析、結果紀錄與本金追蹤", actionText: "百家樂" }),
-          featureRow({ icon: "⚡", title: "電子AI", subtitle: "推薦房、熱門排行與自選分析", actionText: "電子" }),
+          featureRow({ icon: "🏇", title: "ATG AI", subtitle: "電子遊戲與 ATG 賽馬分析", actionText: "ATG", accent: COLORS.gold }),
           featureRow({ icon: "⚾", title: "體育AI", subtitle: "CPBL、MLB、NBA 賽前分析", actionText: "體育" }),
           featureRow({ icon: "🎯", title: "539AI", subtitle: "今日號碼、熱號與冷號分析", actionText: "539", accent: COLORS.gold }),
-          featureRow({ icon: "🏇", title: "ATG賽馬AI", subtitle: "冠軍至第十名、3～6碼定位分析", actionText: "ATG賽馬", accent: COLORS.gold }),
         ],
       },
       utilityRow(),

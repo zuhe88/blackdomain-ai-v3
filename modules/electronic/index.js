@@ -19,7 +19,7 @@ const GAME_CONFIG = {
   赤三國: { name: "赤三國", min: 1, max: 200, pad: 3 },
 };
 
-const MAIN_COMMANDS = new Set(["電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
+const MAIN_COMMANDS = new Set(["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
 const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
 const RANK_COMMANDS = new Set(["熱門排行", "熱門房排行"]);
 const CUSTOM_COMMANDS = new Set(["自選分析", "自選房號分析"]);

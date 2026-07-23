@@ -299,6 +299,10 @@ async function main() {
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
 
+  values = await sendAndTexts("ATG", "user-smoke");
+  assertIncludes(values, "ATG賽馬", "ATG combined game menu");
+  assertIncludes(values, "戰神賽特1", "ATG combined game menu");
+
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("DG", "user-smoke");
   assertIncludes(values, "RB01", "Baccarat rooms");
