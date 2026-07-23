@@ -1,7 +1,7 @@
 const crypto = require("crypto");
 
 const DEFAULT_PLATFORM_URL = "https://sn058.3a1788.bet";
-const TOKEN_KEYS = /^(?:token|auth_?token|access_?token|launch_?token|ticket)$/i;
+const TOKEN_KEYS = /^(?:t|token|auth_?token|access_?token|launch_?token|ticket)$/i;
 
 function platformBaseUrl() {
   return String(process.env.ATG_PLATFORM_URL || DEFAULT_PLATFORM_URL).trim().replace(/\/+$/, "");
@@ -17,7 +17,7 @@ function isConfigured() {
 function deviceId(username) {
   const configured = String(process.env.ATG_PLATFORM_DEVICE_ID || "").trim();
   if (configured) return configured;
-  return `blackdomain-${crypto.createHash("sha256").update(username).digest("hex").slice(0, 32)}`;
+  return crypto.createHash("sha256").update(username).digest("hex").slice(0, 20);
 }
 
 function extractTokenFromUrl(value) {
@@ -49,7 +49,8 @@ function extractSocketToken(value, seen = new Set()) {
 }
 
 function responseError(payload, fallback) {
-  return payload?.message || payload?.msg || payload?.error || fallback;
+  const message = payload?.message || payload?.msg || payload?.error || fallback;
+  return payload?.code ? `${message} (code ${payload.code})` : message;
 }
 
 async function requestJson(path, options = {}) {

@@ -225,6 +225,9 @@ async function main() {
   if (extractSocketToken({ game_url: "https://play.example.test/?token=cloud-token" }) !== "cloud-token") {
     throw new Error("ATG platform launch token extraction failed");
   }
+  if (extractSocketToken({ game_url: "https://play.example.test/game/?t=horse-token" }) !== "horse-token") {
+    throw new Error("ATG horse launch t extraction failed");
+  }
   const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
     source: "seed",
     targetPeriodId: atgSeed.targetPeriodId,
