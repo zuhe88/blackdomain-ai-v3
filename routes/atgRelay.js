@@ -26,7 +26,7 @@ function userscript(baseUrl) {
   return `// ==UserScript==
 // @name         BLACKDOMAIN ATG 即時轉送
 // @namespace    blackdomain-ai
-// @version      1.1.0
+// @version      1.2.0
 // @description  將 ATG 開獎期號與十名結果安全轉送至 BLACKDOMAIN AI
 // @match        https://play.godeebxp.com/*
 // @run-at       document-start
@@ -46,6 +46,7 @@ function userscript(baseUrl) {
   const NativeWebSocket = unsafeWindow.WebSocket;
   let pendingDraw = null;
   let relayKey = GM_getValue("blackdomainAtgRelayKey", "");
+  let lastSocketEventAt = Date.now();
 
   function ensureRelayKey() {
     if (relayKey) return relayKey;
@@ -99,6 +100,7 @@ function userscript(baseUrl) {
 
     const ack = raw.match(/^43\\d+(\\[.*)$/s);
     if (ack) {
+      lastSocketEventAt = Date.now();
       try {
         const response = JSON.parse(ack[1])[0] || {};
         const data = response.data || {};
@@ -118,6 +120,7 @@ function userscript(baseUrl) {
     }
 
     if (!raw.startsWith("42")) return;
+    lastSocketEventAt = Date.now();
     let packet;
     try {
       packet = JSON.parse(raw.slice(2));
@@ -175,6 +178,15 @@ function userscript(baseUrl) {
       return socket;
     },
   });
+
+  setInterval(() => {
+    if (Date.now() - lastSocketEventAt < 150000) return;
+    const lastReloadAt = Number(GM_getValue("blackdomainAtgLastReloadAt", 0));
+    if (Date.now() - lastReloadAt < 180000) return;
+    GM_setValue("blackdomainAtgLastReloadAt", Date.now());
+    console.warn("[BLACKDOMAIN ATG] 超過兩個週期未收到資料，正在自動重新連線");
+    unsafeWindow.location.reload();
+  }, 30000);
 
   setTimeout(ensureRelayKey, 1500);
   console.info("[BLACKDOMAIN ATG] 即時轉送器已啟動");

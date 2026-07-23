@@ -157,12 +157,12 @@ function predictionRow(row) {
     borderWidth: "1px",
     alignItems: "center",
     contents: [
-      text(row.label, { size: "sm", color: "#F0D58A", weight: "bold", flex: 2, wrap: false }),
+      text(`${row.label}推薦`, { size: "sm", color: "#F0D58A", weight: "bold", flex: 3, wrap: false }),
       {
         type: "box",
         layout: "horizontal",
         spacing: "sm",
-        flex: 6,
+        flex: 7,
         justifyContent: "flex-end",
         contents: row.picks.map((number) => horseBadge(number)),
       },
@@ -186,19 +186,22 @@ function atgAnalysisFlex(analysis) {
     });
   }
 
+  const targetPeriod = isLiveStale(analysis)
+    ? "等待重新同步"
+    : analysis.source === "seed" || analysis.source === "unavailable"
+      ? "等待瀏覽器轉送"
+      : (analysis.targetPeriodId || "下一期");
+  const recommendationTitle = /^\d+$/.test(targetPeriod)
+    ? `第 ${targetPeriod} 期 AI推薦`
+    : targetPeriod;
   const topThree = [
-    text("冠軍 · 亞軍 · 三名", { size: "sm", weight: "bold", color: "#D4AF37" }),
+    text(recommendationTitle, { size: "sm", weight: "bold", color: "#D4AF37" }),
     ...analysis.rows.slice(0, 3).map(predictionRow),
   ];
   const recentResults = [
     text("最近 3 場開獎", { size: "sm", weight: "bold", color: "#D4AF37" }),
     ...analysis.recentResults.map(recentResultLine),
   ];
-  const targetPeriod = isLiveStale(analysis)
-    ? "等待重新同步"
-    : analysis.source === "seed" || analysis.source === "unavailable"
-      ? "等待瀏覽器轉送"
-      : (analysis.targetPeriodId || "下一期");
 
   return bubble({
     altText: `ATG賽馬AI ${analysis.count}碼`,
