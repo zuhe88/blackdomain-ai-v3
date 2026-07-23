@@ -48,9 +48,23 @@ function extractSocketToken(value, seen = new Set()) {
   return "";
 }
 
+function safeErrorDetail(payload) {
+  const detail = payload?.errors || payload?.data || payload?.detail;
+  if (!detail) return "";
+  try {
+    return JSON.stringify(detail, (key, value) =>
+      /(?:password|token|username|account|authorization)/i.test(key) ? "[REDACTED]" : value
+    ).slice(0, 500);
+  } catch {
+    return "";
+  }
+}
+
 function responseError(payload, fallback) {
   const message = payload?.message || payload?.msg || payload?.error || fallback;
-  return payload?.code ? `${message} (code ${payload.code})` : message;
+  const code = payload?.code ? ` (code ${payload.code})` : "";
+  const detail = safeErrorDetail(payload);
+  return `${message}${code}${detail ? ` details=${detail}` : ""}`;
 }
 
 async function requestJson(path, options = {}) {
