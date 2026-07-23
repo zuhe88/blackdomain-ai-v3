@@ -310,7 +310,7 @@ async function main() {
   assertIncludes(values, "主流 5碼", "ATG menu");
   values = await sendAndTexts("ATG 5碼", "user-smoke");
   assertIncludes(values, "冠軍至第十名定位推薦", "ATG analysis");
-  assertIncludes(values, "歷史樣本", "ATG seeded history");
+  assertIncludes(values, "離線樣本", "ATG seeded history");
   assertIncludes(values, "最近 3 場開獎", "ATG recent results");
 
   await push("push-user", "測試推播");

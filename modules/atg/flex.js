@@ -29,7 +29,7 @@ function atgMenuFlex() {
 
 function sourceLabel(analysis) {
   if (analysis.source === "live" || analysis.source === "relay") return `即時資料 · ${analysis.historyCount}期`;
-  if (analysis.source === "seed") return `歷史樣本 · ${analysis.historyCount}期`;
+  if (analysis.source === "seed") return `離線樣本 · ${analysis.historyCount}期`;
   return `資料不足 · ${analysis.historyCount}期`;
 }
 
@@ -88,7 +88,7 @@ function atgAnalysisFlex(analysis) {
     ...analysis.recentResults.map(recentResultLine),
   ];
   const targetPeriod = analysis.source === "seed" || analysis.source === "unavailable"
-    ? "等待即時同步"
+    ? "等待瀏覽器轉送"
     : (analysis.targetPeriodId || "下一期");
 
   return bubble({
@@ -100,7 +100,7 @@ function atgAnalysisFlex(analysis) {
     contents: [
       infoLine("預測期號", targetPeriod),
       infoLine("分析資料", sourceLabel(analysis)),
-      infoLine("最後同步", syncTimeLabel(analysis.updatedAt)),
+      infoLine(analysis.source === "seed" ? "樣本時間" : "最後同步", syncTimeLabel(analysis.updatedAt)),
       section(recentResults),
       section(firstHalf),
       section(secondHalf),
