@@ -208,6 +208,7 @@ function registerAtgRelayRoutes(app) {
       latestPeriodId: snapshot.history[0]?.periodId || null,
       historyCount: snapshot.history.length,
       updatedAt: snapshot.updatedAt,
+      connectionMode: snapshot.connectionMode,
     });
   });
 

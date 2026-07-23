@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const WebSocket = require("ws");
 const { isPermutation, normalizeHistory } = require("./service");
+const platformAuth = require("./platformAuth");
 
 const DEFAULT_SOCKET_URL = "wss://socket-lottery.godeebxp.com/socket.io/?EIO=4&transport=websocket";
 const seedPath = path.join(__dirname, "history-seed.json");
@@ -12,8 +13,11 @@ let targetPeriodId = null;
 let updatedAt = null;
 let pendingDraw = null;
 let socket = null;
+let connecting = false;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
+let socketAuthToken = String(process.env.ATG_SOCKET_AUTH_TOKEN || "").trim();
+let initialTimer = null;
 
 function isNewerOrEqualPeriod(candidate, current) {
   if (!candidate) return false;
@@ -99,6 +103,8 @@ function handleInitial(payload) {
   targetPeriodId = engine.periodId ? String(engine.periodId) : targetPeriodId;
   updatedAt = new Date().toISOString();
   source = "live";
+  if (initialTimer) clearTimeout(initialTimer);
+  initialTimer = null;
 }
 
 function handleDrawNotify(payload) {
@@ -120,12 +126,16 @@ function handleHorseAnime(payload) {
 function handleSocketMessage(raw) {
   const value = raw.toString();
   if (value.startsWith("0")) {
-    const authToken = String(process.env.ATG_SOCKET_AUTH_TOKEN || "").trim();
-    socket.send(authToken ? `40${JSON.stringify({ token: authToken })}` : "40");
+    socket.send(socketAuthToken ? `40${JSON.stringify({ token: socketAuthToken })}` : "40");
     return;
   }
   if (value === "2") {
     socket.send("3");
+    return;
+  }
+  if (value.startsWith("44")) {
+    if (platformAuth.isConfigured() && !process.env.ATG_SOCKET_AUTH_TOKEN) socketAuthToken = "";
+    socket.close();
     return;
   }
 
@@ -136,8 +146,15 @@ function handleSocketMessage(raw) {
   if (event.name === "horseAnime") handleHorseAnime(event.payload);
 }
 
+function hasLiveCredentials() {
+  return Boolean(
+    String(process.env.ATG_SOCKET_AUTH_TOKEN || "").trim() ||
+    platformAuth.isConfigured()
+  );
+}
+
 function scheduleReconnect() {
-  if (reconnectTimer || process.env.ATG_DISABLE_LIVE === "true" || !process.env.ATG_SOCKET_AUTH_TOKEN) return;
+  if (reconnectTimer || process.env.ATG_DISABLE_LIVE === "true" || !hasLiveCredentials()) return;
   const delay = Math.min(60000, 2000 * (2 ** reconnectAttempt));
   reconnectAttempt += 1;
   reconnectTimer = setTimeout(() => {
@@ -147,26 +164,55 @@ function scheduleReconnect() {
   reconnectTimer.unref();
 }
 
-function connect() {
-  const authToken = String(process.env.ATG_SOCKET_AUTH_TOKEN || "").trim();
-  if (process.env.ATG_DISABLE_LIVE === "true" || !authToken || socket) return false;
+async function connect() {
+  if (process.env.ATG_DISABLE_LIVE === "true" || !hasLiveCredentials() || socket || connecting) return false;
+  connecting = true;
+  try {
+    socketAuthToken = String(process.env.ATG_SOCKET_AUTH_TOKEN || "").trim() || await platformAuth.fetchAtgSocketToken();
+  } catch (error) {
+    console.error("[ATG] Platform login failed:", error.message);
+    connecting = false;
+    scheduleReconnect();
+    return false;
+  }
+  if (!socketAuthToken) {
+    connecting = false;
+    scheduleReconnect();
+    return false;
+  }
 
   const options = {};
   const origin = String(process.env.ATG_SOCKET_ORIGIN || "").trim();
   if (origin) options.origin = origin;
 
-  socket = new WebSocket(process.env.ATG_SOCKET_URL || DEFAULT_SOCKET_URL, options);
+  try {
+    socket = new WebSocket(process.env.ATG_SOCKET_URL || DEFAULT_SOCKET_URL, options);
+  } catch (error) {
+    console.error("[ATG] Socket connection failed:", error.message);
+    socket = null;
+    connecting = false;
+    scheduleReconnect();
+    return false;
+  }
   socket.on("open", () => {
     reconnectAttempt = 0;
+    initialTimer = setTimeout(() => {
+      if (platformAuth.isConfigured() && !process.env.ATG_SOCKET_AUTH_TOKEN) socketAuthToken = "";
+      socket?.close();
+    }, 20000);
+    initialTimer.unref();
   });
   socket.on("message", handleSocketMessage);
   socket.on("error", (error) => {
     console.error("[ATG] Socket error:", error.message);
   });
   socket.on("close", () => {
+    if (initialTimer) clearTimeout(initialTimer);
+    initialTimer = null;
     socket = null;
     scheduleReconnect();
   });
+  connecting = false;
   return true;
 }
 
@@ -180,12 +226,17 @@ function getSnapshot() {
     source,
     targetPeriodId,
     updatedAt,
+    connectionMode: process.env.ATG_SOCKET_AUTH_TOKEN
+      ? "service-token"
+      : platformAuth.isConfigured()
+        ? "platform-login"
+        : "browser-relay",
   };
 }
 
 loadSeed();
 
-if (process.env.ATG_DISABLE_LIVE !== "true" && process.env.ATG_SOCKET_AUTH_TOKEN) {
+if (process.env.ATG_DISABLE_LIVE !== "true" && hasLiveCredentials()) {
   const startupTimer = setTimeout(start, 0);
   startupTimer.unref();
 }
