@@ -63,8 +63,9 @@ function safeErrorDetail(payload) {
 function responseError(payload, fallback) {
   const message = payload?.message || payload?.msg || payload?.error || fallback;
   const code = payload?.code ? ` (code ${payload.code})` : "";
+  const errorCode = payload?.error_code ? ` error_code=${payload.error_code}` : "";
   const detail = safeErrorDetail(payload);
-  return `${message}${code}${detail ? ` details=${detail}` : ""}`;
+  return `${message}${code}${errorCode}${detail ? ` details=${detail}` : ""}`;
 }
 
 async function requestJson(path, options = {}) {
@@ -123,7 +124,7 @@ async function followLaunch(launch) {
 async function fetchAtgSocketToken() {
   if (!isConfigured()) return "";
   const username = String(process.env.ATG_PLATFORM_USERNAME).trim();
-  const password = String(process.env.ATG_PLATFORM_PASSWORD);
+  const password = String(process.env.ATG_PLATFORM_PASSWORD).trim();
   const login = await requestJson("/v1/login", {
     method: "POST",
     body: JSON.stringify({
