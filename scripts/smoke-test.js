@@ -213,6 +213,10 @@ function assertIncludes(values, expected, label) {
 function assertMessage(message) {
   if (!message || !message.type) throw new Error("Invalid LINE message");
   if (message.type === "flex" && !message.contents) throw new Error("Invalid Flex message");
+  if (message.type === "flex" && message.contents?.type === "bubble") {
+    const size = Buffer.byteLength(JSON.stringify(message.contents), "utf8");
+    if (size > 30000) throw new Error(`Flex bubble exceeds LINE 30 KB limit: ${size} bytes`);
+  }
   if (message.type === "image" && !/^https:\/\//.test(message.originalContentUrl)) throw new Error("Image URL must be HTTPS");
 }
 
@@ -309,8 +313,8 @@ async function main() {
   values = await sendAndTexts("ATG賽馬", "user-smoke");
   assertIncludes(values, "主流 5碼", "ATG menu");
   values = await sendAndTexts("ATG 5碼", "user-smoke");
-  assertIncludes(values, "冠軍至第十名定位推薦", "ATG analysis");
-  assertIncludes(values, "離線樣本", "ATG seeded history");
+  assertIncludes(values, "冠軍至五名定位推薦", "ATG analysis first half");
+  assertIncludes(values, "六名至十名定位推薦", "ATG analysis second half");
   assertIncludes(values, "最近 3 場開獎", "ATG recent results");
   values = await sendAndTexts("ATG 即時刷新", "user-smoke");
   assertIncludes(values, "ATG賽馬AI · 5碼", "ATG instant refresh");
