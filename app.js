@@ -7,6 +7,7 @@ const { registerWebhookRoutes } = require("./routes/webhook");
 const { registerPenaltyGameRoutes } = require("./routes/penaltyGame");
 const { registerBrandLandingRoutes } = require("./routes/brandLanding");
 const { registerAtgRelayRoutes } = require("./routes/atgRelay");
+const { registerExposureRoutes } = require("./routes/exposure");
 
 const app = express();
 
@@ -16,6 +17,7 @@ registerWebhookRoutes(app);
 registerPenaltyGameRoutes(app);
 registerBrandLandingRoutes(app);
 registerAtgRelayRoutes(app);
+registerExposureRoutes(app);
 
 module.exports = {
   app,

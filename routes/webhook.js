@@ -10,6 +10,7 @@ const lottery539 = require("../modules/lottery539");
 const atg = require("../modules/atg");
 const vip = require("../modules/vip");
 const official = require("../modules/official");
+const exposure = require("../modules/exposure");
 const { isAdminLineUserId } = require("../config/admin");
 const { clearUser, updateSession } = require("../utils/sessionStore");
 
@@ -140,6 +141,11 @@ async function handleEvent(event) {
 
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
+
+  if (exposure.isExposureCommand(text)) {
+    clearAllUserSessions(userId);
+    return exposure.handleExposureMessage(event);
+  }
 
   if (WELCOME_PREVIEW_COMMANDS.has(text) && isAdminLineUserId(userId)) {
     return reply(event.replyToken, welcomeFlex());
