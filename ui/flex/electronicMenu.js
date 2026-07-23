@@ -1,5 +1,5 @@
 const { COLORS, text } = require("./premium");
-const { moduleImageUrl, publicBaseUrl } = require("../../utils/moduleImage");
+const { moduleImageUrl } = require("../../utils/moduleImage");
 
 function gameCard({ title, subtitle, image, imageUrl, actionText }) {
   return {
@@ -80,7 +80,7 @@ function electronicMenuFlex() {
         gameCard({
           title: "ATG賽馬",
           subtitle: "即時期數、開獎與冠亞季軍推薦",
-          imageUrl: `${publicBaseUrl()}/brand/blackdomain-ai-fb-cover-mobile-640x360.png`,
+          image: "atg-horse.png",
           actionText: "ATG賽馬",
         }),
       ],
