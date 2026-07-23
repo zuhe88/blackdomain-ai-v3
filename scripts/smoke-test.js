@@ -313,8 +313,7 @@ async function main() {
   values = await sendAndTexts("ATG賽馬", "user-smoke");
   assertIncludes(values, "主流 5碼", "ATG menu");
   values = await sendAndTexts("ATG 5碼", "user-smoke");
-  assertIncludes(values, "冠軍至五名定位推薦", "ATG analysis first half");
-  assertIncludes(values, "六名至十名定位推薦", "ATG analysis second half");
+  assertIncludes(values, "冠軍、亞軍、三名定位推薦", "ATG top-three analysis");
   assertIncludes(values, "最近 3 場開獎", "ATG recent results");
   values = await sendAndTexts("ATG 即時刷新", "user-smoke");
   assertIncludes(values, "ATG賽馬AI · 5碼", "ATG instant refresh");

@@ -186,13 +186,9 @@ function atgAnalysisFlex(analysis) {
     });
   }
 
-  const firstHalf = [
-    text("冠軍 ～ 五名", { size: "sm", weight: "bold", color: "#D4AF37" }),
-    ...analysis.rows.slice(0, 5).map(predictionRow),
-  ];
-  const secondHalf = [
-    text("六名 ～ 十名", { size: "sm", weight: "bold", color: "#D4AF37" }),
-    ...analysis.rows.slice(5).map(predictionRow),
+  const topThree = [
+    text("冠軍 · 亞軍 · 三名", { size: "sm", weight: "bold", color: "#D4AF37" }),
+    ...analysis.rows.slice(0, 3).map(predictionRow),
   ];
   const recentResults = [
     text("最近 3 場開獎", { size: "sm", weight: "bold", color: "#D4AF37" }),
@@ -204,37 +200,20 @@ function atgAnalysisFlex(analysis) {
       ? "等待瀏覽器轉送"
       : (analysis.targetPeriodId || "下一期");
 
-  return [
-    bubble({
-      altText: `ATG賽馬AI ${analysis.count}碼即時資料`,
-      title: `ATG賽馬AI · ${analysis.count}碼`,
-      subtitle: "即時期號與最近三場",
-      footer: "BLACKDOMAIN ATG AI",
-      contents: [
-        infoLine("預測期號", targetPeriod),
-        infoLine(analysis.source === "seed" ? "樣本時間" : "最後同步", syncTimeLabel(analysis.updatedAt)),
-        section(recentResults),
-      ],
-    }),
-    bubble({
-      altText: `ATG賽馬AI ${analysis.count}碼冠軍至五名`,
-      title: `ATG賽馬AI · ${analysis.count}碼`,
-      subtitle: "冠軍至五名定位推薦",
-      footer: "BLACKDOMAIN ATG AI",
-      contents: [section(firstHalf)],
-    }),
-    bubble({
-      altText: `ATG賽馬AI ${analysis.count}碼六名至十名`,
-      title: `ATG賽馬AI · ${analysis.count}碼`,
-      subtitle: "六名至十名定位推薦",
-      quickReply: atgQuickReply(),
-      footer: "BLACKDOMAIN ATG AI",
-      contents: [
-        section(secondHalf),
-        note("依近期頻率、名次鄰近度、遺漏與轉移趨勢分析；僅供娛樂參考，不保證中獎。"),
-      ],
-    }),
-  ];
+  return bubble({
+    altText: `ATG賽馬AI ${analysis.count}碼`,
+    title: `ATG賽馬AI · ${analysis.count}碼`,
+    subtitle: "冠軍、亞軍、三名定位推薦",
+    quickReply: atgQuickReply(),
+    footer: "BLACKDOMAIN ATG AI",
+    contents: [
+      infoLine("預測期號", targetPeriod),
+      infoLine(analysis.source === "seed" ? "樣本時間" : "最後同步", syncTimeLabel(analysis.updatedAt)),
+      section(recentResults),
+      section(topThree),
+      note("依近期頻率、名次鄰近度、遺漏與轉移趨勢分析；僅供娛樂參考，不保證中獎。"),
+    ],
+  });
 }
 
 module.exports = {
