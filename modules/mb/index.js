@@ -17,12 +17,17 @@ const GAME_BY_TRACK_NAME = new Map([...TRACK_COMMANDS].map(([command, gameName])
 const sessions = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 
+function normalizeCommand(value) {
+  const text = String(value || "").trim().replace(/\s+/g, " ");
+  return /^mb(?:\s|彈珠|$)/i.test(text) ? `MB${text.slice(2)}` : text;
+}
+
 function isEntryCommand(value) {
-  return ENTRY_COMMANDS.has(String(value || "").trim());
+  return ENTRY_COMMANDS.has(normalizeCommand(value));
 }
 
 function isMbCommand(value) {
-  const text = String(value || "").trim();
+  const text = normalizeCommand(value);
   return isEntryCommand(text)
     || TRACK_COMMANDS.has(text)
     || /^MB\s+\S+\s+[3-6]\s*碼$/i.test(text)
@@ -74,7 +79,7 @@ function parseAnalysisCommand(text, session) {
 }
 
 async function handleMbMessage(event) {
-  const text = event.message.text.trim();
+  const text = normalizeCommand(event.message.text);
   const userId = event.source.userId || "";
 
   if (isEntryCommand(text)) {

@@ -261,12 +261,44 @@ async function main() {
   if (!mbTrack || mbTrack.historyCount !== 31 || mbTrack.latestPeriodId !== "202607240002") {
     throw new Error("MB track history was not merged correctly");
   }
+  if (mbTrack.targetPeriodId !== "202607240003") {
+    throw new Error("MB target period must advance after a live result");
+  }
   const mbAnalysis = buildMbAnalysis(mbTrack, 5);
   if (!mbAnalysis.available || mbAnalysis.rows.length !== 3) {
     throw new Error("MB analysis must cover the top three ranks");
   }
   if (mbAnalysis.rows.some((row) => row.picks.length !== 5 || new Set(row.picks).size !== 5)) {
     throw new Error("MB analysis must return five unique picks per rank");
+  }
+  for (const count of [3, 4, 5, 6]) {
+    const analysis = buildMbAnalysis(mbTrack, count);
+    if (analysis.rows.some((row) => row.picks.length !== count)) {
+      throw new Error(`MB analysis must return ${count} picks per rank`);
+    }
+  }
+
+  mbSource.ingestSocketEvent({
+    event: "OPEN",
+    data: {
+      game_name: "PK-MBRACE-2",
+      current: { game_name: "PK-MBRACE-2", draw_num: "202607240103" },
+    },
+  });
+  mbSource.ingestRoadmap({
+    items: [{
+      game_name: "PK-MBRACE-2",
+      roadmap: [{
+        draw_num: "202607240101",
+        champion: { rank_value: "1" },
+        second: { rank_value: "2" },
+        third: { rank_value: "3" },
+      }],
+    }],
+  });
+  const skippedTrack = mbSource.getSnapshot().tracks.find((track) => track.gameName === "PK-MBRACE-2");
+  if (skippedTrack.targetPeriodId !== "202607240103") {
+    throw new Error("MB roadmap refresh must not move an active target period backwards");
   }
 
   const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
@@ -374,12 +406,20 @@ async function main() {
   if (!mbHeroUrl.includes("mb-marble-hd.webp")) {
     throw new Error("MB menu must use the enhanced MB marble image");
   }
+  values = await sendAndTexts("mb彈珠", "user-smoke-lowercase");
+  assertIncludes(values, "獨立四賽道即時資料", "Lowercase MB command");
   values = await sendAndTexts("MB 賭城賽車", "user-smoke");
   assertIncludes(values, "主流 5碼", "MB track pick menu");
   values = await sendAndTexts("MB 賭城賽車 5碼", "user-smoke");
   assertIncludes(values, "冠軍、亞軍、季軍定位推薦", "MB analysis");
   assertIncludes(values, "最近 3 場開獎", "MB track data");
   assertIncludes(values, "202607240002", "MB track latest result");
+  const mbAnalysisMessage = captured.replies[captured.replies.length - 1].messages[0];
+  const mbAnalysisJson = JSON.stringify(mbAnalysisMessage);
+  const regularChipWidths = (mbAnalysisJson.match(/"width":"25px"/g) || []).length;
+  if (regularChipWidths !== 15 || mbAnalysisJson.includes('"width":"20px","height":"25px"')) {
+    throw new Error("MB recommendation number chips must use a consistent size");
+  }
 
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("DG", "user-smoke");

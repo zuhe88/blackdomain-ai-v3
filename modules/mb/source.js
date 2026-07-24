@@ -44,6 +44,14 @@ function nextPeriodId(value) {
   }
 }
 
+function laterPeriodId(left, right) {
+  if (!left) return right || null;
+  if (!right) return left;
+  return String(left).localeCompare(String(right), "en", { numeric: true }) >= 0
+    ? String(left)
+    : String(right);
+}
+
 function normalizeRoadmapRecord(record = {}) {
   const topThree = [
     record.champion?.rank_value,
@@ -107,7 +115,10 @@ function ingestRoadmap(payload = {}) {
     const previousCount = state.history.length;
     state.history = mergeHistory(state.history, history);
     state.latestPeriodId = state.history[0]?.periodId || state.latestPeriodId;
-    if (!state.targetPeriodId) state.targetPeriodId = nextPeriodId(state.latestPeriodId);
+    state.targetPeriodId = laterPeriodId(
+      state.targetPeriodId,
+      nextPeriodId(state.latestPeriodId),
+    );
     if (state.latestPeriodId !== previousLatest || state.history.length !== previousCount) {
       state.updatedAt = new Date().toISOString();
     }

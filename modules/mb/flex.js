@@ -3,17 +3,18 @@ const { moduleImageUrl } = require("../../utils/moduleImage");
 const { COLORS, bubble, card, infoLine, note, section, text } = require("../../ui/flex/premium");
 
 const MARBLE_COLORS = {
-  1: "#D4B719",
-  2: "#5AAAC8",
-  3: "#8C9294",
-  4: "#D95D30",
-  5: "#10959A",
-  6: "#8A49C9",
-  7: "#3D51AC",
-  8: "#D84B58",
-  9: "#A98355",
-  10: "#2D9958",
+  1: "#F3A51D",
+  2: "#258FD5",
+  3: "#9BCB35",
+  4: "#A88AC2",
+  5: "#EF4938",
+  6: "#43A66B",
+  7: "#E65C8B",
+  8: "#B9773D",
+  9: "#58C5D3",
+  10: "#EE998D",
 };
+const DARK_NUMBER_MARBLES = new Set([1, 3, 4, 8, 9, 10]);
 
 function baseBubble(hero, bodyContents, quickReplyData = null) {
   const contents = {
@@ -118,25 +119,56 @@ function recordRow(record) {
   return {
     type: "box",
     layout: "vertical",
-    spacing: "xs",
-    paddingAll: "11px",
-    cornerRadius: "13px",
-    backgroundColor: "#11100E",
-    borderColor: "#4C3C1E",
-    borderWidth: "1px",
+    spacing: "sm",
+    paddingTop: "5px",
+    paddingBottom: "5px",
     contents: [
-      text(`${record.periodId}期`, { size: "xs", weight: "bold", color: COLORS.gold }),
-      text(`冠軍 ${values[0]}　亞軍 ${values[1]}　季軍 ${values[2]}`, {
-        size: "sm",
-        weight: "bold",
-        color: COLORS.white,
-      }),
-      text(`冠亞和 ${record.sum || values[0] + values[1]} · ${record.overUnder === "OVER" ? "大" : "小"} · ${record.oddEven === "ODD" ? "單" : "雙"}`, {
-        size: "xs",
-        color: COLORS.gray,
-      }),
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          text(`${record.periodId}期`, { size: "xs", weight: "bold", color: COLORS.gold, flex: 5 }),
+          text(
+            `冠亞和 ${record.sum || values[0] + values[1]} · ${record.overUnder === "OVER" ? "大" : "小"} · ${record.oddEven === "ODD" ? "單" : "雙"}`,
+            { size: "xxs", color: COLORS.gray, align: "end", flex: 4, wrap: false },
+          ),
+        ],
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "sm",
+        contents: [
+          historyRank("冠軍", values[0]),
+          historyRank("亞軍", values[1]),
+          historyRank("季軍", values[2]),
+        ],
+      },
     ],
   };
+}
+
+function historyRank(label, number) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "xs",
+    flex: 1,
+    alignItems: "center",
+    contents: [
+      text(label, { size: "xxs", color: "#F0D58A", flex: 0, wrap: false }),
+      numberChip(number, true),
+    ],
+  };
+}
+
+function recentResultContents(records) {
+  const contents = [text("最近 3 場開獎", { size: "sm", weight: "bold", color: COLORS.gold })];
+  records.forEach((record, index) => {
+    if (index > 0) contents.push({ type: "separator", color: "#4C3C1E" });
+    contents.push(recordRow(record));
+  });
+  return contents;
 }
 
 function analysisQuickReply(track, count = null) {
@@ -180,7 +212,7 @@ function numberChip(number, compact = false) {
       text(number, {
         size: number === 10 || compact ? "xxs" : "xs",
         weight: "bold",
-        color: COLORS.white,
+        color: DARK_NUMBER_MARBLES.has(Number(number)) ? "#21170E" : COLORS.white,
         align: "center",
         gravity: "center",
         wrap: false,
@@ -266,10 +298,7 @@ function mbAnalysisFlex(analysis, track) {
     contents: [
       infoLine("預測期號", targetPeriod),
       infoLine("最後同步", syncTime(analysis.updatedAt)),
-      section([
-      text("最近 3 場開獎", { size: "sm", weight: "bold", color: COLORS.gold }),
-      ...analysis.recentResults.map(recordRow),
-      ]),
+      section(recentResultContents(analysis.recentResults)),
       section([
         text(recommendationTitle, { size: "sm", weight: "bold", color: COLORS.gold }),
         ...analysis.rows.slice(0, 3).map(predictionRow),
