@@ -165,6 +165,7 @@ const { handleEvent } = require("../index");
 const { image, multicast, push } = require("../services/line");
 const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
 const atgSeed = require("../modules/atg/history-seed.json");
+const mbSource = require("../modules/mb/source");
 
 function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
@@ -221,6 +222,36 @@ function assertMessage(message) {
 }
 
 async function main() {
+  mbSource.resetForTest();
+  if (!mbSource.ingestRoadmap({
+    items: [{
+      game_name: "PK-MBRACE-1",
+      roadmap: [{
+        draw_num: "202607240001",
+        champion: { rank_value: "7" },
+        second: { rank_value: "1" },
+        third: { rank_value: "2" },
+        sum: { rank_value: "8", over_under: "UNDER", odd_even: "EVEN" },
+      }],
+    }],
+  })) throw new Error("MB roadmap payload must be accepted");
+  if (!mbSource.ingestSocketEvent({
+    event: "RESULT_PUBLIC",
+    data: {
+      dcs_id: 368,
+      game_name: "PK-MBRACE-1",
+      draw_num: "202607240002",
+      result: [3, 9, 2, 1, 6, 5, 8, 10, 7, 4],
+      result_display: { sum: "12", over_under: "OVER", odd_even: "EVEN" },
+      result_time: 1784893222,
+    },
+  })) throw new Error("MB live result payload must be accepted");
+  const mbSnapshot = mbSource.getSnapshot();
+  const mbTrack = mbSnapshot.tracks.find((track) => track.gameName === "PK-MBRACE-1");
+  if (!mbTrack || mbTrack.historyCount !== 2 || mbTrack.latestPeriodId !== "202607240002") {
+    throw new Error("MB track history was not merged correctly");
+  }
+
   const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
     source: "seed",
     targetPeriodId: atgSeed.targetPeriodId,
@@ -239,6 +270,15 @@ async function main() {
   if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) throw new Error("Static image route points to the wrong directory");
   if (!captured.routes.static.some((staticRoot) => path.resolve(staticRoot) === path.join(root, "public", "brand"))) {
     throw new Error("Brand image route is not registered");
+  }
+  if (!captured.routes.get.some((route) => route.route === "/mb-relay.user.js")) {
+    throw new Error("MB relay userscript route is not registered");
+  }
+  if (!captured.routes.get.some((route) => route.route === "/api/mb/status")) {
+    throw new Error("MB status route is not registered");
+  }
+  if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
+    throw new Error("MB ingest route is not registered");
   }
 
   await handleEvent(followEvent());
@@ -307,6 +347,19 @@ async function main() {
   values = atgGameMenuReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "ATG賽馬", "ATG combined game menu");
   assertIncludes(values, "戰神賽特1", "ATG combined game menu");
+
+  const mbMenuReply = await send("MB彈珠", "user-smoke");
+  values = mbMenuReply.messages.flatMap((message) => collectText(message));
+  assertIncludes(values, "獨立四賽道即時資料", "MB independent game menu");
+  assertIncludes(values, "賭城賽車", "MB independent game menu");
+  assertIncludes(values, "雪地賽車", "MB independent game menu");
+  const mbHeroUrl = mbMenuReply.messages[0]?.contents?.hero?.url || "";
+  if (!mbHeroUrl.includes("mb-marble-hd.webp")) {
+    throw new Error("MB menu must use the enhanced MB marble image");
+  }
+  values = await sendAndTexts("MB 賭城賽車", "user-smoke");
+  assertIncludes(values, "最近 3 場開獎", "MB track data");
+  assertIncludes(values, "202607240002", "MB track latest result");
 
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("DG", "user-smoke");

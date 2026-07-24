@@ -8,6 +8,7 @@ const baccarat = require("../modules/baccarat");
 const sports = require("../modules/sports");
 const lottery539 = require("../modules/lottery539");
 const atg = require("../modules/atg");
+const mb = require("../modules/mb");
 const vip = require("../modules/vip");
 const official = require("../modules/official");
 const { isAdminLineUserId } = require("../config/admin");
@@ -58,6 +59,9 @@ const AI_ENTRY_COMMANDS = new Set([
   "ATG賽馬",
   "ATG賽馬AI",
   "🏇 ATG賽馬AI",
+  "MB",
+  "MB彈珠",
+  "MB彈珠AI",
 ]);
 
 function registerWebhookRoutes(app) {
@@ -79,6 +83,7 @@ function clearAllUserSessions(userId) {
   if (electronic.resetElectronicSession) electronic.resetElectronicSession(userId);
   if (baccarat.resetBaccaratSession) baccarat.resetBaccaratSession(userId);
   if (atg.resetAtgSession) atg.resetAtgSession(userId);
+  if (mb.resetMbSession) mb.resetMbSession(userId);
 }
 
 function isAdminCommand(text) {
@@ -97,6 +102,7 @@ function moduleNameFromText(text) {
   if (["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI", "戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"].includes(text)) return "electronic";
   if (["539", "539AI", "今彩539", "🎯 539AI", "AI今日預測"].includes(text)) return "539";
   if (["ATG", "ATG賽馬", "ATG賽馬AI", "🏇 ATG賽馬AI"].includes(text)) return "atg";
+  if (["MB", "MB彈珠", "MB彈珠AI"].includes(text)) return "mb";
   if (["體育", "體育AI", "SPORT", "SPORT AI", "CPBL", "CPBL AI", "中華職棒", "中職", "MLB", "MLB AI", "NBA"].includes(text)) return "sports";
   return "AI";
 }
@@ -193,6 +199,11 @@ async function handleEvent(event) {
     return atg.handleAtgMessage(event);
   }
 
+  if (mb.isEntryCommand(text)) {
+    clearAllUserSessions(userId);
+    return mb.handleMbMessage(event);
+  }
+
   if (sports.isSportsCommand(text) && ["體育", "體育AI", "SPORT", "SPORT AI"].includes(text)) {
     clearAllUserSessions(userId);
     return sports.handleSportsMessage(event);
@@ -221,6 +232,12 @@ async function handleEvent(event) {
   }
 
   if (lottery539.is539Command(text)) return lottery539.handle539Message(event);
+  if (mb.hasActiveMbSession(userId) || mb.isMbCommand(text)) {
+    const allowed = await ensureVipOrReply(event, "mb");
+    if (!allowed) return;
+    const handled = await mb.handleMbMessage(event);
+    if (handled !== false) return handled;
+  }
   if (atg.hasActiveAtgSession(userId) || atg.isAtgCommand(text)) {
     const allowed = await ensureVipOrReply(event, "atg");
     if (!allowed) return;

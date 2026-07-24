@@ -114,6 +114,7 @@ function mainMenuFlex() {
         contents: [
           featureRow({ icon: "🎲", title: "百家樂AI", subtitle: "配注分析、結果紀錄與本金追蹤", actionText: "百家樂" }),
           featureRow({ icon: "🏇", title: "ATG AI", subtitle: "電子遊戲與 ATG 賽馬分析", actionText: "ATG", accent: COLORS.gold }),
+          featureRow({ icon: "🎱", title: "MB彈珠AI", subtitle: "獨立四賽道即時開獎資料", actionText: "MB彈珠", accent: COLORS.gold }),
           featureRow({ icon: "⚾", title: "體育AI", subtitle: "CPBL、MLB、NBA 賽前分析", actionText: "體育" }),
           featureRow({ icon: "🎯", title: "539AI", subtitle: "今日號碼、熱號與冷號分析", actionText: "539", accent: COLORS.gold }),
         ],
