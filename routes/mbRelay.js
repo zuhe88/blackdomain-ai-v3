@@ -27,7 +27,7 @@ function userscript(baseUrl) {
   return `// ==UserScript==
 // @name         BLACKDOMAIN MB 彈珠即時轉送器
 // @namespace    blackdomain-ai
-// @version      1.0.0
+// @version      1.1.0
 // @description  將 MB RACING 四賽道歷史與即時開獎同步至 BLACKDOMAIN AI
 // @match        https://mbracing.cc/*
 // @run-at       document-start
@@ -47,6 +47,7 @@ function userscript(baseUrl) {
   const NativeWebSocket = unsafeWindow.WebSocket;
   const nativeFetch = unsafeWindow.fetch.bind(unsafeWindow);
   const ALLOWED_EVENTS = new Set(["OPEN", "CLOSE", "RESULT_PUBLIC", "TABLE_STATE_CHANGED"]);
+  const GAME_BY_DCS = { 368: "PK-MBRACE-1", 369: "PK-MBRACE-2", 370: "PK-MBRACE-3", 371: "PK-MBRACE-4" };
   const CACHE_KEY = "blackdomainMbRoadmaps";
   let relayKey = GM_getValue("blackdomainMbRelayKey", "");
   let cachedRoadmaps = GM_getValue(CACHE_KEY, {});
@@ -107,6 +108,40 @@ function userscript(baseUrl) {
     GM_setValue(CACHE_KEY, cachedRoadmaps);
   }
 
+  function marbleSide(value) {
+    return Number(value) >= 6 ? "OVER" : "UNDER";
+  }
+
+  function marbleParity(value) {
+    return Number(value) % 2 ? "ODD" : "EVEN";
+  }
+
+  function rememberLiveResult(data) {
+    if (!Array.isArray(data.result) || data.result.length < 3 || !data.draw_num) return;
+    const gameName = data.game_name || GAME_BY_DCS[Number(data.dcs_id)];
+    if (!gameName) return;
+    const values = data.result.slice(0, 3).map(Number);
+    const sum = values[0] + values[1];
+    const item = cachedRoadmaps[gameName] || { game_name: gameName, roadmap: [] };
+    const record = {
+      draw_num: String(data.draw_num),
+      champion: { rank_value: String(values[0]), over_under: marbleSide(values[0]), odd_even: marbleParity(values[0]) },
+      second: { rank_value: String(values[1]), over_under: marbleSide(values[1]), odd_even: marbleParity(values[1]) },
+      third: { rank_value: String(values[2]), over_under: marbleSide(values[2]), odd_even: marbleParity(values[2]) },
+      sum: {
+        rank_value: String(sum),
+        over_under: data.result_display?.over_under || (sum >= 12 ? "OVER" : "UNDER"),
+        odd_even: data.result_display?.odd_even || marbleParity(sum),
+      },
+    };
+    item.roadmap = [
+      record,
+      ...(Array.isArray(item.roadmap) ? item.roadmap : []).filter((row) => String(row.draw_num) !== record.draw_num),
+    ].slice(0, 200);
+    cachedRoadmaps[gameName] = item;
+    GM_setValue(CACHE_KEY, cachedRoadmaps);
+  }
+
   function handleGraphql(json) {
     const items = json?.data?.marbleRoadmapBatch?.items;
     if (!Array.isArray(items) || !items.length) return;
@@ -136,6 +171,7 @@ function userscript(baseUrl) {
     if (!ALLOWED_EVENTS.has(packet?.event)) return;
     lastSocketEventAt = Date.now();
     const data = packet.data || {};
+    if (packet.event === "RESULT_PUBLIC") rememberLiveResult(data);
     send({
       type: "socket",
       event: packet.event,
@@ -160,6 +196,9 @@ function userscript(baseUrl) {
     construct(Target, args) {
       const socket = Reflect.construct(Target, args);
       socket.addEventListener("message", (event) => handleSocketMessage(event.data));
+      socket.addEventListener("close", () => {
+        lastSocketEventAt = Date.now() - 181000;
+      });
       return socket;
     },
   });
@@ -174,7 +213,12 @@ function userscript(baseUrl) {
     const items = Object.values(cachedRoadmaps || {});
     if (items.length) send({ type: "roadmap", items });
     if (Date.now() - lastSocketEventAt > 180000) {
-      console.warn("[BLACKDOMAIN MB] 三分鐘未收到即時事件，請確認遊戲連線。");
+      const lastReloadAt = Number(GM_getValue("blackdomainMbLastReloadAt", 0));
+      if (Date.now() - lastReloadAt > 300000) {
+        GM_setValue("blackdomainMbLastReloadAt", Date.now());
+        console.warn("[BLACKDOMAIN MB] 三分鐘未收到即時事件，正在自動重新連線。");
+        unsafeWindow.location.reload();
+      }
     }
   }, 60000);
 
@@ -202,6 +246,7 @@ function registerMbRelayRoutes(app) {
         latestPeriodId: track.latestPeriodId,
         historyCount: track.historyCount,
         updatedAt: track.updatedAt,
+        liveUpdatedAt: track.liveUpdatedAt,
       })),
     });
   });

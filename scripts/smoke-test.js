@@ -166,6 +166,7 @@ const { image, multicast, push } = require("../services/line");
 const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
 const atgSeed = require("../modules/atg/history-seed.json");
 const mbSource = require("../modules/mb/source");
+const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
 
 function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
@@ -226,13 +227,22 @@ async function main() {
   if (!mbSource.ingestRoadmap({
     items: [{
       game_name: "PK-MBRACE-1",
-      roadmap: [{
-        draw_num: "202607240001",
-        champion: { rank_value: "7" },
-        second: { rank_value: "1" },
-        third: { rank_value: "2" },
-        sum: { rank_value: "8", over_under: "UNDER", odd_even: "EVEN" },
-      }],
+      roadmap: Array.from({ length: 30 }, (_, index) => {
+        const champion = (index % 10) + 1;
+        const second = ((index + 1) % 10) + 1;
+        const third = ((index + 2) % 10) + 1;
+        return {
+          draw_num: String(202607240001 - index),
+          champion: { rank_value: String(champion) },
+          second: { rank_value: String(second) },
+          third: { rank_value: String(third) },
+          sum: {
+            rank_value: String(champion + second),
+            over_under: champion + second >= 12 ? "OVER" : "UNDER",
+            odd_even: (champion + second) % 2 ? "ODD" : "EVEN",
+          },
+        };
+      }),
     }],
   })) throw new Error("MB roadmap payload must be accepted");
   if (!mbSource.ingestSocketEvent({
@@ -248,8 +258,15 @@ async function main() {
   })) throw new Error("MB live result payload must be accepted");
   const mbSnapshot = mbSource.getSnapshot();
   const mbTrack = mbSnapshot.tracks.find((track) => track.gameName === "PK-MBRACE-1");
-  if (!mbTrack || mbTrack.historyCount !== 2 || mbTrack.latestPeriodId !== "202607240002") {
+  if (!mbTrack || mbTrack.historyCount !== 31 || mbTrack.latestPeriodId !== "202607240002") {
     throw new Error("MB track history was not merged correctly");
+  }
+  const mbAnalysis = buildMbAnalysis(mbTrack, 5);
+  if (!mbAnalysis.available || mbAnalysis.rows.length !== 3) {
+    throw new Error("MB analysis must cover the top three ranks");
+  }
+  if (mbAnalysis.rows.some((row) => row.picks.length !== 5 || new Set(row.picks).size !== 5)) {
+    throw new Error("MB analysis must return five unique picks per rank");
   }
 
   const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
@@ -358,6 +375,9 @@ async function main() {
     throw new Error("MB menu must use the enhanced MB marble image");
   }
   values = await sendAndTexts("MB 賭城賽車", "user-smoke");
+  assertIncludes(values, "主流 5碼", "MB track pick menu");
+  values = await sendAndTexts("MB 賭城賽車 5碼", "user-smoke");
+  assertIncludes(values, "冠軍、亞軍、第三名定位推薦", "MB analysis");
   assertIncludes(values, "最近 3 場開獎", "MB track data");
   assertIncludes(values, "202607240002", "MB track latest result");
 

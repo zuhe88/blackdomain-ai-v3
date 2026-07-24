@@ -16,6 +16,7 @@ const states = new Map(TRACKS.map((track) => [
     latestPeriodId: null,
     history: [],
     updatedAt: null,
+    liveUpdatedAt: null,
   },
 ]));
 
@@ -32,6 +33,15 @@ function isFullResult(result) {
 
 function periodCompare(left, right) {
   return String(right.periodId).localeCompare(String(left.periodId), "en", { numeric: true });
+}
+
+function nextPeriodId(value) {
+  if (!value) return null;
+  try {
+    return (BigInt(String(value)) + 1n).toString();
+  } catch {
+    return null;
+  }
 }
 
 function normalizeRoadmapRecord(record = {}) {
@@ -93,9 +103,14 @@ function ingestRoadmap(payload = {}) {
     if (!state || !Array.isArray(item.roadmap)) return;
     const history = item.roadmap.map(normalizeRoadmapRecord).filter(Boolean);
     if (!history.length) return;
+    const previousLatest = state.history[0]?.periodId || null;
+    const previousCount = state.history.length;
     state.history = mergeHistory(state.history, history);
     state.latestPeriodId = state.history[0]?.periodId || state.latestPeriodId;
-    state.updatedAt = new Date().toISOString();
+    if (!state.targetPeriodId) state.targetPeriodId = nextPeriodId(state.latestPeriodId);
+    if (state.latestPeriodId !== previousLatest || state.history.length !== previousCount) {
+      state.updatedAt = new Date().toISOString();
+    }
     accepted += 1;
   });
   return accepted > 0;
@@ -113,7 +128,9 @@ function ingestSocketEvent(payload = {}) {
     if (!record) return false;
     state.history = mergeHistory(state.history, [record]);
     state.latestPeriodId = record.periodId;
-    state.targetPeriodId = data.next_draw_num ? String(data.next_draw_num) : state.targetPeriodId;
+    state.targetPeriodId = data.next_draw_num
+      ? String(data.next_draw_num)
+      : nextPeriodId(record.periodId) || state.targetPeriodId;
     state.state = "Settlement";
   } else if (event === "OPEN" || event === "CLOSE") {
     const current = data.current || data;
@@ -126,6 +143,7 @@ function ingestSocketEvent(payload = {}) {
   }
 
   state.updatedAt = new Date().toISOString();
+  state.liveUpdatedAt = state.updatedAt;
   return true;
 }
 
@@ -143,6 +161,7 @@ function getSnapshot() {
         latestPeriodId: state.latestPeriodId,
         historyCount: state.history.length,
         updatedAt: state.updatedAt,
+        liveUpdatedAt: state.liveUpdatedAt,
         history: state.history.map((record) => ({
           ...record,
           result: [...record.result],
@@ -159,6 +178,7 @@ function resetForTest() {
     state.latestPeriodId = null;
     state.history = [];
     state.updatedAt = null;
+    state.liveUpdatedAt = null;
   });
 }
 
