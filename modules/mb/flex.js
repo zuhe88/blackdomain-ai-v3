@@ -1,6 +1,6 @@
 const { quickReply } = require("../../services/line");
 const { moduleImageUrl } = require("../../utils/moduleImage");
-const { COLORS, card, infoLine, note, section, text } = require("../../ui/flex/premium");
+const { COLORS, bubble, card, infoLine, note, section, text } = require("../../ui/flex/premium");
 
 const MARBLE_COLORS = {
   1: "#D4B719",
@@ -151,37 +151,40 @@ function analysisQuickReply(track, count = null) {
 }
 
 function mbTrackFlex(track) {
-  const contents = [
-    text(`MB彈珠 · ${track.name}`, {
-      size: "xl",
-      weight: "bold",
-      color: COLORS.gold,
-      align: "center",
-    }),
-    text("冠軍、亞軍、第三名定位推薦", { size: "sm", color: COLORS.gray, align: "center" }),
-    infoLine("目前狀態", track.state),
-    infoLine("預測期數", track.targetPeriodId || "等待同步"),
-    infoLine("歷史資料", `${track.historyCount}期`),
-    card("精準 3碼", "每個名次推薦 3 顆彈珠，選號最集中", `MB ${track.name} 3碼`),
-    card("平衡 4碼", "兼顧集中度與涵蓋範圍", `MB ${track.name} 4碼`),
-    card("主流 5碼", "常見定位包牌模式", `MB ${track.name} 5碼`),
-    card("穩健 6碼", "最高涵蓋範圍，系統上限 6碼", `MB ${track.name} 6碼`),
-    note("四條賽道使用各自獨立歷史樣本，不與 ATG 混用。"),
-  ];
-  return baseBubble(null, contents, analysisQuickReply(track));
+  return bubble({
+    altText: `MB彈珠AI ${track.name}`,
+    title: `MB彈珠AI · ${track.name}`,
+    subtitle: "冠軍、亞軍、第三名定位分析",
+    quickReply: analysisQuickReply(track),
+    footer: "BLACKDOMAIN MB AI",
+    contents: [
+      card("精準 3碼", "每個名次推薦 3 顆彈珠，選號最集中", `MB ${track.name} 3碼`),
+      card("平衡 4碼", "兼顧集中度與涵蓋範圍", `MB ${track.name} 4碼`),
+      card("主流 5碼", "常見定位包牌打法", `MB ${track.name} 5碼`),
+      card("穩健 6碼", "最高涵蓋範圍，系統上限 6碼", `MB ${track.name} 6碼`),
+    ],
+  });
 }
 
-function numberChip(number) {
+function numberChip(number, compact = false) {
+  const size = compact ? "20px" : "25px";
   return {
     type: "box",
     layout: "vertical",
-    width: "32px",
-    height: "32px",
-    cornerRadius: "16px",
+    width: size,
+    height: size,
+    cornerRadius: compact ? "5px" : "7px",
     backgroundColor: MARBLE_COLORS[number] || "#5B554C",
     justifyContent: "center",
     contents: [
-      text(number, { size: "sm", weight: "bold", color: COLORS.white, align: "center", wrap: false }),
+      text(number, {
+        size: number === 10 || compact ? "xxs" : "xs",
+        weight: "bold",
+        color: COLORS.white,
+        align: "center",
+        gravity: "center",
+        wrap: false,
+      }),
     ],
   };
 }
@@ -189,19 +192,28 @@ function numberChip(number) {
 function predictionRow(row) {
   return {
     type: "box",
-    layout: "vertical",
-    spacing: "sm",
-    paddingAll: "11px",
-    cornerRadius: "13px",
+    layout: "horizontal",
+    spacing: "md",
+    paddingAll: "10px",
+    cornerRadius: "12px",
     backgroundColor: "#11100E",
     borderColor: "#4C3C1E",
     borderWidth: "1px",
+    alignItems: "center",
     contents: [
-      text(`${row.label}推薦`, { size: "sm", weight: "bold", color: COLORS.gold }),
+      text(`${row.label}推薦`, {
+        size: "sm",
+        weight: "bold",
+        color: "#F0D58A",
+        flex: 3,
+        wrap: false,
+      }),
       {
         type: "box",
         layout: "horizontal",
-        spacing: "xs",
+        spacing: "sm",
+        flex: 7,
+        justifyContent: "flex-end",
         contents: row.picks.map(numberChip),
       },
     ],
@@ -226,34 +238,45 @@ function syncTime(value) {
 function mbAnalysisFlex(analysis, track) {
   const stale = analysis.updatedAt && Date.now() - new Date(analysis.updatedAt).getTime() > 180000;
   if (!analysis.available) {
-    return baseBubble(null, [
-      text(`MB彈珠 · ${track.name}`, { size: "xl", weight: "bold", color: COLORS.gold, align: "center" }),
-      infoLine("歷史資料", `${analysis.historyCount}期`),
-      note("至少需要 20 期資料才能產生定位推薦，請保持 MB 遊戲頁與轉送器開啟。"),
-    ], analysisQuickReply(track, analysis.count));
+    return bubble({
+      altText: `MB彈珠AI ${track.name} 資料不足`,
+      title: `MB彈珠AI · ${track.name}`,
+      subtitle: "冠軍、亞軍、第三名定位分析",
+      quickReply: analysisQuickReply(track, analysis.count),
+      footer: "BLACKDOMAIN MB AI",
+      contents: [
+        infoLine("資料狀態", `${analysis.historyCount}期`),
+        infoLine("最低需求", "至少 20 期完整排名"),
+        note("請保持 MB 遊戲頁與即時轉送器開啟，資料足夠後會自動產生推薦。"),
+      ],
+    });
   }
 
-  return baseBubble(null, [
-    text(`MB彈珠 · ${track.name} · ${analysis.count}碼`, {
-      size: "xl",
-      weight: "bold",
-      color: COLORS.gold,
-      align: "center",
-    }),
-    text("冠軍、亞軍、第三名定位推薦", { size: "sm", color: COLORS.gray, align: "center" }),
-    infoLine("預測期數", analysis.targetPeriodId || "等待下一期"),
-    infoLine("分析資料", `${analysis.historyCount}期`),
-    infoLine("最後同步", `${syncTime(analysis.updatedAt)}${stale ? " · 已逾時" : ""}`),
-    section([
-      text("AI 定位推薦", { size: "sm", weight: "bold", color: COLORS.gold }),
-      ...analysis.rows.map(predictionRow),
-    ]),
-    section([
+  const targetPeriod = stale ? "等待重新同步" : (analysis.targetPeriodId || "等待下一期");
+  const recommendationTitle = /^\d+$/.test(targetPeriod)
+    ? `第 ${targetPeriod} 期 AI推薦`
+    : targetPeriod;
+
+  return bubble({
+    altText: `MB彈珠AI ${track.name} ${analysis.count}碼`,
+    title: `MB彈珠AI · ${track.name} · ${analysis.count}碼`,
+    subtitle: "冠軍、亞軍、第三名定位推薦",
+    quickReply: analysisQuickReply(track, analysis.count),
+    footer: "BLACKDOMAIN MB AI",
+    contents: [
+      infoLine("預測期號", targetPeriod),
+      infoLine("最後同步", syncTime(analysis.updatedAt)),
+      section([
       text("最近 3 場開獎", { size: "sm", weight: "bold", color: COLORS.gold }),
       ...analysis.recentResults.map(recordRow),
-    ]),
-    note("統計推薦僅供分析參考，不保證結果。"),
-  ], analysisQuickReply(track, analysis.count));
+      ]),
+      section([
+        text(recommendationTitle, { size: "sm", weight: "bold", color: COLORS.gold }),
+        ...analysis.rows.slice(0, 3).map(predictionRow),
+      ]),
+      note("依各賽道近期頻率、名次鄰近度、遺漏與轉移趨勢分析；僅供娛樂參考，不保證中獎。"),
+    ],
+  });
 }
 
 module.exports = {
