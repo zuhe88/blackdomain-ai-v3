@@ -35,51 +35,46 @@ function gameCard({ title, subtitle, image, actionText }) {
       type: "box",
       layout: "vertical",
       paddingAll: "10px",
-      contents: [text("BLACKDOMAIN ATG AI", { size: "xxs", color: COLORS.muted, align: "center", wrap: false })],
-    },
-  };
-}
-
-function electronicMenuFlex() {
-  return {
-    type: "flex",
-    altText: "ATG AI 遊戲選單",
-    contents: {
-      type: "carousel",
       contents: [
-        gameCard({
-          title: "戰神賽特1",
-          subtitle: "AI推薦房、熱門排行、自選分析",
-          image: "seth1-hd.webp",
-          actionText: "戰神賽特1",
-        }),
-        gameCard({
-          title: "戰神賽特2",
-          subtitle: "AI推薦房、熱門排行、自選分析",
-          image: "seth2-hd.webp",
-          actionText: "戰神賽特2",
-        }),
-        gameCard({
-          title: "古神巴風特",
-          subtitle: "AI推薦房、熱門排行、自選分析",
-          image: "baphomet-hd.webp",
-          actionText: "古神巴風特",
-        }),
-        gameCard({
-          title: "虎小妹",
-          subtitle: "AI推薦房、熱門排行、自選分析",
-          image: "tiger-girl-hd.webp",
-          actionText: "虎小妹",
-        }),
-        gameCard({
-          title: "赤三國",
-          subtitle: "AI推薦房、熱門排行、自選分析",
-          image: "red-three-kingdoms-hd.webp",
-          actionText: "赤三國",
+        text("BLACKDOMAIN LOTTERY AI", {
+          size: "xxs",
+          color: COLORS.muted,
+          align: "center",
+          wrap: false,
         }),
       ],
     },
   };
 }
 
-module.exports = electronicMenuFlex;
+function lotteryMenuFlex() {
+  return {
+    type: "flex",
+    altText: "彩票AI 遊戲選單",
+    contents: {
+      type: "carousel",
+      contents: [
+        gameCard({
+          title: "ATG賽馬",
+          subtitle: "即時期數、開獎與冠亞季軍推薦",
+          image: "atg-horse-hd.webp",
+          actionText: "ATG賽馬",
+        }),
+        gameCard({
+          title: "MB彈珠",
+          subtitle: "四條賽道即時開獎與定位推薦",
+          image: "mb-marble-hd.webp",
+          actionText: "MB彈珠",
+        }),
+        gameCard({
+          title: "今彩539",
+          subtitle: "今日號碼、熱號與冷號分析",
+          image: "lottery539-hd.webp",
+          actionText: "539",
+        }),
+      ],
+    },
+  };
+}
+
+module.exports = lotteryMenuFlex;

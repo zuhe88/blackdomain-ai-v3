@@ -21,7 +21,7 @@ const {
   normalizeAccount3A,
 } = require("./repository");
 
-const AI_FEATURES = "百家樂AI / 電子AI / 體育AI / 539AI";
+const AI_FEATURES = "百家樂AI / ATG AI / 彩票AI / 體育AI";
 
 function isVipCommand(text) {
   const value = String(text || "").trim();

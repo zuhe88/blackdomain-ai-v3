@@ -348,6 +348,11 @@ async function main() {
     throw new Error("Welcome preview command must be admin-only");
   }
 
+  const homeReply = await send("首頁", "user-smoke");
+  values = homeReply.messages.flatMap((message) => collectText(message));
+  assertIncludes(values, "彩票AI", "Main menu lottery entry");
+  assertIncludes(values, "ATG賽馬、MB彈珠與今彩539", "Main menu lottery description");
+
   values = await sendAndTexts("VIP", "user-smoke");
   assertIncludes(values, "VIP狀態", "VIP center");
   assertIncludes(values, "test3a", "VIP center");
@@ -390,12 +395,28 @@ async function main() {
 
   const atgGameMenuReply = await send("ATG", "user-smoke");
   const firstAtgGame = atgGameMenuReply.messages[0]?.contents?.contents?.[0];
-  if (firstAtgGame?.hero?.action?.text !== "ATG賽馬") {
-    throw new Error("ATG horse must be the first game in the ATG carousel");
+  if (firstAtgGame?.hero?.action?.text !== "戰神賽特1") {
+    throw new Error("ATG electronic menu must begin with Seth 1");
   }
   values = atgGameMenuReply.messages.flatMap((message) => collectText(message));
-  assertIncludes(values, "ATG賽馬", "ATG combined game menu");
   assertIncludes(values, "戰神賽特1", "ATG combined game menu");
+  if (values.some((value) => String(value).includes("ATG賽馬"))) {
+    throw new Error("ATG horse must only appear inside the lottery menu");
+  }
+
+  const lotteryMenuReply = await send("彩票", "user-smoke");
+  values = lotteryMenuReply.messages.flatMap((message) => collectText(message));
+  assertIncludes(values, "ATG賽馬", "Lottery game menu");
+  assertIncludes(values, "MB彈珠", "Lottery game menu");
+  assertIncludes(values, "今彩539", "Lottery game menu");
+  const lotteryCards = lotteryMenuReply.messages[0]?.contents?.contents || [];
+  const lotteryActions = lotteryCards.map((item) => item.hero?.action?.text);
+  if (lotteryActions.join(",") !== "ATG賽馬,MB彈珠,539") {
+    throw new Error(`Lottery menu has incorrect game order: ${lotteryActions.join(",")}`);
+  }
+  if (!lotteryCards[2]?.hero?.url?.includes("lottery539-hd.webp")) {
+    throw new Error("Lottery 539 card must use the enhanced image");
+  }
 
   const mbMenuReply = await send("MB彈珠", "user-smoke");
   values = mbMenuReply.messages.flatMap((message) => collectText(message));
