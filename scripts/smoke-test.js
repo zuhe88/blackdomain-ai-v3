@@ -377,7 +377,7 @@ async function main() {
   values = await sendAndTexts("MB 賭城賽車", "user-smoke");
   assertIncludes(values, "主流 5碼", "MB track pick menu");
   values = await sendAndTexts("MB 賭城賽車 5碼", "user-smoke");
-  assertIncludes(values, "冠軍、亞軍、第三名定位推薦", "MB analysis");
+  assertIncludes(values, "冠軍、亞軍、季軍定位推薦", "MB analysis");
   assertIncludes(values, "最近 3 場開獎", "MB track data");
   assertIncludes(values, "202607240002", "MB track latest result");
 

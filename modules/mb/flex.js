@@ -126,7 +126,7 @@ function recordRow(record) {
     borderWidth: "1px",
     contents: [
       text(`${record.periodId}期`, { size: "xs", weight: "bold", color: COLORS.gold }),
-      text(`冠軍 ${values[0]}　亞軍 ${values[1]}　第三名 ${values[2]}`, {
+      text(`冠軍 ${values[0]}　亞軍 ${values[1]}　季軍 ${values[2]}`, {
         size: "sm",
         weight: "bold",
         color: COLORS.white,
@@ -154,7 +154,7 @@ function mbTrackFlex(track) {
   return bubble({
     altText: `MB彈珠AI ${track.name}`,
     title: `MB彈珠AI · ${track.name}`,
-    subtitle: "冠軍、亞軍、第三名定位分析",
+    subtitle: "冠軍、亞軍、季軍定位分析",
     quickReply: analysisQuickReply(track),
     footer: "BLACKDOMAIN MB AI",
     contents: [
@@ -214,7 +214,7 @@ function predictionRow(row) {
         spacing: "sm",
         flex: 7,
         justifyContent: "flex-end",
-        contents: row.picks.map(numberChip),
+        contents: row.picks.map((number) => numberChip(number)),
       },
     ],
   };
@@ -241,7 +241,7 @@ function mbAnalysisFlex(analysis, track) {
     return bubble({
       altText: `MB彈珠AI ${track.name} 資料不足`,
       title: `MB彈珠AI · ${track.name}`,
-      subtitle: "冠軍、亞軍、第三名定位分析",
+      subtitle: "冠軍、亞軍、季軍定位分析",
       quickReply: analysisQuickReply(track, analysis.count),
       footer: "BLACKDOMAIN MB AI",
       contents: [
@@ -260,7 +260,7 @@ function mbAnalysisFlex(analysis, track) {
   return bubble({
     altText: `MB彈珠AI ${track.name} ${analysis.count}碼`,
     title: `MB彈珠AI · ${track.name} · ${analysis.count}碼`,
-    subtitle: "冠軍、亞軍、第三名定位推薦",
+    subtitle: "冠軍、亞軍、季軍定位推薦",
     quickReply: analysisQuickReply(track, analysis.count),
     footer: "BLACKDOMAIN MB AI",
     contents: [

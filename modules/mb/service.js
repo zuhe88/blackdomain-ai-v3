@@ -1,5 +1,5 @@
 const PICK_COUNTS = [3, 4, 5, 6];
-const RANK_LABELS = ["冠軍", "亞軍", "第三名"];
+const RANK_LABELS = ["冠軍", "亞軍", "季軍"];
 
 function normalizeHistory(records = []) {
   const seen = new Set();
