@@ -22,6 +22,7 @@ const ADMIN_COMMANDS = new Set(["管理指令", "管理員指令", "待審核", 
 const OFFICIAL_WEBSITE_COMMANDS = new Set(["官網", "黑域官網", "🌐 黑域官網"]);
 const CONTACT_COMMANDS = new Set(["管理員", "客服", "聯繫管理員", "📞 聯繫管理員"]);
 const WELCOME_PREVIEW_COMMANDS = new Set(["歡迎訊息", "測試歡迎訊息"]);
+const ATG_MAINTENANCE_COMMANDS = new Set(["ATG賽馬", "ATG賽馬AI", "🏇 ATG賽馬AI", "ATG賽馬 維護中"]);
 
 const AI_ENTRY_COMMANDS = new Set([
   "百家樂",
@@ -162,6 +163,11 @@ async function handleEvent(event) {
 
   if (HOME_COMMANDS.has(text) || CANCEL_COMMANDS.has(text)) {
     return replyHome(event);
+  }
+
+  if (ATG_MAINTENANCE_COMMANDS.has(text)) {
+    clearAllUserSessions(userId);
+    return reply(event.replyToken, "ATG賽馬 AI 目前維護中，服務暫停開放，完成後將重新上線。");
   }
 
   if (VIP_COMMANDS.has(text) || isAdminCommand(text)) {

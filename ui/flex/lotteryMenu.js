@@ -1,7 +1,44 @@
 const { COLORS, text } = require("./premium");
 const { moduleImageUrl } = require("../../utils/moduleImage");
 
-function gameCard({ title, subtitle, image, actionText }) {
+function gameCard({ title, subtitle, image, actionText, maintenance = false }) {
+  const cardAction = { type: "message", text: actionText };
+  const bodyContents = maintenance
+    ? [
+        {
+          type: "box",
+          layout: "vertical",
+          paddingAll: "8px",
+          backgroundColor: "#6B2020",
+          cornerRadius: "12px",
+          borderColor: "#D65A5A",
+          borderWidth: "1px",
+          contents: [
+            text("系統維護中", {
+              size: "md",
+              weight: "bold",
+              color: COLORS.white,
+              align: "center",
+            }),
+          ],
+        },
+        text(title, { size: "lg", weight: "bold", color: COLORS.gray, align: "center" }),
+        text(subtitle, { size: "sm", color: COLORS.muted, align: "center" }),
+        { type: "separator", margin: "md", color: "#6B2020" },
+        text("服務暫停開放・完成後將重新上線", {
+          size: "xs",
+          color: COLORS.red,
+          weight: "bold",
+          align: "center",
+        }),
+      ]
+    : [
+        text(title, { size: "lg", weight: "bold", color: COLORS.gold, align: "center" }),
+        text(subtitle, { size: "sm", color: COLORS.white, align: "center" }),
+        { type: "separator", margin: "md", color: COLORS.gold },
+        text("點擊卡片進入 AI 分析", { size: "xs", color: COLORS.gray, align: "center" }),
+      ];
+
   return {
     type: "bubble",
     size: "kilo",
@@ -16,20 +53,16 @@ function gameCard({ title, subtitle, image, actionText }) {
       size: "full",
       aspectRatio: "8:9",
       aspectMode: "cover",
-      action: { type: "message", text: actionText },
+      action: cardAction,
     },
     body: {
       type: "box",
       layout: "vertical",
       spacing: "sm",
       paddingAll: "16px",
-      action: { type: "message", text: actionText },
-      contents: [
-        text(title, { size: "lg", weight: "bold", color: COLORS.gold, align: "center" }),
-        text(subtitle, { size: "sm", color: COLORS.white, align: "center" }),
-        { type: "separator", margin: "md", color: COLORS.gold },
-        text("點擊卡片進入 AI 分析", { size: "xs", color: COLORS.gray, align: "center" }),
-      ],
+      backgroundColor: maintenance ? "#151010" : COLORS.black,
+      action: cardAction,
+      contents: bodyContents,
     },
     footer: {
       type: "box",
@@ -55,10 +88,11 @@ function lotteryMenuFlex() {
       type: "carousel",
       contents: [
         gameCard({
-          title: "ATG賽馬",
-          subtitle: "即時期數、開獎與冠亞季軍推薦",
+          title: "ATG賽馬 AI",
+          subtitle: "目前暫停服務，系統維護完成後開放",
           image: "atg-horse-hd.webp",
-          actionText: "ATG賽馬",
+          actionText: "ATG賽馬 維護中",
+          maintenance: true,
         }),
         gameCard({
           title: "MB彈珠",

@@ -407,12 +407,16 @@ async function main() {
   const lotteryMenuReply = await send("彩票", "user-smoke");
   values = lotteryMenuReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "ATG賽馬", "Lottery game menu");
+  assertIncludes(values, "系統維護中", "ATG maintenance status");
   assertIncludes(values, "MB彈珠", "Lottery game menu");
   assertIncludes(values, "今彩539", "Lottery game menu");
   const lotteryCards = lotteryMenuReply.messages[0]?.contents?.contents || [];
   const lotteryActions = lotteryCards.map((item) => item.hero?.action?.text);
-  if (lotteryActions.join(",") !== "ATG賽馬,MB彈珠,539") {
+  if (lotteryActions.join(",") !== "ATG賽馬 維護中,MB彈珠,539") {
     throw new Error(`Lottery menu has incorrect game order: ${lotteryActions.join(",")}`);
+  }
+  if (!lotteryCards[0]?.hero?.url?.includes("atg-horse-hd.webp")) {
+    throw new Error("ATG maintenance card must keep the original horse image");
   }
   if (!lotteryCards[2]?.hero?.url?.includes("lottery539-hd.webp")) {
     throw new Error("Lottery 539 card must use the enhanced image");
@@ -454,12 +458,9 @@ async function main() {
   assertIncludes(values, "AI預測勝方", "Sports analysis");
 
   values = await sendAndTexts("ATG賽馬", "user-smoke");
-  assertIncludes(values, "主流 5碼", "ATG menu");
-  values = await sendAndTexts("ATG 5碼", "user-smoke");
-  assertIncludes(values, "冠軍、亞軍、三名定位推薦", "ATG top-three analysis");
-  assertIncludes(values, "最近 3 場開獎", "ATG recent results");
-  values = await sendAndTexts("ATG 即時刷新", "user-smoke");
-  assertIncludes(values, "ATG賽馬AI · 5碼", "ATG instant refresh");
+  assertIncludes(values, "目前維護中", "ATG maintenance reply");
+  values = await sendAndTexts("ATG賽馬 維護中", "user-smoke");
+  assertIncludes(values, "服務暫停開放", "ATG maintenance card action");
 
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");
