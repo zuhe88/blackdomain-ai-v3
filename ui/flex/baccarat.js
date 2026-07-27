@@ -145,7 +145,9 @@ function resultActionPanel() {
 
 function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN AI 已完成分析", quickReply }) {
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
-  const betText = session.mode === "自由配注" ? "自由配注不建議下注" : String(bet);
+  const isFreeBet = session.mode === "自由配注";
+  const betLabel = isFreeBet ? "配注方式" : "建議下注";
+  const betText = isFreeBet ? "玩家自行決定" : String(bet);
   const results = {
     pass: session.results.pass || 0,
     fail: session.results.fail || 0,
@@ -160,7 +162,7 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
       metric("建議", prediction, session.mode),
-      metric("建議下注", betText, `上限 ${session.maxBet}`),
+      metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
       infoLine("目前本金", session.mode === "自由配注" ? String(session.capital || session.startBankroll || "-") : String(session.bankroll)),
       infoLine("目前獲利", String(profit)),
       infoLine("紀錄", `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}`),

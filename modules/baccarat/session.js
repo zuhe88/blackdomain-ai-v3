@@ -111,7 +111,7 @@ function setPlatform(userId, platform) {
 function setRoom(userId, room) {
   return setSession(userId, {
     room,
-    step: "capital",
+    step: "mode",
   });
 }
 
@@ -127,14 +127,18 @@ function setCapital(userId, capital) {
 function setMaxBet(userId, maxBet) {
   return setSession(userId, {
     maxBet,
-    step: "mode",
+    step: "playing",
   });
 }
 
 function setMode(userId, mode) {
   return setSession(userId, {
     mode,
-    step: "playing",
+    capital: null,
+    maxBet: null,
+    bankroll: null,
+    startBankroll: null,
+    step: mode === "自由配注" ? "playing" : "capital",
   });
 }
 

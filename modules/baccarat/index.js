@@ -60,7 +60,11 @@ function maxBetPrompt(capital) {
 function modePrompt(session) {
   return baccaratPromptFlex({
     title: "請選擇分析模式",
-    lines: [`本金：${session.capital}`, `單注上限：${session.maxBet}`, `模式：${MODES.join("、")}`],
+    lines: [
+      `平台／房號：${session.platform} ${session.room}`,
+      `模式：${MODES.join("、")}`,
+      "自由配注可直接開始，不需輸入本金與單注上限。",
+    ],
     quickReply: modeQuickReply(),
   });
 }
@@ -113,8 +117,8 @@ async function handleBaccaratMessage(event) {
         lines: ["房號格式不正確，請選擇下方按鈕或輸入正確房號。"],
       }));
     }
-    setRoom(userId, room);
-    return reply(token, capitalPrompt());
+    const updated = setRoom(userId, room);
+    return reply(token, modePrompt(updated));
   }
 
   if (session.step === "capital") {
@@ -144,7 +148,15 @@ async function handleBaccaratMessage(event) {
       }));
     }
     const updated = setMaxBet(userId, maxBet);
-    return reply(token, modePrompt(updated));
+    const first = firstAnalysis(updated);
+    updateAfterRound(userId, first.session);
+    return reply(token, baccaratAnalysisFlex({
+      session: first.session,
+      prediction: first.prediction,
+      bet: first.bet,
+      reason: getReason(first.session),
+      quickReply: resultQuickReply(),
+    }));
   }
 
   if (session.step === "mode") {
@@ -156,6 +168,9 @@ async function handleBaccaratMessage(event) {
       }));
     }
     const updated = setMode(userId, value);
+    if (updated.mode !== "自由配注") {
+      return reply(token, capitalPrompt());
+    }
     const first = firstAnalysis(updated);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({

@@ -11,7 +11,7 @@ function platformQuickReply() {
 function modeQuickReply() {
   return quickReply([
     { label: "AI配注", text: "AI配注" },
-    { label: "天門", text: "天門" },
+    { label: "天門五關", text: "天門" },
     { label: "自由配注", text: "自由配注" },
     { label: "返回首頁", text: "首頁" },
   ]);
