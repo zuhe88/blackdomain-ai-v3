@@ -149,6 +149,7 @@ function baccaratAnalysisFlex({
   bet,
   reason = "BLACKDOMAIN AI 已完成分析",
   roomStats = {},
+  autoResult = false,
   quickReply,
 }) {
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
@@ -180,8 +181,9 @@ function baccaratAnalysisFlex({
       infoLine("目前獲利", String(profit)),
       infoLine("房間路單", `莊 ${tableStats.banker}　閒 ${tableStats.player}　和 ${tableStats.tie}　總 ${tableStats.total}`),
       infoLine("紀錄", `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}`),
+      ...(autoResult ? [infoLine("自動結算", "等待此房下一局開獎")] : []),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
-      resultActionPanel(),
+      ...(!autoResult ? [resultActionPanel()] : []),
     ],
   });
 }

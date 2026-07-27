@@ -1,4 +1,4 @@
-const { reply } = require("../../services/line");
+const { push, reply } = require("../../services/line");
 const {
   baccaratPromptFlex,
   baccaratPlatformFlex,
@@ -8,6 +8,7 @@ const {
 const {
   getSession,
   hasActiveSession,
+  listActiveSessions,
   resetSession,
   setPlatform,
   setRoom,
@@ -49,6 +50,57 @@ function roomStatsFor(session) {
     ? dgSource.getRoomStats(session.room)
     : { banker: 0, player: 0, tie: 0, total: 0 };
 }
+
+function liveResultOptions(session) {
+  const table = session.platform === "DG" ? dgSource.getTableByRoom(session.room) : null;
+  if (table?.history.length) {
+    session.lastDgGameNo = table.history[table.history.length - 1].gameNo;
+  }
+  return {
+    autoResult: session.platform === "DG",
+    quickReply: session.platform === "DG" ? restartQuickReply() : resultQuickReply(),
+  };
+}
+
+function hydrateDgHistory(session) {
+  if (session.platform !== "DG") return session;
+  const table = dgSource.getTableByRoom(session.room);
+  if (!table?.history.length) return session;
+  session.history = table.history.slice(-50).map((record) => record.result);
+  session.lastDgGameNo = table.history[table.history.length - 1].gameNo;
+  return session;
+}
+
+async function settleDgResult(event) {
+  const targets = listActiveSessions().filter((session) => (
+    session.platform === "DG"
+    && session.room === event.room
+    && session.step === "playing"
+    && session.lastPrediction
+    && session.lastDgGameNo
+    && session.lastDgGameNo !== event.gameNo
+  ));
+
+  await Promise.all(targets.map(async (session) => {
+    const result = nextAnalysis(session, event.result);
+    result.session.lastDgGameNo = event.gameNo;
+    updateAfterRound(session.userId, result.session);
+    await push(session.userId, baccaratAnalysisFlex({
+      session: result.session,
+      prediction: result.prediction,
+      bet: result.bet,
+      reason: getReason(result.session),
+      roomStats: roomStatsFor(result.session),
+      ...liveResultOptions(result.session),
+    }));
+  }));
+}
+
+dgSource.onResult((event) => {
+  settleDgResult(event).catch((error) => {
+    console.error("[DG] Auto settlement failed:", error.message);
+  });
+});
 
 function capitalPrompt() {
   return baccaratPromptFlex({
@@ -155,7 +207,8 @@ async function handleBaccaratMessage(event) {
       }));
     }
     const updated = setMaxBet(userId, maxBet);
-    const first = firstAnalysis(updated);
+    const first = firstAnalysis(hydrateDgHistory(updated));
+    liveResultOptions(first.session);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
       session: first.session,
@@ -163,7 +216,7 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
-      quickReply: resultQuickReply(),
+      ...liveResultOptions(first.session),
     }));
   }
 
@@ -179,7 +232,8 @@ async function handleBaccaratMessage(event) {
     if (updated.mode !== "自由配注") {
       return reply(token, capitalPrompt());
     }
-    const first = firstAnalysis(updated);
+    const first = firstAnalysis(hydrateDgHistory(updated));
+    liveResultOptions(first.session);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
       session: first.session,
@@ -187,11 +241,18 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
-      quickReply: resultQuickReply(),
+      ...liveResultOptions(first.session),
     }));
   }
 
   if (session.step === "playing") {
+    if (session.platform === "DG" && isResult(value)) {
+      return reply(token, baccaratPromptFlex({
+        title: "DG 已啟用自動結算",
+        lines: ["不需要自行回報莊、閒或和，系統會依此房即時開獎自動更新。"],
+        quickReply: restartQuickReply(),
+      }));
+    }
     if (!isResult(value)) {
       return reply(token, baccaratPromptFlex({
         title: "請回報本局結果",
@@ -215,7 +276,7 @@ async function handleBaccaratMessage(event) {
       bet: result.bet,
       reason: getReason(result.session),
       roomStats: roomStatsFor(result.session),
-      quickReply: resultQuickReply(),
+      ...liveResultOptions(result.session),
     }));
   }
 

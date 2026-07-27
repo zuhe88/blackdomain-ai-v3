@@ -16,6 +16,43 @@ function integer(value) {
   return value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : value.toString();
 }
 
+function encodeVarint(value) {
+  let remaining = BigInt(value);
+  if (remaining < 0n) throw new Error("DG protobuf varint must be non-negative.");
+  const bytes = [];
+  do {
+    let byte = Number(remaining & 0x7fn);
+    remaining >>= 7n;
+    if (remaining) byte |= 0x80;
+    bytes.push(byte);
+  } while (remaining);
+  return Buffer.from(bytes);
+}
+
+function encodeVarintField(field, value) {
+  return Buffer.concat([encodeVarint(field * 8), encodeVarint(value)]);
+}
+
+function encodeTextField(field, value) {
+  const content = Buffer.from(String(value), "utf8");
+  return Buffer.concat([
+    encodeVarint((field * 8) + 2),
+    encodeVarint(content.length),
+    content,
+  ]);
+}
+
+function encodePublicBean(message = {}) {
+  if (!Number.isInteger(Number(message.cmd))) throw new Error("DG command is required.");
+  const fields = [encodeVarintField(1, Number(message.cmd))];
+  if (message.token) fields.push(encodeTextField(2, message.token));
+  if (Number.isInteger(Number(message.lobbyId))) fields.push(encodeVarintField(4, Number(message.lobbyId)));
+  if (Number.isInteger(Number(message.tableId))) fields.push(encodeVarintField(6, Number(message.tableId)));
+  if (Number.isInteger(Number(message.type))) fields.push(encodeVarintField(10, Number(message.type)));
+  if (message.object) fields.push(encodeTextField(14, message.object));
+  return Buffer.concat(fields);
+}
+
 function readFields(buffer) {
   const fields = [];
   let offset = 0;
@@ -143,4 +180,5 @@ function decodeBase64Frame(value) {
 module.exports = {
   decodeBase64Frame,
   decodePublicBean,
+  encodePublicBean,
 };

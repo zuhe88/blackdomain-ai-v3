@@ -1,8 +1,11 @@
+const EventEmitter = require("events");
 const { decodeBase64Frame } = require("./dgProto");
 const { DG_ROOMS } = require("./constants");
 
 const ALLOWED_COMMANDS = new Set([2, 27, 207, 1002, 1004, 1005]);
 const tables = new Map();
+const events = new EventEmitter();
+events.setMaxListeners(50);
 let updatedAt = null;
 
 function roomFromName(value) {
@@ -19,10 +22,10 @@ function roadResult(value) {
   return null;
 }
 
-function normalizeHistory(roads) {
+function normalizeHistory(roads, scope = "road") {
   return (Array.isArray(roads) ? roads : [])
-    .map((road) => ({
-      gameNo: String(road || "").split("#")[0] || null,
+    .map((road, index) => ({
+      gameNo: String(road || "").split("#")[0] || `${scope}:${index + 1}`,
       result: roadResult(road),
     }))
     .filter((record) => record.gameNo && record.result)
@@ -46,13 +49,24 @@ function mergeTable(incoming) {
     roads: incoming.roads?.length ? [...incoming.roads] : current.roads,
     updatedAt: new Date().toISOString(),
   };
+  const previousLatest = current.history?.[current.history.length - 1] || null;
   if (next.room && !DG_ROOMS.includes(next.room)) {
     tables.delete(tableId);
     return false;
   }
-  next.history = normalizeHistory(next.roads);
+  next.history = normalizeHistory(next.roads, next.shoeId || next.tableId);
   tables.set(tableId, next);
   updatedAt = next.updatedAt;
+  const latest = next.history[next.history.length - 1] || null;
+  if (next.room && previousLatest && latest && latest.gameNo !== previousLatest.gameNo) {
+    events.emit("result", {
+      room: next.room,
+      tableId,
+      gameNo: latest.gameNo,
+      result: latest.result,
+      updatedAt: next.updatedAt,
+    });
+  }
   return true;
 }
 
@@ -135,6 +149,11 @@ function resetForTest() {
   updatedAt = null;
 }
 
+function onResult(listener) {
+  events.on("result", listener);
+  return () => events.off("result", listener);
+}
+
 module.exports = {
   getRoomStats,
   getSnapshot,
@@ -142,6 +161,7 @@ module.exports = {
   ingestFrame,
   ingestMessage,
   normalizeHistory,
+  onResult,
   resetForTest,
   roadResult,
   roomFromName,

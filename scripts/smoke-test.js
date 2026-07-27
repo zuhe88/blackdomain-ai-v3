@@ -4,6 +4,7 @@ const path = require("path");
 process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.ATG_DISABLE_LIVE = "true";
+process.env.DG_DISABLE_LIVE = "true";
 
 const captured = {
   replies: [],
@@ -168,6 +169,7 @@ const atgSeed = require("../modules/atg/history-seed.json");
 const mbSource = require("../modules/mb/source");
 const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
 const dgSource = require("../modules/baccarat/dgSource");
+const dgLive = require("../modules/baccarat/dgLive");
 
 function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
@@ -264,6 +266,12 @@ function dgSnapshotFrame() {
 }
 
 async function main() {
+  const encryptedDgToken = dgLive.encrypt("0123456789abcdef0123456789abcdef");
+  if (!encryptedDgToken || encryptedDgToken === "0123456789abcdef0123456789abcdef") {
+    throw new Error("DG guest WebSocket token must be encrypted");
+  }
+  if (dgLive.getStatus().enabled) throw new Error("DG live connection must be disabled in smoke tests");
+
   dgSource.resetForTest();
   if (!dgSource.ingestFrame(dgSnapshotFrame())) throw new Error("DG protobuf snapshot must be accepted");
   const dgTable = dgSource.getTableByRoom("RB01");
@@ -527,6 +535,23 @@ async function main() {
   values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "房間路單", "Baccarat room statistics");
   assertIncludes(values, "莊 1　閒 1　和 1　總 3", "Baccarat room statistics");
+  assertIncludes(values, "等待此房下一局開獎", "Baccarat automatic settlement");
+  const dgAutoMessage = captured.replies[captured.replies.length - 1].messages[0];
+  if (collectActions(dgAutoMessage).some((action) => ["莊", "閒", "和"].includes(action.text))) {
+    throw new Error("DG automatic settlement must not show manual result buttons");
+  }
+  const pushesBeforeDgResult = captured.pushes.length;
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 0,
+    list: ["65#1#0#0", "66#5#0#0", "67#9#0#0", "68#1#0#0"],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeDgResult + 1) {
+    throw new Error("DG result must automatically push the next analysis");
+  }
+  const dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
+  assertIncludes(dgPushTexts, "過 1", "Baccarat automatic settlement result");
 
   values = await sendAndTexts("體育", "user-smoke");
   assertIncludes(values, "CPBL", "Sports menu");

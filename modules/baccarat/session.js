@@ -1,6 +1,6 @@
 const sessions = new Map();
 
-const SESSION_TIMEOUT = 30 * 60 * 1000;
+const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
 
 function now() {
   return Date.now();
@@ -82,6 +82,18 @@ function hasActiveSession(userId) {
   return true;
 }
 
+function listActiveSessions() {
+  const active = [];
+  sessions.forEach((session, userId) => {
+    if (now() - session.updatedAt > SESSION_TIMEOUT) {
+      sessions.delete(userId);
+    } else {
+      active.push(session);
+    }
+  });
+  return active;
+}
+
 function pushHistory(userId, result) {
   const session = getSession(userId);
 
@@ -152,6 +164,7 @@ module.exports = {
   setSession,
   resetSession,
   hasActiveSession,
+  listActiveSessions,
   pushHistory,
   setStep,
   setPlatform,

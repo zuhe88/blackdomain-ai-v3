@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const express = require("express");
 const dgSource = require("../modules/baccarat/dgSource");
+const dgLive = require("../modules/baccarat/dgLive");
 
 function secureEqual(left, right) {
   const a = Buffer.from(String(left || ""));
@@ -167,7 +168,10 @@ function registerDgRelayRoutes(app) {
   });
 
   app.get("/api/dg/status", (_req, res) => {
-    res.json(dgSource.getSnapshot());
+    res.json({
+      ...dgSource.getSnapshot(),
+      live: dgLive.getStatus(),
+    });
   });
 
   app.post("/api/dg/ingest", express.json({ limit: "750kb" }), (req, res) => {
