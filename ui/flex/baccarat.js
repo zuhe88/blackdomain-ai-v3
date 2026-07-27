@@ -1,4 +1,12 @@
-const { bubble, infoLine, metric, note, text, COLORS } = require("./premium");
+const {
+  bubble,
+  button,
+  infoLine,
+  metric,
+  note,
+  text,
+  COLORS,
+} = require("./premium");
 const { moduleImageUrl } = require("../../utils/moduleImage");
 
 function baccaratPromptFlex({ title, lines = [], quickReply }) {
@@ -239,6 +247,7 @@ function baccaratAnalysisFlex({
       ...(autoResult ? [infoLine("自動結算", "等待本房下一局開獎")] : []),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       ...(!autoResult ? [resultActionPanel()] : []),
+      button("結束並返回遊戲選單", "首頁", "danger"),
     ],
   });
 }

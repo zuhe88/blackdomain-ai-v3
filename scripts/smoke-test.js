@@ -656,8 +656,12 @@ async function main() {
   values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "本房牌路統計", "Baccarat room statistics");
   assertIncludes(values, "等待本房下一局開獎", "Baccarat automatic settlement");
+  assertIncludes(values, "結束並返回遊戲選單", "Baccarat persistent exit button");
   const dgAutoMessage = captured.replies[captured.replies.length - 1].messages[0];
   const dgAutoJson = JSON.stringify(dgAutoMessage);
+  if (!collectActions(dgAutoMessage).some((action) => action.text === "首頁")) {
+    throw new Error("Baccarat exit button must return to the main game menu");
+  }
   for (const color of ["#D71920", "#1464D2", "#278A18", "#9A6728"]) {
     if (!dgAutoJson.includes(color)) throw new Error(`Baccarat room statistics missing color ${color}`);
   }
