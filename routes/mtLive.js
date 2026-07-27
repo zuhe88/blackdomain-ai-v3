@@ -16,7 +16,10 @@ function registerMtLiveRoutes(app) {
       return res.status(403).json({ ok: false, error: "Forbidden." });
     }
     res.set("access-control-allow-origin", allowedOrigin);
-    const candidate = String(req.body || "").trim();
+    const rawBody = String(req.body || "").trim();
+    const candidate = rawBody.startsWith("token=")
+      ? decodeURIComponent(rawBody.slice("token=".length)).trim()
+      : rawBody;
     if (candidate.length < 16 || candidate.length > 1024 || !await mtLive.validateToken(candidate)) {
       return res.status(400).json({ ok: false, error: "Invalid MT token." });
     }
