@@ -11,6 +11,7 @@ const TABLES_ACTION = "/api/v1/gametype/*/game/*/room/*/tables";
 
 let socket = null;
 let activeToken = "";
+let activeRelayKey = "";
 let refreshTimer = null;
 let heartbeatTimer = null;
 let reconnectTimer = null;
@@ -66,11 +67,14 @@ async function forwardTables(tables) {
   if (!tables.length || !activeToken) return;
   const body = JSON.stringify({ tables });
   const signature = crypto.createHmac("sha256", activeToken).update(body).digest("hex");
+  const authorization = activeRelayKey
+    ? { "x-dg-relay-key": activeRelayKey }
+    : { "x-mt-relay-signature": signature };
   const response = await fetch(INGEST_URL, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-mt-relay-signature": signature,
+      ...authorization,
     },
     body,
     signal: AbortSignal.timeout(10000),
@@ -105,9 +109,11 @@ function handleMessage(raw) {
   }
 }
 
-function connect(token) {
+function connect(token, relayKey = activeRelayKey) {
   activeToken = String(token || "").trim();
+  activeRelayKey = String(relayKey || "").trim();
   if (activeToken.length < 16) throw new Error("MT token is invalid.");
+  if (activeRelayKey && activeRelayKey.length < 16) throw new Error("Relay key is invalid.");
   if (socket) {
     socket.removeAllListeners();
     socket.terminate();
@@ -162,6 +168,8 @@ function html() {
 <form method="post">
   <label>MT 票證<input name="token" type="password" required
     style="display:block;width:100%;margin:10px 0;padding:10px"></label>
+  <label>固定轉送密鑰<input name="relayKey" type="password"
+    style="display:block;width:100%;margin:10px 0;padding:10px"></label>
   <button type="submit" style="padding:10px 16px">啟動</button>
 </form>
 <p>票證只保留在本機記憶體，不會寫入檔案。</p>
@@ -188,7 +196,8 @@ const server = http.createServer((req, res) => {
     req.on("end", () => {
       try {
         const token = new URLSearchParams(body).get("token");
-        connect(token);
+        const relayKey = new URLSearchParams(body).get("relayKey");
+        connect(token, relayKey);
         res.statusCode = 303;
         res.setHeader("location", "/status");
         res.end();
