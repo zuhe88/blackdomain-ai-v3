@@ -157,7 +157,11 @@ async function handleEvent(event) {
     return reply(event.replyToken, welcomeFlex());
   }
 
-  if (text === "重新開始" && baccarat.hasActiveBaccaratSession && baccarat.hasActiveBaccaratSession(userId)) {
+  if (
+    ["重新開始", "返回首頁"].includes(text)
+    && baccarat.hasActiveBaccaratSession
+    && baccarat.hasActiveBaccaratSession(userId)
+  ) {
     return baccarat.handleBaccaratMessage(event);
   }
 

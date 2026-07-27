@@ -45,12 +45,19 @@ function mergeTable(incoming) {
     return false;
   }
   const current = tables.get(tableId) || { tableId, roads: [] };
+  const shoeChanged = incoming.shoeId != null
+    && current.shoeId != null
+    && String(incoming.shoeId) !== String(current.shoeId);
   const next = {
     ...current,
     ...incoming,
     tableId,
     room: incomingRoom || current.room || null,
-    roads: incoming.roads?.length ? [...incoming.roads] : current.roads,
+    roads: incoming.roads?.length
+      ? [...incoming.roads]
+      : shoeChanged
+        ? []
+        : current.roads,
     updatedAt: new Date().toISOString(),
   };
   const previousLatest = current.history?.[current.history.length - 1] || null;
@@ -62,7 +69,7 @@ function mergeTable(incoming) {
   tables.set(tableId, next);
   updatedAt = next.updatedAt;
   const latest = next.history[next.history.length - 1] || null;
-  if (next.room && previousLatest && latest && latest.gameNo !== previousLatest.gameNo) {
+  if (next.room && latest && (!previousLatest || latest.gameNo !== previousLatest.gameNo)) {
     events.emit("result", {
       room: next.room,
       tableId,

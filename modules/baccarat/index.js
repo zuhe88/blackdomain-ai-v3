@@ -30,12 +30,12 @@ const {
 const {
   platformQuickReply,
   modeQuickReply,
-  resultQuickReply,
   restartQuickReply,
 } = require("./quickReply");
 const { firstAnalysis, nextAnalysis, getReason } = require("./ai");
 const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
 const dgSource = require("./dgSource");
+const mtSource = require("./mtSource");
 
 function roomsForPlatform(platform) {
   return platform === "DG" ? DG_ROOMS : MT_ROOMS;
@@ -46,44 +46,43 @@ function roomPrompt(platform) {
 }
 
 function roomStatsFor(session) {
-  return session.platform === "DG"
-    ? dgSource.getRoomStats(session.room)
-    : { banker: 0, player: 0, tie: 0, total: 0 };
+  const source = session.platform === "DG" ? dgSource : mtSource;
+  return source.getRoomStats(session.room);
 }
 
 function liveResultOptions(session) {
-  const table = session.platform === "DG" ? dgSource.getTableByRoom(session.room) : null;
+  const source = session.platform === "DG" ? dgSource : mtSource;
+  const table = source.getTableByRoom(session.room);
   if (table?.history.length) {
-    session.lastDgGameNo = table.history[table.history.length - 1].gameNo;
+    session.lastLiveGameNo = table.history[table.history.length - 1].gameNo;
   }
   return {
-    autoResult: session.platform === "DG",
-    quickReply: session.platform === "DG" ? restartQuickReply() : resultQuickReply(),
+    autoResult: true,
+    quickReply: restartQuickReply(),
   };
 }
 
-function hydrateDgHistory(session) {
-  if (session.platform !== "DG") return session;
-  const table = dgSource.getTableByRoom(session.room);
+function hydrateLiveHistory(session) {
+  const source = session.platform === "DG" ? dgSource : mtSource;
+  const table = source.getTableByRoom(session.room);
   if (!table?.history.length) return session;
   session.history = table.history.slice(-50).map((record) => record.result);
-  session.lastDgGameNo = table.history[table.history.length - 1].gameNo;
+  session.lastLiveGameNo = table.history[table.history.length - 1].gameNo;
   return session;
 }
 
-async function settleDgResult(event) {
+async function settleLiveResult(platform, event) {
   const targets = listActiveSessions().filter((session) => (
-    session.platform === "DG"
+    session.platform === platform
     && session.room === event.room
     && session.step === "playing"
     && session.lastPrediction
-    && session.lastDgGameNo
-    && session.lastDgGameNo !== event.gameNo
+    && session.lastLiveGameNo !== event.gameNo
   ));
 
   await Promise.all(targets.map(async (session) => {
     const result = nextAnalysis(session, event.result);
-    result.session.lastDgGameNo = event.gameNo;
+    result.session.lastLiveGameNo = event.gameNo;
     updateAfterRound(session.userId, result.session);
     await push(session.userId, baccaratAnalysisFlex({
       session: result.session,
@@ -97,8 +96,14 @@ async function settleDgResult(event) {
 }
 
 dgSource.onResult((event) => {
-  settleDgResult(event).catch((error) => {
+  settleLiveResult("DG", event).catch((error) => {
     console.error("[DG] Auto settlement failed:", error.message);
+  });
+});
+
+mtSource.onResult((event) => {
+  settleLiveResult("MT", event).catch((error) => {
+    console.error("[MT] Auto settlement failed:", error.message);
   });
 });
 
@@ -133,6 +138,19 @@ async function handleBaccaratMessage(event) {
   const value = event.message.text.trim();
   const token = event.replyToken;
 
+  if (value === "返回首頁") {
+    resetSession(userId);
+    return reply(token, baccaratPlatformFlex(platformQuickReply()));
+  }
+
+  if (value === "重新開始") {
+    const platform = hasActiveSession(userId) ? getSession(userId).platform : null;
+    resetSession(userId);
+    if (!platform) return reply(token, baccaratPlatformFlex(platformQuickReply()));
+    setPlatform(userId, platform);
+    return reply(token, roomPrompt(platform));
+  }
+
   if (isCancel(value)) {
     resetSession(userId);
     return false;
@@ -144,11 +162,6 @@ async function handleBaccaratMessage(event) {
   }
 
   const session = getSession(userId);
-
-  if (value === "重新開始") {
-    resetSession(userId);
-    return reply(token, baccaratPlatformFlex(platformQuickReply()));
-  }
 
   if (value === "返回房號" && session.platform) {
     setStep(userId, "room");
@@ -207,7 +220,7 @@ async function handleBaccaratMessage(event) {
       }));
     }
     const updated = setMaxBet(userId, maxBet);
-    const first = firstAnalysis(hydrateDgHistory(updated));
+    const first = firstAnalysis(hydrateLiveHistory(updated));
     liveResultOptions(first.session);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
@@ -232,7 +245,7 @@ async function handleBaccaratMessage(event) {
     if (updated.mode !== "自由配注") {
       return reply(token, capitalPrompt());
     }
-    const first = firstAnalysis(hydrateDgHistory(updated));
+    const first = firstAnalysis(hydrateLiveHistory(updated));
     liveResultOptions(first.session);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
@@ -246,9 +259,9 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "playing") {
-    if (session.platform === "DG" && isResult(value)) {
+    if (["DG", "MT"].includes(session.platform) && isResult(value)) {
       return reply(token, baccaratPromptFlex({
-        title: "DG 已啟用自動結算",
+        title: `${session.platform} 已啟用自動結算`,
         lines: ["不需要自行回報莊、閒或和，系統會依此房即時開獎自動更新。"],
         quickReply: restartQuickReply(),
       }));
@@ -296,6 +309,7 @@ function isBaccaratCommand(value) {
     "莊",
     "重新開始",
     "返回房號",
+    "返回首頁",
   ].includes(String(value || "").trim());
 }
 

@@ -235,10 +235,6 @@ function baccaratAnalysisFlex({
         infoLine("目前獲利", String(profit)),
       ] : []),
       roomStatsPanel(tableStats),
-      ...(session.lastSettlement ? [infoLine(
-        "上局結算",
-        `預測 ${session.lastSettlement.prediction}｜開 ${session.lastSettlement.actual}｜${session.lastSettlement.verdict}`,
-      )] : []),
       infoLine("紀錄", `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}`),
       ...(autoResult ? [infoLine("自動結算", "等待本房下一局開獎")] : []),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),

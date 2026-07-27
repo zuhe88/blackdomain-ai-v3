@@ -5,6 +5,7 @@ process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.ATG_DISABLE_LIVE = "true";
 process.env.DG_DISABLE_LIVE = "true";
+process.env.MT_DISABLE_LIVE = "true";
 
 const captured = {
   replies: [],
@@ -170,6 +171,8 @@ const mbSource = require("../modules/mb/source");
 const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
 const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
+const mtSource = require("../modules/baccarat/mtSource");
+const mtLive = require("../modules/baccarat/mtLive");
 const { predict: predictBaccarat } = require("../modules/baccarat/ai");
 
 function event(text, userId = "user-smoke") {
@@ -272,6 +275,7 @@ async function main() {
     throw new Error("DG guest WebSocket token must be encrypted");
   }
   if (dgLive.getStatus().enabled) throw new Error("DG live connection must be disabled in smoke tests");
+  if (mtLive.getStatus().enabled) throw new Error("MT live connection must be disabled in smoke tests");
 
   dgSource.resetForTest();
   if (!dgSource.ingestFrame(dgSnapshotFrame())) throw new Error("DG protobuf snapshot must be accepted");
@@ -289,6 +293,26 @@ async function main() {
   if (predictBaccarat(["莊", "莊", "莊"]) !== "莊" || predictBaccarat(["閒", "閒", "閒"]) !== "閒") {
     throw new Error("Baccarat prediction must support both banker and player recommendations");
   }
+  let firstRoundEvent = null;
+  const stopFirstRoundListener = dgSource.onResult((result) => {
+    if (result.room === "RB02") firstRoundEvent = result;
+  });
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{ tableId: 2, tableName: "RB02", shoeId: 1, roads: [] }],
+  });
+  dgSource.ingestMessage({ cmd: 1004, tableId: 2, list: ["#5#0#8"] });
+  stopFirstRoundListener();
+  if (!firstRoundEvent || firstRoundEvent.result !== "閒") {
+    throw new Error("DG first round must emit an automatic settlement event immediately");
+  }
+  dgSource.ingestMessage({
+    cmd: 1002,
+    table: [{ tableId: 2, tableName: "RB02", shoeId: 2, roads: [] }],
+  });
+  if (dgSource.getTableByRoom("RB02")?.history.length !== 0) {
+    throw new Error("DG new shoe must clear the previous shoe road history");
+  }
   for (const [tableId, tableName] of [
     [801, "龍虎 RD01"],
     [802, "輪盤 RR01"],
@@ -301,6 +325,74 @@ async function main() {
   }
   if (dgSource.getSnapshot().tables.some((table) => ["RD01", "RR01", "S08", "RS01"].includes(table.room))) {
     throw new Error("DG non-baccarat tables must not appear in snapshots");
+  }
+
+  mtSource.resetForTest();
+  let mtFirstRoundEvent = null;
+  const stopMtListener = mtSource.onResult((result) => {
+    if (result.room === "MT01") mtFirstRoundEvent = result;
+  });
+  if (!mtSource.ingestTables({
+    1: {
+      table_id: 1,
+      table_name: "百家樂 1",
+      table_type: "BAC",
+      shoe: 88,
+      trend: {
+        bead_plate2: "0102#03",
+        total_round_banker: 1,
+        total_round_player: 1,
+        total_round_tie: 1,
+      },
+    },
+    2: {
+      table_id: 2,
+      table_name: "龍虎 2",
+      table_type: "DT",
+      trend: { bead_plate2: "01" },
+    },
+    3: {
+      table_id: 3,
+      table_name: "骰寶 3",
+      table_type: "SB",
+      trend: { bead_plate2: "01" },
+    },
+    4: {
+      table_id: 4,
+      table_name: "牛牛 5",
+      table_type: "NU",
+      trend: { bead_plate2: "01" },
+    },
+  })) throw new Error("MT baccarat table snapshot must be accepted");
+  stopMtListener();
+  const mtTable = mtSource.getTableByRoom("MT01");
+  if (!mtTable || mtTable.history.map((record) => record.result).join("") !== "閒莊和") {
+    throw new Error("MT baccarat bead plate must normalize player, banker, and tie");
+  }
+  if (!mtFirstRoundEvent || mtFirstRoundEvent.result !== "和") {
+    throw new Error("MT first received result must emit automatic settlement immediately");
+  }
+  const mtStats = mtSource.getRoomStats("MT01");
+  if (mtStats.banker !== 1 || mtStats.player !== 1 || mtStats.tie !== 1 || mtStats.total !== 3) {
+    throw new Error("MT room statistics must use the current baccarat table totals");
+  }
+  if (mtSource.getSnapshot().tables.some((table) => ["DT", "SB", "NU"].includes(table.tableType))) {
+    throw new Error("MT dragon tiger, sic bo, and bull tables must be excluded");
+  }
+  mtSource.ingestTables([{
+    table_id: 1,
+    table_name: "百家樂 1",
+    table_type: "BAC",
+    shoe: 89,
+    trend: {
+      bead_plate2: "02",
+      total_round_banker: 1,
+      total_round_player: 0,
+      total_round_tie: 0,
+    },
+  }]);
+  if (mtSource.getTableByRoom("MT01")?.history.length !== 1) {
+    throw new Error("MT new shoe must replace the previous shoe road history");
   }
 
   mbSource.resetForTest();
@@ -414,6 +506,9 @@ async function main() {
   }
   if (!captured.routes.get.some((route) => route.route === "/api/dg/status")) {
     throw new Error("DG status route is not registered");
+  }
+  if (!captured.routes.get.some((route) => route.route === "/api/mt/status")) {
+    throw new Error("MT status route is not registered");
   }
   if (!captured.routes.post.some((route) => route.route === "/api/dg/ingest")) {
     throw new Error("DG ingest route is not registered");
@@ -571,7 +666,6 @@ async function main() {
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "開 和｜和", "Baccarat automatic tie detail");
   assertIncludes(dgPushTexts, "過 1　倒 0　和 1", "Baccarat automatic tie result");
 
   dgSource.ingestMessage({
@@ -581,8 +675,51 @@ async function main() {
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "開 莊｜倒", "Baccarat automatic failed detail");
   assertIncludes(dgPushTexts, "過 1　倒 1　和 1", "Baccarat automatic failed result");
+  if (dgPushTexts.some((value) => String(value).includes("上局結算"))) {
+    throw new Error("Baccarat Flex must not show the previous-round settlement row");
+  }
+
+  values = await sendAndTexts("重新開始", "user-smoke");
+  assertIncludes(values, "DG 房號選擇", "Baccarat restart returns to current platform rooms");
+  values = await sendAndTexts("返回首頁", "user-smoke");
+  assertIncludes(values, "DG 百家樂AI", "Baccarat home returns to platform selection");
+  assertIncludes(values, "MT 百家樂AI", "Baccarat home returns to platform selection");
+
+  await send("百家樂", "user-smoke");
+  values = await sendAndTexts("MT", "user-smoke");
+  assertIncludes(values, "MT01", "MT baccarat rooms");
+  values = await sendAndTexts("MT01", "user-smoke");
+  assertIncludes(values, "請選擇分析模式", "MT baccarat mode flow");
+  assertIncludes(values, "自由配注", "MT baccarat mode flow");
+  values = await sendAndTexts("自由配注", "user-smoke");
+  assertIncludes(values, "自動結算", "MT baccarat automatic settlement");
+  const pushesBeforeMtResult = captured.pushes.length;
+  mtSource.ingestTables([{
+    table_id: 1,
+    table_name: "百家樂 1",
+    table_type: "BAC",
+    shoe: 89,
+    trend: {
+      bead_plate2: "0201",
+      total_round_banker: 1,
+      total_round_player: 1,
+      total_round_tie: 0,
+    },
+  }]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeMtResult + 1) {
+    throw new Error("MT live result must automatically push the next analysis");
+  }
+  const mtPushTexts = captured.pushes[captured.pushes.length - 1].messages
+    .flatMap((message) => collectText(message));
+  const mtPushSummary = mtPushTexts.join(" | ");
+  if (!mtPushSummary.includes("莊 | 1 | 閒 | 1 | 和 | 0 | 總 | 2")) {
+    throw new Error(`MT live room statistics are incorrect: ${mtPushSummary}`);
+  }
+  if (mtPushTexts.some((value) => String(value).includes("上局結算"))) {
+    throw new Error("MT baccarat Flex must not show the previous-round settlement row");
+  }
 
   values = await sendAndTexts("體育", "user-smoke");
   assertIncludes(values, "CPBL", "Sports menu");
