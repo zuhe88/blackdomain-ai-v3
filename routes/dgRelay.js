@@ -23,7 +23,7 @@ function userscript(baseUrl) {
   return `// ==UserScript==
 // @name         BLACKDOMAIN DG 百家樂即時轉送器
 // @namespace    blackdomain-ai
-// @version      1.1.0
+// @version      1.2.0
 // @description  僅轉送 DG 百家樂桌況與牌路更新，不讀取下注或帳戶資料
 // @match        *://*/ddnewpc/*
 // @run-at       document-start
@@ -42,7 +42,7 @@ function userscript(baseUrl) {
 
   const ENDPOINT = ${JSON.stringify(endpoint)};
   const NativeWebSocket = unsafeWindow.WebSocket;
-  const ALLOWED_COMMANDS = new Set([207, 1002, 1004, 1005]);
+  const ALLOWED_COMMANDS = new Set([2, 27, 207, 1002, 1004, 1005]);
   const DG_SOCKET_HOST = /(taxyss\\.com|kindlestone\\.com|ywjxi\\.com)$/i;
   let relayKey = GM_getValue("blackdomainDgRelayKey", "");
 

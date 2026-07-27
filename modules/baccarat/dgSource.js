@@ -1,6 +1,6 @@
 const { decodeBase64Frame } = require("./dgProto");
 
-const ALLOWED_COMMANDS = new Set([207, 1002, 1004, 1005]);
+const ALLOWED_COMMANDS = new Set([2, 27, 207, 1002, 1004, 1005]);
 const tables = new Map();
 let updatedAt = null;
 
@@ -49,7 +49,7 @@ function mergeTable(incoming) {
 function ingestMessage(message = {}) {
   if (!ALLOWED_COMMANDS.has(Number(message.cmd))) return false;
 
-  if (Number(message.cmd) === 1002 || Number(message.cmd) === 1005) {
+  if ([2, 27, 1002, 1005].includes(Number(message.cmd))) {
     return (message.table || []).reduce((accepted, table) => mergeTable(table) || accepted, false);
   }
 

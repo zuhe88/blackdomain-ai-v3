@@ -258,7 +258,7 @@ function dgSnapshotFrame() {
     protobufVarintField(18, 1),
   ]);
   return Buffer.concat([
-    protobufVarintField(1, 1002),
+    protobufVarintField(1, 27),
     protobufBytesField(17, table),
   ]).toString("base64");
 }
