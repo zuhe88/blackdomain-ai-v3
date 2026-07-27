@@ -6,6 +6,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.ATG_DISABLE_LIVE = "true";
 process.env.DG_DISABLE_LIVE = "true";
 process.env.MT_DISABLE_LIVE = "true";
+process.env.DG_RELAY_KEY = "smoke-test-relay-key";
 
 const captured = {
   replies: [],
@@ -84,6 +85,9 @@ function createExpress() {
   };
   express.json = function jsonMiddleware() {
     return function jsonHandler(req, res, next) { if (next) next(); };
+  };
+  express.text = function textMiddleware() {
+    return function textHandler(req, res, next) { if (next) next(); };
   };
   return express;
 }
@@ -276,6 +280,10 @@ async function main() {
   }
   if (dgLive.getStatus().enabled) throw new Error("DG live connection must be disabled in smoke tests");
   if (mtLive.getStatus().enabled) throw new Error("MT live connection must be disabled in smoke tests");
+  const sealedMtToken = mtLive.sealToken("test-mt-token-0123456789");
+  if (sealedMtToken.includes("test-mt-token") || mtLive.unsealToken(sealedMtToken) !== "test-mt-token-0123456789") {
+    throw new Error("MT game token must be encrypted at rest");
+  }
 
   dgSource.resetForTest();
   if (!dgSource.ingestFrame(dgSnapshotFrame())) throw new Error("DG protobuf snapshot must be accepted");
