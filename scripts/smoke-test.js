@@ -523,6 +523,10 @@ async function main() {
   values = await sendAndTexts("DG", "user-smoke");
   assertIncludes(values, "RB01", "Baccarat rooms");
   assertIncludes(values, "S07", "Baccarat rooms");
+  await send("RB01", "user-smoke");
+  values = await sendAndTexts("自由配注", "user-smoke");
+  assertIncludes(values, "房間路單", "Baccarat room statistics");
+  assertIncludes(values, "莊 1　閒 1　和 1　總 3", "Baccarat room statistics");
 
   values = await sendAndTexts("體育", "user-smoke");
   assertIncludes(values, "CPBL", "Sports menu");

@@ -143,7 +143,14 @@ function resultActionPanel() {
   };
 }
 
-function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN AI 已完成分析", quickReply }) {
+function baccaratAnalysisFlex({
+  session,
+  prediction,
+  bet,
+  reason = "BLACKDOMAIN AI 已完成分析",
+  roomStats = {},
+  quickReply,
+}) {
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
   const isFreeBet = session.mode === "自由配注";
   const betLabel = isFreeBet ? "配注方式" : "建議下注";
@@ -152,6 +159,12 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
     pass: session.results.pass || 0,
     fail: session.results.fail || 0,
     tie: session.results.tie || 0,
+  };
+  const tableStats = {
+    banker: Number(roomStats.banker) || 0,
+    player: Number(roomStats.player) || 0,
+    tie: Number(roomStats.tie) || 0,
+    total: Number(roomStats.total) || 0,
   };
 
   return bubble({
@@ -165,6 +178,7 @@ function baccaratAnalysisFlex({ session, prediction, bet, reason = "BLACKDOMAIN 
       metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
       infoLine("目前本金", session.mode === "自由配注" ? String(session.capital || session.startBankroll || "-") : String(session.bankroll)),
       infoLine("目前獲利", String(profit)),
+      infoLine("房間路單", `莊 ${tableStats.banker}　閒 ${tableStats.player}　和 ${tableStats.tie}　總 ${tableStats.total}`),
       infoLine("紀錄", `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}`),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       resultActionPanel(),

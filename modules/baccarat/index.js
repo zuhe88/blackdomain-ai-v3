@@ -34,6 +34,7 @@ const {
 } = require("./quickReply");
 const { firstAnalysis, nextAnalysis, getReason } = require("./ai");
 const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
+const dgSource = require("./dgSource");
 
 function roomsForPlatform(platform) {
   return platform === "DG" ? DG_ROOMS : MT_ROOMS;
@@ -41,6 +42,12 @@ function roomsForPlatform(platform) {
 
 function roomPrompt(platform) {
   return baccaratRoomFlex(platform, roomsForPlatform(platform));
+}
+
+function roomStatsFor(session) {
+  return session.platform === "DG"
+    ? dgSource.getRoomStats(session.room)
+    : { banker: 0, player: 0, tie: 0, total: 0 };
 }
 
 function capitalPrompt() {
@@ -155,6 +162,7 @@ async function handleBaccaratMessage(event) {
       prediction: first.prediction,
       bet: first.bet,
       reason: getReason(first.session),
+      roomStats: roomStatsFor(first.session),
       quickReply: resultQuickReply(),
     }));
   }
@@ -178,6 +186,7 @@ async function handleBaccaratMessage(event) {
       prediction: first.prediction,
       bet: first.bet,
       reason: getReason(first.session),
+      roomStats: roomStatsFor(first.session),
       quickReply: resultQuickReply(),
     }));
   }
@@ -205,6 +214,7 @@ async function handleBaccaratMessage(event) {
       prediction: result.prediction,
       bet: result.bet,
       reason: getReason(result.session),
+      roomStats: roomStatsFor(result.session),
       quickReply: resultQuickReply(),
     }));
   }

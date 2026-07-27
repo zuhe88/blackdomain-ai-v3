@@ -92,6 +92,19 @@ function getTableByRoom(room) {
   } : null;
 }
 
+function getRoomStats(room) {
+  const table = getTableByRoom(room);
+  const stats = { banker: 0, player: 0, tie: 0, total: 0 };
+  if (!table) return stats;
+  for (const record of table.history) {
+    if (record.result === "莊") stats.banker += 1;
+    if (record.result === "閒") stats.player += 1;
+    if (record.result === "和") stats.tie += 1;
+  }
+  stats.total = stats.banker + stats.player + stats.tie;
+  return stats;
+}
+
 function getSnapshot() {
   const items = [...tables.values()]
     .filter((table) => table.room)
@@ -123,6 +136,7 @@ function resetForTest() {
 }
 
 module.exports = {
+  getRoomStats,
   getSnapshot,
   getTableByRoom,
   ingestFrame,
