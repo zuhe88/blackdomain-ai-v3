@@ -273,6 +273,19 @@ async function main() {
   if (dgTable.history.map((record) => record.result).join("") !== "莊閒和") {
     throw new Error("DG baccarat road results were not normalized correctly");
   }
+  for (const [tableId, tableName] of [
+    [801, "龍虎 RD01"],
+    [802, "輪盤 RR01"],
+    [803, "輪盤 S08"],
+    [804, "骰寶 RS01"],
+  ]) {
+    if (dgSource.ingestMessage({ cmd: 27, table: [{ tableId, tableName }] })) {
+      throw new Error(`DG non-baccarat table ${tableName} must be rejected`);
+    }
+  }
+  if (dgSource.getSnapshot().tables.some((table) => ["RD01", "RR01", "S08", "RS01"].includes(table.room))) {
+    throw new Error("DG non-baccarat tables must not appear in snapshots");
+  }
 
   mbSource.resetForTest();
   if (!mbSource.ingestRoadmap({

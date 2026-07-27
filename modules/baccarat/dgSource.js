@@ -1,4 +1,5 @@
 const { decodeBase64Frame } = require("./dgProto");
+const { DG_ROOMS } = require("./constants");
 
 const ALLOWED_COMMANDS = new Set([2, 27, 207, 1002, 1004, 1005]);
 const tables = new Map();
@@ -31,15 +32,24 @@ function normalizeHistory(roads) {
 function mergeTable(incoming) {
   if (!incoming || !Number.isInteger(Number(incoming.tableId))) return false;
   const tableId = Number(incoming.tableId);
+  const incomingRoom = roomFromName(incoming.tableName);
+  if (incoming.tableName && (!incomingRoom || !DG_ROOMS.includes(incomingRoom))) {
+    tables.delete(tableId);
+    return false;
+  }
   const current = tables.get(tableId) || { tableId, roads: [] };
   const next = {
     ...current,
     ...incoming,
     tableId,
-    room: roomFromName(incoming.tableName) || current.room || null,
+    room: incomingRoom || current.room || null,
     roads: incoming.roads?.length ? [...incoming.roads] : current.roads,
     updatedAt: new Date().toISOString(),
   };
+  if (next.room && !DG_ROOMS.includes(next.room)) {
+    tables.delete(tableId);
+    return false;
+  }
   next.history = normalizeHistory(next.roads);
   tables.set(tableId, next);
   updatedAt = next.updatedAt;
