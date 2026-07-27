@@ -167,6 +167,7 @@ const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
 const atgSeed = require("../modules/atg/history-seed.json");
 const mbSource = require("../modules/mb/source");
 const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
+const dgSource = require("../modules/baccarat/dgSource");
 
 function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
@@ -222,7 +223,57 @@ function assertMessage(message) {
   if (message.type === "image" && !/^https:\/\//.test(message.originalContentUrl)) throw new Error("Image URL must be HTTPS");
 }
 
+function protobufVarint(value) {
+  let remaining = BigInt(value);
+  const bytes = [];
+  do {
+    let byte = Number(remaining & 0x7fn);
+    remaining >>= 7n;
+    if (remaining) byte |= 0x80;
+    bytes.push(byte);
+  } while (remaining);
+  return Buffer.from(bytes);
+}
+
+function protobufVarintField(field, value) {
+  return Buffer.concat([protobufVarint(field * 8), protobufVarint(value)]);
+}
+
+function protobufBytesField(field, value) {
+  const content = Buffer.isBuffer(value) ? value : Buffer.from(String(value), "utf8");
+  return Buffer.concat([protobufVarint((field * 8) + 2), protobufVarint(content.length), content]);
+}
+
+function dgSnapshotFrame() {
+  const table = Buffer.concat([
+    protobufVarintField(1, 0),
+    protobufVarintField(2, 12345),
+    protobufVarintField(3, 67),
+    protobufVarintField(4, 1),
+    protobufVarintField(5, 18),
+    protobufBytesField(10, "65#1#0#0"),
+    protobufBytesField(10, "66#5#0#0"),
+    protobufBytesField(10, "67#9#0#0"),
+    protobufBytesField(13, "自營桌 RB01"),
+    protobufVarintField(18, 1),
+  ]);
+  return Buffer.concat([
+    protobufVarintField(1, 1002),
+    protobufBytesField(17, table),
+  ]).toString("base64");
+}
+
 async function main() {
+  dgSource.resetForTest();
+  if (!dgSource.ingestFrame(dgSnapshotFrame())) throw new Error("DG protobuf snapshot must be accepted");
+  const dgTable = dgSource.getTableByRoom("RB01");
+  if (!dgTable || dgTable.tableId !== 0 || dgTable.history.length !== 3) {
+    throw new Error("DG table snapshot was not decoded correctly");
+  }
+  if (dgTable.history.map((record) => record.result).join("") !== "莊閒和") {
+    throw new Error("DG baccarat road results were not normalized correctly");
+  }
+
   mbSource.resetForTest();
   if (!mbSource.ingestRoadmap({
     items: [{
@@ -328,6 +379,15 @@ async function main() {
   }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");
+  }
+  if (!captured.routes.get.some((route) => route.route === "/dg-relay.user.js")) {
+    throw new Error("DG relay userscript route is not registered");
+  }
+  if (!captured.routes.get.some((route) => route.route === "/api/dg/status")) {
+    throw new Error("DG status route is not registered");
+  }
+  if (!captured.routes.post.some((route) => route.route === "/api/dg/ingest")) {
+    throw new Error("DG ingest route is not registered");
   }
 
   await handleEvent(followEvent());

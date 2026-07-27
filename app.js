@@ -8,6 +8,7 @@ const { registerPenaltyGameRoutes } = require("./routes/penaltyGame");
 const { registerBrandLandingRoutes } = require("./routes/brandLanding");
 const { registerAtgRelayRoutes } = require("./routes/atgRelay");
 const { registerMbRelayRoutes } = require("./routes/mbRelay");
+const { registerDgRelayRoutes } = require("./routes/dgRelay");
 
 const app = express();
 
@@ -18,6 +19,7 @@ registerPenaltyGameRoutes(app);
 registerBrandLandingRoutes(app);
 registerAtgRelayRoutes(app);
 registerMbRelayRoutes(app);
+registerDgRelayRoutes(app);
 
 module.exports = {
   app,
