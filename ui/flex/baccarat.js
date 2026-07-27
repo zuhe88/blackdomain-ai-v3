@@ -143,6 +143,59 @@ function resultActionPanel() {
   };
 }
 
+function roomStat(label, value, color) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    flex: 1,
+    spacing: "xs",
+    alignItems: "center",
+    paddingAll: "6px",
+    backgroundColor: "#171511",
+    cornerRadius: "8px",
+    contents: [
+      {
+        type: "box",
+        layout: "vertical",
+        width: "24px",
+        height: "24px",
+        backgroundColor: color,
+        cornerRadius: "5px",
+        justifyContent: "center",
+        contents: [text(label, { size: "xs", weight: "bold", color: COLORS.white, align: "center", wrap: false })],
+      },
+      text(value, { size: "md", weight: "bold", color: COLORS.white, align: "center", flex: 1, wrap: false }),
+    ],
+  };
+}
+
+function roomStatsPanel(stats) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    paddingAll: "10px",
+    backgroundColor: "#11100E",
+    cornerRadius: "12px",
+    borderColor: "#4C3C1E",
+    borderWidth: "1px",
+    contents: [
+      text("本房牌路統計", { size: "xs", color: COLORS.blueSoft, weight: "bold" }),
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "xs",
+        contents: [
+          roomStat("莊", stats.banker, "#D71920"),
+          roomStat("閒", stats.player, "#1464D2"),
+          roomStat("和", stats.tie, "#278A18"),
+          roomStat("總", stats.total, "#9A6728"),
+        ],
+      },
+    ],
+  };
+}
+
 function baccaratAnalysisFlex({
   session,
   prediction,
@@ -177,11 +230,17 @@ function baccaratAnalysisFlex({
     contents: [
       metric("建議", prediction, session.mode),
       metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
-      infoLine("目前本金", session.mode === "自由配注" ? String(session.capital || session.startBankroll || "-") : String(session.bankroll)),
-      infoLine("目前獲利", String(profit)),
-      infoLine("房間路單", `莊 ${tableStats.banker}　閒 ${tableStats.player}　和 ${tableStats.tie}　總 ${tableStats.total}`),
+      ...(!isFreeBet ? [
+        infoLine("目前本金", String(session.bankroll)),
+        infoLine("目前獲利", String(profit)),
+      ] : []),
+      roomStatsPanel(tableStats),
+      ...(session.lastSettlement ? [infoLine(
+        "上局結算",
+        `預測 ${session.lastSettlement.prediction}｜開 ${session.lastSettlement.actual}｜${session.lastSettlement.verdict}`,
+      )] : []),
       infoLine("紀錄", `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}`),
-      ...(autoResult ? [infoLine("自動結算", "等待此房下一局開獎")] : []),
+      ...(autoResult ? [infoLine("自動結算", "等待本房下一局開獎")] : []),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       ...(!autoResult ? [resultActionPanel()] : []),
     ],

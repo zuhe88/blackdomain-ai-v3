@@ -23,7 +23,11 @@ function roadResult(value) {
 }
 
 function normalizeHistory(roads, scope = "road") {
-  return (Array.isArray(roads) ? roads : [])
+  const source = Array.isArray(roads) ? roads : [];
+  const newestFirst = source.length > 0
+    && source.every((road) => !String(road || "").split("#")[0]);
+  const chronological = newestFirst ? [...source].reverse() : source;
+  return chronological
     .map((road, index) => ({
       gameNo: String(road || "").split("#")[0] || `${scope}:${index + 1}`,
       result: roadResult(road),

@@ -92,11 +92,28 @@ function getHeavenBet(session) {
 }
 
 function predict(history = []) {
-  const clean = history.filter((item) => item !== "和");
-  if (clean.length < 2) return clean[0] === "莊" ? "閒" : "莊";
+  const clean = history.filter((item) => item === "莊" || item === "閒").slice(-30);
+  if (!clean.length) return "莊";
+  if (clean.length === 1) return clean[0] === "莊" ? "閒" : "莊";
   const last = clean[clean.length - 1];
-  const secondLast = clean[clean.length - 2];
-  if (last === secondLast) return last;
+  let streak = 1;
+  for (let index = clean.length - 2; index >= 0 && clean[index] === last; index -= 1) {
+    streak += 1;
+  }
+  if (streak >= 3) return last;
+
+  const nextCounts = { 莊: 0, 閒: 0 };
+  for (let index = 1; index < clean.length; index += 1) {
+    if (clean[index - 1] === last) nextCounts[clean[index]] += 1;
+  }
+  if (nextCounts.莊 !== nextCounts.閒) {
+    return nextCounts.莊 > nextCounts.閒 ? "莊" : "閒";
+  }
+
+  const recent = clean.slice(-8);
+  const banker = recent.filter((result) => result === "莊").length;
+  const player = recent.length - banker;
+  if (Math.abs(banker - player) >= 2) return banker < player ? "莊" : "閒";
   return last === "莊" ? "閒" : "莊";
 }
 
@@ -116,10 +133,20 @@ function applyResult(session, outcome) {
 
   if (outcome === "和") {
     session.results.tie += 1;
+    session.lastSettlement = {
+      prediction: session.lastPrediction,
+      actual: outcome,
+      verdict: "和",
+    };
     return session;
   }
 
   const isWin = outcome === session.lastPrediction;
+  session.lastSettlement = {
+    prediction: session.lastPrediction,
+    actual: outcome,
+    verdict: isWin ? "過" : "倒",
+  };
   if (isWin) {
     session.results.pass += 1;
     if (session.mode !== "自由配注") session.bankroll += outcome === "莊" ? lastBet * 0.95 : lastBet;
@@ -163,4 +190,5 @@ module.exports = {
   getReason,
   calculateBet,
   getBaseBetAmount,
+  predict,
 };

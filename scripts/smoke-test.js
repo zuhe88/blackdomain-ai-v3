@@ -170,6 +170,7 @@ const mbSource = require("../modules/mb/source");
 const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
 const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
+const { predict: predictBaccarat } = require("../modules/baccarat/ai");
 
 function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
@@ -280,6 +281,13 @@ async function main() {
   }
   if (dgTable.history.map((record) => record.result).join("") !== "莊閒和") {
     throw new Error("DG baccarat road results were not normalized correctly");
+  }
+  const newestFirstRoad = dgSource.normalizeHistory(["#5#0#8", "#1#0#7"], "shoe");
+  if (newestFirstRoad.map((record) => record.result).join("") !== "莊閒") {
+    throw new Error("DG newest-first baccarat roads must be converted to chronological order");
+  }
+  if (predictBaccarat(["莊", "莊", "莊"]) !== "莊" || predictBaccarat(["閒", "閒", "閒"]) !== "閒") {
+    throw new Error("Baccarat prediction must support both banker and player recommendations");
   }
   for (const [tableId, tableName] of [
     [801, "龍虎 RD01"],
@@ -533,10 +541,13 @@ async function main() {
   assertIncludes(values, "S07", "Baccarat rooms");
   await send("RB01", "user-smoke");
   values = await sendAndTexts("自由配注", "user-smoke");
-  assertIncludes(values, "房間路單", "Baccarat room statistics");
-  assertIncludes(values, "莊 1　閒 1　和 1　總 3", "Baccarat room statistics");
-  assertIncludes(values, "等待此房下一局開獎", "Baccarat automatic settlement");
+  assertIncludes(values, "本房牌路統計", "Baccarat room statistics");
+  assertIncludes(values, "等待本房下一局開獎", "Baccarat automatic settlement");
   const dgAutoMessage = captured.replies[captured.replies.length - 1].messages[0];
+  const dgAutoJson = JSON.stringify(dgAutoMessage);
+  for (const color of ["#D71920", "#1464D2", "#278A18", "#9A6728"]) {
+    if (!dgAutoJson.includes(color)) throw new Error(`Baccarat room statistics missing color ${color}`);
+  }
   if (collectActions(dgAutoMessage).some((action) => ["莊", "閒", "和"].includes(action.text))) {
     throw new Error("DG automatic settlement must not show manual result buttons");
   }
@@ -544,14 +555,34 @@ async function main() {
   dgSource.ingestMessage({
     cmd: 1004,
     tableId: 0,
-    list: ["65#1#0#0", "66#5#0#0", "67#9#0#0", "68#1#0#0"],
+    list: ["#1#0#0", "#9#0#0", "#5#0#0", "#1#0#0"],
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   if (captured.pushes.length !== pushesBeforeDgResult + 1) {
     throw new Error("DG result must automatically push the next analysis");
   }
-  const dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "過 1", "Baccarat automatic settlement result");
+  let dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
+  assertIncludes(dgPushTexts, "過 1", "Baccarat automatic pass result");
+
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 0,
+    list: ["#9#0#0", "#1#0#0", "#9#0#0", "#5#0#0", "#1#0#0"],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
+  assertIncludes(dgPushTexts, "開 和｜和", "Baccarat automatic tie detail");
+  assertIncludes(dgPushTexts, "過 1　倒 0　和 1", "Baccarat automatic tie result");
+
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 0,
+    list: ["#1#0#0", "#9#0#0", "#1#0#0", "#9#0#0", "#5#0#0", "#1#0#0"],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
+  assertIncludes(dgPushTexts, "開 莊｜倒", "Baccarat automatic failed detail");
+  assertIncludes(dgPushTexts, "過 1　倒 1　和 1", "Baccarat automatic failed result");
 
   values = await sendAndTexts("體育", "user-smoke");
   assertIncludes(values, "CPBL", "Sports menu");
