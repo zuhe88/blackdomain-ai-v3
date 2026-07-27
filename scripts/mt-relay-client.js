@@ -17,6 +17,7 @@ let heartbeatTimer = null;
 let reconnectTimer = null;
 let connectedAt = null;
 let lastForwardAt = null;
+let lastMessageAt = null;
 let lastError = null;
 
 function stopTimers() {
@@ -86,16 +87,23 @@ async function forwardTables(tables) {
 
 function handleMessage(raw) {
   try {
+    lastMessageAt = new Date().toISOString();
     const message = JSON.parse(String(raw));
     const action = typeof message.action === "string" ? message.action : message.action?.name;
     if (action === "/api/v1/authenticate") {
-      if (Number(message.err) !== 0) throw new Error(`MT authentication failed (${message.err}).`);
+      if (Number(message.err) !== 0) {
+        lastError = `MT authentication failed (${message.err}).`;
+        socket?.close();
+        return;
+      }
       connectedAt = new Date().toISOString();
       requestTables();
       return;
     }
     if (message.name === "/api/v1/member/logout") {
-      throw new Error("MT token was rejected.");
+      lastError = "MT token was rejected.";
+      socket?.close();
+      return;
     }
     if (action === TABLES_ACTION) {
       forwardTables(sanitizeTables(message.msg?.tables)).catch((error) => {
@@ -183,6 +191,7 @@ const server = http.createServer((req, res) => {
       state: socket?.readyState === WebSocket.OPEN ? connectedAt ? "connected" : "authenticating" : "disconnected",
       connectedAt,
       lastForwardAt,
+      lastMessageAt,
       lastError,
     }));
     return;
@@ -214,4 +223,13 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`BLACKDOMAIN MT relay listening on http://127.0.0.1:${PORT}`);
+  const startupToken = String(process.env.MT_TOKEN || "").trim();
+  const startupRelayKey = String(process.env.MT_RELAY_KEY || "").trim();
+  if (startupToken) {
+    try {
+      connect(startupToken, startupRelayKey);
+    } catch (error) {
+      lastError = error.message;
+    }
+  }
 });
