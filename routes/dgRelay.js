@@ -23,15 +23,15 @@ function userscript(baseUrl) {
   return `// ==UserScript==
 // @name         BLACKDOMAIN DG 百家樂即時轉送器
 // @namespace    blackdomain-ai
-// @version      1.0.1
+// @version      1.1.0
 // @description  僅轉送 DG 百家樂桌況與牌路更新，不讀取下注或帳戶資料
-// @match        https://new-dd-cn.ahsy114.com/ddnewpc/*
-// @match        https://new-dd-cn.20299999.com/ddnewpc/*
+// @match        *://*/ddnewpc/*
 // @run-at       document-start
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @connect      ${host}
 // @updateURL    ${baseUrl}/dg-relay.user.js
 // @downloadURL  ${baseUrl}/dg-relay.user.js
@@ -46,14 +46,19 @@ function userscript(baseUrl) {
   const DG_SOCKET_HOST = /(taxyss\\.com|kindlestone\\.com|ywjxi\\.com)$/i;
   let relayKey = GM_getValue("blackdomainDgRelayKey", "");
 
-  function ensureRelayKey() {
-    if (relayKey) return relayKey;
+  function askRelayKey() {
     const value = window.prompt("請輸入 BLACKDOMAIN DG_RELAY_KEY");
-    if (!value) return "";
+    if (!value) return relayKey;
     relayKey = value.trim();
     GM_setValue("blackdomainDgRelayKey", relayKey);
     return relayKey;
   }
+
+  function ensureRelayKey() {
+    return relayKey || askRelayKey();
+  }
+
+  GM_registerMenuCommand("設定 DG_RELAY_KEY", askRelayKey);
 
   function readVarint(bytes, start) {
     let value = 0;
