@@ -102,8 +102,11 @@ function makeSupabaseTable(table) {
   const chain = {
     select() { return chain; },
     eq(field, value) { filters.push({ field, value }); return chain; },
+    like(field, value) { filters.push({ field, value }); return chain; },
     update(payload) { updated = payload; return chain; },
     insert(payload) { inserted = payload; return chain; },
+    upsert(payload) { inserted = payload; return chain; },
+    delete() { updated = { deleted: true }; return chain; },
     async maybeSingle() {
       const rows = rowsForTable(table, filters, inserted, updated);
       return { data: rows[0] || null, error: null };

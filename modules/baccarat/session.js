@@ -1,9 +1,63 @@
+const supabase = require("../../services/supabase");
+
 const sessions = new Map();
 
 const SESSION_TIMEOUT = 24 * 60 * 60 * 1000;
+const SESSION_KEY_PREFIX = "baccarat_session:";
 
 function now() {
   return Date.now();
+}
+
+function sessionKey(userId) {
+  return `${SESSION_KEY_PREFIX}${userId}`;
+}
+
+function persistSession(session) {
+  if (!supabase || !session?.userId) return;
+  supabase
+    .from("lottery_settings")
+    .upsert({
+      key: sessionKey(session.userId),
+      value: session,
+      updated_at: new Date().toISOString(),
+      updated_by: session.userId,
+    }, { onConflict: "key" })
+    .then(({ error }) => {
+      if (error) console.error("[Baccarat] Session persistence failed:", error.message);
+    });
+}
+
+function deletePersistedSession(userId) {
+  if (!supabase || !userId) return;
+  supabase
+    .from("lottery_settings")
+    .delete()
+    .eq("key", sessionKey(userId))
+    .then(({ error }) => {
+      if (error) console.error("[Baccarat] Session deletion failed:", error.message);
+    });
+}
+
+async function hydrateSessions() {
+  if (!supabase) return 0;
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("key,value")
+    .like("key", `${SESSION_KEY_PREFIX}%`);
+  if (error) {
+    console.error("[Baccarat] Session hydration failed:", error.message);
+    return 0;
+  }
+
+  let restored = 0;
+  for (const row of data || []) {
+    const session = row?.value;
+    if (!session?.userId || now() - Number(session.updatedAt || 0) > SESSION_TIMEOUT) continue;
+    sessions.set(session.userId, session);
+    restored += 1;
+  }
+  return restored;
 }
 
 function createSession(userId) {
@@ -31,6 +85,7 @@ function createSession(userId) {
   };
 
   sessions.set(userId, session);
+  persistSession(session);
   return session;
 }
 
@@ -62,11 +117,13 @@ function setSession(userId, data) {
   };
 
   sessions.set(userId, nextSession);
+  persistSession(nextSession);
   return nextSession;
 }
 
 function resetSession(userId) {
   sessions.delete(userId);
+  deletePersistedSession(userId);
 }
 
 function hasActiveSession(userId) {
@@ -105,6 +162,7 @@ function pushHistory(userId, result) {
 
   session.updatedAt = now();
   sessions.set(userId, session);
+  persistSession(session);
 
   return session;
 }
@@ -160,6 +218,7 @@ function updateAfterRound(userId, data) {
 
 module.exports = {
   createSession,
+  hydrateSessions,
   getSession,
   setSession,
   resetSession,
