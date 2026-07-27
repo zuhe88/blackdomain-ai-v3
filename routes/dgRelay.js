@@ -19,14 +19,20 @@ function publicBaseUrl(req) {
 }
 
 function userscript(baseUrl) {
-  const endpoint = `${baseUrl}/api/dg/ingest`;
+  const dgEndpoint = `${baseUrl}/api/dg/ingest`;
+  const mtEndpoint = `${baseUrl}/api/mt/ingest`;
   const host = new URL(baseUrl).host;
   return `// ==UserScript==
-// @name         BLACKDOMAIN DG 百家樂即時轉送器
+// @name         BLACKDOMAIN DG MT 百家樂即時轉送器
 // @namespace    blackdomain-ai
-// @version      1.2.0
-// @description  僅轉送 DG 百家樂桌況與牌路更新，不讀取下注或帳戶資料
+// @version      1.3.0
+// @description  僅轉送 DG、MT 百家樂桌況與牌路更新，不讀取下注或帳戶資料
 // @match        *://*/ddnewpc/*
+// @match        *://gsa.ofalive99.net/*
+// @match        *://gsa.mtx55.net/*
+// @match        *://gsa.mtx66.net/*
+// @match        *://gsa.mtx77.net/*
+// @match        *://gsa.mtx88.net/*
 // @run-at       document-start
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
@@ -41,10 +47,12 @@ function userscript(baseUrl) {
 (function () {
   "use strict";
 
-  const ENDPOINT = ${JSON.stringify(endpoint)};
+  const DG_ENDPOINT = ${JSON.stringify(dgEndpoint)};
+  const MT_ENDPOINT = ${JSON.stringify(mtEndpoint)};
   const NativeWebSocket = unsafeWindow.WebSocket;
   const ALLOWED_COMMANDS = new Set([2, 27, 207, 1002, 1004, 1005]);
   const DG_SOCKET_HOST = /(taxyss\\.com|kindlestone\\.com|ywjxi\\.com)$/i;
+  const MT_SOCKET_HOST = /^a1\\.(ofalive99|mtx55|mtx66|mtx77|mtx88)\\.net$/i;
   let relayKey = GM_getValue("blackdomainDgRelayKey", "");
 
   function askRelayKey() {
@@ -110,17 +118,17 @@ function userscript(baseUrl) {
     return btoa(binary);
   }
 
-  function send(bytes) {
+  function post(endpoint, payload) {
     const key = ensureRelayKey();
-    if (!key || bytes.length > 512 * 1024) return;
+    if (!key) return;
     GM_xmlhttpRequest({
       method: "POST",
-      url: ENDPOINT,
+      url: endpoint,
       headers: {
         "content-type": "application/json",
         "x-dg-relay-key": key,
       },
-      data: JSON.stringify({ frame: base64(bytes) }),
+      data: JSON.stringify(payload),
       onload(response) {
         if (response.status === 401) {
           relayKey = "";
@@ -131,13 +139,44 @@ function userscript(baseUrl) {
     });
   }
 
-  async function handle(raw) {
+  async function handleDg(raw) {
     let buffer = raw;
     if (raw instanceof Blob) buffer = await raw.arrayBuffer();
     if (!(buffer instanceof ArrayBuffer)) return;
     const bytes = new Uint8Array(buffer);
     if (!ALLOWED_COMMANDS.has(commandOf(bytes))) return;
-    send(bytes);
+    if (bytes.length <= 512 * 1024) post(DG_ENDPOINT, { frame: base64(bytes) });
+  }
+
+  function handleMt(raw) {
+    if (typeof raw !== "string" || raw.length > 512 * 1024) return;
+    let message;
+    try {
+      message = JSON.parse(raw);
+    } catch {
+      return;
+    }
+    const action = typeof message.action === "string" ? message.action : message.action?.name;
+    if (action !== "/api/v1/gametype/*/game/*/room/*/tables") return;
+    const tables = Object.values(message.msg?.tables || {})
+      .filter((table) => table?.table_type === "BAC" || table?.table_type === "BAS")
+      .slice(0, 50)
+      .map((table) => ({
+        table_id: table.table_id,
+        table_name: table.table_name,
+        table_type: table.table_type,
+        game_sn: table.game_sn,
+        game_state: table.game_state,
+        shoe: table.shoe,
+        round: table.round,
+        trend: {
+          bead_plate2: table.trend?.bead_plate2,
+          total_round_banker: table.trend?.total_round_banker,
+          total_round_player: table.trend?.total_round_player,
+          total_round_tie: table.trend?.total_round_tie,
+        },
+      }));
+    if (tables.length) post(MT_ENDPOINT, { tables });
   }
 
   unsafeWindow.WebSocket = new Proxy(NativeWebSocket, {
@@ -146,17 +185,19 @@ function userscript(baseUrl) {
       try {
         const url = new URL(String(args[0] || ""));
         if (DG_SOCKET_HOST.test(url.hostname)) {
-          socket.addEventListener("message", (event) => handle(event.data));
+          socket.addEventListener("message", (event) => handleDg(event.data));
+        } else if (MT_SOCKET_HOST.test(url.hostname)) {
+          socket.addEventListener("message", (event) => handleMt(event.data));
         }
       } catch {
-        // Ignore non-DG WebSocket connections.
+        // Ignore unrelated WebSocket connections.
       }
       return socket;
     },
   });
 
   setTimeout(ensureRelayKey, 1500);
-  console.info("[BLACKDOMAIN DG] 百家樂即時轉送器已啟動");
+  console.info("[BLACKDOMAIN] DG、MT 百家樂即時轉送器已啟動");
 }());
 `;
 }

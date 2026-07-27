@@ -173,6 +173,7 @@ const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
 const mtSource = require("../modules/baccarat/mtSource");
 const mtLive = require("../modules/baccarat/mtLive");
+const { userscript: baccaratRelayUserscript } = require("../routes/dgRelay");
 const { predict: predictBaccarat } = require("../modules/baccarat/ai");
 
 function event(text, userId = "user-smoke") {
@@ -512,6 +513,20 @@ async function main() {
   }
   if (!captured.routes.post.some((route) => route.route === "/api/dg/ingest")) {
     throw new Error("DG ingest route is not registered");
+  }
+  if (!captured.routes.post.some((route) => route.route === "/api/mt/ingest")) {
+    throw new Error("MT ingest route is not registered");
+  }
+  const baccaratRelayScript = baccaratRelayUserscript("https://example.com");
+  for (const expected of [
+    "@match        *://gsa.ofalive99.net/*",
+    "/api/mt/ingest",
+    'table?.table_type === "BAC"',
+    "total_round_banker",
+  ]) {
+    if (!baccaratRelayScript.includes(expected)) {
+      throw new Error(`Baccarat relay userscript is missing MT support: ${expected}`);
+    }
   }
 
   await handleEvent(followEvent());
