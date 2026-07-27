@@ -23,9 +23,10 @@ function userscript(baseUrl) {
   return `// ==UserScript==
 // @name         BLACKDOMAIN DG 百家樂即時轉送器
 // @namespace    blackdomain-ai
-// @version      1.0.0
+// @version      1.0.1
 // @description  僅轉送 DG 百家樂桌況與牌路更新，不讀取下注或帳戶資料
 // @match        https://new-dd-cn.ahsy114.com/ddnewpc/*
+// @match        https://new-dd-cn.20299999.com/ddnewpc/*
 // @run-at       document-start
 // @grant        unsafeWindow
 // @grant        GM_xmlhttpRequest
