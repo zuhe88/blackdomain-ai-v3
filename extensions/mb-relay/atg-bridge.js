@@ -25,6 +25,8 @@
   }
 
   function detectGameName(payload) {
+    if (location.pathname.includes("cfca28d832b0ae2c364caae4b6de4e11aa22f0c4")) return "戰神賽特1";
+    if (location.pathname.includes("361d567d94ac569664c82068a30b762e8d8438b8")) return "戰神賽特2";
     const hints = [
       location.href,
       payload?.engine?.gameType,
