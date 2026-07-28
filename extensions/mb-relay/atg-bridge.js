@@ -22,6 +22,7 @@
   let scanPage = 0;
   let scanTotalPages = 8;
   let scanTimer = null;
+  let scanId = "";
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -95,6 +96,7 @@
 
   function requestScanPage(page) {
     if (typeof window.dispatch !== "function" || scanPage !== 0) return;
+    if (page === 1) scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     scanPage = page;
     window.dispatch(TABLE_PAGE_REQUEST, { page });
   }
@@ -168,7 +170,11 @@
     if (eventName === TABLE_PAGE_RESPONSE) {
       const data = tablePayload(payload);
       if (!data) return;
-      if (scanPage > 0) data.page = scanPage;
+      if (scanPage > 0) {
+        data.page = scanPage;
+        data.scanId = scanId;
+        data.scanComplete = scanPage >= scanTotalPages;
+      }
       emit({ type: "tables", gameName, ...data });
       if (scanPage > 0 && scanPage < scanTotalPages) {
         const nextPage = scanPage + 1;
@@ -176,7 +182,8 @@
         setTimeout(() => requestScanPage(nextPage), 800);
       } else if (scanPage > 0) {
         scanPage = 0;
-        scheduleFullScan(90000);
+        scanId = "";
+        scheduleFullScan(30000);
       }
       return;
     }

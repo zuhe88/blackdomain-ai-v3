@@ -3,6 +3,7 @@ const LIVE_TTL_MS = 2 * 60 * 1000;
 const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   gameName,
   tables: new Map(),
+  pendingScan: null,
   updatedAt: null,
   spins: new Map(),
 }]));
@@ -39,13 +40,23 @@ function ingestTables(payload = {}) {
   const gameName = String(payload.gameName || "").trim();
   const state = games.get(gameName);
   if (!state || !Array.isArray(payload.tables)) return false;
-  const next = new Map(state.tables);
+  const scanId = String(payload.scanId || "").trim();
+  let next = new Map(state.tables);
+  if (scanId) {
+    if (state.pendingScan?.id !== scanId) state.pendingScan = { id: scanId, tables: new Map() };
+    next = state.pendingScan.tables;
+  }
   payload.tables.forEach((raw) => {
     const table = normalizeTable(raw);
     if (table) next.set(table.roomId, table);
   });
-  if (!next.size) return false;
-  state.tables = next;
+  if (!scanId && !next.size) return false;
+  if (scanId && payload.scanComplete === true) {
+    state.tables = new Map(next);
+    state.pendingScan = null;
+  } else if (!scanId) {
+    state.tables = next;
+  }
   state.updatedAt = new Date().toISOString();
   return true;
 }
@@ -116,7 +127,12 @@ function getSnapshot() {
 }
 
 function resetForTest() {
-  games.forEach((state) => { state.tables = new Map(); state.spins = new Map(); state.updatedAt = null; });
+  games.forEach((state) => {
+    state.tables = new Map();
+    state.pendingScan = null;
+    state.spins = new Map();
+    state.updatedAt = null;
+  });
 }
 
 const SUPPORTED_GAMES = new Set(GAME_NAMES);
