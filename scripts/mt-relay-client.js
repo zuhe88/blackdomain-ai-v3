@@ -14,17 +14,21 @@ let activeToken = "";
 let activeRelayKey = "";
 let refreshTimer = null;
 let heartbeatTimer = null;
+let watchdogTimer = null;
 let reconnectTimer = null;
 let connectedAt = null;
 let lastForwardAt = null;
 let lastMessageAt = null;
+let lastTablesAt = null;
 let lastError = null;
 
 function stopTimers() {
   if (refreshTimer) clearInterval(refreshTimer);
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (watchdogTimer) clearInterval(watchdogTimer);
   refreshTimer = null;
   heartbeatTimer = null;
+  watchdogTimer = null;
 }
 
 function send(payload) {
@@ -106,6 +110,7 @@ function handleMessage(raw) {
       return;
     }
     if (action === TABLES_ACTION) {
+      lastTablesAt = new Date().toISOString();
       forwardTables(sanitizeTables(message.msg?.tables)).catch((error) => {
         lastError = error.message;
       });
@@ -128,6 +133,7 @@ function connect(token, relayKey = activeRelayKey) {
   }
   stopTimers();
   connectedAt = null;
+  lastTablesAt = null;
   lastError = null;
   const nextSocket = new WebSocket(SOCKET_URL, {
     origin: ORIGIN,
@@ -149,6 +155,13 @@ function connect(token, relayKey = activeRelayKey) {
       action: { name: "/api/v1/ping" },
     }), 5000);
     refreshTimer = setInterval(requestTables, 2000);
+    watchdogTimer = setInterval(() => {
+      if (!connectedAt || !socket || socket.readyState !== WebSocket.OPEN) return;
+      const lastTablesTime = Date.parse(lastTablesAt || connectedAt);
+      if (Date.now() - lastTablesTime <= 30000) return;
+      lastError = "MT table data timed out; reconnecting.";
+      socket.close();
+    }, 5000);
   });
   nextSocket.on("message", handleMessage);
   nextSocket.on("error", (error) => {
@@ -192,6 +205,7 @@ const server = http.createServer((req, res) => {
       connectedAt,
       lastForwardAt,
       lastMessageAt,
+      lastTablesAt,
       lastError,
     }));
     return;
@@ -206,7 +220,7 @@ const server = http.createServer((req, res) => {
       try {
         const token = new URLSearchParams(body).get("token");
         const relayKey = new URLSearchParams(body).get("relayKey");
-        connect(token, relayKey);
+        connect(token, relayKey || activeRelayKey);
         res.statusCode = 303;
         res.setHeader("location", "/status");
         res.end();
