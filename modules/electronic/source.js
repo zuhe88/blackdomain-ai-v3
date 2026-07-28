@@ -1,4 +1,5 @@
 const GAME_NAMES = ["戰神賽特1", "戰神賽特2"];
+const LIVE_TTL_MS = 2 * 60 * 1000;
 const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   gameName,
   tables: new Map(),
@@ -85,7 +86,8 @@ function getGame(gameName) {
 
 function getEmptyRooms(gameName) {
   const snapshot = getGame(gameName);
-  return snapshot ? snapshot.tables.filter((table) => table.status === "Empty") : [];
+  if (!snapshot?.updatedAt || Date.now() - new Date(snapshot.updatedAt).getTime() > LIVE_TTL_MS) return [];
+  return snapshot.tables.filter((table) => table.status === "Empty");
 }
 
 function getSnapshot() {
