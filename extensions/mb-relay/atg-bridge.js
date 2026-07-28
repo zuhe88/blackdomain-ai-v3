@@ -64,7 +64,7 @@
       roomId: String(roomId),
       number,
       status,
-      occupied: Boolean(table?.user?.userId ?? table?.user),
+      occupied: status !== "Empty",
       dayWin: table.dayWin,
       dayBet: table.dayBet,
       hourWin: table.hourWin,

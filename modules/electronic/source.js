@@ -16,14 +16,15 @@ function normalizeTable(table = {}) {
   const number = Number(table.number ?? table.tableNumber ?? table.room ?? table.roomNo);
   const roomId = String(table.roomId ?? table.room_id ?? "").trim();
   if (!Number.isInteger(number) || number < 1 || !roomId) return null;
+  const status = normalizeStatus(table.status);
   const detail = table.detail || table;
   const hasDetail = ["dayWin", "dayBet", "hourWin", "hourBet", "todayWin", "todayBet", "mgCounts"]
     .some((key) => detail?.[key] != null);
   return {
     roomId,
     number,
-    status: normalizeStatus(table.status),
-    occupied: table.occupied === true || Boolean(table.user?.userId ?? table.user),
+    status,
+    occupied: status ? status !== "Empty" : table.occupied === true,
     detail: hasDetail ? {
       dayWin: Number(detail.dayWin) || 0,
       dayBet: Number(detail.dayBet) || 0,
