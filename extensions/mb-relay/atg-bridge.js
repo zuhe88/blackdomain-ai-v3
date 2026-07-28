@@ -148,6 +148,11 @@
       const table = payload?.platform?.table || payload?.platform?.slotTable || payload?.table;
       const normalized = normalizeTable(table);
       if (normalized) currentRoom = normalized;
+      const initialTables = tablePayload(payload);
+      if (initialTables) {
+        emit({ type: "tables", gameName, ...initialTables });
+        queueEmptyDetails(initialTables.tables);
+      }
       setTimeout(() => requestPage(1), 1000);
       return;
     }
