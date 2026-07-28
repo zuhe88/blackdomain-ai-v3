@@ -499,6 +499,15 @@ async function main() {
   if (!captured.routes.get.some((route) => route.route === "/mb-relay.user.js")) {
     throw new Error("MB relay userscript route is not registered");
   }
+  const mbRelayScript = require("../routes/mbRelay").userscript("https://example.com");
+  for (const expected of [
+    "@match        https://mbracing.cc/*",
+    "@match        https://mbracing.dev/*",
+  ]) {
+    if (!mbRelayScript.includes(expected)) {
+      throw new Error(`MB relay userscript is missing supported host: ${expected}`);
+    }
+  }
   if (!captured.routes.get.some((route) => route.route === "/api/mb/status")) {
     throw new Error("MB status route is not registered");
   }
