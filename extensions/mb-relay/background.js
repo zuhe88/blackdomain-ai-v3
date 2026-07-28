@@ -1,21 +1,25 @@
 "use strict";
 
 const ENDPOINT = "https://blackdomain-ai-v3-production.up.railway.app/api/mb/ingest";
+const ELECTRONIC_ENDPOINT = "https://blackdomain-ai-v3-production.up.railway.app/api/electronic/ingest";
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "BLACKDOMAIN_MB_FORWARD") return false;
+  const isMb = message?.type === "BLACKDOMAIN_MB_FORWARD";
+  const isElectronic = message?.type === "BLACKDOMAIN_ELECTRONIC_FORWARD";
+  if (!isMb && !isElectronic) return false;
   const key = String(message.key || "").trim();
   const body = message.body;
-  if (!key || !body || !["roadmap", "socket"].includes(body.type)) {
+  const allowedTypes = isMb ? ["roadmap", "socket"] : ["tables", "detail", "spin"];
+  if (!key || !body || !allowedTypes.includes(body.type)) {
     sendResponse({ ok: false, status: 400 });
     return false;
   }
 
-  fetch(ENDPOINT, {
+  fetch(isMb ? ENDPOINT : ELECTRONIC_ENDPOINT, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-mb-relay-key": key,
+      [isMb ? "x-mb-relay-key" : "x-electronic-relay-key"]: key,
     },
     body: JSON.stringify(body),
   })

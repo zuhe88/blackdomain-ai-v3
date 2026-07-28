@@ -1,4 +1,4 @@
-const { COLORS, bubble, infoLine, metric, note, text } = require("./premium");
+const { COLORS, bubble, infoLine, metric, note, text, section } = require("./premium");
 
 function score(seed = "") {
   let score = 0;
@@ -16,8 +16,24 @@ function entrySignal(seed = "", mode = "recommend") {
   };
 }
 
-function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
+function formatAmount(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString("en-US") : "尚無資料";
+}
+
+function formatRate(win, bet) {
+  const winnings = Number(win);
+  const stake = Number(bet);
+  return Number.isFinite(winnings) && Number.isFinite(stake) && stake > 0
+    ? `${((winnings / stake) * 100).toFixed(1)}%`
+    : "尚無資料";
+}
+
+function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomData = null) {
   const signal = entrySignal(`${gameName}:${room}`, "green");
+  const detail = roomData?.detail || roomData;
+  const recentBet = detail?.todayBet ?? detail?.hourBet;
+  const recentWin = detail?.todayWin ?? detail?.hourWin;
   return bubble({
     altText: "AI推薦房",
     title: "AI推薦房",
@@ -25,13 +41,20 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      metric("推薦房號", room, "AI監測結果"),
-      infoLine("目前狀態", "AI監控中"),
-      infoLine("進場燈號", signal.text),
-      infoLine("房況狀態", signal.volatility),
-      infoLine("監測結果", signal.activity),
-      infoLine("更新時間", updateTime),
-      note("每30分鐘刷新一次"),
+      metric("推薦房號", room, "即時空房"),
+      section([
+        infoLine("房間狀態", roomData ? "🟢 空房" : "等待房況"),
+        infoLine("進場燈號", signal.text),
+        infoLine("更新時間", updateTime),
+      ]),
+      ...(detail ? [section([
+        text("房間統計", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
+        infoLine("近期投注量", formatAmount(recentBet)),
+        infoLine("近期回報率", formatRate(recentWin, recentBet)),
+        infoLine("當日投注量", formatAmount(detail.dayBet)),
+        infoLine("當日回報率", formatRate(detail.dayWin, detail.dayBet)),
+      ])] : []),
+      note(detail ? "只推薦即時狀態為 Empty 的房間" : "尚未收到即時房表，暫不推薦"),
       note("本分析由 BLACKDOMAIN AI 生成，僅供參考。"),
     ],
   });

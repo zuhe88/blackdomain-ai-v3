@@ -5,10 +5,13 @@ const {
   electronicRankFlex,
   electronicAnalyzeFlex,
 } = require("../../ui/flex/electronicResult");
+const electronicSource = require("./source");
 
 const electronicSessions = new Map();
 const cycleCache = new Map();
 const recommendCursorStore = new Map();
+const liveWatches = new Map();
+const notifiedSpins = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 
 const GAME_CONFIG = {
@@ -203,6 +206,17 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
 }
 
 function getNextRecommendRoom(userId, gameName) {
+  if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
+    const emptyRooms = electronicSource.getEmptyRooms(gameName);
+    if (!emptyRooms.length) return null;
+    const candidates = emptyRooms.slice(0, Math.min(10, emptyRooms.length));
+    const key = `${userId || "guest"}:${gameName}:live`;
+    const existing = recommendCursorStore.get(key);
+    const cursor = Number.isInteger(existing?.cursor) ? existing.cursor : 0;
+    const selected = candidates[cursor % candidates.length];
+    recommendCursorStore.set(key, { cursor: cursor + 1, updatedAt: Date.now() });
+    return selected;
+  }
   const cycle = getGameCycle(gameName);
   if (!Array.isArray(cycle.recommendRooms) || cycle.recommendRooms.length === 0) {
     const config = GAME_CONFIG[gameName];
@@ -311,8 +325,43 @@ async function recommendRoom(event) {
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
-  const room = formatRoom(session.gameName, getNextRecommendRoom(userId, session.gameName));
-  return reply(event.replyToken, electronicRecommendFlex(session.gameName, room, getUpdateTimeText(), afterRecommendQuickReply()));
+  const selected = getNextRecommendRoom(userId, session.gameName);
+  if (!selected) {
+    return reply(event.replyToken, electronicPromptFlex("目前沒有可推薦的空房", [
+      session.gameName,
+      "系統只推薦狀態為空房的房間。",
+      "客滿、鎖定與關閉房間均已排除，請稍後再試。",
+    ], afterRecommendQuickReply()));
+  }
+  const roomNumber = typeof selected === "object" ? selected.number : selected;
+  const room = formatRoom(session.gameName, roomNumber);
+  liveWatches.set(`${session.gameName}:${roomNumber}`, { userId, updatedAt: Date.now() });
+  return reply(event.replyToken, electronicRecommendFlex(
+    session.gameName,
+    room,
+    getUpdateTimeText(),
+    afterRecommendQuickReply(),
+    typeof selected === "object" ? selected : null,
+  ));
+}
+
+async function handleElectronicSpin(payload = {}) {
+  const roomNumber = Number(payload.roomNumber);
+  const watch = liveWatches.get(`${payload.gameName}:${roomNumber}`);
+  if (!watch || !Number.isInteger(roomNumber)) return false;
+  const spinKey = `${payload.gameName}:${payload.spinId || roomNumber}:${Number(payload.totalWinnings) || 0}`;
+  if (notifiedSpins.has(spinKey)) return false;
+  notifiedSpins.add(spinKey);
+  if (notifiedSpins.size > 500) notifiedSpins.delete(notifiedSpins.values().next().value);
+  const winnings = Number(payload.totalWinnings) || 0;
+  const stake = Number(payload.totalStake) || 0;
+  const multiplier = stake > 0 ? `（${(winnings / stake).toFixed(2)} 倍）` : "";
+  const early = Number(payload.currentView) < Number(payload.totalViews) - 1;
+  await require("../../services/line").push(watch.userId, {
+    type: "text",
+    text: `${payload.gameName} 房號 ${formatRoom(payload.gameName, roomNumber)}\n本次開獎金額：${winnings.toLocaleString("en-US")} ${multiplier}${early ? "\n後台結果已先回傳，動畫仍在播放" : ""}`,
+  });
+  return true;
 }
 
 async function changeRecommendRoom(event) {
@@ -327,8 +376,18 @@ async function showHotRank(event) {
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
-  const cycle = getGameCycle(session.gameName);
-  const rooms = cycle.rankRooms.map((room) => formatRoom(session.gameName, room));
+  const liveEmptyRooms = electronicSource.SUPPORTED_GAMES.has(session.gameName)
+    ? electronicSource.getEmptyRooms(session.gameName)
+    : null;
+  if (liveEmptyRooms && liveEmptyRooms.length === 0) {
+    return reply(event.replyToken, electronicPromptFlex("目前沒有可排行的空房", [
+      session.gameName,
+      "熱門排行同樣只顯示即時空房。",
+    ], afterRankQuickReply()));
+  }
+  const rooms = liveEmptyRooms
+    ? liveEmptyRooms.slice(0, 5).map((room) => formatRoom(session.gameName, room.number))
+    : getGameCycle(session.gameName).rankRooms.map((room) => formatRoom(session.gameName, room));
   return reply(event.replyToken, electronicRankFlex(session.gameName, rooms, getUpdateTimeText(), afterRankQuickReply()));
 }
 
@@ -405,7 +464,13 @@ function electronicStatus(userId) {
 function cleanupOldCycles() {
   const currentCycle = getCycleKey();
   for (const [key] of cycleCache.entries()) if (!key.endsWith(currentCycle)) cycleCache.delete(key);
-  for (const [key] of recommendCursorStore.entries()) if (!key.endsWith(`:${currentCycle}`)) recommendCursorStore.delete(key);
+  for (const [key, value] of recommendCursorStore.entries()) {
+    if (key.endsWith(":live")) {
+      if (Date.now() - value.updatedAt > SESSION_TIMEOUT) recommendCursorStore.delete(key);
+    } else if (!key.endsWith(`:${currentCycle}`)) {
+      recommendCursorStore.delete(key);
+    }
+  }
 }
 
 setInterval(cleanupOldCycles, 10 * 60 * 1000).unref();
@@ -426,4 +491,6 @@ module.exports = {
   getCurrentGame,
   resetElectronicSession,
   electronicStatus,
+  getNextRecommendRoom,
+  handleElectronicSpin,
 };
