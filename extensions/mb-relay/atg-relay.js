@@ -47,5 +47,7 @@
     send(body);
   });
 
+  chrome.storage.local.set({ blackdomainElectronicContentLoadedAt: Date.now() });
+
   console.info("[BLACKDOMAIN Electronic] ATG relay active");
 }());

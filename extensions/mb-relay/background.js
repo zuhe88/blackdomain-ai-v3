@@ -23,7 +23,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     },
     body: JSON.stringify(body),
   })
-    .then((response) => sendResponse({ ok: response.ok, status: response.status }))
-    .catch(() => sendResponse({ ok: false, status: 0 }));
+    .then((response) => {
+      if (isElectronic) chrome.storage.local.set({ blackdomainElectronicLastStatus: { status: response.status, at: Date.now() } });
+      sendResponse({ ok: response.ok, status: response.status });
+    })
+    .catch(() => {
+      if (isElectronic) chrome.storage.local.set({ blackdomainElectronicLastStatus: { status: 0, at: Date.now() } });
+      sendResponse({ ok: false, status: 0 });
+    });
   return true;
 });
