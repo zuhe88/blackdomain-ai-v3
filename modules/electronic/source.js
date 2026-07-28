@@ -16,11 +16,13 @@ function normalizeTable(table = {}) {
   const roomId = String(table.roomId ?? table.room_id ?? "").trim();
   if (!Number.isInteger(number) || number < 1 || !roomId) return null;
   const detail = table.detail || table;
+  const hasDetail = ["dayWin", "dayBet", "hourWin", "hourBet", "todayWin", "todayBet", "mgCounts"]
+    .some((key) => detail?.[key] != null);
   return {
     roomId,
     number,
     status: normalizeStatus(table.status),
-    detail: typeof detail === "object" ? {
+    detail: hasDetail ? {
       dayWin: Number(detail.dayWin) || 0,
       dayBet: Number(detail.dayBet) || 0,
       hourWin: Number(detail.hourWin) || 0,

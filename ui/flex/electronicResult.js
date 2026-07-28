@@ -31,7 +31,7 @@ function formatRate(win, bet) {
 
 function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomData = null) {
   const signal = entrySignal(`${gameName}:${room}`, "green");
-  const detail = roomData?.detail || roomData;
+  const detail = roomData?.detail || null;
   const recentBet = detail?.todayBet ?? detail?.hourBet;
   const recentWin = detail?.todayWin ?? detail?.hourWin;
   return bubble({

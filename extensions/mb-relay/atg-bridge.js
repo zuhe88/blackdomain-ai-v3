@@ -18,6 +18,7 @@
   let currentRoom = {};
   let lastPageRefreshAt = 0;
   let detailQueue = [];
+  const pendingDetailRooms = [];
   let detailTimer = null;
 
   function emit(body) {
@@ -83,16 +84,16 @@
     };
   }
 
-  function detailPayload(payload) {
+  function detailPayload(payload, requestedTable = null) {
     const candidates = [payload?.detail, payload?.data?.detail, payload?.data, payload];
-    const detail = candidates.find((item) => item?.roomId != null && (
+    const detail = candidates.find((item) => item && (
       item.dayBet != null || item.hourBet != null || item.todayBet != null || item.mgCounts != null
     ));
     if (!detail) return null;
     return {
-      roomId: String(detail.roomId),
-      number: Number(detail.number ?? detail.roomNumber) || undefined,
-      status: detail.status,
+      roomId: String(detail.roomId ?? requestedTable?.roomId ?? ""),
+      number: Number(detail.number ?? detail.roomNumber ?? requestedTable?.number) || undefined,
+      status: detail.status ?? requestedTable?.status,
       dayWin: detail.dayWin,
       dayBet: detail.dayBet,
       hourWin: detail.hourWin,
@@ -138,6 +139,7 @@
         detailTimer = null;
         return;
       }
+      pendingDetailRooms.push(table);
       window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
     }, 350);
   }
@@ -171,7 +173,7 @@
     }
 
     if (eventName === TABLE_DETAIL_RESPONSE) {
-      const detail = detailPayload(payload);
+      const detail = detailPayload(payload, pendingDetailRooms.shift());
       if (detail) emit({ type: "detail", gameName, detail });
       return;
     }
