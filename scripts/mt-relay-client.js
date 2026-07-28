@@ -127,6 +127,10 @@ function connect(token, relayKey = activeRelayKey) {
   activeRelayKey = String(relayKey || "").trim();
   if (activeToken.length < 16) throw new Error("MT token is invalid.");
   if (activeRelayKey && activeRelayKey.length < 16) throw new Error("Relay key is invalid.");
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   if (socket) {
     socket.removeAllListeners();
     socket.terminate();
