@@ -18,8 +18,10 @@
   let currentRoom = {};
   let lastPageRefreshAt = 0;
   let detailQueue = [];
-  const pendingDetailRooms = [];
+  let pendingDetailRoom = null;
   let detailTimer = null;
+  let detailTimeout = null;
+  const detailsReadyAt = Date.now() + 10000;
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -130,18 +132,26 @@
     for (const table of empty) {
       if (!detailQueue.some((item) => item.roomId === table.roomId)) detailQueue.push(table);
     }
-    detailQueue = detailQueue.slice(0, 40);
-    if (detailTimer || !detailQueue.length) return;
-    detailTimer = setInterval(() => {
+    detailQueue = detailQueue.slice(0, 12);
+    scheduleNextDetail(Math.max(800, detailsReadyAt - Date.now()));
+  }
+
+  function scheduleNextDetail(delay = 1000) {
+    if (detailTimer || pendingDetailRoom || !detailQueue.length) return;
+    detailTimer = setTimeout(() => {
+      detailTimer = null;
       const table = detailQueue.shift();
       if (!table || typeof window.dispatch !== "function") {
-        clearInterval(detailTimer);
-        detailTimer = null;
         return;
       }
-      pendingDetailRooms.push(table);
+      pendingDetailRoom = table;
       window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
-    }, 350);
+      detailTimeout = setTimeout(() => {
+        pendingDetailRoom = null;
+        detailTimeout = null;
+        scheduleNextDetail(1500);
+      }, 5000);
+    }, delay);
   }
 
   function handleDispatch(eventName, payload) {
@@ -173,8 +183,13 @@
     }
 
     if (eventName === TABLE_DETAIL_RESPONSE) {
-      const detail = detailPayload(payload, pendingDetailRooms.shift());
+      const requestedTable = pendingDetailRoom;
+      pendingDetailRoom = null;
+      if (detailTimeout) clearTimeout(detailTimeout);
+      detailTimeout = null;
+      const detail = detailPayload(payload, requestedTable);
       if (detail) emit({ type: "detail", gameName, detail });
+      scheduleNextDetail(1000);
       return;
     }
 
