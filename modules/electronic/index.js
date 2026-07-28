@@ -327,6 +327,13 @@ async function recommendRoom(event) {
   electronicSessions.set(userId, session);
   const selected = getNextRecommendRoom(userId, session.gameName);
   if (!selected) {
+    if (electronicSource.SUPPORTED_GAMES.has(session.gameName) && !electronicSource.hasFreshData(session.gameName)) {
+      return reply(event.replyToken, electronicPromptFlex("房間資料連線中", [
+        session.gameName,
+        "目前尚未收到最新空桌資料。",
+        "系統正在重新同步顯示空桌的 8 頁房間，請稍後再試。",
+      ], afterRecommendQuickReply()));
+    }
     return reply(event.replyToken, electronicPromptFlex("目前沒有可推薦的空房", [
       session.gameName,
       "系統只推薦狀態為空房的房間。",
@@ -380,6 +387,12 @@ async function showHotRank(event) {
     ? electronicSource.getEmptyRooms(session.gameName)
     : null;
   if (liveEmptyRooms && liveEmptyRooms.length === 0) {
+    if (!electronicSource.hasFreshData(session.gameName)) {
+      return reply(event.replyToken, electronicPromptFlex("房間資料連線中", [
+        session.gameName,
+        "系統正在重新同步顯示空桌的 8 頁房間，請稍後再試。",
+      ], afterRankQuickReply()));
+    }
     return reply(event.replyToken, electronicPromptFlex("目前沒有可排行的空房", [
       session.gameName,
       "熱門排行同樣只顯示即時空房。",

@@ -119,8 +119,16 @@ function getGame(gameName) {
 
 function getEmptyRooms(gameName) {
   const snapshot = getGame(gameName);
-  if (!snapshot?.updatedAt || Date.now() - new Date(snapshot.updatedAt).getTime() > LIVE_TTL_MS) return [];
+  if (!hasFreshData(gameName)) return [];
   return snapshot.tables.filter((table) => table.status === "Empty" && table.occupied !== true);
+}
+
+function hasFreshData(gameName) {
+  const state = games.get(String(gameName || ""));
+  return Boolean(
+    state?.updatedAt
+    && Date.now() - new Date(state.updatedAt).getTime() <= LIVE_TTL_MS
+  );
 }
 
 function getSnapshot() {
@@ -138,4 +146,4 @@ function resetForTest() {
 
 const SUPPORTED_GAMES = new Set(GAME_NAMES);
 
-module.exports = { GAME_NAMES, SUPPORTED_GAMES, ingestTables, ingestUpdates, ingestDetail, ingestSpin, getGame, getEmptyRooms, getSnapshot, normalizeTable, resetForTest };
+module.exports = { GAME_NAMES, SUPPORTED_GAMES, ingestTables, ingestUpdates, ingestDetail, ingestSpin, getGame, getEmptyRooms, hasFreshData, getSnapshot, normalizeTable, resetForTest };
