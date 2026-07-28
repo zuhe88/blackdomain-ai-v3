@@ -363,10 +363,10 @@ async function handleElectronicSpin(payload = {}) {
   const winnings = Number(payload.totalWinnings) || 0;
   const stake = Number(payload.totalStake) || 0;
   const multiplier = stake > 0 ? `（${(winnings / stake).toFixed(2)} 倍）` : "";
-  const early = Number(payload.currentView) < Number(payload.totalViews) - 1;
+  const triggerLabel = payload.featureTrigger === "purchased" ? "購買特色" : "自然觸發特色";
   await require("../../services/line").push(watch.userId, {
     type: "text",
-    text: `${payload.gameName} 房號 ${formatRoom(payload.gameName, roomNumber)}\n本次開獎金額：${winnings.toLocaleString("en-US")} ${multiplier}${early ? "\n後台結果已先回傳，動畫仍在播放" : ""}`,
+    text: `${payload.gameName} 房號 ${formatRoom(payload.gameName, roomNumber)}\n觸發方式：${triggerLabel}\n本次開獎金額：${winnings.toLocaleString("en-US")} ${multiplier}\n後台結果已先回傳，動畫可能仍在播放`,
   });
   return true;
 }
