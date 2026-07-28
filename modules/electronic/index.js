@@ -1,7 +1,10 @@
 const crypto = require("crypto");
 const { reply, quickReply } = require("../../services/line");
 const { bubble, infoLine } = require("../../ui/flex/premium");
-const { electronicRecommendFlex } = require("../../ui/flex/electronicResult");
+const {
+  electronicRecommendFlex,
+  electronicFeatureResultFlex,
+} = require("../../ui/flex/electronicResult");
 const electronicSource = require("./source");
 
 const electronicSessions = new Map();
@@ -301,8 +304,8 @@ async function recommendRoom(event) {
     if (liveEmptyRooms.length > 0 && !liveEmptyRooms.some((room) => room.detail)) {
       return reply(event.replyToken, electronicPromptFlex("房間數據整理中", [
         session.gameName,
-        "空桌名單已更新，正在讀取房間統計。",
-        "首次同步約需 30～60 秒，完成後推薦會立即回覆。",
+        "資料讀取中",
+        "請等60秒後再按重新推薦",
       ], afterRecommendQuickReply()));
     }
     return reply(event.replyToken, electronicPromptFlex("目前沒有可推薦的空房", [
@@ -327,18 +330,19 @@ async function handleElectronicSpin(payload = {}) {
   const roomNumber = Number(payload.roomNumber);
   const watch = liveWatches.get(`${payload.gameName}:${roomNumber}`);
   if (!watch || !Number.isInteger(roomNumber)) return false;
-  const spinKey = `${payload.gameName}:${payload.spinId || roomNumber}:${Number(payload.totalWinnings) || 0}`;
+  const spinKey = `${payload.gameName}:${payload.spinId || roomNumber}`;
   if (notifiedSpins.has(spinKey)) return false;
   notifiedSpins.add(spinKey);
   if (notifiedSpins.size > 500) notifiedSpins.delete(notifiedSpins.values().next().value);
   const winnings = Number(payload.totalWinnings) || 0;
-  const stake = Number(payload.totalStake) || 0;
-  const multiplier = stake > 0 ? `（${(winnings / stake).toFixed(2)} 倍）` : "";
-  const triggerLabel = payload.featureTrigger === "purchased" ? "購買特色" : "自然觸發特色";
-  await require("../../services/line").push(watch.userId, {
-    type: "text",
-    text: `${payload.gameName} 房號 ${formatRoom(payload.gameName, roomNumber)}\n觸發方式：${triggerLabel}\n本次開獎金額：${winnings.toLocaleString("en-US")} ${multiplier}\n後台結果已先回傳，動畫可能仍在播放`,
-  });
+  await require("../../services/line").push(
+    watch.userId,
+    electronicFeatureResultFlex(
+      payload.gameName,
+      formatRoom(payload.gameName, roomNumber),
+      winnings,
+    ),
+  );
   return true;
 }
 

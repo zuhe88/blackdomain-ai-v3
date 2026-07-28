@@ -27,7 +27,7 @@
   let detailQueueTimer = null;
   let wrappedSender = null;
   const detailFetchedAt = new Map();
-  const featureSpins = new Set();
+  const featureSpins = new Map();
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -178,7 +178,8 @@
     if (!engine || !states.length) return null;
     const spinId = String(engine.spinId || states.find((state) => state?.spinId)?.spinId || "");
     if (!spinId) return null;
-    if (trigger === "buyFeature" || states.some(isFeatureState)) featureSpins.add(spinId);
+    if (trigger === "buyFeature") featureSpins.set(spinId, "purchased");
+    else if (states.some(isFeatureState) && !featureSpins.has(spinId)) featureSpins.set(spinId, "natural");
     if (!featureSpins.has(spinId)) return null;
     const state = states.reduce((selected, candidate) => (
       Number(candidate?.currentView) >= Number(selected?.currentView) ? candidate : selected
@@ -186,6 +187,7 @@
     const currentView = Number(state?.currentView) || 0;
     const totalViews = Math.max(1, Number(state?.totalViews) || 1);
     if (currentView < totalViews - 1) return null;
+    const featureTrigger = featureSpins.get(spinId);
     featureSpins.delete(spinId);
     return {
       spinId,
@@ -196,9 +198,17 @@
       currentView,
       totalViews,
       action: state?.action,
-      featureTrigger: trigger === "buyFeature" ? "purchased" : "natural",
+      featureTrigger,
       capturedAt: Date.now(),
     };
+  }
+
+  function rememberPurchasedFeature(payload) {
+    const { engine, states } = getSpinStates(payload);
+    const spinId = String(engine?.spinId || states.find((state) => state?.spinId)?.spinId || "");
+    if (!spinId) return;
+    featureSpins.set(spinId, "purchased");
+    if (featureSpins.size > 100) featureSpins.delete(featureSpins.keys().next().value);
   }
 
   function emitSpin(payload, trigger = "") {
@@ -303,7 +313,8 @@
         ? function blackdomainElectronicResponse(response, ...callbackArgs) {
           try {
             const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
-            if (trigger || response?.engine?.gameState) emitSpin(response, trigger);
+            if (trigger) rememberPurchasedFeature(response);
+            else if (response?.engine?.gameState) emitSpin(response);
           } catch {
             // Keep the original network callback untouched.
           }

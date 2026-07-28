@@ -120,6 +120,35 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply, options =
   });
 }
 
+function electronicFeatureResultFlex(gameName, room, winnings) {
+  const amount = Number(winnings).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return {
+    type: "flex",
+    altText: `${gameName} 房號 ${room} 本次開獎金額 ${amount}`,
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      styles: {
+        body: { backgroundColor: COLORS.black },
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        paddingAll: "18px",
+        contents: [
+          text(gameName, { size: "xl", weight: "bold", color: COLORS.gold, align: "center" }),
+          infoLine("房號", room),
+          infoLine("本次開獎金額", amount),
+        ],
+      },
+    },
+  };
+}
+
 function rankCard(room, index, updateTime) {
   const accent = index === 0 ? COLORS.gold : COLORS.blue;
   const signal = entrySignal(`${room}:${index}`, "green");
@@ -166,4 +195,5 @@ module.exports = {
   electronicRecommendFlex,
   electronicRankFlex,
   electronicAnalyzeFlex,
+  electronicFeatureResultFlex,
 };
