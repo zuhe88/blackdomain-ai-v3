@@ -5,6 +5,7 @@ const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   tables: new Map(),
   pendingScan: null,
   updatedAt: null,
+  fullScanAt: null,
   spins: new Map(),
 }]));
 
@@ -59,6 +60,7 @@ function ingestTables(payload = {}) {
   if (scanId && payload.scanComplete === true) {
     state.tables = new Map(next);
     state.pendingScan = null;
+    state.fullScanAt = new Date().toISOString();
   } else if (!scanId) {
     state.tables = next;
   }
@@ -118,12 +120,17 @@ function getGame(gameName) {
   const state = games.get(String(gameName || ""));
   if (!state) return null;
   const tables = [...state.tables.values()].map((table) => ({ ...table, detail: table.detail && { ...table.detail, mgCounts: [...table.detail.mgCounts] } }));
-  return { gameName: state.gameName, updatedAt: state.updatedAt, tables };
+  return {
+    gameName: state.gameName,
+    updatedAt: state.updatedAt,
+    fullScanAt: state.fullScanAt,
+    tables,
+  };
 }
 
 function getEmptyRooms(gameName) {
   const snapshot = getGame(gameName);
-  if (!hasFreshData(gameName)) return [];
+  if (!hasReadyData(gameName)) return [];
   return snapshot.tables.filter((table) => table.status === "Empty" && table.occupied !== true);
 }
 
@@ -132,6 +139,14 @@ function hasFreshData(gameName) {
   return Boolean(
     state?.updatedAt
     && Date.now() - new Date(state.updatedAt).getTime() <= LIVE_TTL_MS
+  );
+}
+
+function hasReadyData(gameName) {
+  const state = games.get(String(gameName || ""));
+  return Boolean(
+    state?.fullScanAt
+    && Date.now() - new Date(state.fullScanAt).getTime() <= LIVE_TTL_MS
   );
 }
 
@@ -145,9 +160,10 @@ function resetForTest() {
     state.pendingScan = null;
     state.spins = new Map();
     state.updatedAt = null;
+    state.fullScanAt = null;
   });
 }
 
 const SUPPORTED_GAMES = new Set(GAME_NAMES);
 
-module.exports = { GAME_NAMES, SUPPORTED_GAMES, ingestTables, ingestUpdates, ingestDetail, ingestSpin, getGame, getEmptyRooms, hasFreshData, getSnapshot, normalizeTable, resetForTest };
+module.exports = { GAME_NAMES, SUPPORTED_GAMES, ingestTables, ingestUpdates, ingestDetail, ingestSpin, getGame, getEmptyRooms, hasFreshData, hasReadyData, getSnapshot, normalizeTable, resetForTest };

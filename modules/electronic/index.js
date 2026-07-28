@@ -291,11 +291,14 @@ async function recommendRoom(event) {
   electronicSessions.set(userId, session);
   const selected = getNextRecommendRoom(userId, session.gameName);
   if (!selected) {
-    if (electronicSource.SUPPORTED_GAMES.has(session.gameName) && !electronicSource.hasFreshData(session.gameName)) {
-      return reply(event.replyToken, electronicPromptFlex("房間資料連線中", [
+    if (
+      electronicSource.SUPPORTED_GAMES.has(session.gameName)
+      && (!electronicSource.hasFreshData(session.gameName) || !electronicSource.hasReadyData(session.gameName))
+    ) {
+      return reply(event.replyToken, electronicPromptFlex("房間數據整理中", [
         session.gameName,
-        "目前尚未收到最新空桌資料。",
-        "系統正在重新同步顯示空桌的 8 頁房間，請稍後再試。",
+        "資料讀取中",
+        "請等60秒後再按重新推薦",
       ], afterRecommendQuickReply()));
     }
     const liveEmptyRooms = electronicSource.SUPPORTED_GAMES.has(session.gameName)
