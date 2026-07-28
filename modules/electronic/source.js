@@ -1,5 +1,6 @@
 const GAME_NAMES = ["戰神賽特1", "戰神賽特2"];
 const LIVE_TTL_MS = 2 * 60 * 1000;
+const FULL_SCAN_TTL_MS = 15 * 60 * 1000;
 const MIN_READY_TABLES = new Map([
   [GAME_NAMES[0], 1200],
   [GAME_NAMES[1], 3900],
@@ -153,7 +154,7 @@ function hasReadyData(gameName) {
   const state = games.get(String(gameName || ""));
   if (!state || !hasFreshData(gameName)) return false;
   const fullScanIsFresh = state.fullScanAt
-    && Date.now() - new Date(state.fullScanAt).getTime() <= LIVE_TTL_MS;
+    && Date.now() - new Date(state.fullScanAt).getTime() <= FULL_SCAN_TTL_MS;
   const minimumTables = MIN_READY_TABLES.get(state.gameName) || Number.POSITIVE_INFINITY;
   return Boolean(fullScanIsFresh || state.tables.size >= minimumTables);
 }
