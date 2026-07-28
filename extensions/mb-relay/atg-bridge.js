@@ -19,6 +19,9 @@
   let currentRoom = {};
   const knownTables = new Map();
   let pendingDetailRoom = null;
+  let scanPage = 0;
+  let scanTotalPages = 8;
+  let scanTimer = null;
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -81,8 +84,27 @@
     return {
       tables,
       page: Number(container.currentPage ?? container.page ?? payload?.currentPage ?? payload?.page) || 1,
-      totalPages: Number(container.totalPages ?? payload?.totalPages) || null,
+      totalPages: Number(
+        container.totalPages
+        ?? payload?.totalPages
+        ?? payload?.platform?.tableMeta?.totalPages
+        ?? payload?.data?.tableMeta?.totalPages
+      ) || null,
     };
+  }
+
+  function requestScanPage(page) {
+    if (typeof window.dispatch !== "function" || scanPage !== 0) return;
+    scanPage = page;
+    window.dispatch(TABLE_PAGE_REQUEST, { page });
+  }
+
+  function scheduleFullScan(delay = 30000) {
+    if (scanTimer || scanPage !== 0) return;
+    scanTimer = setTimeout(() => {
+      scanTimer = null;
+      requestScanPage(1);
+    }, delay);
   }
 
   function detailPayload(payload, requestedTable = null) {
@@ -137,14 +159,25 @@
       const initialTables = tablePayload(payload);
       if (initialTables) {
         emit({ type: "tables", gameName, ...initialTables });
+        scanTotalPages = initialTables.totalPages || Number(payload?.platform?.tableMeta?.totalPages) || 8;
       }
+      scheduleFullScan(30000);
       return;
     }
 
     if (eventName === TABLE_PAGE_RESPONSE) {
       const data = tablePayload(payload);
       if (!data) return;
+      if (scanPage > 0) data.page = scanPage;
       emit({ type: "tables", gameName, ...data });
+      if (scanPage > 0 && scanPage < scanTotalPages) {
+        const nextPage = scanPage + 1;
+        scanPage = 0;
+        setTimeout(() => requestScanPage(nextPage), 800);
+      } else if (scanPage > 0) {
+        scanPage = 0;
+        scheduleFullScan(90000);
+      }
       return;
     }
 
