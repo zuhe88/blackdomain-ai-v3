@@ -6,8 +6,9 @@
 
   async function getRelayKey() {
     if (relayKey) return relayKey;
-    const saved = await chrome.storage.local.get(STORAGE_KEY);
-    relayKey = String(saved[STORAGE_KEY] || "").trim();
+    const saved = await chrome.storage.local.get([STORAGE_KEY, "blackdomainMbRelayKey"]);
+    relayKey = String(saved[STORAGE_KEY] || saved.blackdomainMbRelayKey || "").trim();
+    if (relayKey && !saved[STORAGE_KEY]) await chrome.storage.local.set({ [STORAGE_KEY]: relayKey });
     if (!relayKey) {
       relayKey = String(window.prompt("請貼上 BLACKDOMAIN ATG 連線密鑰") || "").trim();
       if (relayKey) await chrome.storage.local.set({ [STORAGE_KEY]: relayKey });
