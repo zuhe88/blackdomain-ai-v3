@@ -388,6 +388,11 @@ async function recommendRoom(event) {
 }
 
 async function handleElectronicSpin(payload = {}) {
+  const featureTrigger = String(payload.featureTrigger || "");
+  const featureAction = String(payload.action || "");
+  const isConfirmedFeature = featureTrigger === "purchased"
+    || (featureTrigger === "natural" && /free|super|feature/i.test(featureAction));
+  if (!isConfirmedFeature) return false;
   const roomNumber = Number(payload.roomNumber);
   if (!Number.isInteger(roomNumber)) return false;
   const watchers = await getLiveWatchers(payload.gameName, roomNumber);
