@@ -16,12 +16,8 @@
   let wrappedDispatch = null;
   let gameName = null;
   let currentRoom = {};
-  let lastPageRefreshAt = 0;
-  let detailQueue = [];
+  const knownTables = new Map();
   let pendingDetailRoom = null;
-  let detailTimer = null;
-  let detailTimeout = null;
-  const detailsReadyAt = Date.now() + 10000;
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -79,6 +75,7 @@
     if (!container) return null;
     const tables = container.tables.map(normalizeTable).filter(Boolean);
     if (!tables.length) return null;
+    tables.forEach((table) => knownTables.set(table.roomId, table));
     return {
       tables,
       page: Number(container.currentPage ?? container.page ?? payload?.currentPage ?? payload?.page) || 1,
@@ -127,33 +124,6 @@
     };
   }
 
-  function queueEmptyDetails(tables) {
-    const empty = tables.filter((table) => table.status === "Empty");
-    for (const table of empty) {
-      if (!detailQueue.some((item) => item.roomId === table.roomId)) detailQueue.push(table);
-    }
-    detailQueue = detailQueue.slice(0, 12);
-    scheduleNextDetail(Math.max(800, detailsReadyAt - Date.now()));
-  }
-
-  function scheduleNextDetail(delay = 1000) {
-    if (detailTimer || pendingDetailRoom || !detailQueue.length) return;
-    detailTimer = setTimeout(() => {
-      detailTimer = null;
-      const table = detailQueue.shift();
-      if (!table || typeof window.dispatch !== "function") {
-        return;
-      }
-      pendingDetailRoom = table;
-      window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
-      detailTimeout = setTimeout(() => {
-        pendingDetailRoom = null;
-        detailTimeout = null;
-        scheduleNextDetail(1500);
-      }, 5000);
-    }, delay);
-  }
-
   function handleDispatch(eventName, payload) {
     gameName ||= detectGameName(payload);
     if (!gameName) return;
@@ -165,9 +135,7 @@
       const initialTables = tablePayload(payload);
       if (initialTables) {
         emit({ type: "tables", gameName, ...initialTables });
-        queueEmptyDetails(initialTables.tables);
       }
-      setTimeout(() => requestPage(1), 1000);
       return;
     }
 
@@ -175,21 +143,20 @@
       const data = tablePayload(payload);
       if (!data) return;
       emit({ type: "tables", gameName, ...data });
-      queueEmptyDetails(data.tables);
-      if (data.totalPages && data.page < data.totalPages) {
-        setTimeout(() => requestPage(data.page + 1), 180);
-      }
+      return;
+    }
+
+    if (eventName === TABLE_DETAIL_REQUEST) {
+      const roomId = String(payload?.roomId || "");
+      pendingDetailRoom = knownTables.get(roomId) || (roomId ? { roomId } : null);
       return;
     }
 
     if (eventName === TABLE_DETAIL_RESPONSE) {
       const requestedTable = pendingDetailRoom;
       pendingDetailRoom = null;
-      if (detailTimeout) clearTimeout(detailTimeout);
-      detailTimeout = null;
       const detail = detailPayload(payload, requestedTable);
       if (detail) emit({ type: "detail", gameName, detail });
-      scheduleNextDetail(1000);
       return;
     }
 
@@ -213,18 +180,7 @@
     window.dispatch = wrappedDispatch;
   }
 
-  function requestPage(page = 1) {
-    installDispatchWrapper();
-    if (typeof window.dispatch !== "function" || !detectGameName()) return;
-    if (page === 1) lastPageRefreshAt = Date.now();
-    window.dispatch(TABLE_PAGE_REQUEST, { page });
-  }
-
   setInterval(installDispatchWrapper, 20);
-  setInterval(() => {
-    if (Date.now() - lastPageRefreshAt > 60000) requestPage(1);
-  }, 10000);
-  setTimeout(() => requestPage(1), 2500);
 
   console.info("[BLACKDOMAIN Electronic] ATG room observer active");
 }());
