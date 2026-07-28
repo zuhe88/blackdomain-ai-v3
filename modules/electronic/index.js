@@ -301,7 +301,7 @@ function electronicModeQuickReply() {
 function afterRecommendQuickReply() {
   return quickReply([
     { label: "重新推薦", text: "重新推薦" },
-    { label: "返回遊戲選單", text: "返回遊戲選單" },
+    { label: "返回首頁", text: "首頁" },
   ]);
 }
 
@@ -406,6 +406,7 @@ async function handleElectronicSpin(payload = {}) {
     payload.gameName,
     formatRoom(payload.gameName, roomNumber),
     winnings,
+    afterRecommendQuickReply(),
   );
   const results = await Promise.allSettled(
     watchers.map((watch) => require("../../services/line").push(watch.userId, message)),

@@ -120,12 +120,12 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply, options =
   });
 }
 
-function electronicFeatureResultFlex(gameName, room, winnings) {
+function electronicFeatureResultFlex(gameName, room, winnings, quickReply) {
   const amount = Number(winnings).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  return {
+  const message = {
     type: "flex",
     altText: `${gameName} 房號 ${room} 本次開獎金額 ${amount}`,
     contents: {
@@ -147,6 +147,8 @@ function electronicFeatureResultFlex(gameName, room, winnings) {
       },
     },
   };
+  if (quickReply) message.quickReply = quickReply;
+  return message;
 }
 
 function rankCard(room, index, updateTime) {
