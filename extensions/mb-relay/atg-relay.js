@@ -8,6 +8,10 @@
     if (relayKey) return relayKey;
     const saved = await chrome.storage.local.get(STORAGE_KEY);
     relayKey = String(saved[STORAGE_KEY] || "").trim();
+    if (!relayKey) {
+      relayKey = String(window.prompt("請貼上 BLACKDOMAIN ATG 連線密鑰") || "").trim();
+      if (relayKey) await chrome.storage.local.set({ [STORAGE_KEY]: relayKey });
+    }
     return relayKey;
   }
 
