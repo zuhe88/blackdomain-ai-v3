@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "BLACKDOMAIN 3A MB Relay",
+  "version": "1.0.0",
+  "description": "Synchronizes 3A MB RACING results with BLACKDOMAIN AI.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://blackdomain-ai-v3-production.up.railway.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mbracing.cc/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://mbracing.cc/*"
+      ],
+      "js": [
+        "relay.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}
