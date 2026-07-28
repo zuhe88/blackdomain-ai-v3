@@ -49,31 +49,31 @@ function electronicMenuFlex() {
       contents: [
         gameCard({
           title: "戰神賽特1",
-          subtitle: "AI推薦房、熱門排行、自選分析",
+          subtitle: "AI 房號推薦",
           image: "seth1-hd.webp",
           actionText: "戰神賽特1",
         }),
         gameCard({
           title: "戰神賽特2",
-          subtitle: "AI推薦房、熱門排行、自選分析",
+          subtitle: "AI 即時空桌推薦與房間數據",
           image: "seth2-hd.webp",
           actionText: "戰神賽特2",
         }),
         gameCard({
           title: "古神巴風特",
-          subtitle: "AI推薦房、熱門排行、自選分析",
+          subtitle: "AI 房號推薦",
           image: "baphomet-hd.webp",
           actionText: "古神巴風特",
         }),
         gameCard({
           title: "虎小妹",
-          subtitle: "AI推薦房、熱門排行、自選分析",
+          subtitle: "AI 房號推薦",
           image: "tiger-girl-hd.webp",
           actionText: "虎小妹",
         }),
         gameCard({
           title: "赤三國",
-          subtitle: "AI推薦房、熱門排行、自選分析",
+          subtitle: "AI 房號推薦",
           image: "red-three-kingdoms-hd.webp",
           actionText: "赤三國",
         }),

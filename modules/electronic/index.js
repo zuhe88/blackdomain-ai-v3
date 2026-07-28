@@ -302,7 +302,7 @@ async function recommendRoom(event) {
       return reply(event.replyToken, electronicPromptFlex("房間數據整理中", [
         session.gameName,
         "空桌名單已更新，正在讀取房間統計。",
-        "完成後才會提供包含完整數據的推薦，請稍後再試。",
+        "首次同步約需 30～60 秒，完成後推薦會立即回覆。",
       ], afterRecommendQuickReply()));
     }
     return reply(event.replyToken, electronicPromptFlex("目前沒有可推薦的空房", [

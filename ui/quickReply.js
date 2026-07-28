@@ -52,14 +52,6 @@ function electronicMenu() {
       label: "🤖 AI推薦房",
       text: "AI推薦房",
     },
-    {
-      label: "🔥 熱門房排行",
-      text: "熱門房排行",
-    },
-    {
-      label: "🔍 自選房號分析",
-      text: "自選房號分析",
-    },
   ]);
 }
 
@@ -69,46 +61,6 @@ function electronicRecommend() {
     {
       label: "🔄 換一間",
       text: "換一間",
-    },
-    {
-      label: "🔍 自選房號分析",
-      text: "自選房號分析",
-    },
-    {
-      label: "⬅️ 返回功能",
-      text: "返回電子功能",
-    },
-  ]);
-}
-
-// 熱門排行後
-function electronicRank() {
-  return createQuickReply([
-    {
-      label: "🤖 AI推薦房",
-      text: "AI推薦房",
-    },
-    {
-      label: "🔍 自選房號分析",
-      text: "自選房號分析",
-    },
-    {
-      label: "⬅️ 返回功能",
-      text: "返回電子功能",
-    },
-  ]);
-}
-
-// 自選分析後
-function electronicAnalyze() {
-  return createQuickReply([
-    {
-      label: "🤖 AI推薦房",
-      text: "AI推薦房",
-    },
-    {
-      label: "🔍 再分析",
-      text: "自選房號分析",
     },
     {
       label: "⬅️ 返回功能",
@@ -122,6 +74,4 @@ module.exports = {
   electronicGames,
   electronicMenu,
   electronicRecommend,
-  electronicRank,
-  electronicAnalyze,
 };
