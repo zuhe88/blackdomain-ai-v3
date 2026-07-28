@@ -209,7 +209,8 @@ function getNextRecommendRoom(userId, gameName) {
   if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
     const emptyRooms = electronicSource.getEmptyRooms(gameName);
     if (!emptyRooms.length) return null;
-    const candidates = emptyRooms.slice(0, Math.min(10, emptyRooms.length));
+    const candidates = emptyRooms.filter((room) => room.detail).slice(0, 10);
+    if (!candidates.length) return null;
     const key = `${userId || "guest"}:${gameName}:live`;
     const existing = recommendCursorStore.get(key);
     const cursor = Number.isInteger(existing?.cursor) ? existing.cursor : 0;
@@ -332,6 +333,16 @@ async function recommendRoom(event) {
         session.gameName,
         "目前尚未收到最新空桌資料。",
         "系統正在重新同步顯示空桌的 8 頁房間，請稍後再試。",
+      ], afterRecommendQuickReply()));
+    }
+    const liveEmptyRooms = electronicSource.SUPPORTED_GAMES.has(session.gameName)
+      ? electronicSource.getEmptyRooms(session.gameName)
+      : [];
+    if (liveEmptyRooms.length > 0 && !liveEmptyRooms.some((room) => room.detail)) {
+      return reply(event.replyToken, electronicPromptFlex("房間數據整理中", [
+        session.gameName,
+        "空桌名單已更新，正在讀取房間統計。",
+        "完成後才會提供包含完整數據的推薦，請稍後再試。",
       ], afterRecommendQuickReply()));
     }
     return reply(event.replyToken, electronicPromptFlex("目前沒有可推薦的空房", [
