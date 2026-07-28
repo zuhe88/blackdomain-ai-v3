@@ -49,7 +49,11 @@ function ingestTables(payload = {}) {
   }
   payload.tables.forEach((raw) => {
     const table = normalizeTable(raw);
-    if (table) next.set(table.roomId, table);
+    if (table) {
+      const existing = state.tables.get(table.roomId);
+      if (!table.detail && existing?.detail) table.detail = existing.detail;
+      next.set(table.roomId, table);
+    }
   });
   if (!scanId && !next.size) return false;
   if (scanId && payload.scanComplete === true) {

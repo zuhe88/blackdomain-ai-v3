@@ -23,6 +23,11 @@
   let scanTotalPages = 8;
   let scanTimer = null;
   let scanId = "";
+  let scanEmptyCandidates = [];
+  let detailQueueTimer = null;
+  let wrappedSender = null;
+  const detailFetchedAt = new Map();
+  const featureSpins = new Set();
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -96,7 +101,10 @@
 
   function requestScanPage(page) {
     if (typeof window.dispatch !== "function" || scanPage !== 0) return;
-    if (page === 1) scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    if (page === 1) {
+      scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      scanEmptyCandidates = [];
+    }
     scanPage = page;
     window.dispatch(TABLE_PAGE_REQUEST, { page });
   }
@@ -129,25 +137,73 @@
     };
   }
 
-  function spinPayload(payload) {
-    const engine = payload?.engine;
-    if (!engine || !Array.isArray(engine.gameState) || !engine.gameState.length) return null;
+  function scheduleCandidateDetails() {
+    if (detailQueueTimer) clearTimeout(detailQueueTimer);
+    const now = Date.now();
+    const queue = scanEmptyCandidates
+      .filter((table) => now - (detailFetchedAt.get(table.roomId) || 0) > 5 * 60 * 1000)
+      .slice(0, 10);
+    let index = 0;
+    const next = () => {
+      const table = queue[index++];
+      if (!table || typeof window.dispatch !== "function") {
+        detailQueueTimer = null;
+        return;
+      }
+      detailFetchedAt.set(table.roomId, Date.now());
+      window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
+      detailQueueTimer = setTimeout(next, 1500);
+    };
+    detailQueueTimer = setTimeout(next, 3000);
+  }
+
+  function getSpinStates(payload) {
+    const engine = payload?.engine || payload?.data?.engine;
+    const raw = engine?.gameState;
+    if (Array.isArray(raw)) return { engine, states: raw.filter(Boolean) };
+    if (raw && typeof raw === "object") return { engine, states: [raw] };
+    return { engine, states: [] };
+  }
+
+  function isFeatureState(state = {}) {
+    return Number(state.totalViews) > 1
+      || Number(state.freeGameCount) > 0
+      || Number(state.superMainGameCount) > 0
+      || Number(state.startFreeGame) > 0
+      || /free|super|feature/i.test(String(state.action || ""));
+  }
+
+  function spinPayload(payload, trigger = "") {
+    const { engine, states } = getSpinStates(payload);
+    if (!engine || !states.length) return null;
+    const spinId = String(engine.spinId || states.find((state) => state?.spinId)?.spinId || "");
+    if (!spinId) return null;
+    if (trigger === "buyFeature" || states.some(isFeatureState)) featureSpins.add(spinId);
+    if (!featureSpins.has(spinId)) return null;
+    const state = states.reduce((selected, candidate) => (
+      Number(candidate?.currentView) >= Number(selected?.currentView) ? candidate : selected
+    ), states[0]);
+    const currentView = Number(state?.currentView) || 0;
+    const totalViews = Math.max(1, Number(state?.totalViews) || 1);
+    if (currentView < totalViews - 1) return null;
+    featureSpins.delete(spinId);
     return {
+      spinId,
       roomId: currentRoom.roomId || undefined,
       roomNumber: currentRoom.number || undefined,
-      totalStake: payload?.totalStake,
-      engine: {
-        spinId: engine.spinId,
-        gameState: engine.gameState.slice(0, 500).map((state) => ({
-          spinId: state?.spinId,
-          totalWinnings: state?.totalWinnings,
-          totalStake: state?.totalStake,
-          currentView: state?.currentView,
-          totalViews: state?.totalViews,
-          action: state?.action,
-        })),
-      },
+      totalWinnings: Number(state?.totalWinnings) || 0,
+      totalStake: Number(payload?.totalStake ?? state?.totalStake) || 0,
+      currentView,
+      totalViews,
+      action: state?.action,
+      featureTrigger: trigger === "buyFeature" ? "purchased" : "natural",
+      capturedAt: Date.now(),
     };
+  }
+
+  function emitSpin(payload, trigger = "") {
+    const spin = spinPayload(payload, trigger);
+    if (spin) emit({ type: "spin", gameName, ...spin });
   }
 
   function handleDispatch(eventName, payload) {
@@ -174,6 +230,7 @@
         data.page = scanPage;
         data.scanId = scanId;
         data.scanComplete = scanPage >= scanTotalPages;
+        scanEmptyCandidates.push(...data.tables.filter((table) => table.status === "Empty"));
       }
       emit({ type: "tables", gameName, ...data });
       if (scanPage > 0 && scanPage < scanTotalPages) {
@@ -183,6 +240,7 @@
       } else if (scanPage > 0) {
         scanPage = 0;
         scanId = "";
+        scheduleCandidateDetails();
         scheduleFullScan(30000);
       }
       return;
@@ -218,8 +276,7 @@
     }
 
     if (SPIN_EVENTS.has(eventName)) {
-      const spin = spinPayload(payload);
-      if (spin) emit({ type: "spin", gameName, ...spin });
+      emitSpin(payload);
     }
   }
 
@@ -237,7 +294,31 @@
     window.dispatch = wrappedDispatch;
   }
 
-  setInterval(installDispatchWrapper, 20);
+  function installSenderWrapper() {
+    const sender = window.App?.senderManager?._datas?.get?.("g1005");
+    if (!sender || typeof sender.send !== "function" || sender.send === wrappedSender) return;
+    const original = sender.send;
+    wrappedSender = function blackdomainElectronicSend(request, requestPayload, callback, ...rest) {
+      const wrappedCallback = typeof callback === "function"
+        ? function blackdomainElectronicResponse(response, ...callbackArgs) {
+          try {
+            const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
+            if (trigger || response?.engine?.gameState) emitSpin(response, trigger);
+          } catch {
+            // Keep the original network callback untouched.
+          }
+          return callback.call(this, response, ...callbackArgs);
+        }
+        : callback;
+      return original.call(this, request, requestPayload, wrappedCallback, ...rest);
+    };
+    sender.send = wrappedSender;
+  }
+
+  setInterval(() => {
+    installDispatchWrapper();
+    installSenderWrapper();
+  }, 20);
 
   console.info("[BLACKDOMAIN Electronic] ATG room observer active");
 }());
