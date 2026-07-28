@@ -176,6 +176,7 @@ const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
 const mtSource = require("../modules/baccarat/mtSource");
 const mtLive = require("../modules/baccarat/mtLive");
+const electronicSource = require("../modules/electronic/source");
 const { userscript: baccaratRelayUserscript } = require("../routes/dgRelay");
 const { predict: predictBaccarat } = require("../modules/baccarat/ai");
 
@@ -603,6 +604,24 @@ async function main() {
   await send("電子", "user-smoke");
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
+  electronicSource.resetForTest();
+  if (!electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特1",
+    scanId: "smoke-complete-empty-rooms",
+    scanComplete: true,
+    tables: [
+      { roomId: "seth-1", number: 1, status: "Empty" },
+      { roomId: "seth-2", number: 2, status: "Empty" },
+    ],
+  })) {
+    throw new Error("Electronic empty-room fixture was rejected");
+  }
+  values = await sendAndTexts("AI推薦房", "user-smoke");
+  assertIncludes(values, "推薦房號", "Electronic empty-room fallback recommendation");
+  if (values.some((value) => String(value).includes("資料讀取中"))) {
+    throw new Error("Electronic recommendation must not wait for optional room details");
+  }
 
   const atgGameMenuReply = await send("ATG", "user-smoke");
   const firstAtgGame = atgGameMenuReply.messages[0]?.contents?.contents?.[0];

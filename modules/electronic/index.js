@@ -260,8 +260,8 @@ function getNextRecommendRoom(userId, gameName) {
   if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
     const emptyRooms = electronicSource.getEmptyRooms(gameName);
     if (!emptyRooms.length) return null;
-    const candidates = emptyRooms.filter((room) => room.detail).slice(0, 10);
-    if (!candidates.length) return null;
+    const detailedRooms = emptyRooms.filter((room) => room.detail);
+    const candidates = detailedRooms.length ? detailedRooms.slice(0, 10) : emptyRooms;
     const key = `${userId || "guest"}:${gameName}:live`;
     const existing = recommendCursorStore.get(key);
     const recentRooms = Array.isArray(existing?.recentRooms) ? existing.recentRooms : [];
@@ -348,16 +348,6 @@ async function recommendRoom(event) {
       electronicSource.SUPPORTED_GAMES.has(session.gameName)
       && (!electronicSource.hasFreshData(session.gameName) || !electronicSource.hasReadyData(session.gameName))
     ) {
-      return reply(event.replyToken, electronicPromptFlex("房間數據整理中", [
-        session.gameName,
-        "資料讀取中",
-        "請等60秒後再按重新推薦",
-      ], afterRecommendQuickReply()));
-    }
-    const liveEmptyRooms = electronicSource.SUPPORTED_GAMES.has(session.gameName)
-      ? electronicSource.getEmptyRooms(session.gameName)
-      : [];
-    if (liveEmptyRooms.length > 0 && !liveEmptyRooms.some((room) => room.detail)) {
       return reply(event.replyToken, electronicPromptFlex("房間數據整理中", [
         session.gameName,
         "資料讀取中",
