@@ -18,6 +18,8 @@ function registerElectronicRelayRoutes(app) {
     const body = req.body || {};
     const accepted = body.type === "tables"
       ? electronicSource.ingestTables(body)
+      : body.type === "updates"
+        ? electronicSource.ingestUpdates(body)
       : body.type === "detail"
         ? electronicSource.ingestDetail(body)
         : body.type === "spin" && electronicSource.ingestSpin(body);

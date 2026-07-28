@@ -43,7 +43,7 @@
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_RELAY", (event) => {
     const body = event.detail;
-    if (!body || !["tables", "detail", "spin"].includes(body.type)) return;
+    if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
     send(body);
   });
 

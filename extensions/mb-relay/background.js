@@ -9,7 +9,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!isMb && !isElectronic) return false;
   const key = String(message.key || "").trim();
   const body = message.body;
-  const allowedTypes = isMb ? ["roadmap", "socket"] : ["tables", "detail", "spin"];
+  const allowedTypes = isMb ? ["roadmap", "socket"] : ["tables", "updates", "detail", "spin"];
   if (!key || !body || !allowedTypes.includes(body.type)) {
     sendResponse({ ok: false, status: 400 });
     return false;

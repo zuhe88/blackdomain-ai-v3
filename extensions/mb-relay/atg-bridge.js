@@ -8,6 +8,7 @@
   const TABLE_DETAIL_RESPONSE = "SlotFrameworkEvent:SLOT_TABLE_RESPONSE";
   const TABLE_PAGE_REQUEST = "SlotFrameworkEvent:SEND_GET_SLOT_TABLE_PAGE_DATA_REQUEST";
   const TABLE_DETAIL_REQUEST = "SlotFrameworkEvent:SEND_GET_SLOT_TABLE_DETAIL_REQUEST";
+  const TABLES_UPDATED_RESPONSE = "SlotFrameworkEvent:SLOT_TABLES_UPDATED_RESPONSE";
   const SPIN_EVENTS = new Set([
     "SlotFrameworkEvent:SPIN_RESPONSE",
     "SlotFrameworkEvent:EARLY_SPIN_RESPONSE",
@@ -59,6 +60,7 @@
       roomId: String(roomId),
       number,
       status,
+      occupied: Boolean(table?.user?.userId ?? table?.user),
       dayWin: table.dayWin,
       dayBet: table.dayBet,
       hourWin: table.hourWin,
@@ -157,6 +159,21 @@
       pendingDetailRoom = null;
       const detail = detailPayload(payload, requestedTable);
       if (detail) emit({ type: "detail", gameName, detail });
+      return;
+    }
+
+    if (eventName === TABLES_UPDATED_RESPONSE) {
+      const updates = Object.entries(payload || {}).map(([roomId, status]) => ({
+        roomId: String(roomId),
+        status: String(status || ""),
+      })).filter((item) => item.roomId && item.status);
+      updates.forEach((item) => {
+        const table = knownTables.get(item.roomId);
+        if (!table) return;
+        table.status = item.status;
+        table.occupied = item.status !== "Empty";
+      });
+      if (updates.length) emit({ type: "updates", gameName, updates });
       return;
     }
 

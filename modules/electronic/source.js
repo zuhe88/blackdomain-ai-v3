@@ -22,6 +22,7 @@ function normalizeTable(table = {}) {
     roomId,
     number,
     status: normalizeStatus(table.status),
+    occupied: table.occupied === true || Boolean(table.user?.userId ?? table.user),
     detail: hasDetail ? {
       dayWin: Number(detail.dayWin) || 0,
       dayBet: Number(detail.dayBet) || 0,
@@ -62,6 +63,24 @@ function ingestDetail(payload = {}) {
   return true;
 }
 
+function ingestUpdates(payload = {}) {
+  const state = games.get(String(payload.gameName || ""));
+  if (!state || !Array.isArray(payload.updates)) return false;
+  let accepted = 0;
+  payload.updates.forEach((update) => {
+    const roomId = String(update?.roomId || "");
+    const table = state.tables.get(roomId);
+    const status = normalizeStatus(update?.status);
+    if (!table || !status) return;
+    table.status = status;
+    table.occupied = status !== "Empty";
+    accepted += 1;
+  });
+  if (!accepted) return false;
+  state.updatedAt = new Date().toISOString();
+  return true;
+}
+
 function ingestSpin(payload = {}) {
   const state = games.get(String(payload.gameName || ""));
   if (!state || !payload.spinId) return false;
@@ -89,7 +108,7 @@ function getGame(gameName) {
 function getEmptyRooms(gameName) {
   const snapshot = getGame(gameName);
   if (!snapshot?.updatedAt || Date.now() - new Date(snapshot.updatedAt).getTime() > LIVE_TTL_MS) return [];
-  return snapshot.tables.filter((table) => table.status === "Empty");
+  return snapshot.tables.filter((table) => table.status === "Empty" && table.occupied !== true);
 }
 
 function getSnapshot() {
@@ -102,4 +121,4 @@ function resetForTest() {
 
 const SUPPORTED_GAMES = new Set(GAME_NAMES);
 
-module.exports = { GAME_NAMES, SUPPORTED_GAMES, ingestTables, ingestDetail, ingestSpin, getGame, getEmptyRooms, getSnapshot, normalizeTable, resetForTest };
+module.exports = { GAME_NAMES, SUPPORTED_GAMES, ingestTables, ingestUpdates, ingestDetail, ingestSpin, getGame, getEmptyRooms, getSnapshot, normalizeTable, resetForTest };
