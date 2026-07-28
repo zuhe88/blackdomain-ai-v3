@@ -166,8 +166,7 @@
   }
 
   function isFeatureState(state = {}) {
-    return Number(state.totalViews) > 1
-      || Number(state.freeGameCount) > 0
+    return Number(state.freeGameCount) > 0
       || Number(state.superMainGameCount) > 0
       || Number(state.startFreeGame) > 0
       || /free|super|feature/i.test(String(state.action || ""));

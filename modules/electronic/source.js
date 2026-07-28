@@ -114,6 +114,8 @@ function ingestSpin(payload = {}) {
     totalStake: Number(payload.totalStake) || 0,
     currentView: Number(payload.currentView) || 0,
     totalViews: Number(payload.totalViews) || 0,
+    action: payload.action || null,
+    featureTrigger: payload.featureTrigger || null,
     capturedAt: payload.capturedAt || Date.now(),
   });
   if (state.spins.size > 100) state.spins.delete(state.spins.keys().next().value);
@@ -129,6 +131,7 @@ function getGame(gameName) {
     updatedAt: state.updatedAt,
     fullScanAt: state.fullScanAt,
     tables,
+    recentSpins: [...state.spins.values()].slice(-5),
   };
 }
 

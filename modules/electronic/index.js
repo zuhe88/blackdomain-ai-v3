@@ -5,6 +5,7 @@ const {
   electronicRecommendFlex,
   electronicFeatureResultFlex,
 } = require("../../ui/flex/electronicResult");
+const supabase = require("../../services/supabase");
 const electronicSource = require("./source");
 
 const electronicSessions = new Map();
@@ -13,6 +14,7 @@ const recommendCursorStore = new Map();
 const liveWatches = new Map();
 const notifiedSpins = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
+const WATCH_KEY_PREFIX = "electronic_watch:";
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -25,6 +27,57 @@ const GAME_CONFIG = {
 const MAIN_COMMANDS = new Set(["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
 const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
 const BACK_TO_GAME_COMMANDS = new Set(["返回電子首頁", "返回遊戲選單"]);
+
+function rememberLiveWatch(watch) {
+  if (!watch?.userId) return;
+  liveWatches.set(watch.userId, watch);
+  if (!supabase) return;
+  supabase
+    .from("lottery_settings")
+    .upsert({
+      key: `${WATCH_KEY_PREFIX}${watch.userId}`,
+      value: watch,
+      updated_at: new Date(watch.updatedAt).toISOString(),
+      updated_by: watch.userId,
+    }, { onConflict: "key" })
+    .then(({ error }) => {
+      if (error) console.error("[Electronic] Watch persistence failed:", error.message);
+    });
+}
+
+async function getLiveWatchers(gameName, roomNumber) {
+  const watchers = new Map();
+  const now = Date.now();
+  for (const watch of liveWatches.values()) {
+    if (
+      watch.gameName === gameName
+      && Number(watch.roomNumber) === roomNumber
+      && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT
+    ) watchers.set(watch.userId, watch);
+  }
+  if (!supabase) return [...watchers.values()];
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("value")
+    .like("key", `${WATCH_KEY_PREFIX}%`);
+  if (error) {
+    console.error("[Electronic] Watch hydration failed:", error.message);
+    return [...watchers.values()];
+  }
+  for (const row of data || []) {
+    const watch = row?.value;
+    if (
+      watch?.userId
+      && watch.gameName === gameName
+      && Number(watch.roomNumber) === roomNumber
+      && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT
+    ) {
+      watchers.set(watch.userId, watch);
+      liveWatches.set(watch.userId, watch);
+    }
+  }
+  return [...watchers.values()];
+}
 
 function taipeiNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
@@ -319,7 +372,12 @@ async function recommendRoom(event) {
   }
   const roomNumber = typeof selected === "object" ? selected.number : selected;
   const room = formatRoom(session.gameName, roomNumber);
-  liveWatches.set(`${session.gameName}:${roomNumber}`, { userId, updatedAt: Date.now() });
+  rememberLiveWatch({
+    userId,
+    gameName: session.gameName,
+    roomNumber,
+    updatedAt: Date.now(),
+  });
   return reply(event.replyToken, electronicRecommendFlex(
     session.gameName,
     room,
@@ -331,22 +389,23 @@ async function recommendRoom(event) {
 
 async function handleElectronicSpin(payload = {}) {
   const roomNumber = Number(payload.roomNumber);
-  const watch = liveWatches.get(`${payload.gameName}:${roomNumber}`);
-  if (!watch || !Number.isInteger(roomNumber)) return false;
+  if (!Number.isInteger(roomNumber)) return false;
+  const watchers = await getLiveWatchers(payload.gameName, roomNumber);
+  if (!watchers.length) return false;
   const spinKey = `${payload.gameName}:${payload.spinId || roomNumber}`;
   if (notifiedSpins.has(spinKey)) return false;
   notifiedSpins.add(spinKey);
   if (notifiedSpins.size > 500) notifiedSpins.delete(notifiedSpins.values().next().value);
   const winnings = Number(payload.totalWinnings) || 0;
-  await require("../../services/line").push(
-    watch.userId,
-    electronicFeatureResultFlex(
-      payload.gameName,
-      formatRoom(payload.gameName, roomNumber),
-      winnings,
-    ),
+  const message = electronicFeatureResultFlex(
+    payload.gameName,
+    formatRoom(payload.gameName, roomNumber),
+    winnings,
   );
-  return true;
+  const results = await Promise.allSettled(
+    watchers.map((watch) => require("../../services/line").push(watch.userId, message)),
+  );
+  return results.some((result) => result.status === "fulfilled");
 }
 
 async function changeRecommendRoom(event) {
