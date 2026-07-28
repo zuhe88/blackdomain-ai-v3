@@ -15,6 +15,7 @@ const liveWatches = new Map();
 const notifiedSpins = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
+const SESSION_KEY_PREFIX = "electronic_session:";
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -43,6 +44,38 @@ function rememberLiveWatch(watch) {
     .then(({ error }) => {
       if (error) console.error("[Electronic] Watch persistence failed:", error.message);
     });
+}
+
+function rememberElectronicSession(userId, session) {
+  if (!userId || !session?.gameName || !supabase) return;
+  supabase
+    .from("lottery_settings")
+    .upsert({
+      key: `${SESSION_KEY_PREFIX}${userId}`,
+      value: { gameName: session.gameName, updatedAt: session.updatedAt },
+      updated_at: new Date(session.updatedAt).toISOString(),
+      updated_by: userId,
+    }, { onConflict: "key" })
+    .then(({ error }) => {
+      if (error) console.error("[Electronic] Session persistence failed:", error.message);
+    });
+}
+
+async function restoreElectronicSession(userId) {
+  const current = getUserSession(userId);
+  if (current.gameName || !supabase) return current;
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("value")
+    .eq("key", `${SESSION_KEY_PREFIX}${userId}`)
+    .maybeSingle();
+  if (error || !data?.value?.gameName) return current;
+  const stored = data.value;
+  if (
+    !GAME_CONFIG[stored.gameName]
+    || Date.now() - Number(stored.updatedAt || 0) > SESSION_TIMEOUT
+  ) return current;
+  return setGameSession(userId, stored.gameName);
 }
 
 async function getLiveWatchers(gameName, roomNumber) {
@@ -242,6 +275,7 @@ function setGameSession(userId, gameName) {
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
+  rememberElectronicSession(userId, session);
   return session;
 }
 
@@ -412,8 +446,14 @@ async function handleElectronicMessage(event) {
   const value = event.message.text.trim();
   if (MAIN_COMMANDS.has(value)) return showElectronicMain(event);
   if (GAME_CONFIG[value]) return selectGame(event, value);
-  if (RECOMMEND_COMMANDS.has(value)) return recommendRoom(event);
-  if (BACK_TO_GAME_COMMANDS.has(value)) return showGameMenu(event);
+  if (RECOMMEND_COMMANDS.has(value)) {
+    await restoreElectronicSession(event.source.userId);
+    return recommendRoom(event);
+  }
+  if (BACK_TO_GAME_COMMANDS.has(value)) {
+    await restoreElectronicSession(event.source.userId);
+    return showGameMenu(event);
+  }
   return false;
 }
 
