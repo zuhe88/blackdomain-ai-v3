@@ -279,7 +279,7 @@ function mbAnalysisFlex(analysis, track) {
       contents: [
         infoLine("資料狀態", `${analysis.historyCount}期`),
         infoLine("最低需求", "至少 20 期完整排名"),
-        note("請保持 MB 遊戲頁與即時轉送器開啟，資料足夠後會自動產生推薦。"),
+        note("即時資料仍在同步，本次不使用不完整資料推薦。"),
       ],
     });
   }

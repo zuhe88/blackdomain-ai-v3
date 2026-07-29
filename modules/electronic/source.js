@@ -55,7 +55,15 @@ function ingestTables(payload = {}) {
   const scanId = String(payload.scanId || "").trim();
   let next = new Map(state.tables);
   if (scanId) {
-    if (state.pendingScan?.id !== scanId) state.pendingScan = { id: scanId, tables: new Map() };
+    if (state.pendingScan?.id !== scanId) {
+      state.pendingScan = {
+        id: scanId,
+        tables: new Map(),
+        pages: new Set(),
+        totalPages: null,
+        completionSignaled: false,
+      };
+    }
     next = state.pendingScan.tables;
   }
   payload.tables.forEach((raw) => {
@@ -67,7 +75,26 @@ function ingestTables(payload = {}) {
     }
   });
   if (!scanId && !next.size) return false;
-  if (scanId && payload.scanComplete === true) {
+  if (scanId) {
+    const page = Number(payload.page);
+    const declaredTotalPages = Number(payload.totalPages);
+    if (Number.isInteger(page) && page > 0) state.pendingScan.pages.add(page);
+    if (Number.isInteger(declaredTotalPages) && declaredTotalPages > 0) {
+      state.pendingScan.totalPages = declaredTotalPages;
+    } else if (payload.scanComplete === true && Number.isInteger(page) && page > 0) {
+      state.pendingScan.totalPages = page;
+    }
+    if (payload.scanComplete === true) state.pendingScan.completionSignaled = true;
+  }
+  const scanPagesComplete = scanId
+    && state.pendingScan.completionSignaled
+    && Number.isInteger(state.pendingScan.totalPages)
+    && state.pendingScan.totalPages > 0
+    && Array.from(
+      { length: state.pendingScan.totalPages },
+      (_unused, index) => index + 1,
+    ).every((page) => state.pendingScan.pages.has(page));
+  if (scanPagesComplete) {
     state.tables = new Map(next);
     state.pendingScan = null;
     state.fullScanAt = new Date().toISOString();
@@ -75,7 +102,11 @@ function ingestTables(payload = {}) {
     state.tables = next;
   }
   state.updatedAt = new Date().toISOString();
-  return true;
+  return {
+    accepted: true,
+    scanCompleted: Boolean(scanPagesComplete),
+    scanId: scanId || null,
+  };
 }
 
 function ingestDetail(payload = {}) {

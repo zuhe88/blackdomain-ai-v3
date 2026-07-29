@@ -172,7 +172,15 @@ function roomStat(label, value, color) {
         justifyContent: "center",
         contents: [text(label, { size: "xs", weight: "bold", color: COLORS.white, align: "center", wrap: false })],
       },
-      text(value, { size: "md", weight: "bold", color: COLORS.white, align: "center", flex: 1, wrap: false }),
+      text(value, {
+        size: "md",
+        weight: "bold",
+        color: COLORS.white,
+        align: "center",
+        flex: 1,
+        wrap: false,
+        adjustMode: "shrink-to-fit",
+      }),
     ],
   };
 }
@@ -196,6 +204,13 @@ function roomStatsPanel(stats) {
         contents: [
           roomStat("莊", stats.banker, "#D71920"),
           roomStat("閒", stats.player, "#1464D2"),
+        ],
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "xs",
+        contents: [
           roomStat("和", stats.tie, "#278A18"),
           roomStat("總", stats.total, "#9A6728"),
         ],

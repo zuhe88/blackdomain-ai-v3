@@ -34,7 +34,7 @@ function registerElectronicRelayRoutes(app) {
         ? electronicSource.ingestDetail(body)
         : body.type === "spin" && electronicSource.ingestSpin(body);
     if (!accepted) return res.status(400).json({ ok: false, error: "Invalid electronic payload." });
-    if (body.type === "tables" && body.scanComplete === true) {
+    if (body.type === "tables" && accepted.scanCompleted === true) {
       const completedRefresh = electronicSource.markRefreshGameComplete(body.gameName, body.refreshId);
       if (completedRefresh) await electronic.notifyAdminRefreshComplete(completedRefresh);
       setImmediate(() => {

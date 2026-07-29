@@ -21,9 +21,9 @@ const SESSION_TIMEOUT = 30 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 8000);
-const PENDING_RECOMMEND_TIMEOUT_MS = Math.max(
-  30000,
-  Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 2 * 60 * 1000,
+const PENDING_RECOMMEND_TIMEOUT_MS = Math.min(
+  8000,
+  Math.max(1000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 8000),
 );
 
 const GAME_CONFIG = {
@@ -117,19 +117,22 @@ function recommendationWaitingFlex(title, gameName, message, eta) {
 
 function queuePendingRecommendation(userId, gameName) {
   cancelPendingRecommendation(userId);
+  electronicSource.requestFullRefresh();
+  const requestedAt = Date.now();
   const pending = {
     userId,
     gameName,
-    requestedAt: Date.now(),
+    requestedAt,
+    deadlineAt: requestedAt + PENDING_RECOMMEND_TIMEOUT_MS,
     timer: null,
   };
   pending.timer = setTimeout(async () => {
     if (pendingRecommendations.get(userId) !== pending) return;
     pendingRecommendations.delete(userId);
-    await push(userId, electronicPromptFlex("自動推薦等待逾時", [
+    await push(userId, electronicPromptFlex("目前無法取得即時房況", [
       gameName,
-      "目前仍無法取得完整房間數據",
-      "請確認遊戲頁與 relay 保持開啟後再重新推薦",
+      "為避免房況不一致，本次未使用舊資料推薦",
+      "等待已自動結束，稍後可再使用 AI推薦房",
     ], afterRecommendQuickReply()));
   }, PENDING_RECOMMEND_TIMEOUT_MS);
   pending.timer.unref?.();
@@ -609,8 +612,8 @@ async function handleAdminRefreshCommand(event) {
   }
   return reply(event.replyToken, electronicPromptFlex("房間數據更新", [
     "已發送強制刷新指令",
-    "Relay 最慢約 5 秒開始重新掃描",
-    "兩個戰神賽特遊戲頁需保持開啟",
+    "系統將在數秒內開始重新掃描",
+    "完成後會自動更新房間統計",
     ...snapshots.map((snapshot) => (
       `${snapshot.gameName}：${snapshot.tables.length} 房／上次 ${formatSnapshotTime(snapshot.fullScanAt || snapshot.updatedAt)}`
     )),
@@ -708,7 +711,7 @@ async function performRecommendRoom(event) {
         "房間數據整理中",
         session.gameName,
         "正在同步最新房表與統計",
-        "最長等待 2 分鐘",
+        `最多等待 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒`,
       ));
     }
     return deliverRecommendation(event, electronicPromptFlex("目前沒有可推薦的空房", [
@@ -719,7 +722,10 @@ async function performRecommendRoom(event) {
   }
   let roomNumber = selectedRoomNumber(selected);
   if (typeof selected === "object") {
-    const detailDeadline = Date.now() + DETAIL_WAIT_MS;
+    const detailDeadline = Math.min(
+      Date.now() + DETAIL_WAIT_MS,
+      Number(event.recommendationDeadline) || Number.POSITIVE_INFINITY,
+    );
     await pushRoomSyncWaiting(userId, session.gameName);
     rememberLiveWatch({
       userId,
@@ -796,7 +802,7 @@ async function recommendRoom(event) {
       "房間數據仍在整理中",
       pending.gameName,
       "正在同步最新房表與統計",
-      "最長等待 2 分鐘",
+      `最多等待 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒`,
     ));
   }
   if (recommendInFlight.has(userId)) {
@@ -828,6 +834,7 @@ async function handleElectronicDataReady(gameName) {
     source: { userId: item.userId },
     message: { type: "text", text: "自動推薦" },
     autoPush: true,
+    recommendationDeadline: item.deadlineAt,
   })));
   return results.filter((result) => result.status === "fulfilled").length;
 }

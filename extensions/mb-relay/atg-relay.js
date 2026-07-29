@@ -4,6 +4,7 @@
   const STORAGE_KEY = "blackdomainElectronicRelayKey";
   let relayKey = "";
   let lastRefreshId = "";
+  let watchSyncInFlight = false;
 
   async function getRelayKey() {
     if (relayKey) return relayKey;
@@ -49,9 +50,11 @@
   });
 
   async function syncWatchRooms() {
-    const key = await getRelayKey();
-    if (!key) return;
+    if (watchSyncInFlight) return;
+    watchSyncInFlight = true;
     try {
+      const key = await getRelayKey();
+      if (!key) return;
       const response = await chrome.runtime.sendMessage({
         type: "BLACKDOMAIN_ELECTRONIC_WATCHES",
         key,
@@ -70,11 +73,13 @@
       }
     } catch {
       // The next interval retries transient extension/background failures.
+    } finally {
+      watchSyncInFlight = false;
     }
   }
 
   syncWatchRooms();
-  setInterval(syncWatchRooms, 5000);
+  setInterval(syncWatchRooms, 1000);
 
   chrome.storage.local.set({ blackdomainElectronicContentLoadedAt: Date.now() });
 

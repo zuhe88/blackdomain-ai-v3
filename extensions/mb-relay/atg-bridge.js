@@ -22,6 +22,8 @@
   let scanPage = 0;
   let scanTotalPages = 8;
   let scanTimer = null;
+  let scanWatchdogTimer = null;
+  let scanPageRetries = 0;
   let scanId = "";
   let scanEmptyCandidates = [];
   let detailQueueTimer = null;
@@ -34,6 +36,9 @@
   let forceScanRequested = false;
   let pendingRefreshId = "";
   let activeRefreshId = "";
+  const SCAN_PAGE_INTERVAL_MS = 250;
+  const SCAN_PAGE_TIMEOUT_MS = 1800;
+  const MAX_SCAN_PAGE_RETRIES = 2;
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -105,16 +110,53 @@
     };
   }
 
+  function clearScanWatchdog() {
+    if (!scanWatchdogTimer) return;
+    clearTimeout(scanWatchdogTimer);
+    scanWatchdogTimer = null;
+  }
+
+  function restartFullScan(delay = SCAN_PAGE_INTERVAL_MS) {
+    clearScanWatchdog();
+    if (activeRefreshId) pendingRefreshId = activeRefreshId;
+    activeRefreshId = "";
+    scanPage = 0;
+    scanPageRetries = 0;
+    scanId = "";
+    forceScanRequested = false;
+    if (scanTimer) clearTimeout(scanTimer);
+    scanTimer = null;
+    scheduleFullScan(delay);
+  }
+
+  function handleScanPageFailure(page) {
+    if (scanPage !== page) return;
+    clearScanWatchdog();
+    scanPage = 0;
+    if (scanPageRetries < MAX_SCAN_PAGE_RETRIES) {
+      scanPageRetries += 1;
+      setTimeout(() => requestScanPage(page), SCAN_PAGE_INTERVAL_MS);
+      return;
+    }
+    restartFullScan();
+  }
+
   function requestScanPage(page) {
     if (typeof window.dispatch !== "function" || scanPage !== 0) return;
-    if (page === 1) {
+    if (page === 1 && !scanId) {
       scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       scanEmptyCandidates = [];
       activeRefreshId = pendingRefreshId;
       pendingRefreshId = "";
     }
     scanPage = page;
-    window.dispatch(TABLE_PAGE_REQUEST, { page });
+    clearScanWatchdog();
+    scanWatchdogTimer = setTimeout(() => handleScanPageFailure(page), SCAN_PAGE_TIMEOUT_MS);
+    try {
+      window.dispatch(TABLE_PAGE_REQUEST, { page });
+    } catch {
+      handleScanPageFailure(page);
+    }
   }
 
   function scheduleFullScan(delay = 30000) {
@@ -270,27 +312,35 @@
         emit({ type: "tables", gameName, ...initialTables });
         scanTotalPages = initialTables.totalPages || Number(payload?.platform?.tableMeta?.totalPages) || 8;
       }
-      scheduleFullScan(30000);
+      scheduleFullScan(1000);
       return;
     }
 
     if (eventName === TABLE_PAGE_RESPONSE) {
+      const requestedScanPage = scanPage;
       const data = tablePayload(payload);
-      if (!data) return;
-      if (scanPage > 0) {
-        data.page = scanPage;
+      if (!data) {
+        if (requestedScanPage > 0) handleScanPageFailure(requestedScanPage);
+        return;
+      }
+      if (requestedScanPage > 0) {
+        clearScanWatchdog();
+        scanPageRetries = 0;
+        if (data.totalPages) scanTotalPages = data.totalPages;
+        data.page = requestedScanPage;
         data.scanId = scanId;
-        data.scanComplete = scanPage >= scanTotalPages;
+        data.scanComplete = requestedScanPage >= scanTotalPages;
         if (activeRefreshId) data.refreshId = activeRefreshId;
         scanEmptyCandidates.push(...data.tables.filter((table) => table.status === "Empty"));
       }
       emit({ type: "tables", gameName, ...data });
-      if (scanPage > 0 && scanPage < scanTotalPages) {
-        const nextPage = scanPage + 1;
+      if (requestedScanPage > 0 && requestedScanPage < scanTotalPages) {
+        const nextPage = requestedScanPage + 1;
         scanPage = 0;
-        setTimeout(() => requestScanPage(nextPage), 800);
-      } else if (scanPage > 0) {
+        setTimeout(() => requestScanPage(nextPage), SCAN_PAGE_INTERVAL_MS);
+      } else if (requestedScanPage > 0) {
         scanPage = 0;
+        scanPageRetries = 0;
         scanId = "";
         activeRefreshId = "";
         scheduleCandidateDetails();

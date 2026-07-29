@@ -1,4 +1,5 @@
 const Module = require("module");
+const fs = require("fs");
 const path = require("path");
 
 process.env.SUPABASE_URL = "https://example.supabase.co";
@@ -180,6 +181,7 @@ const electronic = require("../modules/electronic");
 const electronicSource = require("../modules/electronic/source");
 const { userscript: baccaratRelayUserscript } = require("../routes/dgRelay");
 const { predict: predictBaccarat } = require("../modules/baccarat/ai");
+const { baccaratAnalysisFlex } = require("../ui/flex/baccarat");
 
 function event(text, userId = "user-smoke") {
   return { type: "message", replyToken: `reply-${captured.replies.length + 1}`, source: { userId }, message: { type: "text", text } };
@@ -212,6 +214,23 @@ function collectActions(value, output = []) {
     else if (child && typeof child === "object" && child !== value.action) collectActions(child, output);
   }
   return output;
+}
+
+function findNode(value, predicate) {
+  if (!value || typeof value !== "object") return null;
+  if (predicate(value)) return value;
+  for (const child of Object.values(value)) {
+    if (Array.isArray(child)) {
+      for (const item of child) {
+        const found = findNode(item, predicate);
+        if (found) return found;
+      }
+    } else if (child && typeof child === "object") {
+      const found = findNode(child, predicate);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 async function sendAndTexts(text, userId) {
@@ -516,6 +535,23 @@ async function main() {
   if (!captured.routes.get.some((route) => route.route === "/api/electronic/watch-rooms")) {
     throw new Error("Electronic watched-room route is not registered");
   }
+  const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
+  if (electronicRelayManifest.version !== "1.1.2") {
+    throw new Error("Electronic relay extension version must be 1.1.2");
+  }
+  const electronicBridgeSource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
+    "utf8",
+  );
+  for (const expected of [
+    "SCAN_PAGE_TIMEOUT_MS",
+    "handleScanPageFailure",
+    "SCAN_PAGE_INTERVAL_MS",
+  ]) {
+    if (!electronicBridgeSource.includes(expected)) {
+      throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);
+    }
+  }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");
   }
@@ -639,11 +675,39 @@ async function main() {
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
   electronicSource.resetForTest();
+  const prematureCompletedScan = electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特1",
+    scanId: "out-of-order-scan",
+    page: 2,
+    totalPages: 2,
+    scanComplete: true,
+    tables: [{ roomId: "seth-page-2", number: 2, status: "Empty" }],
+  });
+  if (prematureCompletedScan.scanCompleted || electronicSource.hasReadyData("戰神賽特1")) {
+    throw new Error("Electronic room data must not publish before every scan page arrives");
+  }
+  const completedOutOfOrderScan = electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特1",
+    scanId: "out-of-order-scan",
+    page: 1,
+    totalPages: 2,
+    scanComplete: false,
+    tables: [{ roomId: "seth-page-1", number: 1, status: "Empty" }],
+  });
+  if (!completedOutOfOrderScan.scanCompleted || !electronicSource.hasReadyData("戰神賽特1")) {
+    throw new Error("Electronic room data must publish after all out-of-order scan pages arrive");
+  }
+  electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
-  assertIncludes(values, "最長等待 2 分鐘｜請勿重複點擊", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "最多等待 8 秒｜請勿重複點擊", "Electronic pending duplicate-click warning");
   assertIncludes(values, "取消推薦", "Electronic pending cancel action");
+  if (!electronicSource.getRefreshRequest()?.id) {
+    throw new Error("Electronic pending recommendation must request a fresh room scan");
+  }
   if (values.some((value) => value === "資訊" || value === "狀態")) {
     throw new Error("Electronic pending recommendation must not repeat generic row labels");
   }
@@ -660,6 +724,8 @@ async function main() {
     type: "tables",
     gameName: "戰神賽特1",
     scanId: "automatic-ready-recommendation",
+    page: 1,
+    totalPages: 1,
     scanComplete: true,
     tables: [{ roomId: "seth-auto-7", number: 7, status: "Empty" }],
   })) {
@@ -704,6 +770,8 @@ async function main() {
     type: "tables",
     gameName: "戰神賽特1",
     scanId: "smoke-complete-empty-rooms",
+    page: 1,
+    totalPages: 1,
     scanComplete: true,
     tables: [
       { roomId: "seth-1", number: 1, status: "Empty" },
@@ -736,6 +804,8 @@ async function main() {
     type: "tables",
     gameName: "戰神賽特1",
     scanId: "fresh-detail-recommendation",
+    page: 1,
+    totalPages: 1,
     scanComplete: true,
     tables: [{ roomId: "seth-88", number: 88, status: "Empty" }],
   });
@@ -867,6 +937,8 @@ async function main() {
     type: "tables",
     gameName: "戰神賽特2",
     scanId: "monitored-room-scan",
+    page: 1,
+    totalPages: 1,
     scanComplete: true,
     tables: [{ roomId: "seth-199", number: 199, status: "Full" }],
   });
@@ -983,6 +1055,40 @@ async function main() {
   }
   for (const color of ["#D71920", "#1464D2", "#278A18", "#9A6728"]) {
     if (!dgAutoJson.includes(color)) throw new Error(`Baccarat room statistics missing color ${color}`);
+  }
+  const longRoomStatsMessage = baccaratAnalysisFlex({
+    session: {
+      mode: "天門",
+      bankroll: 50000,
+      startBankroll: 50000,
+      maxBet: 5000,
+      results: { pass: 0, fail: 0, tie: 0 },
+      platform: "DG",
+      room: "RB02",
+    },
+    prediction: "閒",
+    bet: 3100,
+    roomStats: { banker: 12345, player: 67890, tie: 1234, total: 81469 },
+    autoResult: true,
+  });
+  const longStatsPanel = findNode(
+    longRoomStatsMessage,
+    (node) => node.layout === "vertical"
+      && Array.isArray(node.contents)
+      && node.contents.some((item) => item?.text === "本房牌路統計"),
+  );
+  const longStatsRows = longStatsPanel?.contents?.slice(1) || [];
+  if (
+    longStatsRows.length !== 2
+    || longStatsRows.some((row) => row.layout !== "horizontal" || row.contents?.length !== 2)
+  ) {
+    throw new Error("Baccarat room statistics must use a two-by-two layout");
+  }
+  for (const value of ["12345", "67890", "1234", "81469"]) {
+    const valueNode = findNode(longStatsPanel, (node) => node.type === "text" && node.text === value);
+    if (!valueNode || valueNode.wrap !== false || valueNode.adjustMode !== "shrink-to-fit") {
+      throw new Error(`Baccarat room statistic ${value} must remain fully visible`);
+    }
   }
   if (collectActions(dgAutoMessage).some((action) => ["莊", "閒", "和"].includes(action.text))) {
     throw new Error("DG automatic settlement must not show manual result buttons");
