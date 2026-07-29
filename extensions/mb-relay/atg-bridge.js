@@ -42,6 +42,7 @@
   let originalSender = null;
   const detailFetchedAt = new Map();
   const naturalFeatureSpins = new Map();
+  const emittedFeatureSpins = new Set();
   let activePurchasedFeature = null;
   const watchedRoomNumbers = new Set();
   let watchedRoomCursor = 0;
@@ -337,19 +338,47 @@
     ]);
   }
 
+  function aggregateFeatureWinnings(payload, engine, states) {
+    return maxNumeric([
+      payload?.totalWinnings,
+      payload?.freespinWinnings,
+      engine?.totalWinnings,
+      engine?.freespinWinnings,
+      ...states.flatMap((state) => [
+        state?.totalWinnings,
+        state?.freespinWinnings,
+      ]),
+    ]);
+  }
+
+  function rememberEmittedFeatureSpin(spinId) {
+    const key = String(spinId || "");
+    if (!key) return;
+    emittedFeatureSpins.add(key);
+    if (emittedFeatureSpins.size > 250) {
+      emittedFeatureSpins.delete(emittedFeatureSpins.values().next().value);
+    }
+  }
+
   function spinPayload(payload, trigger = "") {
     const { engine, states } = getSpinStates(payload);
     if (!engine || !states.length) return null;
     const spinId = String(engine.spinId || states.find((state) => state?.spinId)?.spinId || "");
     if (!spinId) return null;
-    if (trigger === "buyFeature" && !activePurchasedFeature) {
+    if (
+      trigger === "buyFeature"
+      && (!activePurchasedFeature || activePurchasedFeature.spinId !== spinId)
+    ) {
+      if (emittedFeatureSpins.has(spinId)) return null;
       activePurchasedFeature = {
         spinId,
         maxWinnings: 0,
         sawActiveGames: false,
+        notified: false,
       };
     }
     if (!activePurchasedFeature && states.some(isFeatureState)) {
+      if (emittedFeatureSpins.has(spinId)) return null;
       naturalFeatureSpins.set(spinId, "natural");
     }
     const isPurchased = Boolean(activePurchasedFeature);
@@ -358,6 +387,7 @@
       Number(candidate?.currentView) >= Number(selected?.currentView) ? candidate : selected
     ), states[0]);
     const winnings = featureWinnings(payload, engine, states);
+    const aggregateWinnings = aggregateFeatureWinnings(payload, engine, states);
     if (activePurchasedFeature) {
       activePurchasedFeature.maxWinnings = Math.max(
         activePurchasedFeature.maxWinnings,
@@ -397,19 +427,39 @@
       && !hasRemainingCounter
       && !hasViewProgress
       && resolvedWinnings > 0;
-    if (!viewComplete && !counterComplete && !explicitComplete && !positiveWithoutProgress) {
+    const completionReached = viewComplete
+      || counterComplete
+      || explicitComplete
+      || positiveWithoutProgress;
+    const purchasedTotalAvailable = isPurchased && aggregateWinnings > 0;
+    if (isPurchased && activePurchasedFeature.notified) {
+      rememberEmittedFeatureSpin(spinId);
+      if (completionReached) activePurchasedFeature = null;
+      return null;
+    }
+    const shouldEmit = isPurchased
+      ? purchasedTotalAvailable
+      : completionReached && resolvedWinnings > 0;
+    if (!shouldEmit) {
+      if (!isPurchased && completionReached) naturalFeatureSpins.delete(spinId);
       return null;
     }
     const featureTrigger = isPurchased ? "purchased" : naturalFeatureSpins.get(spinId);
     const resultSpinId = activePurchasedFeature?.spinId || spinId;
-    if (isPurchased) activePurchasedFeature = null;
-    naturalFeatureSpins.delete(spinId);
-    if (!(resolvedWinnings > 0)) return null;
+    const reportedWinnings = isPurchased ? aggregateWinnings : resolvedWinnings;
+    if (isPurchased) {
+      activePurchasedFeature.notified = true;
+      if (completionReached) activePurchasedFeature = null;
+    } else {
+      naturalFeatureSpins.delete(spinId);
+    }
+    rememberEmittedFeatureSpin(resultSpinId);
+    rememberEmittedFeatureSpin(spinId);
     return {
       spinId: resultSpinId,
       roomId: currentRoom.roomId || undefined,
       roomNumber: currentRoom.number || undefined,
-      totalWinnings: resolvedWinnings,
+      totalWinnings: reportedWinnings,
       totalStake: Number(payload?.totalStake ?? state?.totalStake) || 0,
       currentView: Number.isFinite(currentView) ? currentView : 0,
       totalViews: Number.isFinite(totalViews) ? totalViews : 0,

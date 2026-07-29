@@ -148,46 +148,54 @@ function ingestDetail(payload = {}) {
   let pending = previous?.pending || null;
   let feature = null;
   if (featureReset) {
-    pending = {
-      startedAt: now,
-      baselineWin: Number(previous.detail.todayWin) || 0,
-      baselineBet: Number(previous.detail.todayBet) || 0,
-      lastWin: Number(currentDetail.todayWin) || 0,
-      stableCount: 0,
-    };
+    const baselineWin = Number(previous.detail.todayWin) || 0;
+    const baselineBet = Number(previous.detail.todayBet) || 0;
+    const currentWin = Number(currentDetail.todayWin) || 0;
+    const currentBet = Number(currentDetail.todayBet) || 0;
+    const immediateWinnings = currentWin - baselineWin;
+    const immediateStake = currentBet - baselineBet;
+    if (immediateWinnings > 1e-7 && immediateStake >= -1e-7) {
+      feature = {
+        type: "spin",
+        gameName: state.gameName,
+        roomId: normalized.roomId,
+        roomNumber: normalized.number,
+        spinId: `room-monitor:${normalized.roomId}:${now}`,
+        totalWinnings: immediateWinnings,
+        totalStake: Math.max(0, immediateStake),
+        currentView: 0,
+        totalViews: 0,
+        action: "roomFeature",
+        featureTrigger: "room-monitor",
+        capturedAt: now,
+      };
+      pending = null;
+    } else {
+      pending = {
+        startedAt: now,
+        baselineWin,
+        baselineBet,
+      };
+    }
   } else if (pending) {
     const currentWin = Number(currentDetail?.todayWin) || 0;
-    if (Math.abs(currentWin - pending.lastWin) > 1e-7) {
-      pending.lastWin = currentWin;
-      pending.stableCount = 0;
-    } else {
-      pending.stableCount += 1;
-    }
-    const elapsed = now - pending.startedAt;
-    const shouldFinalize = (
-      normalized.status !== "Full" && elapsed >= 3000
-    ) || (
-      pending.stableCount >= 2 && elapsed >= 5000
-    ) || elapsed >= 90 * 1000;
-    if (shouldFinalize) {
-      const winnings = currentWin - pending.baselineWin;
-      const stake = (Number(currentDetail?.todayBet) || 0) - pending.baselineBet;
-      if (winnings > 1e-7 && stake >= -1e-7) {
-        feature = {
-          type: "spin",
-          gameName: state.gameName,
-          roomId: normalized.roomId,
-          roomNumber: normalized.number,
-          spinId: `room-monitor:${normalized.roomId}:${pending.startedAt}`,
-          totalWinnings: winnings,
-          totalStake: Math.max(0, stake),
-          currentView: 0,
-          totalViews: 0,
-          action: "roomFeature",
-          featureTrigger: "room-monitor",
-          capturedAt: now,
-        };
-      }
+    const winnings = currentWin - pending.baselineWin;
+    const stake = (Number(currentDetail?.todayBet) || 0) - pending.baselineBet;
+    if (winnings > 1e-7 && stake >= -1e-7) {
+      feature = {
+        type: "spin",
+        gameName: state.gameName,
+        roomId: normalized.roomId,
+        roomNumber: normalized.number,
+        spinId: `room-monitor:${normalized.roomId}:${pending.startedAt}`,
+        totalWinnings: winnings,
+        totalStake: Math.max(0, stake),
+        currentView: 0,
+        totalViews: 0,
+        action: "roomFeature",
+        featureTrigger: "room-monitor",
+        capturedAt: now,
+      };
       pending = null;
     }
   }
