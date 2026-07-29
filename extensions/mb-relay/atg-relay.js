@@ -79,7 +79,7 @@
   }
 
   syncWatchRooms();
-  setInterval(syncWatchRooms, 1000);
+  setInterval(syncWatchRooms, 2000);
 
   chrome.storage.local.set({ blackdomainElectronicContentLoadedAt: Date.now() });
 

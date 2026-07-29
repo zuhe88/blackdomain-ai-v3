@@ -38,11 +38,14 @@
   let scanEmptyCandidates = [];
   let detailQueueTimer = null;
   let wrappedSender = null;
+  let wrappedSenderOwner = null;
+  let originalSender = null;
   const detailFetchedAt = new Map();
   const featureSpins = new Map();
   const watchedRoomNumbers = new Set();
   let watchedRoomCursor = 0;
   let watchedRoomTimer = null;
+  let watchedRoomDiscoveryRequested = false;
   let forceScanRequested = false;
   let pendingRefreshId = "";
   let activeRefreshId = "";
@@ -52,9 +55,6 @@
   const SCAN_STARTUP_GRACE_MS = 30000;
   const SCAN_RESTART_BACKOFF_STEPS_MS = [10000, 20000, 30000];
   const MAX_SCAN_PAGE_RETRIES = 2;
-  const INITIAL_FULL_SCAN_DELAY_MS = 60000;
-  const PASSIVE_FULL_SCAN_INTERVAL_MS = 90000;
-  const SENDER_WRAP_DELAY_MS = 30000;
   const WRAPPER_FAST_RETRY_MS = 20;
   const WRAPPER_FAST_RETRY_WINDOW_MS = 30000;
   const WRAPPER_HEALTH_CHECK_MS = 1000;
@@ -204,7 +204,7 @@
     }
   }
 
-  function scheduleFullScan(delay = PASSIVE_FULL_SCAN_INTERVAL_MS) {
+  function scheduleFullScan(delay = SCAN_RESTART_BACKOFF_STEPS_MS[0]) {
     if (scanTimer || scanPage !== 0) return;
     scanTimer = setTimeout(() => {
       scanTimer = null;
@@ -281,7 +281,13 @@
     const roomNumber = numbers[watchedRoomCursor % numbers.length];
     watchedRoomCursor = (watchedRoomCursor + 1) % numbers.length;
     const table = [...knownTables.values()].find((item) => item.number === roomNumber);
-    if (!table) return;
+    if (!table) {
+      if (!watchedRoomDiscoveryRequested) {
+        watchedRoomDiscoveryRequested = true;
+        requestForcedFullScan();
+      }
+      return;
+    }
     pendingDetailRoom = table;
     window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
   }
@@ -331,17 +337,17 @@
     };
   }
 
+  function emitSpin(payload, trigger = "") {
+    const spin = spinPayload(payload, trigger);
+    if (spin) emit({ type: "spin", gameName, ...spin });
+  }
+
   function rememberPurchasedFeature(payload) {
     const { engine, states } = getSpinStates(payload);
     const spinId = String(engine?.spinId || states.find((state) => state?.spinId)?.spinId || "");
     if (!spinId) return;
     featureSpins.set(spinId, "purchased");
     if (featureSpins.size > 100) featureSpins.delete(featureSpins.keys().next().value);
-  }
-
-  function emitSpin(payload, trigger = "") {
-    const spin = spinPayload(payload, trigger);
-    if (spin) emit({ type: "spin", gameName, ...spin });
   }
 
   function handleDispatch(eventName, payload) {
@@ -358,7 +364,6 @@
         emit({ type: "tables", gameName, ...initialTables });
         scanTotalPages = initialTables.totalPages || Number(payload?.platform?.tableMeta?.totalPages) || 8;
       }
-      scheduleFullScan(INITIAL_FULL_SCAN_DELAY_MS);
       return;
     }
 
@@ -393,7 +398,6 @@
         activeRefreshId = "";
         scheduleCandidateDetails();
         if (forceScanRequested) requestForcedFullScan();
-        else scheduleFullScan(PASSIVE_FULL_SCAN_INTERVAL_MS);
       }
       return;
     }
@@ -428,7 +432,7 @@
     }
 
     if (SPIN_EVENTS.has(eventName)) {
-      emitSpin(payload);
+      emitSpin(payload, eventName === "SlotFrameworkEvent:BUY_FEATURE_RESPONSE" ? "buyFeature" : "");
     }
   }
 
@@ -464,26 +468,39 @@
   function installSenderWrapper() {
     const sender = window.App?.senderManager?._datas?.get?.("g1005");
     if (!sender || typeof sender.send !== "function" || sender.send === wrappedSender) return;
-    const original = sender.send;
+    const senderOriginal = sender.send;
+    originalSender = senderOriginal;
+    wrappedSenderOwner = sender;
     wrappedSender = function blackdomainElectronicSend(request, requestPayload, callback, ...rest) {
-      const wrappedCallback = typeof callback === "function"
-        ? function blackdomainElectronicResponse(response, ...callbackArgs) {
-          const result = callback.call(this, response, ...callbackArgs);
-          setTimeout(() => {
-            try {
-              const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
-              if (trigger) rememberPurchasedFeature(response);
-              else if (response?.engine?.gameState) emitSpin(response);
-            } catch {
-              // Keep the original network callback untouched.
-            }
-          }, 0);
-          return result;
-        }
-        : callback;
-      return original.call(this, request, requestPayload, wrappedCallback, ...rest);
+      const shouldObserve = requestPayload?.action === "buyFeature" || featureSpins.size > 0;
+      if (!shouldObserve || typeof callback !== "function") {
+        return senderOriginal.call(this, request, requestPayload, callback, ...rest);
+      }
+      const wrappedCallback = function blackdomainElectronicResponse(response, ...callbackArgs) {
+        const result = callback.call(this, response, ...callbackArgs);
+        setTimeout(() => {
+          try {
+            const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
+            if (trigger) rememberPurchasedFeature(response);
+            emitSpin(response, trigger);
+          } catch {
+            // Keep the original network callback untouched.
+          }
+        }, 0);
+        return result;
+      };
+      return senderOriginal.call(this, request, requestPayload, wrappedCallback, ...rest);
     };
     sender.send = wrappedSender;
+  }
+
+  function uninstallSenderWrapper() {
+    if (wrappedSenderOwner?.send === wrappedSender && originalSender) {
+      wrappedSenderOwner.send = originalSender;
+    }
+    wrappedSender = null;
+    wrappedSenderOwner = null;
+    originalSender = null;
   }
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_WATCH_ROOMS", (event) => {
@@ -497,6 +514,7 @@
     const watchedRoomsChanged = nextWatchedRoomNumbers.size !== watchedRoomNumbers.size
       || [...nextWatchedRoomNumbers].some((roomNumber) => !watchedRoomNumbers.has(roomNumber));
     if (!watchedRoomsChanged) return;
+    watchedRoomDiscoveryRequested = false;
     watchedRoomNumbers.clear();
     nextWatchedRoomNumbers.forEach((roomNumber) => watchedRoomNumbers.add(roomNumber));
     if (detailQueueTimer) {
@@ -506,6 +524,7 @@
     if (!watchedRoomNumbers.size) {
       if (watchedRoomTimer) clearInterval(watchedRoomTimer);
       watchedRoomTimer = null;
+      uninstallSenderWrapper();
       return;
     }
     if (!watchedRoomTimer) {
@@ -516,11 +535,20 @@
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", requestForcedFullScan);
 
+  function installSenderAfterUserInteraction() {
+    if (gameInitializedAt && watchedRoomNumbers.size) installSenderWrapper();
+  }
+
+  window.addEventListener("pointerdown", installSenderAfterUserInteraction, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener("keydown", installSenderAfterUserInteraction, {
+    capture: true,
+  });
+
   function maintainWrappers() {
     installDispatchWrapper();
-    if (gameInitializedAt && Date.now() - gameInitializedAt >= SENDER_WRAP_DELAY_MS) {
-      installSenderWrapper();
-    }
     const dispatchReady = typeof window.dispatch === "function" && window.dispatch === wrappedDispatch;
     const withinFastRetryWindow = Date.now() - wrapperBootstrapStartedAt < WRAPPER_FAST_RETRY_WINDOW_MS;
     setTimeout(
