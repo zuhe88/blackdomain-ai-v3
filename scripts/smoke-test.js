@@ -641,11 +641,19 @@ async function main() {
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
-  assertIncludes(values, "資料完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
-  assertIncludes(values, "請勿重複點擊「重新推薦」", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
+  assertIncludes(values, "最長等待 2 分鐘｜請勿重複點擊", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "取消推薦", "Electronic pending cancel action");
+  if (values.some((value) => value === "資訊" || value === "狀態")) {
+    throw new Error("Electronic pending recommendation must not repeat generic row labels");
+  }
   if (values.some((value) => String(value).includes("請等60秒後再按重新推薦"))) {
     throw new Error("Electronic pending recommendation must not require another manual click");
   }
+  values = await sendAndTexts("取消推薦", "user-smoke");
+  assertIncludes(values, "已取消推薦", "Electronic pending recommendation cancellation");
+  values = await sendAndTexts("AI推薦房", "user-smoke");
+  assertIncludes(values, "房間數據整理中", "Electronic pending recommendation restart after cancellation");
   values = await sendAndTexts("重新推薦", "user-smoke");
   assertIncludes(values, "房間數據仍在整理中", "Electronic pending duplicate guard");
   if (!electronicSource.ingestTables({
@@ -763,7 +771,7 @@ async function main() {
     .flatMap((message) => collectText(message));
   assertIncludes(
     duplicateRecommendationTexts,
-    "完成後會自動回傳新的推薦房間",
+    "完成後會自動回傳推薦房間",
     "Duplicate electronic recommendation guard",
   );
   const freshRecommendationReply = await freshRecommendationPromise;
@@ -777,9 +785,9 @@ async function main() {
     .slice(waitingPushCount)
     .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
   assertIncludes(waitingPushTexts, "即時房間數據同步中", "Electronic recommendation waiting Flex");
-  assertIncludes(waitingPushTexts, "預計 0～8 秒完成", "Electronic recommendation waiting estimate");
-  assertIncludes(waitingPushTexts, "完成後會自動回傳新的推薦房間", "Electronic recommendation automatic response notice");
-  assertIncludes(waitingPushTexts, "請勿重複點擊「重新推薦」", "Electronic recommendation duplicate-click warning");
+  assertIncludes(waitingPushTexts, "預計 0～8 秒｜請勿重複點擊", "Electronic recommendation waiting estimate");
+  assertIncludes(waitingPushTexts, "完成後會自動回傳推薦房間", "Electronic recommendation automatic response notice");
+  assertIncludes(waitingPushTexts, "取消推薦", "Electronic live-detail cancel action");
   if (values.some((value) => String(value).includes("90.00%"))) {
     throw new Error("Electronic recommendation must not display stale room details");
   }
@@ -799,6 +807,60 @@ async function main() {
   });
   if (stoppedWatchNotified || captured.pushes.length !== stoppedWatchPushCount) {
     throw new Error("Stopped electronic room monitoring must not send feature notifications");
+  }
+  electronic.setGameSession("cancel-inflight-user", "戰神賽特1");
+  setTimeout(() => electronicSource.ingestDetail({
+    gameName: "戰神賽特1",
+    detail: {
+      roomId: "seth-88",
+      number: 88,
+      status: "Empty",
+      todayWin: 300,
+      todayBet: 300,
+      dayWin: 3000,
+      dayBet: 3000,
+    },
+  }), 50);
+  const cancelInFlightReplyCount = captured.replies.length;
+  const cancelInFlightPushCount = captured.pushes.length;
+  const cancelledRecommendationPromise = electronic.recommendRoom(
+    event("AI推薦房", "cancel-inflight-user"),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  values = await sendAndTexts("取消推薦", "cancel-inflight-user");
+  assertIncludes(values, "已取消推薦", "Electronic in-flight recommendation cancellation");
+  await cancelledRecommendationPromise;
+  if (captured.replies.length !== cancelInFlightReplyCount + 1) {
+    throw new Error("Cancelled in-flight recommendation must not send a final reply");
+  }
+  const cancelledRecommendationPushTexts = captured.pushes
+    .slice(cancelInFlightPushCount)
+    .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
+  if (cancelledRecommendationPushTexts.some((value) => String(value).includes("推薦房號"))) {
+    throw new Error("Cancelled in-flight recommendation must not push a room");
+  }
+  electronic.setGameSession("home-cancel-user", "戰神賽特1");
+  setTimeout(() => electronicSource.ingestDetail({
+    gameName: "戰神賽特1",
+    detail: {
+      roomId: "seth-88",
+      number: 88,
+      status: "Empty",
+      todayWin: 500,
+      todayBet: 500,
+      dayWin: 5000,
+      dayBet: 5000,
+    },
+  }), 50);
+  const homeCancelReplyCount = captured.replies.length;
+  const homeCancelledRecommendation = electronic.recommendRoom(
+    event("AI推薦房", "home-cancel-user"),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  electronic.resetElectronicSession("home-cancel-user");
+  await homeCancelledRecommendation;
+  if (captured.replies.length !== homeCancelReplyCount) {
+    throw new Error("Returning home must cancel an in-flight electronic recommendation");
   }
   electronicSource.resetForTest();
   electronicSource.ingestTables({

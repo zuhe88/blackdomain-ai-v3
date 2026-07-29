@@ -165,6 +165,10 @@ async function handleEvent(event) {
     return electronic.handleElectronicMessage(event);
   }
 
+  if (electronic.isCancelRecommendationCommand?.(text)) {
+    return electronic.handleElectronicMessage(event);
+  }
+
   if (
     ["重新開始", "返回首頁"].includes(text)
     && baccarat.hasActiveBaccaratSession

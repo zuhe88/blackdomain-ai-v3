@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const { reply, push, quickReply } = require("../../services/line");
-const { bubble, infoLine } = require("../../ui/flex/premium");
+const { COLORS, bubble, button, note, section, text } = require("../../ui/flex/premium");
 const {
   electronicRecommendFlex,
   electronicFeatureResultFlex,
@@ -46,6 +46,7 @@ const ADMIN_REFRESH_COMMANDS = new Set([
   "刷新房間統計",
 ]);
 const STOP_WATCH_COMMAND = "結束房間監控";
+const CANCEL_RECOMMEND_COMMANDS = new Set(["取消推薦", "停止推薦"]);
 
 function watchKey(watch = {}) {
   return `${watch.userId || ""}:${watch.gameName || ""}:${Number(watch.roomNumber) || 0}`;
@@ -57,12 +58,61 @@ function isStopWatchCommand(value) {
     || String(value || "").startsWith(`${STOP_WATCH_COMMAND} `);
 }
 
+function isCancelRecommendationCommand(value) {
+  return CANCEL_RECOMMEND_COMMANDS.has(String(value || "").trim());
+}
+
 function cancelPendingRecommendation(userId) {
   const pending = pendingRecommendations.get(userId);
   if (!pending) return false;
   clearTimeout(pending.timer);
   pendingRecommendations.delete(userId);
   return true;
+}
+
+async function cancelRecommendation(userId) {
+  const pendingCancelled = cancelPendingRecommendation(userId);
+  const inFlight = recommendInFlight.get(userId);
+  if (inFlight) inFlight.cancelled = true;
+  if (inFlight) await stopLiveWatch(userId);
+  return pendingCancelled || Boolean(inFlight);
+}
+
+function recommendationWaitingFlex(title, gameName, message, eta) {
+  return bubble({
+    altText: title,
+    title,
+    subtitle: "BLACKDOMAIN ELECTRONIC AI",
+    quickReply: quickReply([
+      { label: "取消推薦", text: "取消推薦" },
+      { label: "返回首頁", text: "首頁" },
+    ]),
+    footer: "BLACKDOMAIN ELECTRONIC AI",
+    contents: [
+      section([
+        text(gameName, {
+          size: "sm",
+          weight: "bold",
+          color: COLORS.gold,
+          align: "center",
+        }),
+        text(message, {
+          size: "md",
+          weight: "bold",
+          color: COLORS.white,
+          align: "center",
+        }),
+        text("完成後會自動回傳推薦房間", {
+          size: "sm",
+          color: COLORS.green,
+          align: "center",
+        }),
+        { type: "separator", color: "#4C3C1E" },
+        note(`${eta}｜請勿重複點擊`),
+      ]),
+      button("取消推薦", "取消推薦", "danger"),
+    ],
+  });
 }
 
 function queuePendingRecommendation(userId, gameName) {
@@ -422,7 +472,13 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
     subtitle: "BLACKDOMAIN ELECTRONIC AI",
     quickReply: quickReplyData,
     footer: "BLACKDOMAIN ELECTRONIC AI",
-    contents: lines.map((line) => infoLine("資訊", line)),
+    contents: lines.length
+      ? [section(lines.map((line, index) => text(line, {
+          size: "sm",
+          color: index === 0 ? COLORS.gold : COLORS.white,
+          align: "center",
+        })))]
+      : [],
   });
 }
 
@@ -512,6 +568,20 @@ async function stopRoomMonitoring(event) {
   ], afterRecommendQuickReply()));
 }
 
+async function handleCancelRecommendation(event) {
+  const cancelled = await cancelRecommendation(event.source?.userId || "");
+  if (cancelled) {
+    return reply(event.replyToken, electronicPromptFlex("已取消推薦", [
+      "本次等待與自動回傳已停止",
+      "需要時可重新按「AI推薦房」",
+    ], electronicModeQuickReply()));
+  }
+  return reply(event.replyToken, electronicPromptFlex("目前沒有等待中的推薦", [
+    "若要停止房間特色遊戲通知",
+    "請使用推薦卡下方的「結束該房間」",
+  ], afterRecommendQuickReply()));
+}
+
 function formatSnapshotTime(value) {
   if (!value) return "尚未取得";
   return new Date(value).toLocaleString("zh-TW", {
@@ -550,13 +620,12 @@ async function handleAdminRefreshCommand(event) {
 
 async function pushRoomSyncWaiting(userId, gameName) {
   try {
-    await push(userId, electronicPromptFlex("即時房間數據同步中", [
+    await push(userId, recommendationWaitingFlex(
+      "即時房間數據同步中",
       gameName,
-      "正在重新確認空房與房間統計",
-      "預計 0～8 秒完成",
-      "完成後會自動回傳新的推薦房間",
-      "請勿重複點擊「重新推薦」",
-    ]));
+      "正在確認空房與房間統計",
+      "預計 0～8 秒",
+    ));
     return true;
   } catch (error) {
     console.error("[Electronic] Room sync waiting message failed:", error.message);
@@ -608,9 +677,16 @@ async function showGameMenu(event) {
 }
 
 function deliverRecommendation(event, message) {
+  if (event.recommendationRequest?.cancelled) return false;
   return event.autoPush
     ? push(event.source.userId, message)
     : reply(event.replyToken, message);
+}
+
+async function stopIfRecommendationCancelled(event, userId) {
+  if (!event.recommendationRequest?.cancelled) return false;
+  await stopLiveWatch(userId);
+  return true;
 }
 
 async function performRecommendRoom(event) {
@@ -628,13 +704,12 @@ async function performRecommendRoom(event) {
       && (!electronicSource.hasFreshData(session.gameName) || !electronicSource.hasReadyData(session.gameName))
     ) {
       queuePendingRecommendation(userId, session.gameName);
-      return deliverRecommendation(event, electronicPromptFlex("房間數據整理中", [
+      return deliverRecommendation(event, recommendationWaitingFlex(
+        "房間數據整理中",
         session.gameName,
-        "正在同步最新房表與房間統計",
-        "資料完成後會自動回傳推薦房間",
-        "請勿重複點擊「重新推薦」",
+        "正在同步最新房表與統計",
         "最長等待 2 分鐘",
-      ], afterRecommendQuickReply()));
+      ));
     }
     return deliverRecommendation(event, electronicPromptFlex("目前沒有可推薦的空房", [
       session.gameName,
@@ -660,6 +735,7 @@ async function performRecommendRoom(event) {
         firstWaitMs,
       )
       : null;
+    if (await stopIfRecommendationCancelled(event, userId)) return false;
     if (!refreshed || refreshed.status !== "Empty" || refreshed.occupied === true) {
       selected = getNextRecommendRoom(userId, session.gameName);
       roomNumber = selectedRoomNumber(selected);
@@ -678,6 +754,7 @@ async function performRecommendRoom(event) {
             remainingWaitMs,
           )
           : null;
+        if (await stopIfRecommendationCancelled(event, userId)) return false;
       }
     } else {
       selected = refreshed;
@@ -686,14 +763,15 @@ async function performRecommendRoom(event) {
       !selected.detail || selected.status !== "Empty" || selected.occupied === true
     ))) {
       await stopLiveWatch(userId, session.gameName, roomNumber);
-      return deliverRecommendation(event, electronicPromptFlex("房間即時數據同步中", [
+      return deliverRecommendation(event, electronicPromptFlex("即時房間數據同步逾時", [
         session.gameName,
-        "系統未使用舊統計進行推薦",
-        "請稍後再按一次重新推薦",
+        "為避免房況不一致，本次未使用舊統計推薦",
+        "等待已自動結束，需要時可重新推薦",
       ], afterRecommendQuickReply()));
     }
     roomNumber = selectedRoomNumber(selected);
   }
+  if (await stopIfRecommendationCancelled(event, userId)) return false;
   const room = formatRoom(session.gameName, roomNumber);
   rememberLiveWatch({
     userId,
@@ -714,24 +792,29 @@ async function recommendRoom(event) {
   const userId = event.source.userId;
   const pending = pendingRecommendations.get(userId);
   if (pending && !event.autoPush) {
-    return reply(event.replyToken, electronicPromptFlex("房間數據仍在整理中", [
+    return reply(event.replyToken, recommendationWaitingFlex(
+      "房間數據仍在整理中",
       pending.gameName,
-      "資料完成後會自動回傳推薦房間",
-      "請勿重複點擊「重新推薦」",
-    ], afterRecommendQuickReply()));
+      "正在同步最新房表與統計",
+      "最長等待 2 分鐘",
+    ));
   }
   if (recommendInFlight.has(userId)) {
-    return reply(event.replyToken, electronicPromptFlex("即時房間數據同步中", [
-      "完成後會自動回傳新的推薦房間",
-      "請勿重複點擊「重新推薦」",
-    ], afterRecommendQuickReply()));
+    const currentGame = getUserSession(userId).gameName || "電子AI";
+    return reply(event.replyToken, recommendationWaitingFlex(
+      "即時房間數據同步中",
+      currentGame,
+      "正在確認空房與房間統計",
+      "預計 0～8 秒",
+    ));
   }
-  const requestId = crypto.randomUUID();
-  recommendInFlight.set(userId, requestId);
+  const request = { id: crypto.randomUUID(), cancelled: false };
+  recommendInFlight.set(userId, request);
   try {
-    return await performRecommendRoom(event);
+    const result = await performRecommendRoom({ ...event, recommendationRequest: request });
+    return request.cancelled ? false : result;
   } finally {
-    if (recommendInFlight.get(userId) === requestId) recommendInFlight.delete(userId);
+    if (recommendInFlight.get(userId) === request) recommendInFlight.delete(userId);
   }
 }
 
@@ -783,6 +866,7 @@ async function changeRecommendRoom(event) {
 
 async function handleElectronicMessage(event) {
   const value = event.message.text.trim();
+  if (isCancelRecommendationCommand(value)) return handleCancelRecommendation(event);
   if (isStopWatchCommand(value)) return stopRoomMonitoring(event);
   if (MAIN_COMMANDS.has(value)) return showElectronicMain(event);
   if (GAME_CONFIG[value]) return selectGame(event, value);
@@ -803,7 +887,8 @@ function isElectronicCommand(value) {
     || Boolean(GAME_CONFIG[value])
     || RECOMMEND_COMMANDS.has(value)
     || BACK_TO_GAME_COMMANDS.has(value)
-    || isStopWatchCommand(value);
+    || isStopWatchCommand(value)
+    || isCancelRecommendationCommand(value);
 }
 
 function hasActiveElectronicSession(userId) {
@@ -816,7 +901,21 @@ function getCurrentGame(userId) {
 
 function resetElectronicSession(userId) {
   cancelPendingRecommendation(userId);
+  const inFlight = recommendInFlight.get(userId);
+  if (inFlight) inFlight.cancelled = true;
+  stopLiveWatch(userId).catch((error) => {
+    console.error("[Electronic] Watch reset failed:", error.message);
+  });
   electronicSessions.delete(userId);
+  if (supabase) {
+    supabase
+      .from("lottery_settings")
+      .delete()
+      .eq("key", `${SESSION_KEY_PREFIX}${userId}`)
+      .then(({ error }) => {
+        if (error) console.error("[Electronic] Session reset failed:", error.message);
+      });
+  }
 }
 
 function electronicStatus(userId) {
@@ -861,5 +960,6 @@ module.exports = {
   notifyAdminRefreshComplete,
   ADMIN_REFRESH_COMMANDS,
   isStopWatchCommand,
+  isCancelRecommendationCommand,
   handleElectronicDataReady,
 };
