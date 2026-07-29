@@ -536,8 +536,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.1.3") {
-    throw new Error("Electronic relay extension version must be 1.1.3");
+  if (electronicRelayManifest.version !== "1.1.4") {
+    throw new Error("Electronic relay extension version must be 1.1.4");
   }
   const electronicBridgeSource = fs.readFileSync(
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
@@ -549,10 +549,19 @@ async function main() {
     "SCAN_RESTART_BACKOFF_STEPS_MS",
     "handleScanPageFailure",
     "SCAN_PAGE_INTERVAL_MS",
+    "INITIAL_FULL_SCAN_DELAY_MS",
+    "PASSIVE_FULL_SCAN_INTERVAL_MS",
+    "SENDER_WRAP_DELAY_MS",
+    "WRAPPER_HEALTH_CHECK_MS",
+    "watchedRoomsChanged",
+    "clearInterval(watchedRoomTimer)",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);
     }
+  }
+  if (electronicBridgeSource.includes("setInterval(() => {\n    installDispatchWrapper()")) {
+    throw new Error("Electronic relay bridge must not poll wrappers with a permanent fast interval");
   }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");
@@ -762,11 +771,20 @@ async function main() {
   if (automaticRecommendationCount !== 1) {
     throw new Error(`Electronic data-ready flow returned ${automaticRecommendationCount} automatic recommendations`);
   }
-  const automaticRecommendationTexts = captured.pushes
-    .slice(automaticRecommendationPushCount)
+  const automaticRecommendationPushes = captured.pushes
+    .slice(automaticRecommendationPushCount);
+  if (automaticRecommendationPushes.length !== 1) {
+    throw new Error(
+      `Electronic data-ready flow must send only the final recommendation, received ${automaticRecommendationPushes.length} pushes`,
+    );
+  }
+  const automaticRecommendationTexts = automaticRecommendationPushes
     .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
   assertIncludes(automaticRecommendationTexts, "推薦房號", "Electronic data-ready automatic recommendation");
   assertIncludes(automaticRecommendationTexts, "99.00%", "Electronic automatic recommendation fresh details");
+  if (automaticRecommendationTexts.some((value) => value === "即時房間數據同步中")) {
+    throw new Error("Electronic data-ready flow must not send a second waiting card");
+  }
   electronicSource.resetForTest();
   if (!electronicSource.ingestTables({
     type: "tables",

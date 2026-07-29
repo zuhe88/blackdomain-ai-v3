@@ -726,7 +726,9 @@ async function performRecommendRoom(event) {
       Date.now() + DETAIL_WAIT_MS,
       Number(event.recommendationDeadline) || Number.POSITIVE_INFINITY,
     );
-    await pushRoomSyncWaiting(userId, session.gameName);
+    if (!event.waitingAlreadySent) {
+      await pushRoomSyncWaiting(userId, session.gameName);
+    }
     rememberLiveWatch({
       userId,
       gameName: session.gameName,
@@ -834,6 +836,7 @@ async function handleElectronicDataReady(gameName) {
     source: { userId: item.userId },
     message: { type: "text", text: "自動推薦" },
     autoPush: true,
+    waitingAlreadySent: true,
     recommendationDeadline: item.deadlineAt,
   })));
   return results.filter((result) => result.status === "fulfilled").length;

@@ -4,6 +4,7 @@
   if (window.__blackdomainElectronicBridgeInstalled) return;
   window.__blackdomainElectronicBridgeInstalled = true;
 
+  const INIT_RESPONSE = "SlotFrameworkEvent:INIT_RESPONSE";
   const TABLE_PAGE_RESPONSE = "SlotFrameworkEvent:SLOT_TABLE_PAGE_DATA_RESPONSE";
   const TABLE_DETAIL_RESPONSE = "SlotFrameworkEvent:SLOT_TABLE_RESPONSE";
   const TABLE_PAGE_REQUEST = "SlotFrameworkEvent:SEND_GET_SLOT_TABLE_PAGE_DATA_REQUEST";
@@ -13,6 +14,14 @@
     "SlotFrameworkEvent:SPIN_RESPONSE",
     "SlotFrameworkEvent:EARLY_SPIN_RESPONSE",
     "SlotFrameworkEvent:BUY_FEATURE_RESPONSE",
+  ]);
+  const OBSERVED_DISPATCH_EVENTS = new Set([
+    INIT_RESPONSE,
+    TABLE_PAGE_RESPONSE,
+    TABLE_DETAIL_RESPONSE,
+    TABLE_DETAIL_REQUEST,
+    TABLES_UPDATED_RESPONSE,
+    ...SPIN_EVENTS,
   ]);
   let wrappedDispatch = null;
   let gameName = null;
@@ -40,9 +49,16 @@
   let gameInitializedAt = 0;
   const SCAN_PAGE_INTERVAL_MS = 250;
   const SCAN_PAGE_TIMEOUT_MS = 1800;
-  const SCAN_STARTUP_GRACE_MS = 15000;
+  const SCAN_STARTUP_GRACE_MS = 30000;
   const SCAN_RESTART_BACKOFF_STEPS_MS = [10000, 20000, 30000];
   const MAX_SCAN_PAGE_RETRIES = 2;
+  const INITIAL_FULL_SCAN_DELAY_MS = 60000;
+  const PASSIVE_FULL_SCAN_INTERVAL_MS = 90000;
+  const SENDER_WRAP_DELAY_MS = 30000;
+  const WRAPPER_FAST_RETRY_MS = 20;
+  const WRAPPER_FAST_RETRY_WINDOW_MS = 30000;
+  const WRAPPER_HEALTH_CHECK_MS = 1000;
+  const wrapperBootstrapStartedAt = Date.now();
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -188,7 +204,7 @@
     }
   }
 
-  function scheduleFullScan(delay = 30000) {
+  function scheduleFullScan(delay = PASSIVE_FULL_SCAN_INTERVAL_MS) {
     if (scanTimer || scanPage !== 0) return;
     scanTimer = setTimeout(() => {
       scanTimer = null;
@@ -243,8 +259,8 @@
     if (detailQueueTimer) clearTimeout(detailQueueTimer);
     const now = Date.now();
     const queue = scanEmptyCandidates
-      .filter((table) => now - (detailFetchedAt.get(table.roomId) || 0) > 5 * 60 * 1000)
-      .slice(0, 10);
+      .slice(0, 10)
+      .filter((table) => now - (detailFetchedAt.get(table.roomId) || 0) > 5 * 60 * 1000);
     let index = 0;
     const next = () => {
       const table = queue[index++];
@@ -332,7 +348,7 @@
     gameName ||= detectGameName(payload);
     if (!gameName) return;
 
-    if (eventName === "SlotFrameworkEvent:INIT_RESPONSE") {
+    if (eventName === INIT_RESPONSE) {
       if (!gameInitializedAt) gameInitializedAt = Date.now();
       const table = payload?.platform?.table || payload?.platform?.slotTable || payload?.table;
       const normalized = normalizeTable(table);
@@ -342,7 +358,7 @@
         emit({ type: "tables", gameName, ...initialTables });
         scanTotalPages = initialTables.totalPages || Number(payload?.platform?.tableMeta?.totalPages) || 8;
       }
-      scheduleFullScan(30000);
+      scheduleFullScan(INITIAL_FULL_SCAN_DELAY_MS);
       return;
     }
 
@@ -377,7 +393,7 @@
         activeRefreshId = "";
         scheduleCandidateDetails();
         if (forceScanRequested) requestForcedFullScan();
-        else scheduleFullScan(30000);
+        else scheduleFullScan(PASSIVE_FULL_SCAN_INTERVAL_MS);
       }
       return;
     }
@@ -420,12 +436,27 @@
     if (typeof window.dispatch !== "function" || window.dispatch === wrappedDispatch) return;
     const original = window.dispatch;
     wrappedDispatch = function blackdomainElectronicDispatch(eventName, payload, ...rest) {
-      try {
-        handleDispatch(eventName, payload);
-      } catch {
-        // Keep the original game event flow untouched.
+      if (!OBSERVED_DISPATCH_EVENTS.has(eventName)) {
+        return original.call(this, eventName, payload, ...rest);
       }
-      return original.call(this, eventName, payload, ...rest);
+      if (eventName === TABLE_DETAIL_REQUEST) {
+        try {
+          handleDispatch(eventName, payload);
+        } catch {
+          // Keep the original game event flow untouched.
+        }
+      }
+      const result = original.call(this, eventName, payload, ...rest);
+      if (eventName !== TABLE_DETAIL_REQUEST) {
+        setTimeout(() => {
+          try {
+            handleDispatch(eventName, payload);
+          } catch {
+            // Keep the original game event flow untouched.
+          }
+        }, 0);
+      }
+      return result;
     };
     window.dispatch = wrappedDispatch;
   }
@@ -437,14 +468,17 @@
     wrappedSender = function blackdomainElectronicSend(request, requestPayload, callback, ...rest) {
       const wrappedCallback = typeof callback === "function"
         ? function blackdomainElectronicResponse(response, ...callbackArgs) {
-          try {
-            const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
-            if (trigger) rememberPurchasedFeature(response);
-            else if (response?.engine?.gameState) emitSpin(response);
-          } catch {
-            // Keep the original network callback untouched.
-          }
-          return callback.call(this, response, ...callbackArgs);
+          const result = callback.call(this, response, ...callbackArgs);
+          setTimeout(() => {
+            try {
+              const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
+              if (trigger) rememberPurchasedFeature(response);
+              else if (response?.engine?.gameState) emitSpin(response);
+            } catch {
+              // Keep the original network callback untouched.
+            }
+          }, 0);
+          return result;
         }
         : callback;
       return original.call(this, request, requestPayload, wrappedCallback, ...rest);
@@ -454,15 +488,25 @@
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_WATCH_ROOMS", (event) => {
     const rooms = Array.isArray(event.detail?.rooms) ? event.detail.rooms : [];
-    watchedRoomNumbers.clear();
+    const nextWatchedRoomNumbers = new Set();
     rooms.forEach((room) => {
       if (room?.gameName === gameName && Number.isInteger(Number(room.roomNumber))) {
-        watchedRoomNumbers.add(Number(room.roomNumber));
+        nextWatchedRoomNumbers.add(Number(room.roomNumber));
       }
     });
-    if (watchedRoomNumbers.size && detailQueueTimer) {
+    const watchedRoomsChanged = nextWatchedRoomNumbers.size !== watchedRoomNumbers.size
+      || [...nextWatchedRoomNumbers].some((roomNumber) => !watchedRoomNumbers.has(roomNumber));
+    if (!watchedRoomsChanged) return;
+    watchedRoomNumbers.clear();
+    nextWatchedRoomNumbers.forEach((roomNumber) => watchedRoomNumbers.add(roomNumber));
+    if (detailQueueTimer) {
       clearTimeout(detailQueueTimer);
       detailQueueTimer = null;
+    }
+    if (!watchedRoomNumbers.size) {
+      if (watchedRoomTimer) clearInterval(watchedRoomTimer);
+      watchedRoomTimer = null;
+      return;
     }
     if (!watchedRoomTimer) {
       watchedRoomTimer = setInterval(requestNextWatchedRoom, 2500);
@@ -472,10 +516,20 @@
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", requestForcedFullScan);
 
-  setInterval(() => {
+  function maintainWrappers() {
     installDispatchWrapper();
-    installSenderWrapper();
-  }, 20);
+    if (gameInitializedAt && Date.now() - gameInitializedAt >= SENDER_WRAP_DELAY_MS) {
+      installSenderWrapper();
+    }
+    const dispatchReady = typeof window.dispatch === "function" && window.dispatch === wrappedDispatch;
+    const withinFastRetryWindow = Date.now() - wrapperBootstrapStartedAt < WRAPPER_FAST_RETRY_WINDOW_MS;
+    setTimeout(
+      maintainWrappers,
+      !dispatchReady && withinFastRetryWindow ? WRAPPER_FAST_RETRY_MS : WRAPPER_HEALTH_CHECK_MS,
+    );
+  }
+
+  maintainWrappers();
 
   console.info("[BLACKDOMAIN Electronic] ATG room observer active");
 }());
