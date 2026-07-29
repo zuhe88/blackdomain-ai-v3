@@ -47,6 +47,27 @@
     send(body);
   });
 
+  async function syncWatchRooms() {
+    const key = await getRelayKey();
+    if (!key) return;
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "BLACKDOMAIN_ELECTRONIC_WATCHES",
+        key,
+      });
+      if (response?.ok && Array.isArray(response.data?.rooms)) {
+        window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_WATCH_ROOMS", {
+          detail: { rooms: response.data.rooms },
+        }));
+      }
+    } catch {
+      // The next interval retries transient extension/background failures.
+    }
+  }
+
+  syncWatchRooms();
+  setInterval(syncWatchRooms, 5000);
+
   chrome.storage.local.set({ blackdomainElectronicContentLoadedAt: Date.now() });
 
   console.info("[BLACKDOMAIN Electronic] ATG relay active");

@@ -112,6 +112,40 @@ async function getLiveWatchers(gameName, roomNumber) {
   return [...watchers.values()];
 }
 
+async function getActiveWatchRooms() {
+  const watches = new Map();
+  const now = Date.now();
+  for (const watch of liveWatches.values()) {
+    if (watch?.userId && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT) {
+      watches.set(watch.userId, watch);
+    }
+  }
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("lottery_settings")
+      .select("value")
+      .like("key", `${WATCH_KEY_PREFIX}%`);
+    if (error) {
+      console.error("[Electronic] Active watch lookup failed:", error.message);
+    } else {
+      for (const row of data || []) {
+        const watch = row?.value;
+        if (watch?.userId && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT) {
+          watches.set(watch.userId, watch);
+          liveWatches.set(watch.userId, watch);
+        }
+      }
+    }
+  }
+  const rooms = new Map();
+  for (const watch of watches.values()) {
+    const roomNumber = Number(watch.roomNumber);
+    if (!electronicSource.SUPPORTED_GAMES.has(watch.gameName) || !Number.isInteger(roomNumber)) continue;
+    rooms.set(`${watch.gameName}:${roomNumber}`, { gameName: watch.gameName, roomNumber });
+  }
+  return [...rooms.values()];
+}
+
 function taipeiNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Taipei" }));
 }
@@ -415,6 +449,7 @@ async function handleElectronicSpin(payload = {}) {
   const featureTrigger = String(payload.featureTrigger || "");
   const featureAction = String(payload.action || "");
   const isConfirmedFeature = featureTrigger === "purchased"
+    || featureTrigger === "room-monitor"
     || (featureTrigger === "natural" && /free|super|feature/i.test(featureAction));
   if (!isConfirmedFeature) return false;
   const roomNumber = Number(payload.roomNumber);
@@ -508,4 +543,5 @@ module.exports = {
   electronicStatus,
   getNextRecommendRoom,
   handleElectronicSpin,
+  getActiveWatchRooms,
 };

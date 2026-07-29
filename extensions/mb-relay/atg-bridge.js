@@ -28,6 +28,9 @@
   let wrappedSender = null;
   const detailFetchedAt = new Map();
   const featureSpins = new Map();
+  const watchedRoomNumbers = new Set();
+  let watchedRoomCursor = 0;
+  let watchedRoomTimer = null;
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -134,10 +137,12 @@
       todayWin: detail.todayWin,
       todayBet: detail.todayBet,
       mgCounts: Array.isArray(detail.mgCounts) ? detail.mgCounts.slice(0, 3) : undefined,
+      capturedAt: Date.now(),
     };
   }
 
   function scheduleCandidateDetails() {
+    if (watchedRoomNumbers.size) return;
     if (detailQueueTimer) clearTimeout(detailQueueTimer);
     const now = Date.now();
     const queue = scanEmptyCandidates
@@ -155,6 +160,17 @@
       detailQueueTimer = setTimeout(next, 1500);
     };
     detailQueueTimer = setTimeout(next, 3000);
+  }
+
+  function requestNextWatchedRoom() {
+    if (!watchedRoomNumbers.size || typeof window.dispatch !== "function" || pendingDetailRoom) return;
+    const numbers = [...watchedRoomNumbers];
+    const roomNumber = numbers[watchedRoomCursor % numbers.length];
+    watchedRoomCursor = (watchedRoomCursor + 1) % numbers.length;
+    const table = [...knownTables.values()].find((item) => item.number === roomNumber);
+    if (!table) return;
+    pendingDetailRoom = table;
+    window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
   }
 
   function getSpinStates(payload) {
@@ -324,6 +340,23 @@
     };
     sender.send = wrappedSender;
   }
+
+  window.addEventListener("BLACKDOMAIN_ELECTRONIC_WATCH_ROOMS", (event) => {
+    const rooms = Array.isArray(event.detail?.rooms) ? event.detail.rooms : [];
+    watchedRoomNumbers.clear();
+    rooms.forEach((room) => {
+      if (room?.gameName === gameName && Number.isInteger(Number(room.roomNumber))) {
+        watchedRoomNumbers.add(Number(room.roomNumber));
+      }
+    });
+    if (watchedRoomNumbers.size && detailQueueTimer) {
+      clearTimeout(detailQueueTimer);
+      detailQueueTimer = null;
+    }
+    if (!watchedRoomTimer) {
+      watchedRoomTimer = setInterval(requestNextWatchedRoom, 2500);
+    }
+  });
 
   setInterval(() => {
     installDispatchWrapper();

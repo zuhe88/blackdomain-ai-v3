@@ -11,6 +11,12 @@ function secureEqual(left, right) {
 
 function registerElectronicRelayRoutes(app) {
   app.get("/api/electronic/status", (_req, res) => res.json({ games: electronicSource.getSnapshot() }));
+  app.get("/api/electronic/watch-rooms", async (req, res) => {
+    const key = String(process.env.ATG_RELAY_KEY || "").trim();
+    if (!key) return res.status(503).json({ ok: false, error: "Electronic relay is not configured." });
+    if (!secureEqual(key, req.get("x-atg-relay-key") || req.get("x-electronic-relay-key"))) return res.status(401).json({ ok: false, error: "Unauthorized." });
+    return res.json({ ok: true, rooms: await electronic.getActiveWatchRooms() });
+  });
   app.post("/api/electronic/ingest", express.json({ limit: "250kb" }), async (req, res) => {
     const key = String(process.env.ATG_RELAY_KEY || "").trim();
     if (!key) return res.status(503).json({ ok: false, error: "Electronic relay is not configured." });
@@ -25,6 +31,10 @@ function registerElectronicRelayRoutes(app) {
         : body.type === "spin" && electronicSource.ingestSpin(body);
     if (!accepted) return res.status(400).json({ ok: false, error: "Invalid electronic payload." });
     if (body.type === "spin") await electronic.handleElectronicSpin(body);
+    if (body.type === "detail" && accepted.feature) {
+      electronicSource.ingestSpin(accepted.feature);
+      await electronic.handleElectronicSpin(accepted.feature);
+    }
     return res.status(202).json({ ok: true });
   });
 }

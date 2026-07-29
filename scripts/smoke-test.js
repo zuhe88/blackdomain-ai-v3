@@ -512,6 +512,9 @@ async function main() {
   if (!captured.routes.get.some((route) => route.route === "/api/mb/status")) {
     throw new Error("MB status route is not registered");
   }
+  if (!captured.routes.get.some((route) => route.route === "/api/electronic/watch-rooms")) {
+    throw new Error("Electronic watched-room route is not registered");
+  }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");
   }
@@ -621,6 +624,57 @@ async function main() {
   assertIncludes(values, "推薦房號", "Electronic empty-room fallback recommendation");
   if (values.some((value) => String(value).includes("資料讀取中"))) {
     throw new Error("Electronic recommendation must not wait for optional room details");
+  }
+  electronicSource.resetForTest();
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特2",
+    scanId: "monitored-room-scan",
+    scanComplete: true,
+    tables: [{ roomId: "seth-199", number: 199, status: "Full" }],
+  });
+  electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Full",
+      todayWin: 111905.47,
+      todayBet: 112025,
+      mgCounts: [17, 3, 13],
+      capturedAt: 1000,
+    },
+  });
+  const featureStart = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Full",
+      todayWin: 112038.27,
+      todayBet: 112225,
+      mgCounts: [0, 17, 3],
+      capturedAt: 3500,
+    },
+  });
+  if (featureStart.feature) throw new Error("Room feature monitor must wait for a stable payout sample");
+  const featureSettled = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Full",
+      todayWin: 112038.27,
+      todayBet: 112225,
+      mgCounts: [0, 17, 3],
+      capturedAt: 6000,
+    },
+  });
+  if (
+    featureSettled.feature?.featureTrigger !== "room-monitor"
+    || Math.abs(featureSettled.feature.totalWinnings - 132.8) > 1e-6
+  ) {
+    throw new Error(`Room feature monitor returned an incorrect payout: ${JSON.stringify(featureSettled.feature)}`);
   }
 
   const atgGameMenuReply = await send("ATG", "user-smoke");

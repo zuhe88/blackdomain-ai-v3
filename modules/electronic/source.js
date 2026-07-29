@@ -12,6 +12,7 @@ const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   updatedAt: null,
   fullScanAt: null,
   spins: new Map(),
+  featureMonitors: new Map(),
 }]));
 
 function normalizeStatus(value) {
@@ -83,7 +84,67 @@ function ingestDetail(payload = {}) {
   if (!normalized) return false;
   state.tables.set(normalized.roomId, normalized);
   state.updatedAt = new Date().toISOString();
-  return true;
+  const now = Number(detail.capturedAt || payload.capturedAt) || Date.now();
+  const currentDetail = normalized.detail;
+  const previous = state.featureMonitors.get(normalized.roomId);
+  const currentCounts = currentDetail?.mgCounts || [];
+  const previousCounts = previous?.detail?.mgCounts || [];
+  const featureReset = previous?.status === "Full"
+    && normalized.status === "Full"
+    && previousCounts[0] > 0
+    && currentCounts[0] === 0
+    && currentCounts[1] === previousCounts[0]
+    && currentCounts[2] === previousCounts[1];
+  let pending = previous?.pending || null;
+  let feature = null;
+  if (featureReset) {
+    pending = {
+      startedAt: now,
+      baselineWin: Number(previous.detail.todayWin) || 0,
+      baselineBet: Number(previous.detail.todayBet) || 0,
+      lastWin: Number(currentDetail.todayWin) || 0,
+      stableCount: 0,
+    };
+  } else if (pending) {
+    const currentWin = Number(currentDetail?.todayWin) || 0;
+    if (Math.abs(currentWin - pending.lastWin) > 1e-7) {
+      pending.lastWin = currentWin;
+      pending.stableCount = 0;
+    } else {
+      pending.stableCount += 1;
+    }
+    const shouldFinalize = normalized.status !== "Full"
+      || pending.stableCount >= 1
+      || now - pending.startedAt >= 90 * 1000;
+    if (shouldFinalize) {
+      const winnings = currentWin - pending.baselineWin;
+      const stake = (Number(currentDetail?.todayBet) || 0) - pending.baselineBet;
+      if (winnings >= -1e-7 && stake >= -1e-7) {
+        feature = {
+          type: "spin",
+          gameName: state.gameName,
+          roomId: normalized.roomId,
+          roomNumber: normalized.number,
+          spinId: `room-monitor:${normalized.roomId}:${pending.startedAt}`,
+          totalWinnings: Math.max(0, winnings),
+          totalStake: Math.max(0, stake),
+          currentView: 0,
+          totalViews: 0,
+          action: "roomFeature",
+          featureTrigger: "room-monitor",
+          capturedAt: now,
+        };
+      }
+      pending = null;
+    }
+  }
+  state.featureMonitors.set(normalized.roomId, {
+    status: normalized.status,
+    detail: currentDetail && { ...currentDetail, mgCounts: [...currentCounts] },
+    capturedAt: now,
+    pending,
+  });
+  return { accepted: true, feature };
 }
 
 function ingestUpdates(payload = {}) {
@@ -168,6 +229,7 @@ function resetForTest() {
     state.tables = new Map();
     state.pendingScan = null;
     state.spins = new Map();
+    state.featureMonitors = new Map();
     state.updatedAt = null;
     state.fullScanAt = null;
   });
