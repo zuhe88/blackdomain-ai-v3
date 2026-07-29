@@ -226,17 +226,24 @@ function baccaratAnalysisFlex({
   reason = "BLACKDOMAIN AI 已完成分析",
   roomStats = {},
   autoResult = false,
+  notice = null,
   quickReply,
 }) {
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
   const isFreeBet = session.mode === "自由配注";
+  const isObserve = prediction === "觀望";
   const betLabel = isFreeBet ? "配注方式" : "建議下注";
   const betText = isFreeBet ? "玩家自行決定" : String(bet);
   const results = {
     pass: session.results.pass || 0,
     fail: session.results.fail || 0,
     tie: session.results.tie || 0,
+    observe: session.results.observe || 0,
   };
+  const resolvedRounds = results.pass + results.fail;
+  const hitRate = resolvedRounds
+    ? `${((results.pass / resolvedRounds) * 100).toFixed(2)}%`
+    : "-";
   const tableStats = {
     banker: Number(roomStats.banker) || 0,
     player: Number(roomStats.player) || 0,
@@ -251,15 +258,25 @@ function baccaratAnalysisFlex({
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
-      metric("建議", prediction, session.mode),
-      metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
+      metric(isObserve ? "本局策略" : "建議", prediction, reason),
+      ...(!isObserve ? [
+        metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
+      ] : []),
       ...(!isFreeBet ? [
         infoLine("目前本金", String(session.bankroll)),
         infoLine("目前獲利", String(profit)),
       ] : []),
       roomStatsPanel(tableStats),
-      infoLine("紀錄", `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}`),
-      ...(autoResult ? [infoLine("自動結算", "等待本房下一局開獎")] : []),
+      infoLine(
+        "紀錄",
+        `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}　觀望 ${results.observe}`,
+      ),
+      infoLine("有效命中", `${hitRate}（不含和局與觀望）`),
+      ...(notice ? [infoLine("同步狀態", notice)] : []),
+      ...(autoResult ? [infoLine(
+        "自動結算",
+        isObserve ? "開獎後會自動重新分析" : "等待本房下一局開獎",
+      )] : []),
       infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       ...(!autoResult ? [resultActionPanel()] : []),
       button("結束並返回遊戲選單", "首頁", "danger"),

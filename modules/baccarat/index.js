@@ -1,4 +1,4 @@
-const { push, reply } = require("../../services/line");
+const { pushStrict, reply } = require("../../services/line");
 const {
   baccaratPromptFlex,
   baccaratPlatformFlex,
@@ -9,13 +9,12 @@ const {
   getSession,
   hasActiveSession,
   listActiveSessions,
-  resetSession,
+  resetSession: resetStoredSession,
   setPlatform,
   setRoom,
   setCapital,
   setMaxBet,
   setMode,
-  setStep,
   updateAfterRound,
 } = require("./session");
 const {
@@ -30,12 +29,20 @@ const {
 const {
   platformQuickReply,
   modeQuickReply,
+  resultQuickReply,
   restartQuickReply,
 } = require("./quickReply");
-const { firstAnalysis, nextAnalysis, getReason } = require("./ai");
+const {
+  firstAnalysis,
+  nextAnalysis,
+  getReason,
+  applyResult,
+} = require("./ai");
 const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
 const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
+const liveSettlementQueues = new Map();
+const cancellationBarriers = new Map();
 
 function roomsForPlatform(platform) {
   return platform === "DG" ? DG_ROOMS : MT_ROOMS;
@@ -50,16 +57,21 @@ function roomStatsFor(session) {
   return source.getRoomStats(session.room);
 }
 
-function liveResultOptions(session) {
-  const source = session.platform === "DG" ? dgSource : mtSource;
-  const table = source.getTableByRoom(session.room);
-  if (table?.history.length) {
-    session.lastLiveGameNo = table.history[table.history.length - 1].gameNo;
-  }
+function liveResultOptions() {
   return {
     autoResult: true,
     quickReply: restartQuickReply(),
   };
+}
+
+function bindLiveCursor(session, record = {}) {
+  session.lastLiveEventKey = record.eventKey || null;
+  session.lastLiveGameNo = record.gameNo || null;
+  session.lastLiveShoeKey = record.shoeKey || null;
+  session.lastLiveRoundIndex = Number.isInteger(Number(record.roundIndex))
+    ? Number(record.roundIndex)
+    : null;
+  return session;
 }
 
 function hydrateLiveHistory(session) {
@@ -67,42 +79,349 @@ function hydrateLiveHistory(session) {
   const table = source.getTableByRoom(session.room);
   if (!table?.history.length) return session;
   session.history = table.history.slice(-50).map((record) => record.result);
-  session.lastLiveGameNo = table.history[table.history.length - 1].gameNo;
+  return bindLiveCursor(session, table.history[table.history.length - 1]);
+}
+
+function cloneSession(session) {
+  return {
+    ...session,
+    history: Array.isArray(session.history) ? [...session.history] : [],
+    results: { ...(session.results || {}) },
+    lastBetMeta: session.lastBetMeta ? { ...session.lastBetMeta } : null,
+    lastPredictionMeta: session.lastPredictionMeta
+      ? { ...session.lastPredictionMeta }
+      : null,
+    lastSettlement: session.lastSettlement ? { ...session.lastSettlement } : null,
+    predictionAudit: Array.isArray(session.predictionAudit)
+      ? session.predictionAudit.map((record) => ({
+        ...record,
+        stateBefore: record.stateBefore ? {
+          ...record.stateBefore,
+          results: { ...(record.stateBefore.results || {}) },
+          lastSettlement: record.stateBefore.lastSettlement
+            ? { ...record.stateBefore.lastSettlement }
+            : null,
+        } : null,
+      }))
+      : [],
+  };
+}
+
+function hydrateFromLiveEvent(session, event) {
+  if (!Array.isArray(event.history) || !event.history.length) {
+    return hydrateLiveHistory(session);
+  }
+  session.history = event.history
+    .map((record) => (typeof record === "string" ? record : record?.result))
+    .filter((result) => result === "莊" || result === "閒" || result === "和")
+    .slice(-50);
+  return bindLiveCursor(session, event);
+}
+
+function roomStatsFromEvent(event, fallbackSession) {
+  if (!Array.isArray(event.history) || !event.history.length) {
+    return roomStatsFor(fallbackSession);
+  }
+  const stats = { banker: 0, player: 0, tie: 0, total: 0 };
+  event.history.forEach((record) => {
+    const result = typeof record === "string" ? record : record?.result;
+    if (result === "莊") stats.banker += 1;
+    if (result === "閒") stats.player += 1;
+    if (result === "和") stats.tie += 1;
+  });
+  stats.total = stats.banker + stats.player + stats.tie;
+  return stats;
+}
+
+function isSameActiveSession(expected) {
+  if (!hasActiveSession(expected.userId)) return false;
+  const current = getSession(expected.userId);
+  return current.sessionEpoch === expected.sessionEpoch
+    && current.platform === expected.platform
+    && current.room === expected.room
+    && current.step === "playing";
+}
+
+function isExpectedNextEvent(session, event) {
+  if (event.isContinuous !== true) return false;
+  if (session.lastLiveEventKey && event.previousEventKey) {
+    return session.lastLiveEventKey === event.previousEventKey;
+  }
+  return Boolean(
+    session.lastLiveGameNo
+    && event.previousGameNo
+    && session.lastLiveGameNo === event.previousGameNo
+  );
+}
+
+function resyncNotice(reason) {
+  if (reason === "shoe_changed") return "新牌靴已同步，未跨靴計算過倒";
+  if (reason === "round_gap") return "缺漏局已略過，本次未計算過倒";
+  if (reason === "snapshot_recalculated") return "路單修正已同步，既有統計已重新計算";
+  if (reason === "snapshot_reset") return "路單修正已同步，舊版統計已安全重置";
+  return "最新路單已同步，本次未計算過倒";
+}
+
+function captureSettlementState(session) {
+  return {
+    results: { ...(session.results || {}) },
+    bankroll: session.bankroll,
+    tianmenLevel: session.tianmenLevel,
+    lastSettlement: session.lastSettlement ? { ...session.lastSettlement } : null,
+  };
+}
+
+function restoreSettlementState(session, state = {}) {
+  session.results = { ...(state.results || {}) };
+  session.bankroll = state.bankroll;
+  session.tianmenLevel = state.tianmenLevel;
+  session.lastSettlement = state.lastSettlement ? { ...state.lastSettlement } : null;
   return session;
 }
 
-async function settleLiveResult(platform, event) {
+function appendPredictionAudit(session, event, issued = {}, stateBefore = null) {
+  const previous = Array.isArray(session.predictionAudit) ? session.predictionAudit : [];
+  session.predictionAudit = [...previous, {
+    platform: session.platform,
+    room: session.room,
+    eventKey: event.eventKey || null,
+    shoeKey: event.shoeKey || null,
+    roundIndex: Number(event.roundIndex) || null,
+    prediction: issued.prediction || null,
+    bet: Number(issued.bet) || 0,
+    modelVersion: issued.meta?.modelVersion || null,
+    confidence: Number(issued.meta?.confidence) || null,
+    actual: event.result,
+    verdict: session.lastSettlement?.verdict || null,
+    stateBefore: stateBefore ? {
+      ...stateBefore,
+      results: { ...(stateBefore.results || {}) },
+      lastSettlement: stateBefore.lastSettlement
+        ? { ...stateBefore.lastSettlement }
+        : null,
+    } : null,
+    settledAt: event.updatedAt || new Date().toISOString(),
+  }].slice(-100);
+  return session;
+}
+
+function reconcileReplacement(session, event) {
+  const replacementFromRoundIndex = Number(event.replacementFromRoundIndex);
+  const replacedShoeKey = String(event.replacedShoeKey || "");
+  if (
+    event.resyncReason !== "snapshot_replaced"
+    || !Number.isInteger(replacementFromRoundIndex)
+    || !replacedShoeKey
+  ) return null;
+
+  const audits = Array.isArray(session.predictionAudit) ? session.predictionAudit : [];
+  const generationAudits = audits.filter((record) => (
+    record.platform === session.platform
+    && record.room === session.room
+    && record.shoeKey === replacedShoeKey
+  ));
+  if (!generationAudits.length) return null;
+  const affected = generationAudits.filter((record) => (
+    Number(record.roundIndex) >= replacementFromRoundIndex
+  ));
+
+  const firstState = affected[0]?.stateBefore;
+  if (affected.length && !firstState) {
+    session.results = { pass: 0, fail: 0, tie: 0, observe: 0 };
+    session.bankroll = session.mode === "自由配注" ? null : session.startBankroll;
+    session.tianmenLevel = 1;
+    session.lastSettlement = null;
+    session.predictionAudit = [];
+    return "snapshot_reset";
+  }
+
+  if (affected.length) restoreSettlementState(session, firstState);
+  const replacementRecords = new Map(
+    (Array.isArray(event.history) ? event.history : [])
+      .filter((record) => Number.isInteger(Number(record?.roundIndex)))
+      .map((record) => [Number(record.roundIndex), record]),
+  );
+  const affectedSet = new Set(affected);
+  const generationSet = new Set(generationAudits);
+  const reconciledAt = event.updatedAt || new Date().toISOString();
+  const nextAudit = [];
+  for (const record of audits) {
+    if (!generationSet.has(record)) {
+      nextAudit.push(record);
+      continue;
+    }
+    const replacement = replacementRecords.get(Number(record.roundIndex));
+    if (!affectedSet.has(record)) {
+      if (!replacement) {
+        nextAudit.push(record);
+        continue;
+      }
+      nextAudit.push({
+        ...record,
+        eventKey: replacement.eventKey || record.eventKey,
+        shoeKey: replacement.shoeKey || event.shoeKey || record.shoeKey,
+        reconciledAt,
+      });
+      continue;
+    }
+    if (!replacement) continue;
+    const stateBefore = captureSettlementState(session);
+    session.lastPrediction = record.prediction;
+    session.lastBet = Number(record.bet) || 0;
+    session.lastPredictionMeta = {
+      modelVersion: record.modelVersion || null,
+      confidence: Number(record.confidence) || null,
+    };
+    applyResult(session, replacement.result);
+    nextAudit.push({
+      ...record,
+      eventKey: replacement.eventKey || record.eventKey,
+      shoeKey: replacement.shoeKey || event.shoeKey || record.shoeKey,
+      actual: replacement.result,
+      verdict: session.lastSettlement?.verdict || null,
+      stateBefore,
+      reconciledAt,
+    });
+  }
+  session.predictionAudit = nextAudit.slice(-100);
+  return "snapshot_recalculated";
+}
+
+async function deliverLiveAnalysis(originalSession, analysis, event, notice = null) {
+  if (!isSameActiveSession(originalSession)) return false;
+  const message = baccaratAnalysisFlex({
+    session: analysis.session,
+    prediction: analysis.prediction,
+    bet: analysis.bet,
+    reason: getReason(analysis.session),
+    roomStats: roomStatsFromEvent(event, analysis.session),
+    notice,
+    ...liveResultOptions(),
+  });
+  await pushStrict(originalSession.userId, message);
+  if (!isSameActiveSession(originalSession)) return false;
+  updateAfterRound(originalSession.userId, analysis.session);
+  return true;
+}
+
+async function settleLiveResult(platform, event, targetIdentity = null) {
+  const targets = listActiveSessions().filter((session) => (
+    (
+      !targetIdentity
+      || (
+        session.userId === targetIdentity.userId
+        && session.sessionEpoch === targetIdentity.sessionEpoch
+      )
+    )
+    &&
+    session.platform === platform
+    && session.room === event.room
+    && session.step === "playing"
+    && session.lastPrediction
+    && (!event.eventKey || session.lastLiveEventKey !== event.eventKey)
+  ));
+
+  const deliveries = await Promise.allSettled(targets.map(async (session) => {
+    const candidate = cloneSession(session);
+    if (!isExpectedNextEvent(session, event)) {
+      const reconciliation = reconcileReplacement(candidate, event);
+      const analysis = firstAnalysis(hydrateFromLiveEvent(candidate, event));
+      return deliverLiveAnalysis(
+        session,
+        analysis,
+        event,
+        resyncNotice(reconciliation || event.resyncReason),
+      );
+    }
+
+    const issued = {
+      prediction: candidate.lastPrediction,
+      bet: candidate.lastBet,
+      meta: candidate.lastPredictionMeta,
+    };
+    const stateBefore = captureSettlementState(candidate);
+    const analysis = nextAnalysis(candidate, event.result);
+    appendPredictionAudit(analysis.session, event, issued, stateBefore);
+    bindLiveCursor(analysis.session, event);
+    return deliverLiveAnalysis(session, analysis, event);
+  }));
+  deliveries
+    .filter((delivery) => delivery.status === "rejected")
+    .forEach((delivery) => {
+      console.error("[Baccarat] Live analysis delivery failed:", delivery.reason?.message || delivery.reason);
+    });
+  return deliveries.filter((delivery) => delivery.status === "fulfilled" && delivery.value).length;
+}
+
+function queueLiveResult(platform, event) {
   const targets = listActiveSessions().filter((session) => (
     session.platform === platform
     && session.room === event.room
     && session.step === "playing"
     && session.lastPrediction
-    && session.lastLiveGameNo !== event.gameNo
+    && (!event.eventKey || session.lastLiveEventKey !== event.eventKey)
   ));
+  const queuedDeliveries = targets.map((target) => {
+    const targetIdentity = {
+      userId: target.userId,
+      sessionEpoch: target.sessionEpoch,
+    };
+    const key = `${platform}:${event.room || event.tableId || "unknown"}:${target.userId}:${target.sessionEpoch}`;
+    const previous = liveSettlementQueues.get(key) || Promise.resolve();
+    const queued = previous
+      .catch(() => {})
+      .then(() => settleLiveResult(platform, event, targetIdentity));
+    liveSettlementQueues.set(key, queued);
+    const clear = () => {
+      if (liveSettlementQueues.get(key) === queued) liveSettlementQueues.delete(key);
+    };
+    queued.then(clear, clear);
+    return queued;
+  });
+  return Promise.allSettled(queuedDeliveries);
+}
 
-  await Promise.all(targets.map(async (session) => {
-    const result = nextAnalysis(session, event.result);
-    result.session.lastLiveGameNo = event.gameNo;
-    updateAfterRound(session.userId, result.session);
-    await push(session.userId, baccaratAnalysisFlex({
-      session: result.session,
-      prediction: result.prediction,
-      bet: result.bet,
-      reason: getReason(result.session),
-      roomStats: roomStatsFor(result.session),
-      ...liveResultOptions(result.session),
-    }));
-  }));
+async function resetBaccaratSession(userId) {
+  const active = listActiveSessions().find((session) => session.userId === userId);
+  const epoch = active?.sessionEpoch || null;
+  const existingBarrier = cancellationBarriers.get(userId);
+  const deliveryQueues = epoch
+    ? [...liveSettlementQueues.entries()]
+      .filter(([key]) => key.endsWith(`:${userId}:${epoch}`))
+      .map(([, queue]) => queue)
+    : [];
+  const barriers = [
+    ...(existingBarrier ? [existingBarrier] : []),
+    ...deliveryQueues,
+  ];
+  const deliveryBarrier = barriers.length
+    ? Promise.allSettled(barriers)
+    : Promise.resolve([]);
+  if (barriers.length) {
+    cancellationBarriers.set(userId, deliveryBarrier);
+    deliveryBarrier.then(() => {
+      if (cancellationBarriers.get(userId) === deliveryBarrier) {
+        cancellationBarriers.delete(userId);
+      }
+    });
+  }
+  const persistence = resetStoredSession(userId);
+  const [persistenceResult] = await Promise.allSettled([
+    persistence,
+    deliveryBarrier,
+  ]);
+  if (persistenceResult.status === "rejected") throw persistenceResult.reason;
+  return persistenceResult.value;
 }
 
 dgSource.onResult((event) => {
-  settleLiveResult("DG", event).catch((error) => {
+  queueLiveResult("DG", event).catch((error) => {
     console.error("[DG] Auto settlement failed:", error.message);
   });
 });
 
 mtSource.onResult((event) => {
-  settleLiveResult("MT", event).catch((error) => {
+  queueLiveResult("MT", event).catch((error) => {
     console.error("[MT] Auto settlement failed:", error.message);
   });
 });
@@ -139,33 +458,35 @@ async function handleBaccaratMessage(event) {
   const token = event.replyToken;
 
   if (value === "返回首頁") {
-    resetSession(userId);
-    return reply(token, baccaratPlatformFlex(platformQuickReply()));
+    await resetBaccaratSession(userId);
+    return false;
   }
 
   if (value === "重新開始") {
     const platform = hasActiveSession(userId) ? getSession(userId).platform : null;
-    resetSession(userId);
+    await resetBaccaratSession(userId);
     if (!platform) return reply(token, baccaratPlatformFlex(platformQuickReply()));
     setPlatform(userId, platform);
     return reply(token, roomPrompt(platform));
   }
 
   if (isCancel(value)) {
-    resetSession(userId);
+    await resetBaccaratSession(userId);
     return false;
   }
 
   if (COMMANDS.includes(value)) {
-    resetSession(userId);
+    await resetBaccaratSession(userId);
     return reply(token, baccaratPlatformFlex(platformQuickReply()));
   }
 
   const session = getSession(userId);
 
   if (value === "返回房號" && session.platform) {
-    setStep(userId, "room");
-    return reply(token, roomPrompt(session.platform));
+    const platform = session.platform;
+    await resetBaccaratSession(userId);
+    setPlatform(userId, platform);
+    return reply(token, roomPrompt(platform));
   }
 
   if (session.step === "platform") {
@@ -221,7 +542,6 @@ async function handleBaccaratMessage(event) {
     }
     const updated = setMaxBet(userId, maxBet);
     const first = firstAnalysis(hydrateLiveHistory(updated));
-    liveResultOptions(first.session);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
       session: first.session,
@@ -229,7 +549,7 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
-      ...liveResultOptions(first.session),
+      ...liveResultOptions(),
     }));
   }
 
@@ -246,7 +566,6 @@ async function handleBaccaratMessage(event) {
       return reply(token, capitalPrompt());
     }
     const first = firstAnalysis(hydrateLiveHistory(updated));
-    liveResultOptions(first.session);
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
       session: first.session,
@@ -254,7 +573,7 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
-      ...liveResultOptions(first.session),
+      ...liveResultOptions(),
     }));
   }
 
@@ -268,15 +587,15 @@ async function handleBaccaratMessage(event) {
     }
     if (!isResult(value)) {
       return reply(token, baccaratPromptFlex({
-        title: "請回報本局結果",
-        lines: ["請點選或輸入：閒、和、莊。"],
+        title: "本房自動結算中",
+        lines: ["AI 會自動同步開獎，無需手動輸入；請使用下方按鈕操作。"],
         quickReply: resultQuickReply(),
       }));
     }
     const result = nextAnalysis(session, value);
     updateAfterRound(userId, result.session);
     if (result.session.bankroll <= 0 && result.session.mode !== "自由配注") {
-      resetSession(userId);
+      await resetBaccaratSession(userId);
       return reply(token, baccaratPromptFlex({
         title: "本金已歸零",
         lines: ["請重新開始並輸入新的本金。"],
@@ -289,7 +608,7 @@ async function handleBaccaratMessage(event) {
       bet: result.bet,
       reason: getReason(result.session),
       roomStats: roomStatsFor(result.session),
-      ...liveResultOptions(result.session),
+      ...liveResultOptions(),
     }));
   }
 
@@ -317,5 +636,5 @@ module.exports = {
   handleBaccaratMessage,
   isBaccaratCommand,
   hasActiveBaccaratSession: hasActiveSession,
-  resetBaccaratSession: resetSession,
+  resetBaccaratSession,
 };

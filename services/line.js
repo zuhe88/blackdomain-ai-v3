@@ -4,6 +4,9 @@ const { USER_ERROR_TEXT, logError } = require("../utils/errorCodes");
 const lineConfig = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
   channelSecret: process.env.LINE_CHANNEL_SECRET,
+  httpConfig: {
+    timeout: Math.max(1000, Number(process.env.LINE_HTTP_TIMEOUT_MS) || 10000),
+  },
 };
 
 if (!lineConfig.channelAccessToken || !lineConfig.channelSecret) {
@@ -18,7 +21,15 @@ function getLineClient() {
     warnedMissingLineConfig = true;
     console.error("LINE_CHANNEL_ACCESS_TOKEN or LINE_CHANNEL_SECRET is not configured.");
   }
-  if (!cachedClient) cachedClient = new line.Client(lineConfig);
+  if (!cachedClient) {
+    const client = new line.Client(lineConfig);
+    const axiosDefaults = client?.http?.instance?.defaults;
+    if (!axiosDefaults) {
+      throw new Error("LINE SDK HTTP timeout could not be configured.");
+    }
+    axiosDefaults.timeout = lineConfig.httpConfig.timeout;
+    cachedClient = client;
+  }
   return cachedClient;
 }
 

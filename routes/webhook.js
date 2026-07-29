@@ -83,10 +83,10 @@ function registerWebhookRoutes(app) {
   });
 }
 
-function clearAllUserSessions(userId) {
+async function clearAllUserSessions(userId) {
   clearUser(userId);
   if (electronic.resetElectronicSession) electronic.resetElectronicSession(userId);
-  if (baccarat.resetBaccaratSession) baccarat.resetBaccaratSession(userId);
+  if (baccarat.resetBaccaratSession) await baccarat.resetBaccaratSession(userId);
   if (atg.resetAtgSession) atg.resetAtgSession(userId);
   if (mb.resetMbSession) mb.resetMbSession(userId);
 }
@@ -133,7 +133,7 @@ async function ensureVipOrReply(event, moduleName) {
 
 async function replyHome(event) {
   const userId = event.source.userId || "";
-  clearAllUserSessions(userId);
+  await clearAllUserSessions(userId);
   updateSession("home", userId, {
     currentPage: "首頁",
     currentFeature: null,
@@ -170,7 +170,7 @@ async function handleEvent(event) {
   }
 
   if (
-    ["重新開始", "返回首頁"].includes(text)
+    text === "重新開始"
     && baccarat.hasActiveBaccaratSession
     && baccarat.hasActiveBaccaratSession(userId)
   ) {
@@ -182,22 +182,22 @@ async function handleEvent(event) {
   }
 
   if (ATG_MAINTENANCE_COMMANDS.has(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return reply(event.replyToken, "ATG賽馬 AI 目前維護中，服務暫停開放，完成後將重新上線。");
   }
 
   if (VIP_COMMANDS.has(text) || isAdminCommand(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return vip.handleVipMessage(event);
   }
 
   if (OFFICIAL_WEBSITE_COMMANDS.has(text) || CONTACT_COMMANDS.has(text) || official.isOfficialCommand(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return official.handleOfficialMessage(event);
   }
 
   if (AI_ENTRY_COMMANDS.has(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     const allowed = await ensureVipOrReply(event, moduleNameFromText(text));
     if (!allowed) return;
   }
@@ -207,37 +207,37 @@ async function handleEvent(event) {
   }
 
   if (["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"].includes(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return reply(event.replyToken, electronicMenuFlex());
   }
 
   if (["彩票", "彩票AI", "🎟️ 彩票AI"].includes(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return reply(event.replyToken, lotteryMenuFlex());
   }
 
   if (baccarat.isBaccaratCommand(text) && ["百家樂", "百家樂AI", "baccarat", "🎲 百家樂AI"].includes(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return baccarat.handleBaccaratMessage(event);
   }
 
   if (lottery539.is539Command(text) && ["539", "539AI", "今彩539", "🎯 539AI"].includes(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return lottery539.handle539Message(event);
   }
 
   if (atg.isEntryCommand(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return atg.handleAtgMessage(event);
   }
 
   if (mb.isEntryCommand(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return mb.handleMbMessage(event);
   }
 
   if (sports.isSportsCommand(text) && ["體育", "體育AI", "SPORT", "SPORT AI"].includes(text)) {
-    clearAllUserSessions(userId);
+    await clearAllUserSessions(userId);
     return sports.handleSportsMessage(event);
   }
 

@@ -1,12 +1,14 @@
 const Module = require("module");
 const fs = require("fs");
 const path = require("path");
+const vm = require("vm");
 
 process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.ATG_DISABLE_LIVE = "true";
 process.env.DG_DISABLE_LIVE = "true";
 process.env.MT_DISABLE_LIVE = "true";
+process.env.LINE_HTTP_TIMEOUT_MS = "4321";
 
 const captured = {
   replies: [],
@@ -14,6 +16,24 @@ const captured = {
   multicasts: [],
   routes: { use: [], get: [], post: [], static: [] },
 };
+const mockBaccaratRows = new Map();
+const mockSupabaseControl = {
+  cancellationAttempts: 0,
+  cancellationFailuresRemaining: 0,
+};
+const mockLineControl = {
+  pushGate: null,
+};
+
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
 
 const activeVip = {
   id: "vip-1",
@@ -90,8 +110,25 @@ function createExpress() {
 }
 
 class MockLineClient {
+  constructor(config) {
+    this.config = config;
+    this.http = { instance: { defaults: { timeout: 0 } } };
+    captured.lineClient = this;
+  }
+
   async replyMessage(replyToken, messages) { captured.replies.push({ replyToken, messages }); }
-  async pushMessage(userId, messages) { captured.pushes.push({ userId, messages }); }
+  async pushMessage(userId, messages) {
+    const gate = mockLineControl.pushGate;
+    if (gate) {
+      gate.events.push("push-start");
+      gate.startedAt = Date.now();
+      gate.started.resolve();
+      await gate.release.promise;
+      gate.events.push("push-delivered");
+      if (mockLineControl.pushGate === gate) mockLineControl.pushGate = null;
+    }
+    captured.pushes.push({ userId, messages });
+  }
   async multicast(userIds, messages) { captured.multicasts.push({ userIds, messages }); }
   async getProfile() { return { displayName: "測試使用者" }; }
 }
@@ -113,6 +150,28 @@ function makeSupabaseTable(table) {
       return { data: rows[0] || null, error: null };
     },
     then(resolve) {
+      if (table === "lottery_settings") {
+        const insertedKey = String(inserted?.key || "");
+        if (insertedKey.startsWith("baccarat_session:")) {
+          if (inserted?.value?.cancelled) {
+            mockSupabaseControl.cancellationAttempts += 1;
+            if (mockSupabaseControl.cancellationFailuresRemaining > 0) {
+              mockSupabaseControl.cancellationFailuresRemaining -= 1;
+              resolve({ data: null, error: new Error("mock cancellation write failure") });
+              return;
+            }
+          }
+          const row = { ...inserted, id: insertedKey };
+          mockBaccaratRows.set(insertedKey, row);
+          resolve({ data: [row], error: null });
+          return;
+        }
+        const likeKey = filters.find((item) => item.field === "key")?.value;
+        if (String(likeKey || "").startsWith("baccarat_session:")) {
+          resolve({ data: [...mockBaccaratRows.values()], error: null });
+          return;
+        }
+      }
       resolve({ data: rowsForTable(table, filters, inserted, updated), error: null });
     },
   };
@@ -168,7 +227,13 @@ Module._load = function patchedLoad(request, parent, isMain) {
 };
 
 const { handleEvent } = require("../index");
-const { image, multicast, push } = require("../services/line");
+const {
+  image,
+  lineClient,
+  lineConfig,
+  multicast,
+  push,
+} = require("../services/line");
 const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
 const atgSeed = require("../modules/atg/history-seed.json");
 const mbSource = require("../modules/mb/source");
@@ -177,10 +242,22 @@ const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
 const mtSource = require("../modules/baccarat/mtSource");
 const mtLive = require("../modules/baccarat/mtLive");
+const {
+  getSession: getBaccaratSession,
+  hasActiveSession: hasActiveBaccaratSession,
+  resetSession: resetBaccaratSession,
+  setSession: setBaccaratSession,
+} = require("../modules/baccarat/session");
 const electronic = require("../modules/electronic");
 const electronicSource = require("../modules/electronic/source");
 const { userscript: baccaratRelayUserscript } = require("../routes/dgRelay");
-const { predict: predictBaccarat } = require("../modules/baccarat/ai");
+const {
+  analyzePrediction: analyzeBaccarat,
+  calculateBet: calculateBaccaratBet,
+  firstAnalysis: firstBaccaratAnalysis,
+  nextAnalysis: nextBaccaratAnalysis,
+  predict: predictBaccarat,
+} = require("../modules/baccarat/ai");
 const { baccaratAnalysisFlex } = require("../ui/flex/baccarat");
 
 function event(text, userId = "user-smoke") {
@@ -295,6 +372,13 @@ function dgSnapshotFrame() {
 }
 
 async function main() {
+  await lineClient.getProfile("line-timeout-smoke");
+  if (
+    lineConfig.httpConfig.timeout !== 4321
+    || captured.lineClient?.http?.instance?.defaults?.timeout !== 4321
+  ) {
+    throw new Error("LINE SDK Axios timeout must be applied to the live HTTP instance");
+  }
   const encryptedDgToken = dgLive.encrypt("0123456789abcdef0123456789abcdef");
   if (!encryptedDgToken || encryptedDgToken === "0123456789abcdef0123456789abcdef") {
     throw new Error("DG guest WebSocket token must be encrypted");
@@ -315,8 +399,85 @@ async function main() {
   if (newestFirstRoad.map((record) => record.result).join("") !== "莊閒") {
     throw new Error("DG newest-first baccarat roads must be converted to chronological order");
   }
-  if (predictBaccarat(["莊", "莊", "莊"]) !== "莊" || predictBaccarat(["閒", "閒", "閒"]) !== "閒") {
-    throw new Error("Baccarat prediction must support both banker and player recommendations");
+  if (predictBaccarat([]) !== "莊" || predictBaccarat(["莊", "閒", "和"]) !== "莊") {
+    throw new Error("Baccarat must provide the banker baseline immediately without a 12-round wait");
+  }
+  const bankerSignal = analyzeBaccarat(Array(12).fill("莊"));
+  const playerSignal = analyzeBaccarat(Array(12).fill("閒"));
+  if (
+    bankerSignal.prediction !== "莊"
+    || playerSignal.prediction !== "莊"
+    || bankerSignal.modelVersion !== "baccarat-banker-baseline-v3"
+    || bankerSignal.sampleSize !== 12
+    || bankerSignal.reasonCode !== "BANKER_MATHEMATICAL_BASELINE"
+  ) {
+    throw new Error("Baccarat predictor must use observation plus the validated banker baseline");
+  }
+  const observeSession = {
+    mode: "天門",
+    history: [],
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    bankroll: 5000,
+    capital: 5000,
+    maxBet: 1000,
+    startBankroll: 5000,
+    tianmenLevel: 1,
+    lastPrediction: "觀望",
+    lastBet: 0,
+  };
+  const observedRound = nextBaccaratAnalysis(observeSession, "莊");
+  if (
+    observedRound.session.results.observe !== 1
+    || observedRound.session.results.pass !== 0
+    || observedRound.session.results.fail !== 0
+    || observedRound.session.bankroll !== 5000
+    || observedRound.session.tianmenLevel !== 1
+  ) {
+    throw new Error("Baccarat observed rounds must not change pass/fail, bankroll, or Tianmen level");
+  }
+  const resolvedSession = {
+    mode: "自由配注",
+    history: Array(12).fill("莊"),
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    bankroll: null,
+    capital: null,
+    maxBet: null,
+    startBankroll: null,
+    tianmenLevel: 1,
+    lastPrediction: null,
+    lastBet: 0,
+  };
+  const issuedBanker = firstBaccaratAnalysis(resolvedSession);
+  const resolvedBanker = nextBaccaratAnalysis(issuedBanker.session, "莊");
+  if (issuedBanker.prediction !== "莊" || resolvedBanker.session.results.pass !== 1) {
+    throw new Error("Baccarat qualified predictions must still settle normally");
+  }
+  if (calculateBaccaratBet({
+    mode: "動態配注",
+    bankroll: 50,
+    capital: 50,
+    maxBet: 50,
+  }, "莊") !== 0) {
+    throw new Error("Baccarat bet must not exceed a bankroll or limit below the minimum unit");
+  }
+  const insufficientBetAnalysis = firstBaccaratAnalysis({
+    mode: "動態配注",
+    history: Array(12).fill("莊"),
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    bankroll: 50,
+    capital: 50,
+    maxBet: 50,
+    startBankroll: 50,
+    tianmenLevel: 1,
+    lastPrediction: null,
+    lastBet: 0,
+  });
+  if (
+    insufficientBetAnalysis.prediction !== "觀望"
+    || insufficientBetAnalysis.bet !== 0
+    || insufficientBetAnalysis.analysis.reasonCode !== "INSUFFICIENT_BET_LIMIT"
+  ) {
+    throw new Error("Baccarat analysis must observe when no safe wager fits the configured limits");
   }
   let firstRoundEvent = null;
   const stopFirstRoundListener = dgSource.onResult((result) => {
@@ -328,8 +489,269 @@ async function main() {
   });
   dgSource.ingestMessage({ cmd: 1004, tableId: 2, list: ["#5#0#8"] });
   stopFirstRoundListener();
-  if (!firstRoundEvent || firstRoundEvent.result !== "閒") {
+  if (
+    !firstRoundEvent
+    || firstRoundEvent.result !== "閒"
+    || firstRoundEvent.isContinuous !== true
+    || !firstRoundEvent.eventKey
+    || firstRoundEvent.roundIndex !== 1
+  ) {
     throw new Error("DG first round must emit an automatic settlement event immediately");
+  }
+  const dgOrderingEvents = [];
+  const stopDgOrderingListener = dgSource.onResult((result) => {
+    if (result.room === "RB03") dgOrderingEvents.push(result);
+  });
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{ tableId: 3, tableName: "RB03", shoeId: 44, roads: [] }],
+  });
+  dgSource.ingestMessage({ cmd: 1004, tableId: 3, list: ["#1#0#0"] });
+  dgSource.ingestMessage({ cmd: 1004, tableId: 3, list: ["#1#0#0"] });
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 3,
+    list: ["#1#0#0", "#5#0#0", "#1#0#0"],
+  });
+  const rejectedDgRollback = dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 3,
+    list: ["#5#0#0", "#1#0#0"],
+  });
+  stopDgOrderingListener();
+  if (
+    rejectedDgRollback !== false
+    || dgOrderingEvents.length !== 2
+    || dgOrderingEvents[1].isContinuous !== false
+    || dgOrderingEvents[1].resyncReason !== "round_gap"
+    || dgOrderingEvents[1].history.length !== 3
+    || dgSource.getTableByRoom("RB03")?.history.length !== 3
+  ) {
+    throw new Error("DG source must suppress duplicates/rollbacks and mark multi-round gaps for resync");
+  }
+  const dgRoad = (results) => results.map((result, index) => (
+    `${index + 1}#${result === "莊" ? 1 : result === "閒" ? 5 : 9}#0`
+  ));
+  const oldDgShoe = ["莊", "閒", "莊", "莊", "閒", "閒", "莊", "閒", "莊", "閒", "莊", "閒"];
+  const dgImplicitResetEvents = [];
+  const stopDgImplicitResetListener = dgSource.onResult((result) => {
+    if (result.room === "RB04") dgImplicitResetEvents.push(result);
+  });
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{
+      tableId: 41,
+      tableName: "RB04",
+      playId: 12,
+      roads: dgRoad(oldDgShoe),
+    }],
+  });
+  dgSource.ingestMessage({ cmd: 1004, tableId: 41, playId: 0, list: [] });
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 41,
+    playId: 2,
+    list: dgRoad(oldDgShoe.slice(0, 2)),
+  });
+  const rejectedDelayedDgShoe = dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 41,
+    playId: 13,
+    list: dgRoad([...oldDgShoe, "莊"]),
+  });
+  stopDgImplicitResetListener();
+  const dgImplicitResetEvent = dgImplicitResetEvents[dgImplicitResetEvents.length - 1];
+  if (
+    rejectedDelayedDgShoe !== false
+    || dgImplicitResetEvent?.resyncReason !== "shoe_changed"
+    || dgImplicitResetEvent?.isContinuous !== false
+    || dgSource.getTableByRoom("RB04")?.history.length !== 2
+  ) {
+    throw new Error("DG implicit matching-prefix shoe resets must reject delayed old-shoe snapshots");
+  }
+  const dgCorrectionEvents = [];
+  const stopDgCorrectionListener = dgSource.onResult((result) => {
+    if (result.room === "RB05" || result.room === "RB06") dgCorrectionEvents.push(result);
+  });
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{ tableId: 42, tableName: "RB05", roads: dgRoad(["莊", "閒"]) }],
+  });
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 42,
+    list: dgRoad(["莊", "莊"]),
+  });
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{ tableId: 43, tableName: "RB06", roads: dgRoad(["莊", "莊"]) }],
+  });
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 43,
+    list: dgRoad(["閒", "莊", "閒"]),
+  });
+  stopDgCorrectionListener();
+  const dgReplacementEvents = dgCorrectionEvents.filter((event) => (
+    event.resyncReason === "snapshot_replaced"
+  ));
+  if (
+    dgReplacementEvents.length !== 2
+    || dgReplacementEvents.some((event) => event.isContinuous)
+    || new Set(dgCorrectionEvents.map((event) => event.eventKey)).size !== dgCorrectionEvents.length
+  ) {
+    throw new Error("DG corrections and divergent appends must resync with unique event keys");
+  }
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{
+      tableId: 44,
+      tableName: "RB07",
+      shoeId: 100,
+      roads: dgRoad(["莊", "閒"]),
+    }],
+  });
+  dgSource.ingestMessage({
+    cmd: 1002,
+    table: [{
+      tableId: 44,
+      tableName: "RB07",
+      shoeId: 101,
+      roads: dgRoad(["閒"]),
+    }],
+  });
+  const rejectedRetiredDgId = dgSource.ingestMessage({
+    cmd: 1002,
+    table: [{
+      tableId: 44,
+      tableName: "RB07",
+      shoeId: 100,
+      roads: dgRoad(["莊", "閒", "莊"]),
+    }],
+  });
+  if (
+    rejectedRetiredDgId !== false
+    || String(dgSource.getTableByRoom("RB07")?.explicitShoeId) !== "101"
+  ) {
+    throw new Error("DG delayed retired explicit shoe IDs must be rejected");
+  }
+  const rollingPattern = Array.from(
+    { length: 201 },
+    (_, index) => ["莊", "閒", "和"][index % 3],
+  );
+  const dgRollingEvents = [];
+  const stopDgRollingListener = dgSource.onResult((result) => {
+    if (result.room === "S01") dgRollingEvents.push(result);
+  });
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{
+      tableId: 71,
+      tableName: "S01",
+      shoeId: 300,
+      playId: 200,
+      roads: dgRoad(rollingPattern.slice(0, 200)),
+    }],
+  });
+  dgRollingEvents.length = 0;
+  const acceptedDgRollingWindow = dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 71,
+    playId: 201,
+    list: dgRoad(rollingPattern.slice(1)),
+  });
+  const rejectedDgRollingPredecessor = dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 71,
+    playId: 200,
+    list: dgRoad(rollingPattern.slice(0, 200)),
+  });
+  stopDgRollingListener();
+  const dgRollingTable = dgSource.getTableByRoom("S01");
+  if (
+    !acceptedDgRollingWindow
+    || rejectedDgRollingPredecessor !== false
+    || dgRollingEvents.length !== 1
+    || dgRollingEvents[0].isContinuous !== true
+    || dgRollingEvents[0].roundIndex !== 201
+    || dgRollingEvents[0].previousEventKey !== "DG:71:300:g0:200"
+    || dgRollingTable?.sourceRoundMarker !== 201
+    || dgRollingTable?.history?.[0]?.roundIndex !== 2
+    || dgRollingTable?.history?.[0]?.gameNo !== "2"
+    || dgRollingTable?.history?.[199]?.gameNo !== "201"
+  ) {
+    throw new Error("DG rolling-200 windows must advance stable round and game identities");
+  }
+  const dgIdenticalRollingEvents = [];
+  const stopDgIdenticalRollingListener = dgSource.onResult((result) => {
+    if (result.room === "S02") dgIdenticalRollingEvents.push(result);
+  });
+  const identicalRollingRoad = Array(200).fill("莊");
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{
+      tableId: 72,
+      tableName: "S02",
+      shoeId: 301,
+      playId: 200,
+      roads: dgRoad(identicalRollingRoad),
+    }],
+  });
+  dgIdenticalRollingEvents.length = 0;
+  const acceptedIdenticalDgWindow = dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 72,
+    playId: 201,
+    list: dgRoad(identicalRollingRoad),
+  });
+  stopDgIdenticalRollingListener();
+  if (
+    !acceptedIdenticalDgWindow
+    || dgIdenticalRollingEvents.length !== 1
+    || dgIdenticalRollingEvents[0].roundIndex !== 201
+    || dgIdenticalRollingEvents[0].isContinuous !== true
+  ) {
+    throw new Error("DG marker advances must disambiguate identical rolling-200 windows");
+  }
+  const dgMarkerFirstEvents = [];
+  const stopDgMarkerFirstListener = dgSource.onResult((result) => {
+    if (result.room === "S03") dgMarkerFirstEvents.push(result);
+  });
+  const dgMarkerFirstRoad = ["莊", "閒"];
+  dgSource.ingestMessage({
+    cmd: 27,
+    table: [{
+      tableId: 73,
+      tableName: "S03",
+      shoeId: 302,
+      playId: 2,
+      roads: dgRoad(dgMarkerFirstRoad),
+    }],
+  });
+  dgMarkerFirstEvents.length = 0;
+  const acceptedDgMarkerOnly = dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 73,
+    playId: 3,
+    list: dgRoad(dgMarkerFirstRoad),
+  });
+  const acceptedDgMarkerResult = dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 73,
+    playId: 3,
+    list: dgRoad([...dgMarkerFirstRoad, "和"]),
+  });
+  stopDgMarkerFirstListener();
+  const dgMarkerFirstTable = dgSource.getTableByRoom("S03");
+  if (
+    !acceptedDgMarkerOnly
+    || !acceptedDgMarkerResult
+    || dgMarkerFirstEvents.length !== 1
+    || dgMarkerFirstEvents[0].roundIndex !== 3
+    || dgMarkerFirstEvents[0].isContinuous !== true
+    || dgMarkerFirstTable?.shoeGeneration !== 0
+  ) {
+    throw new Error("DG marker-first updates must wait for the actual road result");
   }
   dgSource.ingestMessage({
     cmd: 1002,
@@ -394,8 +816,14 @@ async function main() {
   if (!mtTable || mtTable.history.map((record) => record.result).join("") !== "閒莊和") {
     throw new Error("MT baccarat bead plate must normalize player, banker, and tie");
   }
-  if (!mtFirstRoundEvent || mtFirstRoundEvent.result !== "和") {
-    throw new Error("MT first received result must emit automatic settlement immediately");
+  if (
+    !mtFirstRoundEvent
+    || mtFirstRoundEvent.result !== "和"
+    || mtFirstRoundEvent.isContinuous !== false
+    || mtFirstRoundEvent.resyncReason !== "initial_snapshot"
+    || mtFirstRoundEvent.previousEventKey !== null
+  ) {
+    throw new Error("MT initial snapshot must emit a metadata-rich resync event");
   }
   const mtStats = mtSource.getRoomStats("MT01");
   if (mtStats.banker !== 1 || mtStats.player !== 1 || mtStats.tie !== 1 || mtStats.total !== 3) {
@@ -418,6 +846,274 @@ async function main() {
   }]);
   if (mtSource.getTableByRoom("MT01")?.history.length !== 1) {
     throw new Error("MT new shoe must replace the previous shoe road history");
+  }
+  const mtOrderingEvents = [];
+  const stopMtOrderingListener = mtSource.onResult((result) => {
+    if (result.room === "MT02") mtOrderingEvents.push(result);
+  });
+  mtSource.ingestTables([{
+    table_id: 22,
+    table_name: "百家樂 2",
+    table_type: "BAC",
+    shoe: "stable-shoe",
+    trend: { bead_plate2: "" },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 22,
+    table_name: "百家樂 2",
+    table_type: "BAC",
+    shoe: "stable-shoe",
+    trend: { bead_plate2: "01" },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 22,
+    table_name: "百家樂 2",
+    table_type: "BAC",
+    shoe: "stable-shoe",
+    trend: { bead_plate2: "01" },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 22,
+    table_name: "百家樂 2",
+    table_type: "BAC",
+    shoe: "stable-shoe",
+    trend: { bead_plate2: "0102#03" },
+  }]);
+  const rejectedMtRollback = mtSource.ingestTables([{
+    table_id: 22,
+    table_name: "百家樂 2",
+    table_type: "BAC",
+    shoe: "stable-shoe",
+    trend: { bead_plate2: "0102" },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 22,
+    table_name: "百家樂 2",
+    table_type: "BAC",
+    shoe: "next-shoe",
+    trend: { bead_plate2: "02" },
+  }]);
+  const rejectedRetiredMtId = mtSource.ingestTables([{
+    table_id: 22,
+    table_name: "百家樂 2",
+    table_type: "BAC",
+    shoe: "stable-shoe",
+    trend: { bead_plate2: "0102#0301" },
+  }]);
+  stopMtOrderingListener();
+  if (
+    rejectedMtRollback !== false
+    || rejectedRetiredMtId !== false
+    || mtOrderingEvents.length !== 3
+    || mtOrderingEvents[0].isContinuous !== true
+    || mtOrderingEvents[1].resyncReason !== "round_gap"
+    || mtOrderingEvents[2].resyncReason !== "shoe_changed"
+    || new Set(mtOrderingEvents.map((event) => event.eventKey)).size !== 3
+  ) {
+    throw new Error("MT source must suppress duplicates/rollbacks and mark gaps/new shoes for resync");
+  }
+  const mtBead = (results) => results.map((result) => (
+    result === "莊" ? "02" : result === "閒" ? "01" : "03"
+  )).join("");
+  const oldMtShoe = ["莊", "閒", "莊", "莊", "閒", "閒", "莊", "閒", "莊", "閒", "莊", "閒"];
+  const mtImplicitEvents = [];
+  const stopMtImplicitListener = mtSource.onResult((result) => {
+    if (result.room === "MT03") mtImplicitEvents.push(result);
+  });
+  mtSource.ingestTables([{
+    table_id: 33,
+    table_name: "百家樂 3",
+    table_type: "BAC",
+    round: 12,
+    trend: { bead_plate2: mtBead(oldMtShoe) },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 33,
+    table_name: "百家樂 3",
+    table_type: "BAC",
+    round: 0,
+    trend: { bead_plate2: "" },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 33,
+    table_name: "百家樂 3",
+    table_type: "BAC",
+    round: 2,
+    trend: { bead_plate2: mtBead(oldMtShoe.slice(0, 2)) },
+  }]);
+  const rejectedDelayedMtShoe = mtSource.ingestTables([{
+    table_id: 33,
+    table_name: "百家樂 3",
+    table_type: "BAC",
+    round: 13,
+    trend: { bead_plate2: mtBead([...oldMtShoe, "莊"]) },
+  }]);
+  stopMtImplicitListener();
+  const mtImplicitResetEvent = mtImplicitEvents[mtImplicitEvents.length - 1];
+  if (
+    rejectedDelayedMtShoe !== false
+    || mtImplicitResetEvent?.resyncReason !== "shoe_changed"
+    || mtImplicitResetEvent?.isContinuous !== false
+    || mtSource.getTableByRoom("MT03")?.history.length !== 2
+  ) {
+    throw new Error("MT implicit matching-prefix shoe resets must reject delayed old-shoe snapshots");
+  }
+  const mtCorrectionEvents = [];
+  const stopMtCorrectionListener = mtSource.onResult((result) => {
+    if (result.room === "MT05" || result.room === "MT06") mtCorrectionEvents.push(result);
+  });
+  mtSource.ingestTables([{
+    table_id: 55,
+    table_name: "百家樂 5",
+    table_type: "BAC",
+    trend: { bead_plate2: mtBead(["莊", "閒"]) },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 55,
+    table_name: "百家樂 5",
+    table_type: "BAC",
+    trend: { bead_plate2: mtBead(["莊", "莊"]) },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 66,
+    table_name: "百家樂 6",
+    table_type: "BAC",
+    trend: { bead_plate2: mtBead(["莊", "莊"]) },
+  }]);
+  mtSource.ingestTables([{
+    table_id: 66,
+    table_name: "百家樂 6",
+    table_type: "BAC",
+    trend: { bead_plate2: mtBead(["閒", "莊", "閒"]) },
+  }]);
+  stopMtCorrectionListener();
+  const mtReplacementEvents = mtCorrectionEvents.filter((event) => (
+    event.resyncReason === "snapshot_replaced"
+  ));
+  if (
+    mtReplacementEvents.length !== 2
+    || mtReplacementEvents.some((event) => event.isContinuous)
+    || new Set(mtCorrectionEvents.map((event) => event.eventKey)).size !== mtCorrectionEvents.length
+  ) {
+    throw new Error("MT corrections and divergent appends must resync with unique event keys");
+  }
+  const mtRollingEvents = [];
+  const stopMtRollingListener = mtSource.onResult((result) => {
+    if (result.room === "MT08") mtRollingEvents.push(result);
+  });
+  mtSource.ingestTables([{
+    table_id: 88,
+    table_name: "MT08",
+    table_type: "BAC",
+    shoe: "mt-rolling-300",
+    round: 200,
+    trend: { bead_plate2: mtBead(rollingPattern.slice(0, 200)) },
+  }]);
+  mtRollingEvents.length = 0;
+  const acceptedMtRollingWindow = mtSource.ingestTables([{
+    table_id: 88,
+    table_name: "MT08",
+    table_type: "BAC",
+    shoe: "mt-rolling-300",
+    round: 201,
+    trend: { bead_plate2: mtBead(rollingPattern.slice(1)) },
+  }]);
+  const rejectedMtRollingPredecessor = mtSource.ingestTables([{
+    table_id: 88,
+    table_name: "MT08",
+    table_type: "BAC",
+    shoe: "mt-rolling-300",
+    round: 200,
+    trend: { bead_plate2: mtBead(rollingPattern.slice(0, 200)) },
+  }]);
+  stopMtRollingListener();
+  const mtRollingTable = mtSource.getTableByRoom("MT08");
+  if (
+    !acceptedMtRollingWindow
+    || rejectedMtRollingPredecessor !== false
+    || mtRollingEvents.length !== 1
+    || mtRollingEvents[0].isContinuous !== true
+    || mtRollingEvents[0].roundIndex !== 201
+    || mtRollingEvents[0].previousEventKey !== "MT:88:mt-rolling-300:g0:200"
+    || mtRollingTable?.sourceRoundMarker !== 201
+    || mtRollingTable?.history?.[0]?.roundIndex !== 2
+    || mtRollingTable?.history?.[0]?.gameNo !== "mt-rolling-300:2"
+    || mtRollingTable?.history?.[199]?.gameNo !== "mt-rolling-300:201"
+  ) {
+    throw new Error("MT rolling-200 windows must advance stable round and game identities");
+  }
+  const mtIdenticalRollingEvents = [];
+  const stopMtIdenticalRollingListener = mtSource.onResult((result) => {
+    if (result.room === "MT09") mtIdenticalRollingEvents.push(result);
+  });
+  const identicalMtRoad = Array(200).fill("莊");
+  mtSource.ingestTables([{
+    table_id: 89,
+    table_name: "MT09",
+    table_type: "BAC",
+    shoe: "mt-rolling-301",
+    round: 200,
+    trend: { bead_plate2: mtBead(identicalMtRoad) },
+  }]);
+  mtIdenticalRollingEvents.length = 0;
+  const acceptedIdenticalMtWindow = mtSource.ingestTables([{
+    table_id: 89,
+    table_name: "MT09",
+    table_type: "BAC",
+    shoe: "mt-rolling-301",
+    round: 201,
+    trend: { bead_plate2: mtBead(identicalMtRoad) },
+  }]);
+  stopMtIdenticalRollingListener();
+  if (
+    !acceptedIdenticalMtWindow
+    || mtIdenticalRollingEvents.length !== 1
+    || mtIdenticalRollingEvents[0].roundIndex !== 201
+    || mtIdenticalRollingEvents[0].isContinuous !== true
+  ) {
+    throw new Error("MT marker advances must disambiguate identical rolling-200 windows");
+  }
+  const mtMarkerFirstEvents = [];
+  const stopMtMarkerFirstListener = mtSource.onResult((result) => {
+    if (result.room === "MT10") mtMarkerFirstEvents.push(result);
+  });
+  const mtMarkerFirstRoad = ["莊", "閒"];
+  mtSource.ingestTables([{
+    table_id: 90,
+    table_name: "MT10",
+    table_type: "BAC",
+    shoe: "mt-marker-first",
+    round: 2,
+    trend: { bead_plate2: mtBead(mtMarkerFirstRoad) },
+  }]);
+  mtMarkerFirstEvents.length = 0;
+  const acceptedMtMarkerOnly = mtSource.ingestTables([{
+    table_id: 90,
+    table_name: "MT10",
+    table_type: "BAC",
+    shoe: "mt-marker-first",
+    round: 3,
+    trend: { bead_plate2: mtBead(mtMarkerFirstRoad) },
+  }]);
+  const acceptedMtMarkerResult = mtSource.ingestTables([{
+    table_id: 90,
+    table_name: "MT10",
+    table_type: "BAC",
+    shoe: "mt-marker-first",
+    round: 3,
+    trend: { bead_plate2: mtBead([...mtMarkerFirstRoad, "和"]) },
+  }]);
+  stopMtMarkerFirstListener();
+  const mtMarkerFirstTable = mtSource.getTableByRoom("MT10");
+  if (
+    !acceptedMtMarkerOnly
+    || !acceptedMtMarkerResult
+    || mtMarkerFirstEvents.length !== 1
+    || mtMarkerFirstEvents[0].roundIndex !== 3
+    || mtMarkerFirstEvents[0].isContinuous !== true
+    || mtMarkerFirstTable?.shoeGeneration !== 0
+  ) {
+    throw new Error("MT marker-first updates must wait for the actual road result");
   }
 
   mbSource.resetForTest();
@@ -536,8 +1232,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.1.4") {
-    throw new Error("Electronic relay extension version must be 1.1.4");
+  if (electronicRelayManifest.version !== "1.1.7") {
+    throw new Error("Electronic relay extension version must be 1.1.7");
   }
   const electronicBridgeSource = fs.readFileSync(
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
@@ -549,12 +1245,10 @@ async function main() {
     "SCAN_RESTART_BACKOFF_STEPS_MS",
     "handleScanPageFailure",
     "SCAN_PAGE_INTERVAL_MS",
-    "INITIAL_FULL_SCAN_DELAY_MS",
-    "PASSIVE_FULL_SCAN_INTERVAL_MS",
-    "SENDER_WRAP_DELAY_MS",
     "WRAPPER_HEALTH_CHECK_MS",
     "watchedRoomsChanged",
     "clearInterval(watchedRoomTimer)",
+    "eventName === \"SlotFrameworkEvent:BUY_FEATURE_RESPONSE\"",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);
@@ -562,6 +1256,177 @@ async function main() {
   }
   if (electronicBridgeSource.includes("setInterval(() => {\n    installDispatchWrapper()")) {
     throw new Error("Electronic relay bridge must not poll wrappers with a permanent fast interval");
+  }
+  if (electronicBridgeSource.includes("PASSIVE_FULL_SCAN_INTERVAL_MS")) {
+    throw new Error("Electronic relay must not run passive full scans");
+  }
+  if (
+    !electronicBridgeSource.includes("requestPayload?.action === \"buyFeature\" || activePurchasedFeature")
+    || !electronicBridgeSource.includes("uninstallSenderWrapper")
+  ) {
+    throw new Error("Electronic relay must limit sender observation to active purchased features");
+  }
+  const atgRelayEvents = [];
+  const atgWindowListeners = new Map();
+  const atgWindow = {
+    dispatch() {},
+    dispatchEvent(eventValue) {
+      atgRelayEvents.push(eventValue.detail);
+    },
+    addEventListener(name, listener) {
+      const listeners = atgWindowListeners.get(name) || [];
+      listeners.push(listener);
+      atgWindowListeners.set(name, listeners);
+    },
+  };
+  vm.runInNewContext(electronicBridgeSource, {
+    window: atgWindow,
+    document: { readyState: "complete", scripts: [] },
+    location: {
+      pathname: "/egames/361d567d94ac569664c82068a30b762e8d8438b8",
+      href: "https://play.godeebxp.com/egames/361d567d94ac569664c82068a30b762e8d8438b8",
+    },
+    CustomEvent: class CustomEvent {
+      constructor(type, options = {}) {
+        this.type = type;
+        this.detail = options.detail;
+      }
+    },
+    console: { info() {}, warn() {}, error() {} },
+    setTimeout(callback, delay) {
+      if (Number(delay) === 0) callback();
+      return 1;
+    },
+    clearTimeout() {},
+    setInterval() { return 1; },
+    clearInterval() {},
+    Date,
+    Math,
+    Number,
+    String,
+    Set,
+    Map,
+    Array,
+    Object,
+  });
+  atgWindow.dispatch("SlotFrameworkEvent:INIT_RESPONSE", {
+    platform: {
+      table: { roomId: "seth-room-138", number: 138, status: "Full" },
+    },
+  });
+  atgWindow.dispatch("SlotFrameworkEvent:BUY_FEATURE_RESPONSE", {
+    engine: {
+      spinId: "seth-feature-234",
+      gameState: {
+        action: "buyFeature",
+        numFreeSpins: 10,
+        totalWinnings: 0,
+      },
+    },
+  });
+  atgWindow.dispatch("SlotFrameworkEvent:SPIN_RESPONSE", {
+    engine: {
+      spinId: "seth-feature-234",
+      gameState: {
+        action: "freeSpin",
+        numFreeSpins: 5,
+        totalWinnings: 120,
+      },
+    },
+  });
+  const firstAvailableFeatureEvent = atgRelayEvents
+    .find((item) => item?.type === "spin" && item?.spinId === "seth-feature-234");
+  if (firstAvailableFeatureEvent?.totalWinnings !== 120) {
+    throw new Error("Electronic relay must return the first available positive feature total immediately");
+  }
+  const featureEventCount = atgRelayEvents.filter((item) => (
+    item?.type === "spin" && item?.spinId === "seth-feature-234"
+  )).length;
+  atgWindow.dispatch("SlotFrameworkEvent:SPIN_RESPONSE", {
+    engine: {
+      spinId: "seth-feature-234",
+      gameState: {
+        action: "freeSpin",
+        numFreeSpins: 0,
+        totalWinnings: 234,
+      },
+    },
+  });
+  if (
+    firstAvailableFeatureEvent?.featureTrigger !== "purchased"
+    || firstAvailableFeatureEvent?.roomNumber !== 138
+    || atgRelayEvents.filter((item) => (
+      item?.type === "spin" && item?.spinId === "seth-feature-234"
+    )).length !== featureEventCount
+  ) {
+    throw new Error("Electronic relay must not duplicate a purchased feature after immediate delivery");
+  }
+  const precomputedFeatureResponse = {
+    engine: {
+      spinId: "seth-precomputed-345",
+      gameState: {
+        action: "buyFeature",
+        numFreeSpins: 10,
+        totalWinnings: 345,
+      },
+    },
+  };
+  atgWindow.dispatch("SlotFrameworkEvent:BUY_FEATURE_RESPONSE", precomputedFeatureResponse);
+  atgWindow.dispatch("SlotFrameworkEvent:BUY_FEATURE_RESPONSE", precomputedFeatureResponse);
+  const precomputedFeatureEvent = atgRelayEvents
+    .find((item) => item?.type === "spin" && item?.spinId === "seth-precomputed-345");
+  if (
+    precomputedFeatureEvent?.totalWinnings !== 345
+    || atgRelayEvents.filter((item) => (
+      item?.type === "spin" && item?.spinId === "seth-precomputed-345"
+    )).length !== 1
+  ) {
+    throw new Error("Electronic relay must return a precomputed feature total immediately and once");
+  }
+  atgWindow.dispatch("SlotFrameworkEvent:BUY_FEATURE_RESPONSE", {
+    engine: {
+      spinId: "seth-late-total-456",
+      gameState: {
+        action: "buyFeature",
+        numFreeSpins: 1,
+        totalWinnings: 0,
+      },
+    },
+  });
+  atgWindow.dispatch("SlotFrameworkEvent:SPIN_RESPONSE", {
+    engine: {
+      spinId: "seth-late-total-456",
+      gameState: {
+        action: "freeSpin",
+        numFreeSpins: 0,
+        totalWinnings: 0,
+      },
+    },
+  });
+  if (atgRelayEvents.some((item) => item?.spinId === "seth-late-total-456")) {
+    throw new Error("Electronic relay must never emit a temporary zero payout");
+  }
+  atgWindow.dispatch("SlotFrameworkEvent:SPIN_RESPONSE", {
+    engine: {
+      spinId: "seth-late-total-456",
+      gameState: {
+        action: "freeSpin",
+        numFreeSpins: 0,
+        totalWinnings: 456,
+      },
+    },
+  });
+  const lateFeatureTotal = atgRelayEvents
+    .find((item) => item?.type === "spin" && item?.spinId === "seth-late-total-456");
+  if (lateFeatureTotal?.totalWinnings !== 456) {
+    throw new Error("Electronic relay must preserve a positive total arriving after a temporary zero");
+  }
+  const electronicRelaySource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "atg-relay.js"),
+    "utf8",
+  );
+  if (!electronicRelaySource.includes("setInterval(syncWatchRooms, 2000)")) {
+    throw new Error("Electronic relay watch sync must use the reduced two-second interval");
   }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");
@@ -881,6 +1746,17 @@ async function main() {
   if (values.some((value) => String(value).includes("90.00%"))) {
     throw new Error("Electronic recommendation must not display stale room details");
   }
+  const zeroPayoutPushCount = captured.pushes.length;
+  const zeroPayoutNotified = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特1",
+    roomNumber: 88,
+    spinId: "premature-zero-feature",
+    totalWinnings: 0,
+    featureTrigger: "purchased",
+  });
+  if (zeroPayoutNotified || captured.pushes.length !== zeroPayoutPushCount) {
+    throw new Error("Electronic feature monitoring must never send a premature zero payout");
+  }
   values = await sendAndTexts("結束房間監控 戰神賽特1 089", "user-smoke");
   assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
   values = await sendAndTexts("結束房間監控 戰神賽特1 088", "user-smoke");
@@ -986,8 +1862,13 @@ async function main() {
       capturedAt: 3500,
     },
   });
-  if (featureStart.feature) throw new Error("Room feature monitor must wait for a stable payout sample");
-  const featureSettled = electronicSource.ingestDetail({
+  if (
+    featureStart.feature?.featureTrigger !== "room-monitor"
+    || Math.abs(featureStart.feature.totalWinnings - 132.8) > 1e-6
+  ) {
+    throw new Error("Room feature monitor must return an available positive payout immediately");
+  }
+  const featureStillRunning = electronicSource.ingestDetail({
     gameName: "戰神賽特2",
     detail: {
       roomId: "seth-199",
@@ -999,11 +1880,80 @@ async function main() {
       capturedAt: 6000,
     },
   });
-  if (
-    featureSettled.feature?.featureTrigger !== "room-monitor"
-    || Math.abs(featureSettled.feature.totalWinnings - 132.8) > 1e-6
-  ) {
-    throw new Error(`Room feature monitor returned an incorrect payout: ${JSON.stringify(featureSettled.feature)}`);
+  if (featureStillRunning.feature) {
+    throw new Error("Room feature monitor must not finalize after one unchanged sample");
+  }
+  const featureSettled = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Full",
+      todayWin: 112038.27,
+      todayBet: 112225,
+      mgCounts: [0, 17, 3],
+      capturedAt: 9000,
+    },
+  });
+  if (featureSettled.feature) {
+    throw new Error("Room feature monitor must not send a duplicate payout after immediate delivery");
+  }
+  electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Full",
+      todayWin: 112038.27,
+      todayBet: 112225,
+      mgCounts: [8, 0, 17],
+      capturedAt: 12000,
+    },
+  });
+  const pendingFeatureStart = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Full",
+      todayWin: 112038.27,
+      todayBet: 112225,
+      mgCounts: [0, 8, 0],
+      capturedAt: 14500,
+    },
+  });
+  if (pendingFeatureStart.feature) {
+    throw new Error("Room feature monitor must not emit a temporary zero payout");
+  }
+  const delayedZeroRoomTotal = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Empty",
+      todayWin: 112038.27,
+      todayBet: 112225,
+      mgCounts: [0, 8, 0],
+      capturedAt: 110000,
+    },
+  });
+  if (delayedZeroRoomTotal.feature) {
+    throw new Error("Room feature monitor must keep waiting without emitting a delayed zero");
+  }
+  const firstPositiveRoomTotal = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-199",
+      number: 199,
+      status: "Empty",
+      todayWin: 112093.27,
+      todayBet: 112425,
+      mgCounts: [0, 8, 0],
+      capturedAt: 110500,
+    },
+  });
+  if (Math.abs(firstPositiveRoomTotal.feature?.totalWinnings - 55) > 1e-6) {
+    throw new Error("Room feature monitor must return the first later positive payout immediately");
   }
 
   const atgGameMenuReply = await send("ATG", "user-smoke");
@@ -1066,7 +2016,9 @@ async function main() {
   await send("RB01", "user-smoke");
   values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "本房牌路統計", "Baccarat room statistics");
-  assertIncludes(values, "等待本房下一局開獎", "Baccarat automatic settlement");
+  assertIncludes(values, "等待本房下一局開獎", "Baccarat immediate automatic recommendation");
+  assertIncludes(values, "玩家自行決定", "Baccarat free-bet direction");
+  assertIncludes(values, "有效命中", "Baccarat resolved hit-rate label");
   assertIncludes(values, "結束並返回遊戲選單", "Baccarat persistent exit button");
   const dgAutoMessage = captured.replies[captured.replies.length - 1].messages[0];
   const dgAutoJson = JSON.stringify(dgAutoMessage);
@@ -1124,7 +2076,11 @@ async function main() {
     throw new Error("DG result must automatically push the next analysis");
   }
   let dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "過 1", "Baccarat automatic pass result");
+  assertIncludes(
+    dgPushTexts,
+    "過 1　倒 0　和 0　觀望 0",
+    "Baccarat automatic immediate recommendation result",
+  );
 
   dgSource.ingestMessage({
     cmd: 1004,
@@ -1133,7 +2089,7 @@ async function main() {
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "過 1　倒 0　和 1", "Baccarat automatic tie result");
+  assertIncludes(dgPushTexts, "過 1　倒 0　和 1　觀望 0", "Baccarat automatic tie result");
 
   dgSource.ingestMessage({
     cmd: 1004,
@@ -1142,16 +2098,324 @@ async function main() {
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "過 1　倒 1　和 1", "Baccarat automatic failed result");
+  assertIncludes(dgPushTexts, "過 2　倒 0　和 1　觀望 0", "Baccarat automatic result");
   if (dgPushTexts.some((value) => String(value).includes("上局結算"))) {
     throw new Error("Baccarat Flex must not show the previous-round settlement row");
   }
+  const pushesBeforeDgGap = captured.pushes.length;
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 0,
+    list: [
+      "#1#0#0",
+      "#5#0#0",
+      "#1#0#0",
+      "#9#0#0",
+      "#1#0#0",
+      "#9#0#0",
+      "#5#0#0",
+      "#1#0#0",
+    ],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeDgGap + 1) {
+    throw new Error("DG multi-round gaps must push one resynchronized analysis");
+  }
+  dgPushTexts = captured.pushes[captured.pushes.length - 1].messages
+    .flatMap((message) => collectText(message));
+  assertIncludes(dgPushTexts, "缺漏局已略過，本次未計算過倒", "Baccarat gap resync notice");
+  assertIncludes(
+    dgPushTexts,
+    "過 2　倒 0　和 1　觀望 0",
+    "Baccarat gap must not change the settlement record",
+  );
+  const baccaratAudit = getBaccaratSession("user-smoke").predictionAudit || [];
+  if (
+    baccaratAudit.length !== 3
+    || baccaratAudit.some((record) => record.modelVersion !== "baccarat-banker-baseline-v3")
+    || baccaratAudit[baccaratAudit.length - 1].verdict !== "過"
+  ) {
+    throw new Error("Baccarat must retain an exact model-versioned audit for settled live events only");
+  }
+  const pushesBeforeDgRollback = captured.pushes.length;
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 0,
+    list: [
+      "#5#0#0",
+      "#1#0#0",
+      "#9#0#0",
+      "#1#0#0",
+      "#9#0#0",
+      "#5#0#0",
+      "#1#0#0",
+    ],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeDgRollback) {
+    throw new Error("DG stale rollback snapshots must not push or settle another analysis");
+  }
+  const pushesBeforeDgCorrection = captured.pushes.length;
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 0,
+    list: [
+      "#1#0#0",
+      "#5#0#0",
+      "#5#0#0",
+      "#9#0#0",
+      "#1#0#0",
+      "#9#0#0",
+      "#5#0#0",
+      "#1#0#0",
+    ],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeDgCorrection + 1) {
+    throw new Error("DG corrected snapshots must push one reconciled analysis");
+  }
+  const dgCorrectionTexts = captured.pushes[captured.pushes.length - 1].messages
+    .flatMap((message) => collectText(message));
+  assertIncludes(
+    dgCorrectionTexts,
+    "路單修正已同步，既有統計已重新計算",
+    "Baccarat correction reconciliation notice",
+  );
+  assertIncludes(
+    dgCorrectionTexts,
+    "過 1　倒 1　和 1　觀望 0",
+    "Baccarat corrected accounting",
+  );
+  const correctedAudit = (getBaccaratSession("user-smoke").predictionAudit || [])
+    .find((record) => Number(record.roundIndex) === 6);
+  if (correctedAudit?.actual !== "閒" || correctedAudit?.verdict !== "倒") {
+    throw new Error("Baccarat correction must reconcile the original audit and verdict");
+  }
+
+  const repeatedCorrectionUser = "bound-user";
+  const repeatedRoad = ["莊", "莊", "莊"];
+  dgSource.ingestMessage({
+    cmd: 1002,
+    table: [{
+      tableId: 2,
+      tableName: "RB02",
+      shoeId: 200,
+      roads: dgRoad(repeatedRoad),
+    }],
+  });
+  await send("百家樂", repeatedCorrectionUser);
+  await send("DG", repeatedCorrectionUser);
+  await send("RB02", repeatedCorrectionUser);
+  await send("自由配注", repeatedCorrectionUser);
+  for (let round = 4; round <= 6; round += 1) {
+    repeatedRoad.push("莊");
+    dgSource.ingestMessage({
+      cmd: 1004,
+      tableId: 2,
+      shoeId: 200,
+      list: dgRoad(repeatedRoad),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  let repeatedSession = getBaccaratSession(repeatedCorrectionUser);
+  if (
+    repeatedSession.results.pass !== 3
+    || repeatedSession.results.fail !== 0
+    || repeatedSession.predictionAudit?.length !== 3
+  ) {
+    throw new Error(`Baccarat repeated-correction fixture must begin with three settled wins: ${JSON.stringify({
+      platform: repeatedSession.platform,
+      room: repeatedSession.room,
+      step: repeatedSession.step,
+      lastPrediction: repeatedSession.lastPrediction,
+      lastLiveEventKey: repeatedSession.lastLiveEventKey,
+      results: repeatedSession.results,
+      audits: repeatedSession.predictionAudit,
+      table: dgSource.getTableByRoom("RB02"),
+    })}`);
+  }
+  const pushesBeforeFirstRepeatedCorrection = captured.pushes.length;
+  const firstCorrectedRoad = ["莊", "莊", "莊", "莊", "莊", "閒"];
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 2,
+    shoeId: 200,
+    list: dgRoad(firstCorrectedRoad),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  repeatedSession = getBaccaratSession(repeatedCorrectionUser);
+  const firstGenerationAudits = repeatedSession.predictionAudit || [];
+  if (
+    captured.pushes.length !== pushesBeforeFirstRepeatedCorrection + 1
+    || repeatedSession.results.pass !== 2
+    || repeatedSession.results.fail !== 1
+    || firstGenerationAudits.length !== 3
+    || new Set(firstGenerationAudits.map((record) => record.shoeKey)).size !== 1
+  ) {
+    throw new Error("The first Baccarat correction must migrate the full audit generation");
+  }
+  const firstCorrectedShoeKey = firstGenerationAudits[0].shoeKey;
+  const pushesBeforeSecondRepeatedCorrection = captured.pushes.length;
+  const secondCorrectedRoad = ["莊", "莊", "莊", "莊", "閒", "閒"];
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 2,
+    shoeId: 200,
+    list: dgRoad(secondCorrectedRoad),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  repeatedSession = getBaccaratSession(repeatedCorrectionUser);
+  const twiceCorrectedAudits = repeatedSession.predictionAudit || [];
+  const latestRepeatedHistory = new Map(
+    (dgSource.getTableByRoom("RB02")?.history || [])
+      .map((record) => [Number(record.roundIndex), record]),
+  );
+  const sixthAudit = twiceCorrectedAudits
+    .find((record) => Number(record.roundIndex) === 6);
+  if (
+    captured.pushes.length !== pushesBeforeSecondRepeatedCorrection + 1
+    || repeatedSession.results.pass !== 1
+    || repeatedSession.results.fail !== 2
+    || repeatedSession.results.tie !== 0
+    || twiceCorrectedAudits.length !== 3
+    || twiceCorrectedAudits.map((record) => record.actual).join("") !== "莊閒閒"
+    || twiceCorrectedAudits.map((record) => record.verdict).join("") !== "過倒倒"
+    || new Set(twiceCorrectedAudits.map((record) => record.shoeKey)).size !== 1
+    || twiceCorrectedAudits[0].shoeKey === firstCorrectedShoeKey
+    || new Set(twiceCorrectedAudits.map((record) => record.eventKey)).size !== 3
+    || twiceCorrectedAudits.some((record) => (
+      latestRepeatedHistory.get(Number(record.roundIndex))?.eventKey !== record.eventKey
+    ))
+    || sixthAudit?.stateBefore?.results?.pass !== 1
+    || sixthAudit?.stateBefore?.results?.fail !== 1
+  ) {
+    throw new Error("Repeated Baccarat corrections must fully reconcile accounting and audit identity");
+  }
+  const noAuditGapRoad = [...secondCorrectedRoad, "莊", "莊"];
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 2,
+    shoeId: 200,
+    list: dgRoad(noAuditGapRoad),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const beforeUnaffectedCorrection = getBaccaratSession(repeatedCorrectionUser);
+  if (
+    beforeUnaffectedCorrection.results.pass !== 1
+    || beforeUnaffectedCorrection.results.fail !== 2
+    || beforeUnaffectedCorrection.predictionAudit?.length !== 3
+  ) {
+    throw new Error("Baccarat round gaps must preserve settled audits before an unrelated correction");
+  }
+  const pushesBeforeUnaffectedCorrection = captured.pushes.length;
+  const noAuditCorrectedRoad = [...secondCorrectedRoad, "莊", "閒"];
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 2,
+    shoeId: 200,
+    list: dgRoad(noAuditCorrectedRoad),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const afterUnaffectedCorrection = getBaccaratSession(repeatedCorrectionUser);
+  const unaffectedAudits = afterUnaffectedCorrection.predictionAudit || [];
+  const unaffectedHistory = new Map(
+    (dgSource.getTableByRoom("RB02")?.history || [])
+      .map((record) => [Number(record.roundIndex), record]),
+  );
+  if (
+    captured.pushes.length !== pushesBeforeUnaffectedCorrection + 1
+    || afterUnaffectedCorrection.results.pass !== 1
+    || afterUnaffectedCorrection.results.fail !== 2
+    || afterUnaffectedCorrection.results.tie !== 0
+    || unaffectedAudits.length !== 3
+    || new Set(unaffectedAudits.map((record) => record.shoeKey)).size !== 1
+    || unaffectedAudits[0].shoeKey === twiceCorrectedAudits[0].shoeKey
+    || unaffectedAudits.some((record) => (
+      unaffectedHistory.get(Number(record.roundIndex))?.eventKey !== record.eventKey
+    ))
+  ) {
+    throw new Error("Corrections after the last audited round must only migrate audit identity");
+  }
+  const cancellationGate = {
+    events: [],
+    started: createDeferred(),
+    release: createDeferred(),
+    startedAt: null,
+  };
+  mockLineControl.pushGate = cancellationGate;
+  const pushesBeforeCancellationBarrier = captured.pushes.length;
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 2,
+    shoeId: 200,
+    list: dgRoad([...noAuditCorrectedRoad, "莊"]),
+  });
+  for (let attempt = 0; attempt < 10 && !cancellationGate.startedAt; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  if (!cancellationGate.startedAt) {
+    throw new Error("Baccarat cancellation barrier fixture did not start an automatic push");
+  }
+  const cancellationReplyPromise = send("返回首頁", repeatedCorrectionUser)
+    .then((response) => {
+      cancellationGate.events.push("cancel-complete");
+      return response;
+    });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (cancellationGate.events.includes("cancel-complete")) {
+    throw new Error("Baccarat cancellation must wait for an in-flight automatic push");
+  }
+  cancellationGate.release.resolve();
+  const cancellationReply = await cancellationReplyPromise;
+  const deliveredIndex = cancellationGate.events.indexOf("push-delivered");
+  const cancelledIndex = cancellationGate.events.indexOf("cancel-complete");
+  const cancellationReplyTexts = cancellationReply.messages
+    .flatMap((message) => collectText(message));
+  if (
+    deliveredIndex < 0
+    || cancelledIndex <= deliveredIndex
+    || captured.pushes.length !== pushesBeforeCancellationBarrier + 1
+    || !cancellationReplyTexts.some((value) => String(value).includes("彩票AI"))
+    || hasActiveBaccaratSession(repeatedCorrectionUser)
+  ) {
+    throw new Error(`Baccarat cancellation barrier has incorrect ordering: ${cancellationGate.events.join(" -> ")}`);
+  }
+
+  const invalidBaccaratReply = await send("不是有效開獎結果", "user-smoke");
+  const invalidBaccaratActions = collectActions(invalidBaccaratReply.messages[0])
+    .map((action) => action.text);
+  const invalidBaccaratTexts = invalidBaccaratReply.messages
+    .flatMap((message) => collectText(message));
+  if (
+    !invalidBaccaratActions.includes("重新開始")
+    || !invalidBaccaratActions.includes("返回房號")
+    || !invalidBaccaratActions.includes("返回首頁")
+    || !invalidBaccaratTexts.some((value) => String(value).includes("自動同步開獎"))
+  ) {
+    throw new Error(`Baccarat invalid input must return a usable recovery quick reply: ${JSON.stringify(invalidBaccaratActions)}`);
+  }
+  const baccaratEpochBeforeRoomExit = getBaccaratSession("user-smoke").sessionEpoch;
+  values = await sendAndTexts("返回房號", "user-smoke");
+  assertIncludes(values, "DG 房號選擇", "Baccarat room exit returns to the room list");
+  const roomExitSession = getBaccaratSession("user-smoke");
+  if (
+    roomExitSession.sessionEpoch === baccaratEpochBeforeRoomExit
+    || roomExitSession.step !== "room"
+    || roomExitSession.results.pass !== 0
+    || roomExitSession.results.fail !== 0
+  ) {
+    throw new Error("Baccarat room exit must end the old room settlement session");
+  }
+  await send("RB01", "user-smoke");
+  await send("自由配注", "user-smoke");
 
   values = await sendAndTexts("重新開始", "user-smoke");
   assertIncludes(values, "DG 房號選擇", "Baccarat restart returns to current platform rooms");
   values = await sendAndTexts("返回首頁", "user-smoke");
-  assertIncludes(values, "DG 百家樂AI", "Baccarat home returns to platform selection");
-  assertIncludes(values, "MT 百家樂AI", "Baccarat home returns to platform selection");
+  assertIncludes(values, "彩票AI", "Baccarat home returns to the main menu");
+  if (hasActiveBaccaratSession("user-smoke")) {
+    throw new Error("Baccarat home must end the active Baccarat session");
+  }
 
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("MT", "user-smoke");
@@ -1202,6 +2466,57 @@ async function main() {
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");
   assertMessage(image("https://example.com/image.png"));
+
+  const tombstoneUser = "baccarat-tombstone-smoke";
+  getBaccaratSession(tombstoneUser);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  setBaccaratSession(tombstoneUser, { platform: "DG", room: "RB01" });
+  mockSupabaseControl.cancellationFailuresRemaining = 3;
+  const cancellationAttemptsBefore = mockSupabaseControl.cancellationAttempts;
+  const firstCancellation = resetBaccaratSession(tombstoneUser);
+  const duplicateCancellation = resetBaccaratSession(tombstoneUser);
+  if (firstCancellation !== duplicateCancellation) {
+    throw new Error("Concurrent Baccarat cancellations must share one persistence operation");
+  }
+  const failedCancellations = await Promise.allSettled([
+    firstCancellation,
+    duplicateCancellation,
+  ]);
+  if (
+    failedCancellations.some((result) => result.status !== "rejected")
+    || mockSupabaseControl.cancellationAttempts - cancellationAttemptsBefore !== 3
+    || hasActiveBaccaratSession(tombstoneUser)
+  ) {
+    throw new Error("Failed Baccarat tombstones must reject once without restoring the active session");
+  }
+  const staleRow = mockBaccaratRows.get(`baccarat_session:${tombstoneUser}`);
+  if (!staleRow || staleRow.value?.cancelled) {
+    throw new Error("Failed Baccarat tombstones must leave the stale row visible for a real retry");
+  }
+  const retryResult = await resetBaccaratSession(tombstoneUser);
+  const tombstoneRow = mockBaccaratRows.get(`baccarat_session:${tombstoneUser}`);
+  if (
+    retryResult !== true
+    || mockSupabaseControl.cancellationAttempts - cancellationAttemptsBefore !== 4
+    || tombstoneRow?.value?.cancelled !== true
+  ) {
+    throw new Error("A repeated Baccarat cancellation must persist the retained tombstone");
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  mockBaccaratRows.clear();
+  mockBaccaratRows.set(`baccarat_session:${tombstoneUser}`, tombstoneRow);
+  const baccaratSessionPath = require.resolve("../modules/baccarat/session");
+  const cachedBaccaratSessionModule = require.cache[baccaratSessionPath];
+  delete require.cache[baccaratSessionPath];
+  const restartedBaccaratSession = require("../modules/baccarat/session");
+  const restoredAfterCancellation = await restartedBaccaratSession.hydrateSessions();
+  if (
+    restoredAfterCancellation !== 0
+    || restartedBaccaratSession.hasActiveSession(tombstoneUser)
+  ) {
+    throw new Error("Persisted Baccarat tombstones must not revive after restart");
+  }
+  require.cache[baccaratSessionPath] = cachedBaccaratSessionModule;
 
   for (const item of captured.replies) item.messages.forEach(assertMessage);
   for (const item of captured.pushes) item.messages.forEach(assertMessage);

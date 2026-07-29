@@ -1,15 +1,19 @@
 const MAX_RISK_RATIO = 0.2;
+const PREDICTION_MODEL_VERSION = "baccarat-banker-baseline-v3";
+const OBSERVE = "觀望";
+const BANKER_BASE_PROBABILITY = 0.5068;
 
 function roundBet(amount) {
-  const numeric = Number(amount || 0);
-  if (numeric < 100) return 100;
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric) || numeric < 100) return 0;
   const unit = numeric > 10000 ? 1000 : 100;
   return Math.floor(numeric / unit) * unit;
 }
 
 function clampBet(amount, maxBet) {
-  const capped = Math.min(roundBet(amount), roundBet(maxBet));
-  return Math.max(0, capped);
+  const limit = Number(maxBet);
+  if (!Number.isFinite(limit) || limit < 100) return 0;
+  return Math.max(0, Math.min(roundBet(amount), roundBet(limit), limit));
 }
 
 function getBaseBetAmount(capital) {
@@ -45,21 +49,36 @@ function dynamicBetFromBase(base, limit) {
   return unique[Math.floor(Math.random() * unique.length)] || clampBet(base, limit);
 }
 
+function getBankroll(session) {
+  const raw = session.bankroll !== undefined && session.bankroll !== null && session.bankroll !== ""
+    ? session.bankroll
+    : session.capital;
+  const bankroll = Number(raw);
+  return Number.isFinite(bankroll) ? Math.max(0, bankroll) : 0;
+}
+
+function getConfiguredMaxBet(session, bankroll) {
+  const raw = session.maxBet;
+  if (raw === undefined || raw === null || raw === "") return bankroll;
+  const maxBet = Number(raw);
+  return Number.isFinite(maxBet) ? Math.max(0, maxBet) : 0;
+}
+
 function getLimit(session) {
-  const bankroll = Number(session.bankroll || session.capital || 0);
-  const maxBet = Number(session.maxBet || bankroll);
+  const bankroll = getBankroll(session);
+  const maxBet = getConfiguredMaxBet(session, bankroll);
   const riskLimit = getRiskLimit(bankroll);
-  return Math.min(maxBet, bankroll, riskLimit || bankroll);
+  return Math.max(0, Math.min(maxBet, bankroll, riskLimit));
 }
 
 function getHeavenLimit(session) {
-  const bankroll = Number(session.bankroll || session.capital || 0);
-  const maxBet = Number(session.maxBet || bankroll);
-  return Math.min(maxBet, bankroll);
+  const bankroll = getBankroll(session);
+  const maxBet = getConfiguredMaxBet(session, bankroll);
+  return Math.max(0, Math.min(maxBet, bankroll));
 }
 
 function getBaseBet(session) {
-  const capital = Number(session.bankroll || session.capital || 0);
+  const capital = getBankroll(session);
   const limit = getLimit(session);
   const base = getBaseBetAmount(capital);
   const bet = dynamicBetFromBase(base, limit);
@@ -73,7 +92,7 @@ function getBaseBet(session) {
 }
 
 function getHeavenBet(session) {
-  const capital = Number(session.bankroll || session.capital || 0);
+  const capital = getBankroll(session);
   const levelMultipliers = [1, 3, 7, 15, 31];
   const level = Math.max(1, Math.min(5, Number(session.tianmenLevel || 1)));
   const totalMultiplier = levelMultipliers.reduce((sum, value) => sum + value, 0);
@@ -91,33 +110,45 @@ function getHeavenBet(session) {
   return bet;
 }
 
-function predict(history = []) {
-  const clean = history.filter((item) => item === "莊" || item === "閒").slice(-30);
-  if (!clean.length) return "莊";
-  if (clean.length === 1) return clean[0] === "莊" ? "閒" : "莊";
-  const last = clean[clean.length - 1];
-  let streak = 1;
-  for (let index = clean.length - 2; index >= 0 && clean[index] === last; index -= 1) {
-    streak += 1;
-  }
-  if (streak >= 3) return last;
-
-  const nextCounts = { 莊: 0, 閒: 0 };
-  for (let index = 1; index < clean.length; index += 1) {
-    if (clean[index - 1] === last) nextCounts[clean[index]] += 1;
-  }
-  if (nextCounts.莊 !== nextCounts.閒) {
-    return nextCounts.莊 > nextCounts.閒 ? "莊" : "閒";
-  }
-
-  const recent = clean.slice(-8);
-  const banker = recent.filter((result) => result === "莊").length;
-  const player = recent.length - banker;
-  if (Math.abs(banker - player) >= 2) return banker < player ? "莊" : "閒";
-  return last === "莊" ? "閒" : "莊";
+function predictionResult({
+  prediction = OBSERVE,
+  confidence = 0.5,
+  sampleSize = 0,
+  historySize = 0,
+  reasonCode,
+  evidence = null,
+}) {
+  return {
+    prediction,
+    confidence: Number(confidence.toFixed(4)),
+    sampleSize,
+    historySize,
+    modelVersion: PREDICTION_MODEL_VERSION,
+    reasonCode,
+    ...(evidence ? { evidence } : {}),
+  };
 }
 
-function calculateBet(session) {
+function analyzePrediction(history = []) {
+  const source = Array.isArray(history) ? history : [];
+  const clean = source.filter((item) => item === "莊" || item === "閒").slice(-60);
+  const historySize = clean.length;
+
+  return predictionResult({
+    prediction: "莊",
+    confidence: BANKER_BASE_PROBABILITY,
+    sampleSize: historySize,
+    historySize,
+    reasonCode: "BANKER_MATHEMATICAL_BASELINE",
+  });
+}
+
+function predict(history = []) {
+  return analyzePrediction(history).prediction;
+}
+
+function calculateBet(session, prediction = session.lastPrediction) {
+  if (prediction === OBSERVE) return 0;
   if (session.mode === "自由配注") return 0;
   if (session.mode === "天門") return getHeavenBet(session);
   return clampBet(getBaseBet(session), getLimit(session));
@@ -127,9 +158,17 @@ function applyResult(session, outcome) {
   const lastBet = Number(session.lastBet || 0);
   if (!session.lastPrediction) return session;
 
-  if (!session.results.pass && session.results.pass !== 0) session.results.pass = session.results.pass || 0;
-  if (!session.results.fail && session.results.fail !== 0) session.results.fail = session.results.fail || 0;
-  if (!session.results.tie && session.results.tie !== 0) session.results.tie = 0;
+  session.results = session.results || {};
+  session.results.pass = Number.isFinite(Number(session.results.pass))
+    ? Number(session.results.pass) : 0;
+  session.results.fail = Number.isFinite(Number(session.results.fail))
+    ? Number(session.results.fail) : 0;
+  session.results.tie = Number.isFinite(Number(session.results.tie))
+    ? Number(session.results.tie) : 0;
+  session.results.observe = Number.isFinite(Number(session.results.observe))
+    ? Number(session.results.observe) : 0;
+
+  if (outcome !== "莊" && outcome !== "閒" && outcome !== "和") return session;
 
   if (outcome === "和") {
     session.results.tie += 1;
@@ -137,6 +176,16 @@ function applyResult(session, outcome) {
       prediction: session.lastPrediction,
       actual: outcome,
       verdict: "和",
+    };
+    return session;
+  }
+
+  if (session.lastPrediction === OBSERVE) {
+    session.results.observe += 1;
+    session.lastSettlement = {
+      prediction: OBSERVE,
+      actual: outcome,
+      verdict: OBSERVE,
     };
     return session;
   }
@@ -160,28 +209,55 @@ function applyResult(session, outcome) {
 }
 
 function nextAnalysis(session, opened) {
-  session.history.push(opened);
+  if (!Array.isArray(session.history)) session.history = [];
+  if (opened === "莊" || opened === "閒" || opened === "和") session.history.push(opened);
   if (session.history.length > 50) session.history.shift();
   session = applyResult(session, opened);
-  const prediction = opened === "和" ? session.lastPrediction || predict(session.history) : predict(session.history);
-  const bet = calculateBet(session);
+  let analysis = analyzePrediction(session.history);
+  let prediction = analysis.prediction;
+  let bet = calculateBet(session, prediction);
+  if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
+    prediction = OBSERVE;
+    bet = 0;
+    analysis = {
+      ...analysis,
+      prediction,
+      reasonCode: "INSUFFICIENT_BET_LIMIT",
+    };
+  }
   session.lastPrediction = prediction;
+  session.lastPredictionMeta = analysis;
   session.lastBet = bet;
-  return { session, prediction, bet };
+  return { session, prediction, bet, analysis };
 }
 
 function firstAnalysis(session) {
-  const prediction = predict(session.history);
-  const bet = calculateBet(session);
+  let analysis = analyzePrediction(session.history);
+  let prediction = analysis.prediction;
+  let bet = calculateBet(session, prediction);
+  if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
+    prediction = OBSERVE;
+    bet = 0;
+    analysis = {
+      ...analysis,
+      prediction,
+      reasonCode: "INSUFFICIENT_BET_LIMIT",
+    };
+  }
   session.lastPrediction = prediction;
+  session.lastPredictionMeta = analysis;
   session.lastBet = bet;
-  return { session, prediction, bet };
+  return { session, prediction, bet, analysis };
 }
 
 function getReason(session) {
-  if (session.mode === "自由配注") return "自由配注模式下，AI只負責紀錄與統計，不主動建議下注。";
-  if (session.mode === "天門") return "天門模式依五關節奏執行，第一關會由目前本金反推，確保本金可支撐完整五關，並受單注上限限制。";
-  return "AI已依目前紀錄完成監測，建議以單注上限與本金控管為優先。";
+  if (session.lastPredictionMeta?.reasonCode === "INSUFFICIENT_BET_LIMIT") {
+    return "本金或單注上限低於最低下注單位，本局不下注。";
+  }
+  if (session.lastPrediction === OBSERVE) return "目前無法安全下注，本局觀望。";
+  if (session.mode === "自由配注") return "莊家數學基準；AI 提供方向，下注金額由玩家決定。";
+  if (session.mode === "天門") return "莊家數學基準；配注依天門五關節奏與單注上限執行。";
+  return "莊家數學基準；短期路單不視為高信心訊號。";
 }
 
 module.exports = {
@@ -190,5 +266,7 @@ module.exports = {
   getReason,
   calculateBet,
   getBaseBetAmount,
+  analyzePrediction,
   predict,
+  applyResult,
 };
