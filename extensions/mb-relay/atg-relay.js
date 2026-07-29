@@ -3,6 +3,7 @@
 
   const STORAGE_KEY = "blackdomainElectronicRelayKey";
   let relayKey = "";
+  let lastRefreshId = "";
 
   async function getRelayKey() {
     if (relayKey) return relayKey;
@@ -59,6 +60,13 @@
         window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_WATCH_ROOMS", {
           detail: { rooms: response.data.rooms },
         }));
+        const refresh = response.data?.refresh;
+        if (refresh?.id && !refresh.completedAt && refresh.id !== lastRefreshId) {
+          lastRefreshId = refresh.id;
+          window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", {
+            detail: refresh,
+          }));
+        }
       }
     } catch {
       // The next interval retries transient extension/background failures.

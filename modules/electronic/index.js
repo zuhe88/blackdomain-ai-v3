@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { reply, quickReply } = require("../../services/line");
+const { reply, push, quickReply } = require("../../services/line");
 const { bubble, infoLine } = require("../../ui/flex/premium");
 const {
   electronicRecommendFlex,
@@ -7,15 +7,19 @@ const {
 } = require("../../ui/flex/electronicResult");
 const supabase = require("../../services/supabase");
 const electronicSource = require("./source");
+const { isAdminLineUserId } = require("../../config/admin");
 
 const electronicSessions = new Map();
 const cycleCache = new Map();
 const recommendCursorStore = new Map();
+const recommendInFlight = new Map();
 const liveWatches = new Map();
+const stoppedWatchKeys = new Map();
 const notifiedSpins = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
+const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 8000);
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -28,9 +32,29 @@ const GAME_CONFIG = {
 const MAIN_COMMANDS = new Set(["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
 const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
 const BACK_TO_GAME_COMMANDS = new Set(["返回電子首頁", "返回遊戲選單"]);
+const ADMIN_REFRESH_COMMANDS = new Set([
+  "更新房間數據",
+  "更新房間資料",
+  "更新房間統計",
+  "刷新房間數據",
+  "刷新房間資料",
+  "刷新房間統計",
+]);
+const STOP_WATCH_COMMAND = "結束房間監控";
+
+function watchKey(watch = {}) {
+  return `${watch.userId || ""}:${watch.gameName || ""}:${Number(watch.roomNumber) || 0}`;
+}
+
+function isStopWatchCommand(value) {
+  return value === "結束該房間"
+    || value === STOP_WATCH_COMMAND
+    || String(value || "").startsWith(`${STOP_WATCH_COMMAND} `);
+}
 
 function rememberLiveWatch(watch) {
   if (!watch?.userId) return;
+  stoppedWatchKeys.delete(watchKey(watch));
   liveWatches.set(watch.userId, watch);
   if (!supabase) return;
   supabase
@@ -44,6 +68,39 @@ function rememberLiveWatch(watch) {
     .then(({ error }) => {
       if (error) console.error("[Electronic] Watch persistence failed:", error.message);
     });
+}
+
+async function stopLiveWatch(userId, expectedGameName = "", expectedRoomNumber = null) {
+  let watch = liveWatches.get(userId) || null;
+  if (!watch && supabase) {
+    const { data } = await supabase
+      .from("lottery_settings")
+      .select("value")
+      .eq("key", `${WATCH_KEY_PREFIX}${userId}`)
+      .maybeSingle();
+    watch = data?.value || null;
+  }
+  if (!watch) return { stopped: false, reason: "none" };
+  if (
+    (expectedGameName && watch.gameName !== expectedGameName)
+    || (
+      expectedRoomNumber != null
+      && Number(watch.roomNumber) !== Number(expectedRoomNumber)
+    )
+  ) {
+    return { stopped: false, reason: "changed", watch };
+  }
+
+  liveWatches.delete(userId);
+  stoppedWatchKeys.set(watchKey(watch), Date.now());
+  if (supabase) {
+    const { error } = await supabase
+      .from("lottery_settings")
+      .delete()
+      .eq("key", `${WATCH_KEY_PREFIX}${userId}`);
+    if (error) console.error("[Electronic] Watch removal failed:", error.message);
+  }
+  return { stopped: true, watch };
 }
 
 function rememberElectronicSession(userId, session) {
@@ -88,14 +145,16 @@ async function getLiveWatchers(gameName, roomNumber) {
       && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT
     ) watchers.set(watch.userId, watch);
   }
-  if (!supabase) return [...watchers.values()];
+  if (!supabase) {
+    return [...watchers.values()].filter((watch) => !stoppedWatchKeys.has(watchKey(watch)));
+  }
   const { data, error } = await supabase
     .from("lottery_settings")
     .select("value")
     .like("key", `${WATCH_KEY_PREFIX}%`);
   if (error) {
     console.error("[Electronic] Watch hydration failed:", error.message);
-    return [...watchers.values()];
+    return [...watchers.values()].filter((watch) => !stoppedWatchKeys.has(watchKey(watch)));
   }
   for (const row of data || []) {
     const watch = row?.value;
@@ -109,7 +168,7 @@ async function getLiveWatchers(gameName, roomNumber) {
       liveWatches.set(watch.userId, watch);
     }
   }
-  return [...watchers.values()];
+  return [...watchers.values()].filter((watch) => !stoppedWatchKeys.has(watchKey(watch)));
 }
 
 async function getActiveWatchRooms() {
@@ -140,7 +199,11 @@ async function getActiveWatchRooms() {
   const rooms = new Map();
   for (const watch of watches.values()) {
     const roomNumber = Number(watch.roomNumber);
-    if (!electronicSource.SUPPORTED_GAMES.has(watch.gameName) || !Number.isInteger(roomNumber)) continue;
+    if (
+      stoppedWatchKeys.has(watchKey(watch))
+      || !electronicSource.SUPPORTED_GAMES.has(watch.gameName)
+      || !Number.isInteger(roomNumber)
+    ) continue;
     rooms.set(`${watch.gameName}:${roomNumber}`, { gameName: watch.gameName, roomNumber });
   }
   return [...rooms.values()];
@@ -170,6 +233,10 @@ function getUpdateTimeText() {
 function formatRoom(gameName, room) {
   const config = GAME_CONFIG[gameName];
   return String(room).padStart(config?.pad || 3, "0");
+}
+
+function selectedRoomNumber(selected) {
+  return selected && typeof selected === "object" ? selected.number : selected;
 }
 
 function hashScore(input, max = 2147483647) {
@@ -378,6 +445,108 @@ async function showElectronicMain(event) {
   return reply(event.replyToken, electronicMenuFlex());
 }
 
+async function stopRoomMonitoring(event) {
+  const value = event.message?.text?.trim() || "";
+  const match = value.match(/^結束房間監控(?:\s+(\S+)\s+(\d+))?$/);
+  if (value !== "結束該房間" && value !== STOP_WATCH_COMMAND && !match) {
+    return reply(event.replyToken, electronicPromptFlex("無法辨識房間", [
+      "請使用推薦卡下方的「結束該房間」按鈕",
+      "目前監控不受影響",
+    ], afterRecommendQuickReply()));
+  }
+  const result = await stopLiveWatch(
+    event.source?.userId || "",
+    match?.[1] || "",
+    match?.[2] == null ? null : Number(match[2]),
+  );
+  if (result.stopped) {
+    return reply(event.replyToken, electronicPromptFlex("已結束房間監控", [
+      `${result.watch.gameName} ${formatRoom(result.watch.gameName, result.watch.roomNumber)}`,
+      "已停止接收該房特色遊戲通知",
+    ], afterRecommendQuickReply()));
+  }
+  if (result.reason === "changed") {
+    return reply(event.replyToken, electronicPromptFlex("目前監控房間已變更", [
+      "這是較早的推薦卡",
+      `目前監控：${result.watch.gameName} ${formatRoom(result.watch.gameName, result.watch.roomNumber)}`,
+      "目前房間不受這次操作影響",
+    ], afterRecommendQuickReply()));
+  }
+  return reply(event.replyToken, electronicPromptFlex("目前沒有監控中的房間", [
+    "無需進一步操作",
+  ], afterRecommendQuickReply()));
+}
+
+function formatSnapshotTime(value) {
+  if (!value) return "尚未取得";
+  return new Date(value).toLocaleString("zh-TW", {
+    timeZone: "Asia/Taipei",
+    hour12: false,
+  });
+}
+
+async function handleAdminRefreshCommand(event) {
+  const userId = event.source?.userId || "";
+  if (!isAdminLineUserId(userId)) {
+    return reply(event.replyToken, electronicPromptFlex("權限不足", [
+      "此功能僅限管理員使用。",
+    ]));
+  }
+
+  const snapshots = electronicSource.getSnapshot();
+  const refresh = electronicSource.requestFullRefresh(userId);
+  if (!refresh.accepted) {
+    return reply(event.replyToken, electronicPromptFlex("房間數據更新中", [
+      "目前已有刷新請求正在處理",
+      `約 ${refresh.retryAfterSeconds} 秒後可再次操作`,
+      `請求編號：${refresh.id}`,
+    ]));
+  }
+  return reply(event.replyToken, electronicPromptFlex("房間數據更新", [
+    "已發送強制刷新指令",
+    "Relay 最慢約 5 秒開始重新掃描",
+    "兩個戰神賽特遊戲頁需保持開啟",
+    ...snapshots.map((snapshot) => (
+      `${snapshot.gameName}：${snapshot.tables.length} 房／上次 ${formatSnapshotTime(snapshot.fullScanAt || snapshot.updatedAt)}`
+    )),
+    `請求編號：${refresh.id}`,
+  ]));
+}
+
+async function pushRoomSyncWaiting(userId, gameName) {
+  try {
+    await push(userId, electronicPromptFlex("即時房間數據同步中", [
+      gameName,
+      "正在重新確認空房與房間統計",
+      "預計 0～8 秒完成",
+      "完成後會自動回傳新的推薦房間",
+      "請勿重複點擊「重新推薦」",
+    ]));
+    return true;
+  } catch (error) {
+    console.error("[Electronic] Room sync waiting message failed:", error.message);
+    return false;
+  }
+}
+
+async function notifyAdminRefreshComplete(refresh) {
+  if (!refresh?.requestedBy) return false;
+  const snapshots = electronicSource.getSnapshot();
+  try {
+    await push(refresh.requestedBy, electronicPromptFlex("房間數據更新完成", [
+      ...snapshots.map((snapshot) => (
+        `${snapshot.gameName}：${snapshot.tables.length} 房／更新 ${formatSnapshotTime(snapshot.fullScanAt || snapshot.updatedAt)}`
+      )),
+      `完成時間：${formatSnapshotTime(refresh.completedAt)}`,
+      `請求編號：${refresh.id}`,
+    ]));
+    return true;
+  } catch (error) {
+    console.error("[Electronic] Admin refresh notification failed:", error.message);
+    return false;
+  }
+}
+
 async function selectGame(event, gameName) {
   const userId = event.source.userId;
   if (!GAME_CONFIG[gameName]) return reply(event.replyToken, electronicPromptFlex("遊戲不存在", ["請重新選擇電子AI遊戲。"]));
@@ -402,7 +571,7 @@ async function showGameMenu(event) {
   return reply(event.replyToken, message);
 }
 
-async function recommendRoom(event) {
+async function performRecommendRoom(event) {
   const userId = event.source.userId;
   const session = getUserSession(userId);
   if (!session.gameName) return showElectronicMain(event);
@@ -410,7 +579,7 @@ async function recommendRoom(event) {
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
-  const selected = getNextRecommendRoom(userId, session.gameName);
+  let selected = getNextRecommendRoom(userId, session.gameName);
   if (!selected) {
     if (
       electronicSource.SUPPORTED_GAMES.has(session.gameName)
@@ -428,7 +597,58 @@ async function recommendRoom(event) {
       "客滿、鎖定與關閉房間均已排除，請稍後再試。",
     ], afterRecommendQuickReply()));
   }
-  const roomNumber = typeof selected === "object" ? selected.number : selected;
+  let roomNumber = selectedRoomNumber(selected);
+  if (typeof selected === "object") {
+    const detailDeadline = Date.now() + DETAIL_WAIT_MS;
+    await pushRoomSyncWaiting(userId, session.gameName);
+    rememberLiveWatch({
+      userId,
+      gameName: session.gameName,
+      roomNumber,
+      updatedAt: Date.now(),
+    });
+    const firstWaitMs = detailDeadline - Date.now();
+    const refreshed = firstWaitMs > 0
+      ? await electronicSource.waitForRoomDetail(
+        session.gameName,
+        roomNumber,
+        firstWaitMs,
+      )
+      : null;
+    if (!refreshed || refreshed.status !== "Empty" || refreshed.occupied === true) {
+      selected = getNextRecommendRoom(userId, session.gameName);
+      roomNumber = selectedRoomNumber(selected);
+      if (typeof selected === "object" && selected.detail) {
+        rememberLiveWatch({
+          userId,
+          gameName: session.gameName,
+          roomNumber,
+          updatedAt: Date.now(),
+        });
+        const remainingWaitMs = detailDeadline - Date.now();
+        selected = remainingWaitMs > 0
+          ? await electronicSource.waitForRoomDetail(
+            session.gameName,
+            roomNumber,
+            remainingWaitMs,
+          )
+          : null;
+      }
+    } else {
+      selected = refreshed;
+    }
+    if (!selected || (typeof selected === "object" && (
+      !selected.detail || selected.status !== "Empty" || selected.occupied === true
+    ))) {
+      await stopLiveWatch(userId, session.gameName, roomNumber);
+      return reply(event.replyToken, electronicPromptFlex("房間即時數據同步中", [
+        session.gameName,
+        "系統未使用舊統計進行推薦",
+        "請稍後再按一次重新推薦",
+      ], afterRecommendQuickReply()));
+    }
+    roomNumber = selectedRoomNumber(selected);
+  }
   const room = formatRoom(session.gameName, roomNumber);
   rememberLiveWatch({
     userId,
@@ -443,6 +663,23 @@ async function recommendRoom(event) {
     afterRecommendQuickReply(),
     typeof selected === "object" ? selected : null,
   ));
+}
+
+async function recommendRoom(event) {
+  const userId = event.source.userId;
+  if (recommendInFlight.has(userId)) {
+    return reply(event.replyToken, electronicPromptFlex("即時房間數據同步中", [
+      "完成後會自動回傳新的推薦房間",
+      "請勿重複點擊「重新推薦」",
+    ], afterRecommendQuickReply()));
+  }
+  const requestId = crypto.randomUUID();
+  recommendInFlight.set(userId, requestId);
+  try {
+    return await performRecommendRoom(event);
+  } finally {
+    if (recommendInFlight.get(userId) === requestId) recommendInFlight.delete(userId);
+  }
 }
 
 async function handleElectronicSpin(payload = {}) {
@@ -479,6 +716,7 @@ async function changeRecommendRoom(event) {
 
 async function handleElectronicMessage(event) {
   const value = event.message.text.trim();
+  if (isStopWatchCommand(value)) return stopRoomMonitoring(event);
   if (MAIN_COMMANDS.has(value)) return showElectronicMain(event);
   if (GAME_CONFIG[value]) return selectGame(event, value);
   if (RECOMMEND_COMMANDS.has(value)) {
@@ -494,7 +732,11 @@ async function handleElectronicMessage(event) {
 
 function isElectronicCommand(value) {
   if (!value) return false;
-  return MAIN_COMMANDS.has(value) || Boolean(GAME_CONFIG[value]) || RECOMMEND_COMMANDS.has(value) || BACK_TO_GAME_COMMANDS.has(value);
+  return MAIN_COMMANDS.has(value)
+    || Boolean(GAME_CONFIG[value])
+    || RECOMMEND_COMMANDS.has(value)
+    || BACK_TO_GAME_COMMANDS.has(value)
+    || isStopWatchCommand(value);
 }
 
 function hasActiveElectronicSession(userId) {
@@ -524,6 +766,9 @@ function cleanupOldCycles() {
       recommendCursorStore.delete(key);
     }
   }
+  for (const [key, stoppedAt] of stoppedWatchKeys.entries()) {
+    if (Date.now() - stoppedAt > SESSION_TIMEOUT) stoppedWatchKeys.delete(key);
+  }
 }
 
 setInterval(cleanupOldCycles, 10 * 60 * 1000).unref();
@@ -544,4 +789,8 @@ module.exports = {
   getNextRecommendRoom,
   handleElectronicSpin,
   getActiveWatchRooms,
+  handleAdminRefreshCommand,
+  notifyAdminRefreshComplete,
+  ADMIN_REFRESH_COMMANDS,
+  isStopWatchCommand,
 };

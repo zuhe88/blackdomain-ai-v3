@@ -157,6 +157,14 @@ async function handleEvent(event) {
     return reply(event.replyToken, welcomeFlex());
   }
 
+  if (electronic.ADMIN_REFRESH_COMMANDS?.has(text)) {
+    return electronic.handleAdminRefreshCommand(event);
+  }
+
+  if (electronic.isStopWatchCommand?.(text)) {
+    return electronic.handleElectronicMessage(event);
+  }
+
   if (
     ["重新開始", "返回首頁"].includes(text)
     && baccarat.hasActiveBaccaratSession

@@ -408,6 +408,7 @@ function adminHelpFlex() {
       infoLine("扣天數", "扣天數 abc123 10"),
       infoLine("永久VIP", "永久VIP abc123"),
       infoLine("會員列表", "列出所有會員"),
+      infoLine("更新房間數據", "強制重掃電子房間與統計"),
     ],
   });
 }

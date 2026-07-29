@@ -1,10 +1,14 @@
 const GAME_NAMES = ["戰神賽特1", "戰神賽特2"];
 const LIVE_TTL_MS = 2 * 60 * 1000;
 const FULL_SCAN_TTL_MS = 15 * 60 * 1000;
+const REFRESH_COOLDOWN_MS = 30 * 1000;
 const MIN_READY_TABLES = new Map([
   [GAME_NAMES[0], 1200],
   [GAME_NAMES[1], 3900],
 ]);
+let refreshSequence = 0;
+let refreshRequest = null;
+const detailWaiters = new Map();
 const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   gameName,
   tables: new Map(),
@@ -84,6 +88,21 @@ function ingestDetail(payload = {}) {
   if (!normalized) return false;
   state.tables.set(normalized.roomId, normalized);
   state.updatedAt = new Date().toISOString();
+  const waiterKey = `${state.gameName}:${normalized.number}`;
+  const waiters = detailWaiters.get(waiterKey);
+  if (waiters?.size) {
+    detailWaiters.delete(waiterKey);
+    waiters.forEach((waiter) => {
+      clearTimeout(waiter.timer);
+      waiter.resolve({
+        ...normalized,
+        detail: normalized.detail && {
+          ...normalized.detail,
+          mgCounts: [...normalized.detail.mgCounts],
+        },
+      });
+    });
+  }
   const now = Number(detail.capturedAt || payload.capturedAt) || Date.now();
   const currentDetail = normalized.detail;
   const previous = state.featureMonitors.get(normalized.roomId);
@@ -224,7 +243,79 @@ function getSnapshot() {
   return GAME_NAMES.map((gameName) => getGame(gameName));
 }
 
+function waitForRoomDetail(gameName, roomNumber, timeoutMs = 10000) {
+  const state = games.get(String(gameName || ""));
+  const number = Number(roomNumber);
+  if (!state || !Number.isInteger(number)) return Promise.resolve(null);
+  const waiterKey = `${state.gameName}:${number}`;
+  return new Promise((resolve) => {
+    const waiters = detailWaiters.get(waiterKey) || new Set();
+    const waiter = {
+      resolve,
+      timer: setTimeout(() => {
+        waiters.delete(waiter);
+        if (!waiters.size) detailWaiters.delete(waiterKey);
+        resolve(null);
+      }, Math.max(1, Number(timeoutMs) || 10000)),
+    };
+    waiters.add(waiter);
+    detailWaiters.set(waiterKey, waiters);
+  });
+}
+
+function requestFullRefresh(requestedBy = "") {
+  if (refreshRequest) {
+    const elapsed = Date.now() - Date.parse(refreshRequest.requestedAt);
+    if (elapsed < REFRESH_COOLDOWN_MS) {
+      return {
+        ...getRefreshRequest(),
+        accepted: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((REFRESH_COOLDOWN_MS - elapsed) / 1000)),
+      };
+    }
+  }
+  refreshSequence += 1;
+  refreshRequest = {
+    id: `${Date.now()}-${refreshSequence}`,
+    requestedAt: new Date().toISOString(),
+    requestedBy: String(requestedBy || ""),
+    completedGames: [],
+    completedAt: null,
+  };
+  return { ...getRefreshRequest(), accepted: true, retryAfterSeconds: 0 };
+}
+
+function getRefreshRequest() {
+  return refreshRequest ? {
+    id: refreshRequest.id,
+    requestedAt: refreshRequest.requestedAt,
+    completedGames: [...refreshRequest.completedGames],
+    completedAt: refreshRequest.completedAt,
+  } : null;
+}
+
+function markRefreshGameComplete(gameName, refreshId) {
+  if (
+    !refreshRequest
+    || refreshRequest.id !== String(refreshId || "")
+    || !GAME_NAMES.includes(gameName)
+    || refreshRequest.completedAt
+  ) return null;
+  if (!refreshRequest.completedGames.includes(gameName)) refreshRequest.completedGames.push(gameName);
+  if (refreshRequest.completedGames.length < GAME_NAMES.length) return null;
+  refreshRequest.completedAt = new Date().toISOString();
+  return {
+    ...getRefreshRequest(),
+    requestedBy: refreshRequest.requestedBy,
+  };
+}
+
 function resetForTest() {
+  detailWaiters.forEach((waiters) => waiters.forEach((waiter) => {
+    clearTimeout(waiter.timer);
+    waiter.resolve(null);
+  }));
+  detailWaiters.clear();
   games.forEach((state) => {
     state.tables = new Map();
     state.pendingScan = null;
@@ -233,8 +324,28 @@ function resetForTest() {
     state.updatedAt = null;
     state.fullScanAt = null;
   });
+  refreshRequest = null;
+  refreshSequence = 0;
 }
 
 const SUPPORTED_GAMES = new Set(GAME_NAMES);
 
-module.exports = { GAME_NAMES, SUPPORTED_GAMES, ingestTables, ingestUpdates, ingestDetail, ingestSpin, getGame, getEmptyRooms, hasFreshData, hasReadyData, getSnapshot, normalizeTable, resetForTest };
+module.exports = {
+  GAME_NAMES,
+  SUPPORTED_GAMES,
+  ingestTables,
+  ingestUpdates,
+  ingestDetail,
+  ingestSpin,
+  getGame,
+  getEmptyRooms,
+  hasFreshData,
+  hasReadyData,
+  getSnapshot,
+  waitForRoomDetail,
+  requestFullRefresh,
+  getRefreshRequest,
+  markRefreshGameComplete,
+  normalizeTable,
+  resetForTest,
+};

@@ -1,4 +1,4 @@
-const { COLORS, bubble, infoLine, metric, note, text, section } = require("./premium");
+const { COLORS, bubble, button, infoLine, metric, note, text, section } = require("./premium");
 
 function score(seed = "") {
   let score = 0;
@@ -94,8 +94,8 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomDat
         periodStats("今日", detail.todayBet ?? detail.hourBet, detail.todayWin ?? detail.hourWin, COLORS.green),
         periodStats("近30天", detail.dayBet, detail.dayWin, COLORS.gold),
       ])] : []),
-      note(detail ? "只推薦即時狀態為 Empty 的房間" : "尚未收到即時房表，暫不推薦"),
       note("本分析由 BLACKDOMAIN AI 生成，僅供參考。"),
+      button("結束該房間", `結束房間監控 ${gameName} ${room}`, "danger"),
     ],
   });
 }

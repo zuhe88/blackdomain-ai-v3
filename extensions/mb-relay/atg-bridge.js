@@ -31,6 +31,9 @@
   const watchedRoomNumbers = new Set();
   let watchedRoomCursor = 0;
   let watchedRoomTimer = null;
+  let forceScanRequested = false;
+  let pendingRefreshId = "";
+  let activeRefreshId = "";
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -107,6 +110,8 @@
     if (page === 1) {
       scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       scanEmptyCandidates = [];
+      activeRefreshId = pendingRefreshId;
+      pendingRefreshId = "";
     }
     scanPage = page;
     window.dispatch(TABLE_PAGE_REQUEST, { page });
@@ -118,6 +123,27 @@
       scanTimer = null;
       requestScanPage(1);
     }, delay);
+  }
+
+  function requestForcedFullScan(event = {}) {
+    const requestedId = String(event?.detail?.id || "");
+    if (requestedId) pendingRefreshId = requestedId;
+    if (detailQueueTimer) {
+      clearTimeout(detailQueueTimer);
+      detailQueueTimer = null;
+    }
+    detailFetchedAt.clear();
+    scanEmptyCandidates = [];
+    if (scanPage !== 0) {
+      forceScanRequested = true;
+      return;
+    }
+    forceScanRequested = false;
+    if (scanTimer) {
+      clearTimeout(scanTimer);
+      scanTimer = null;
+    }
+    requestScanPage(1);
   }
 
   function detailPayload(payload, requestedTable = null) {
@@ -255,6 +281,7 @@
         data.page = scanPage;
         data.scanId = scanId;
         data.scanComplete = scanPage >= scanTotalPages;
+        if (activeRefreshId) data.refreshId = activeRefreshId;
         scanEmptyCandidates.push(...data.tables.filter((table) => table.status === "Empty"));
       }
       emit({ type: "tables", gameName, ...data });
@@ -265,8 +292,10 @@
       } else if (scanPage > 0) {
         scanPage = 0;
         scanId = "";
+        activeRefreshId = "";
         scheduleCandidateDetails();
-        scheduleFullScan(30000);
+        if (forceScanRequested) requestForcedFullScan();
+        else scheduleFullScan(30000);
       }
       return;
     }
@@ -356,7 +385,10 @@
     if (!watchedRoomTimer) {
       watchedRoomTimer = setInterval(requestNextWatchedRoom, 2500);
     }
+    requestNextWatchedRoom();
   });
+
+  window.addEventListener("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", requestForcedFullScan);
 
   setInterval(() => {
     installDispatchWrapper();

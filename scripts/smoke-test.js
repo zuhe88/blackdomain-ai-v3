@@ -176,6 +176,7 @@ const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
 const mtSource = require("../modules/baccarat/mtSource");
 const mtLive = require("../modules/baccarat/mtLive");
+const electronic = require("../modules/electronic");
 const electronicSource = require("../modules/electronic/source");
 const { userscript: baccaratRelayUserscript } = require("../routes/dgRelay");
 const { predict: predictBaccarat } = require("../modules/baccarat/ai");
@@ -563,6 +564,36 @@ async function main() {
     throw new Error("Welcome preview command must be admin-only");
   }
 
+  electronicSource.resetForTest();
+  values = await sendAndTexts("更新房間數據", "regular-user");
+  assertIncludes(values, "權限不足", "Electronic room refresh must be admin-only");
+  if (electronicSource.getRefreshRequest()) {
+    throw new Error("Non-admin electronic room refresh must not create a refresh request");
+  }
+  values = await sendAndTexts("更新房間數據", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "已發送強制刷新指令", "Admin electronic room refresh");
+  if (!electronicSource.getRefreshRequest()?.id) {
+    throw new Error("Admin electronic room refresh must create a refresh request");
+  }
+  const firstRefreshId = electronicSource.getRefreshRequest().id;
+  const duplicateElectronicRefresh = electronicSource.requestFullRefresh("another-admin");
+  if (duplicateElectronicRefresh.accepted || duplicateElectronicRefresh.id !== firstRefreshId) {
+    throw new Error("Electronic room refresh must throttle duplicate requests");
+  }
+  if (electronicSource.markRefreshGameComplete("戰神賽特1", "stale-refresh")) {
+    throw new Error("Electronic room refresh must reject stale scan completion");
+  }
+  if (electronicSource.markRefreshGameComplete("戰神賽特1", firstRefreshId)) {
+    throw new Error("Electronic room refresh must wait for every supported game");
+  }
+  const completedElectronicRefresh = electronicSource.markRefreshGameComplete("戰神賽特2", firstRefreshId);
+  if (
+    completedElectronicRefresh?.requestedBy !== "Uaf293ee976e5170d4e8672d2c12b3f76"
+    || !completedElectronicRefresh.completedAt
+  ) {
+    throw new Error("Electronic room refresh completion is incorrect");
+  }
+
   const homeReply = await send("首頁", "user-smoke");
   values = homeReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "彩票AI", "Main menu lottery entry");
@@ -620,10 +651,101 @@ async function main() {
   })) {
     throw new Error("Electronic empty-room fixture was rejected");
   }
+  setTimeout(() => {
+    [1, 2].forEach((number) => electronicSource.ingestDetail({
+      gameName: "戰神賽特1",
+      detail: {
+        roomId: `seth-${number}`,
+        number,
+        status: "Empty",
+        todayWin: 99,
+        todayBet: 100,
+        dayWin: 990,
+        dayBet: 1000,
+      },
+    }));
+  }, 10);
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "推薦房號", "Electronic empty-room fallback recommendation");
   if (values.some((value) => String(value).includes("資料讀取中"))) {
     throw new Error("Electronic recommendation must not wait for optional room details");
+  }
+  electronicSource.resetForTest();
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特1",
+    scanId: "fresh-detail-recommendation",
+    scanComplete: true,
+    tables: [{ roomId: "seth-88", number: 88, status: "Empty" }],
+  });
+  electronicSource.ingestDetail({
+    gameName: "戰神賽特1",
+    detail: {
+      roomId: "seth-88",
+      number: 88,
+      status: "Empty",
+      todayWin: 90,
+      todayBet: 100,
+      dayWin: 900,
+      dayBet: 1000,
+    },
+  });
+  setTimeout(() => electronicSource.ingestDetail({
+    gameName: "戰神賽特1",
+    detail: {
+      roomId: "seth-88",
+      number: 88,
+      status: "Empty",
+      todayWin: 198,
+      todayBet: 200,
+      dayWin: 1980,
+      dayBet: 2000,
+    },
+  }), 50);
+  const waitingPushCount = captured.pushes.length;
+  const freshRecommendationPromise = send("重新推薦", "user-smoke");
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const duplicateRecommendationReply = await send("重新推薦", "user-smoke");
+  const duplicateRecommendationTexts = duplicateRecommendationReply.messages
+    .flatMap((message) => collectText(message));
+  assertIncludes(
+    duplicateRecommendationTexts,
+    "完成後會自動回傳新的推薦房間",
+    "Duplicate electronic recommendation guard",
+  );
+  const freshRecommendationReply = await freshRecommendationPromise;
+  values = freshRecommendationReply.messages.flatMap((message) => collectText(message));
+  assertIncludes(values, "99.00%", "Electronic recommendation must use freshly confirmed room details");
+  assertIncludes(values, "結束該房間", "Electronic recommendation stop-room button");
+  if (values.some((value) => String(value).includes("只推薦即時狀態為 Empty 的房間"))) {
+    throw new Error("Electronic recommendation must not display internal Empty-room rules");
+  }
+  const waitingPushTexts = captured.pushes
+    .slice(waitingPushCount)
+    .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
+  assertIncludes(waitingPushTexts, "即時房間數據同步中", "Electronic recommendation waiting Flex");
+  assertIncludes(waitingPushTexts, "預計 0～8 秒完成", "Electronic recommendation waiting estimate");
+  assertIncludes(waitingPushTexts, "完成後會自動回傳新的推薦房間", "Electronic recommendation automatic response notice");
+  assertIncludes(waitingPushTexts, "請勿重複點擊「重新推薦」", "Electronic recommendation duplicate-click warning");
+  if (values.some((value) => String(value).includes("90.00%"))) {
+    throw new Error("Electronic recommendation must not display stale room details");
+  }
+  values = await sendAndTexts("結束房間監控 戰神賽特1 089", "user-smoke");
+  assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
+  values = await sendAndTexts("結束房間監控 戰神賽特1 088", "user-smoke");
+  assertIncludes(values, "已結束房間監控", "Electronic room monitoring stop");
+  values = await sendAndTexts("結束房間監控 格式錯誤", "user-smoke");
+  assertIncludes(values, "無法辨識房間", "Malformed electronic stop-room command guard");
+  const stoppedWatchPushCount = captured.pushes.length;
+  const stoppedWatchNotified = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特1",
+    roomNumber: 88,
+    spinId: "stopped-watch-feature",
+    totalWinnings: 500,
+    featureTrigger: "purchased",
+  });
+  if (stoppedWatchNotified || captured.pushes.length !== stoppedWatchPushCount) {
+    throw new Error("Stopped electronic room monitoring must not send feature notifications");
   }
   electronicSource.resetForTest();
   electronicSource.ingestTables({
