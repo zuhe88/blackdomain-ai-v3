@@ -13,6 +13,7 @@ const electronicSessions = new Map();
 const cycleCache = new Map();
 const recommendCursorStore = new Map();
 const recommendInFlight = new Map();
+const pendingRecommendations = new Map();
 const liveWatches = new Map();
 const stoppedWatchKeys = new Map();
 const notifiedSpins = new Set();
@@ -20,6 +21,10 @@ const SESSION_TIMEOUT = 30 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 8000);
+const PENDING_RECOMMEND_TIMEOUT_MS = Math.max(
+  30000,
+  Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 2 * 60 * 1000,
+);
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -50,6 +55,36 @@ function isStopWatchCommand(value) {
   return value === "結束該房間"
     || value === STOP_WATCH_COMMAND
     || String(value || "").startsWith(`${STOP_WATCH_COMMAND} `);
+}
+
+function cancelPendingRecommendation(userId) {
+  const pending = pendingRecommendations.get(userId);
+  if (!pending) return false;
+  clearTimeout(pending.timer);
+  pendingRecommendations.delete(userId);
+  return true;
+}
+
+function queuePendingRecommendation(userId, gameName) {
+  cancelPendingRecommendation(userId);
+  const pending = {
+    userId,
+    gameName,
+    requestedAt: Date.now(),
+    timer: null,
+  };
+  pending.timer = setTimeout(async () => {
+    if (pendingRecommendations.get(userId) !== pending) return;
+    pendingRecommendations.delete(userId);
+    await push(userId, electronicPromptFlex("自動推薦等待逾時", [
+      gameName,
+      "目前仍無法取得完整房間數據",
+      "請確認遊戲頁與 relay 保持開啟後再重新推薦",
+    ], afterRecommendQuickReply()));
+  }, PENDING_RECOMMEND_TIMEOUT_MS);
+  pending.timer.unref?.();
+  pendingRecommendations.set(userId, pending);
+  return pending;
 }
 
 function rememberLiveWatch(watch) {
@@ -550,6 +585,7 @@ async function notifyAdminRefreshComplete(refresh) {
 async function selectGame(event, gameName) {
   const userId = event.source.userId;
   if (!GAME_CONFIG[gameName]) return reply(event.replyToken, electronicPromptFlex("遊戲不存在", ["請重新選擇電子AI遊戲。"]));
+  cancelPendingRecommendation(userId);
   setGameSession(userId, gameName);
   const electronicGameMenu = require("../../ui/flex/electronicGameMenu");
   const message = electronicGameMenu(gameName);
@@ -571,6 +607,12 @@ async function showGameMenu(event) {
   return reply(event.replyToken, message);
 }
 
+function deliverRecommendation(event, message) {
+  return event.autoPush
+    ? push(event.source.userId, message)
+    : reply(event.replyToken, message);
+}
+
 async function performRecommendRoom(event) {
   const userId = event.source.userId;
   const session = getUserSession(userId);
@@ -585,13 +627,16 @@ async function performRecommendRoom(event) {
       electronicSource.SUPPORTED_GAMES.has(session.gameName)
       && (!electronicSource.hasFreshData(session.gameName) || !electronicSource.hasReadyData(session.gameName))
     ) {
-      return reply(event.replyToken, electronicPromptFlex("房間數據整理中", [
+      queuePendingRecommendation(userId, session.gameName);
+      return deliverRecommendation(event, electronicPromptFlex("房間數據整理中", [
         session.gameName,
-        "資料讀取中",
-        "請等60秒後再按重新推薦",
+        "正在同步最新房表與房間統計",
+        "資料完成後會自動回傳推薦房間",
+        "請勿重複點擊「重新推薦」",
+        "最長等待 2 分鐘",
       ], afterRecommendQuickReply()));
     }
-    return reply(event.replyToken, electronicPromptFlex("目前沒有可推薦的空房", [
+    return deliverRecommendation(event, electronicPromptFlex("目前沒有可推薦的空房", [
       session.gameName,
       "系統只推薦狀態為空房的房間。",
       "客滿、鎖定與關閉房間均已排除，請稍後再試。",
@@ -618,7 +663,7 @@ async function performRecommendRoom(event) {
     if (!refreshed || refreshed.status !== "Empty" || refreshed.occupied === true) {
       selected = getNextRecommendRoom(userId, session.gameName);
       roomNumber = selectedRoomNumber(selected);
-      if (typeof selected === "object" && selected.detail) {
+      if (typeof selected === "object") {
         rememberLiveWatch({
           userId,
           gameName: session.gameName,
@@ -641,7 +686,7 @@ async function performRecommendRoom(event) {
       !selected.detail || selected.status !== "Empty" || selected.occupied === true
     ))) {
       await stopLiveWatch(userId, session.gameName, roomNumber);
-      return reply(event.replyToken, electronicPromptFlex("房間即時數據同步中", [
+      return deliverRecommendation(event, electronicPromptFlex("房間即時數據同步中", [
         session.gameName,
         "系統未使用舊統計進行推薦",
         "請稍後再按一次重新推薦",
@@ -656,7 +701,7 @@ async function performRecommendRoom(event) {
     roomNumber,
     updatedAt: Date.now(),
   });
-  return reply(event.replyToken, electronicRecommendFlex(
+  return deliverRecommendation(event, electronicRecommendFlex(
     session.gameName,
     room,
     getUpdateTimeText(),
@@ -667,6 +712,14 @@ async function performRecommendRoom(event) {
 
 async function recommendRoom(event) {
   const userId = event.source.userId;
+  const pending = pendingRecommendations.get(userId);
+  if (pending && !event.autoPush) {
+    return reply(event.replyToken, electronicPromptFlex("房間數據仍在整理中", [
+      pending.gameName,
+      "資料完成後會自動回傳推薦房間",
+      "請勿重複點擊「重新推薦」",
+    ], afterRecommendQuickReply()));
+  }
   if (recommendInFlight.has(userId)) {
     return reply(event.replyToken, electronicPromptFlex("即時房間數據同步中", [
       "完成後會自動回傳新的推薦房間",
@@ -680,6 +733,20 @@ async function recommendRoom(event) {
   } finally {
     if (recommendInFlight.get(userId) === requestId) recommendInFlight.delete(userId);
   }
+}
+
+async function handleElectronicDataReady(gameName) {
+  if (!electronicSource.hasReadyData(gameName)) return 0;
+  const pending = [...pendingRecommendations.values()]
+    .filter((item) => item.gameName === gameName);
+  if (!pending.length) return 0;
+  pending.forEach((item) => cancelPendingRecommendation(item.userId));
+  const results = await Promise.allSettled(pending.map((item) => recommendRoom({
+    source: { userId: item.userId },
+    message: { type: "text", text: "自動推薦" },
+    autoPush: true,
+  })));
+  return results.filter((result) => result.status === "fulfilled").length;
 }
 
 async function handleElectronicSpin(payload = {}) {
@@ -748,6 +815,7 @@ function getCurrentGame(userId) {
 }
 
 function resetElectronicSession(userId) {
+  cancelPendingRecommendation(userId);
   electronicSessions.delete(userId);
 }
 
@@ -793,4 +861,5 @@ module.exports = {
   notifyAdminRefreshComplete,
   ADMIN_REFRESH_COMMANDS,
   isStopWatchCommand,
+  handleElectronicDataReady,
 };

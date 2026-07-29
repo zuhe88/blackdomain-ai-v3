@@ -37,6 +37,11 @@ function registerElectronicRelayRoutes(app) {
     if (body.type === "tables" && body.scanComplete === true) {
       const completedRefresh = electronicSource.markRefreshGameComplete(body.gameName, body.refreshId);
       if (completedRefresh) await electronic.notifyAdminRefreshComplete(completedRefresh);
+      setImmediate(() => {
+        electronic.handleElectronicDataReady(body.gameName).catch((error) => {
+          console.error("[Electronic] Automatic recommendation failed:", error.message);
+        });
+      });
     }
     if (body.type === "spin") await electronic.handleElectronicSpin(body);
     if (body.type === "detail" && accepted.feature) {

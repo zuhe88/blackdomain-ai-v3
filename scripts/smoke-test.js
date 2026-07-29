@@ -639,6 +639,59 @@ async function main() {
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
   electronicSource.resetForTest();
+  values = await sendAndTexts("AI推薦房", "user-smoke");
+  assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
+  assertIncludes(values, "資料完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
+  assertIncludes(values, "請勿重複點擊「重新推薦」", "Electronic pending duplicate-click warning");
+  if (values.some((value) => String(value).includes("請等60秒後再按重新推薦"))) {
+    throw new Error("Electronic pending recommendation must not require another manual click");
+  }
+  values = await sendAndTexts("重新推薦", "user-smoke");
+  assertIncludes(values, "房間數據仍在整理中", "Electronic pending duplicate guard");
+  if (!electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特1",
+    scanId: "automatic-ready-recommendation",
+    scanComplete: true,
+    tables: [{ roomId: "seth-auto-7", number: 7, status: "Empty" }],
+  })) {
+    throw new Error("Electronic automatic recommendation fixture was rejected");
+  }
+  electronicSource.ingestDetail({
+    gameName: "戰神賽特1",
+    detail: {
+      roomId: "seth-auto-7",
+      number: 7,
+      status: "Empty",
+      todayWin: 98,
+      todayBet: 100,
+      dayWin: 980,
+      dayBet: 1000,
+    },
+  });
+  setTimeout(() => electronicSource.ingestDetail({
+    gameName: "戰神賽特1",
+    detail: {
+      roomId: "seth-auto-7",
+      number: 7,
+      status: "Empty",
+      todayWin: 198,
+      todayBet: 200,
+      dayWin: 1980,
+      dayBet: 2000,
+    },
+  }), 10);
+  const automaticRecommendationPushCount = captured.pushes.length;
+  const automaticRecommendationCount = await electronic.handleElectronicDataReady("戰神賽特1");
+  if (automaticRecommendationCount !== 1) {
+    throw new Error(`Electronic data-ready flow returned ${automaticRecommendationCount} automatic recommendations`);
+  }
+  const automaticRecommendationTexts = captured.pushes
+    .slice(automaticRecommendationPushCount)
+    .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
+  assertIncludes(automaticRecommendationTexts, "推薦房號", "Electronic data-ready automatic recommendation");
+  assertIncludes(automaticRecommendationTexts, "99.00%", "Electronic automatic recommendation fresh details");
+  electronicSource.resetForTest();
   if (!electronicSource.ingestTables({
     type: "tables",
     gameName: "戰神賽特1",
