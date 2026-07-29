@@ -24,6 +24,7 @@
   let scanTimer = null;
   let scanWatchdogTimer = null;
   let scanPageRetries = 0;
+  let scanFailureCycles = 0;
   let scanId = "";
   let scanEmptyCandidates = [];
   let detailQueueTimer = null;
@@ -36,8 +37,11 @@
   let forceScanRequested = false;
   let pendingRefreshId = "";
   let activeRefreshId = "";
+  let gameInitializedAt = 0;
   const SCAN_PAGE_INTERVAL_MS = 250;
   const SCAN_PAGE_TIMEOUT_MS = 1800;
+  const SCAN_STARTUP_GRACE_MS = 15000;
+  const SCAN_RESTART_BACKOFF_STEPS_MS = [10000, 20000, 30000];
   const MAX_SCAN_PAGE_RETRIES = 2;
 
   function emit(body) {
@@ -98,9 +102,15 @@
     const tables = container.tables.map(normalizeTable).filter(Boolean);
     if (!tables.length) return null;
     tables.forEach((table) => knownTables.set(table.roomId, table));
+    const reportedPage = Number(
+      container.currentPage
+      ?? container.page
+      ?? payload?.currentPage
+      ?? payload?.page
+    );
     return {
       tables,
-      page: Number(container.currentPage ?? container.page ?? payload?.currentPage ?? payload?.page) || 1,
+      page: Number.isInteger(reportedPage) && reportedPage > 0 ? reportedPage : null,
       totalPages: Number(
         container.totalPages
         ?? payload?.totalPages
@@ -116,7 +126,7 @@
     scanWatchdogTimer = null;
   }
 
-  function restartFullScan(delay = SCAN_PAGE_INTERVAL_MS) {
+  function restartFullScan(delay = null) {
     clearScanWatchdog();
     if (activeRefreshId) pendingRefreshId = activeRefreshId;
     activeRefreshId = "";
@@ -124,9 +134,13 @@
     scanPageRetries = 0;
     scanId = "";
     forceScanRequested = false;
+    const backoff = delay ?? SCAN_RESTART_BACKOFF_STEPS_MS[
+      Math.min(scanFailureCycles, SCAN_RESTART_BACKOFF_STEPS_MS.length - 1)
+    ];
+    scanFailureCycles += 1;
     if (scanTimer) clearTimeout(scanTimer);
     scanTimer = null;
-    scheduleFullScan(delay);
+    scheduleFullScan(backoff);
   }
 
   function handleScanPageFailure(page) {
@@ -143,6 +157,21 @@
 
   function requestScanPage(page) {
     if (typeof window.dispatch !== "function" || scanPage !== 0) return;
+    if (page === 1 && !gameInitializedAt) {
+      scheduleFullScan(1000);
+      return;
+    }
+    if (page === 1 && document.readyState !== "complete") {
+      scheduleFullScan(1000);
+      return;
+    }
+    const startupWaitMs = page === 1
+      ? Math.max(0, gameInitializedAt + SCAN_STARTUP_GRACE_MS - Date.now())
+      : 0;
+    if (startupWaitMs > 0) {
+      scheduleFullScan(startupWaitMs);
+      return;
+    }
     if (page === 1 && !scanId) {
       scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       scanEmptyCandidates = [];
@@ -304,6 +333,7 @@
     if (!gameName) return;
 
     if (eventName === "SlotFrameworkEvent:INIT_RESPONSE") {
+      if (!gameInitializedAt) gameInitializedAt = Date.now();
       const table = payload?.platform?.table || payload?.platform?.slotTable || payload?.table;
       const normalized = normalizeTable(table);
       if (normalized) currentRoom = normalized;
@@ -312,7 +342,7 @@
         emit({ type: "tables", gameName, ...initialTables });
         scanTotalPages = initialTables.totalPages || Number(payload?.platform?.tableMeta?.totalPages) || 8;
       }
-      scheduleFullScan(1000);
+      scheduleFullScan(30000);
       return;
     }
 
@@ -324,6 +354,7 @@
         return;
       }
       if (requestedScanPage > 0) {
+        if (data.page && data.page !== requestedScanPage) return;
         clearScanWatchdog();
         scanPageRetries = 0;
         if (data.totalPages) scanTotalPages = data.totalPages;
@@ -341,6 +372,7 @@
       } else if (requestedScanPage > 0) {
         scanPage = 0;
         scanPageRetries = 0;
+        scanFailureCycles = 0;
         scanId = "";
         activeRefreshId = "";
         scheduleCandidateDetails();

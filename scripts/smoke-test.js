@@ -536,8 +536,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.1.2") {
-    throw new Error("Electronic relay extension version must be 1.1.2");
+  if (electronicRelayManifest.version !== "1.1.3") {
+    throw new Error("Electronic relay extension version must be 1.1.3");
   }
   const electronicBridgeSource = fs.readFileSync(
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
@@ -545,6 +545,8 @@ async function main() {
   );
   for (const expected of [
     "SCAN_PAGE_TIMEOUT_MS",
+    "SCAN_STARTUP_GRACE_MS",
+    "SCAN_RESTART_BACKOFF_STEPS_MS",
     "handleScanPageFailure",
     "SCAN_PAGE_INTERVAL_MS",
   ]) {
