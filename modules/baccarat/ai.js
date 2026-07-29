@@ -1,7 +1,10 @@
 const MAX_RISK_RATIO = 0.2;
-const PREDICTION_MODEL_VERSION = "baccarat-banker-baseline-v3";
+const PREDICTION_MODEL_VERSION = "baccarat-recent-road-v4";
 const OBSERVE = "觀望";
-const BANKER_BASE_PROBABILITY = 0.5068;
+const PREDICTION_WINDOW = 8;
+const MIN_SETTLED_ROUNDS = 2;
+const MIN_ALTERNATION_RUN = 3;
+const MIN_WEIGHTED_MARGIN_RATIO = 0.18;
 
 function roundBet(amount) {
   const numeric = Number(amount);
@@ -129,17 +132,137 @@ function predictionResult({
   };
 }
 
+function tailStreakLength(history) {
+  if (!history.length) return 0;
+  const latest = history[history.length - 1];
+  let length = 1;
+  for (let index = history.length - 2; index >= 0; index -= 1) {
+    if (history[index] !== latest) break;
+    length += 1;
+  }
+  return length;
+}
+
+function tailAlternationLength(history) {
+  if (!history.length) return 0;
+  let length = 1;
+  for (let index = history.length - 1; index > 0; index -= 1) {
+    if (history[index] === history[index - 1]) break;
+    length += 1;
+  }
+  return length;
+}
+
+function opposite(side) {
+  return side === "莊" ? "閒" : "莊";
+}
+
+function signalConfidence(margin, totalWeight, patternBonus = 0) {
+  if (totalWeight <= 0) return 0.5;
+  const weightedStrength = Math.min(0.08, (Math.abs(margin) / totalWeight) * 0.08);
+  return Math.min(0.62, 0.5 + weightedStrength + patternBonus);
+}
+
 function analyzePrediction(history = []) {
   const source = Array.isArray(history) ? history : [];
-  const clean = source.filter((item) => item === "莊" || item === "閒").slice(-60);
+  const clean = source
+    .map((item) => (typeof item === "string" ? item : item?.result))
+    .filter((item) => item === "莊" || item === "閒");
   const historySize = clean.length;
+  const recent = clean.slice(-PREDICTION_WINDOW);
+  const sampleSize = recent.length;
+  const bankerCount = recent.filter((item) => item === "莊").length;
+  const playerCount = recent.length - bankerCount;
+  const streakLength = tailStreakLength(recent);
+  const alternationLength = tailAlternationLength(recent);
+  const evidence = {
+    windowSize: PREDICTION_WINDOW,
+    recentSequence: recent.join(""),
+    bankerCount,
+    playerCount,
+    streakLength,
+    alternationLength,
+  };
+
+  if (sampleSize < MIN_SETTLED_ROUNDS) {
+    return predictionResult({
+      sampleSize,
+      historySize,
+      reasonCode: "INSUFFICIENT_SETTLED_HISTORY",
+      evidence,
+    });
+  }
+
+  const latest = recent[recent.length - 1];
+  const totalWeight = (sampleSize * (sampleSize + 1)) / 2;
+
+  if (streakLength >= 2) {
+    return predictionResult({
+      prediction: latest,
+      confidence: signalConfidence(streakLength, sampleSize, Math.min(0.04, streakLength * 0.01)),
+      sampleSize,
+      historySize,
+      reasonCode: "RECENT_STREAK",
+      evidence,
+    });
+  }
+
+  if (alternationLength >= MIN_ALTERNATION_RUN) {
+    return predictionResult({
+      prediction: opposite(latest),
+      confidence: signalConfidence(
+        alternationLength,
+        sampleSize,
+        Math.min(0.04, alternationLength * 0.008),
+      ),
+      sampleSize,
+      historySize,
+      reasonCode: "RECENT_ALTERNATION",
+      evidence,
+    });
+  }
+
+  let bankerWeight = 0;
+  let playerWeight = 0;
+  recent.forEach((result, index) => {
+    const weight = index + 1;
+    if (result === "莊") bankerWeight += weight;
+    else playerWeight += weight;
+  });
+  const margin = bankerWeight - playerWeight;
+  const marginRatio = Math.abs(margin) / totalWeight;
+  const weightedEvidence = {
+    ...evidence,
+    bankerWeight,
+    playerWeight,
+    marginRatio: Number(marginRatio.toFixed(4)),
+  };
+
+  if (margin === 0) {
+    return predictionResult({
+      sampleSize,
+      historySize,
+      reasonCode: "RECENT_SIGNAL_TIED",
+      evidence: weightedEvidence,
+    });
+  }
+
+  if (marginRatio < MIN_WEIGHTED_MARGIN_RATIO) {
+    return predictionResult({
+      sampleSize,
+      historySize,
+      reasonCode: "RECENT_SIGNAL_WEAK",
+      evidence: weightedEvidence,
+    });
+  }
 
   return predictionResult({
-    prediction: "莊",
-    confidence: BANKER_BASE_PROBABILITY,
-    sampleSize: historySize,
+    prediction: margin > 0 ? "莊" : "閒",
+    confidence: signalConfidence(margin, totalWeight),
+    sampleSize,
     historySize,
-    reasonCode: "BANKER_MATHEMATICAL_BASELINE",
+    reasonCode: "RECENT_WEIGHTED_TREND",
+    evidence: weightedEvidence,
   });
 }
 
@@ -254,10 +377,26 @@ function getReason(session) {
   if (session.lastPredictionMeta?.reasonCode === "INSUFFICIENT_BET_LIMIT") {
     return "本金或單注上限低於最低下注單位，本局不下注。";
   }
+  if (session.lastPredictionMeta?.reasonCode === "INSUFFICIENT_SETTLED_HISTORY") {
+    return "目前牌路資料不足，本局先觀望；開獎後會自動更新。";
+  }
+  if (
+    session.lastPredictionMeta?.reasonCode === "RECENT_SIGNAL_TIED"
+    || session.lastPredictionMeta?.reasonCode === "RECENT_SIGNAL_WEAK"
+  ) {
+    return "近期路勢訊號接近，本局先觀望；開獎後會自動更新。";
+  }
   if (session.lastPrediction === OBSERVE) return "目前無法安全下注，本局觀望。";
-  if (session.mode === "自由配注") return "莊家數學基準；AI 提供方向，下注金額由玩家決定。";
-  if (session.mode === "天門") return "莊家數學基準；配注依天門五關節奏與單注上限執行。";
-  return "莊家數學基準；短期路單不視為高信心訊號。";
+
+  const direction = session.lastPrediction;
+  const reasonByCode = {
+    RECENT_STREAK: `近期連續路勢偏${direction}；`,
+    RECENT_ALTERNATION: `近期交替節奏偏${direction}；`,
+    RECENT_WEIGHTED_TREND: `近期加權路勢偏${direction}；`,
+  };
+  const reason = reasonByCode[session.lastPredictionMeta?.reasonCode]
+    || `近期路勢偏${direction}；`;
+  return `${reason}結果仍具隨機性。`;
 }
 
 module.exports = {

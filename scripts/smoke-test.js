@@ -310,6 +310,34 @@ function findNode(value, predicate) {
   return null;
 }
 
+function assertBaccaratRecord(message, expected, label) {
+  const panel = findNode(
+    message,
+    (node) => node.layout === "vertical"
+      && Array.isArray(node.contents)
+      && node.contents.some(
+        (item) => item?.layout === "horizontal"
+          && item.contents?.some((child) => child?.text === "推薦紀錄"),
+      ),
+  );
+  const recordRow = panel?.contents?.find(
+    (node) => node.layout === "horizontal"
+      && node.contents?.length === 4
+      && node.contents.every((item) => item?.layout === "vertical"),
+  );
+  const actual = Object.fromEntries(
+    (recordRow?.contents || []).map((item) => [
+      item.contents?.[1]?.text,
+      Number(item.contents?.[0]?.text),
+    ]),
+  );
+  for (const [key, value] of Object.entries(expected)) {
+    if (actual[key] !== value) {
+      throw new Error(`${label} expected ${key} ${value}; got ${JSON.stringify(actual)}`);
+    }
+  }
+}
+
 async function sendAndTexts(text, userId) {
   const result = await send(text, userId);
   return result.messages.flatMap((message) => collectText(message));
@@ -399,19 +427,80 @@ async function main() {
   if (newestFirstRoad.map((record) => record.result).join("") !== "莊閒") {
     throw new Error("DG newest-first baccarat roads must be converted to chronological order");
   }
-  if (predictBaccarat([]) !== "莊" || predictBaccarat(["莊", "閒", "和"]) !== "莊") {
-    throw new Error("Baccarat must provide the banker baseline immediately without a 12-round wait");
+  if (
+    predictBaccarat([]) !== "觀望"
+    || predictBaccarat(["莊"]) !== "觀望"
+    || predictBaccarat(["莊", "莊"]) !== "莊"
+    || predictBaccarat(["閒", "閒"]) !== "閒"
+  ) {
+    throw new Error("Baccarat must derive its direction from at least two settled non-tie rounds");
   }
   const bankerSignal = analyzeBaccarat(Array(12).fill("莊"));
   const playerSignal = analyzeBaccarat(Array(12).fill("閒"));
+  const alternatingSignal = analyzeBaccarat(["莊", "閒", "莊", "閒"]);
+  const tiedSignal = analyzeBaccarat(["莊", "莊", "閒"]);
+  const weakSignalHistory = ["閒", "莊", "閒", "莊", "莊", "閒", "閒", "莊"];
+  const weakSignal = analyzeBaccarat(weakSignalHistory);
+  const normalizedObjectSignal = analyzeBaccarat([
+    { result: "莊" },
+    { result: "和" },
+    { result: "閒" },
+  ]);
   if (
     bankerSignal.prediction !== "莊"
-    || playerSignal.prediction !== "莊"
-    || bankerSignal.modelVersion !== "baccarat-banker-baseline-v3"
-    || bankerSignal.sampleSize !== 12
-    || bankerSignal.reasonCode !== "BANKER_MATHEMATICAL_BASELINE"
+    || playerSignal.prediction !== "閒"
+    || alternatingSignal.prediction !== "莊"
+    || tiedSignal.prediction !== "觀望"
+    || weakSignal.prediction !== "觀望"
+    || weakSignal.reasonCode !== "RECENT_SIGNAL_WEAK"
+    || normalizedObjectSignal.prediction !== predictBaccarat(["莊", "閒"])
+    || normalizedObjectSignal.sampleSize !== 2
+    || bankerSignal.modelVersion !== "baccarat-recent-road-v4"
+    || bankerSignal.sampleSize !== 8
+    || bankerSignal.historySize !== 12
+    || bankerSignal.reasonCode !== "RECENT_STREAK"
+    || playerSignal.reasonCode !== "RECENT_STREAK"
+    || alternatingSignal.reasonCode !== "RECENT_ALTERNATION"
+    || tiedSignal.reasonCode !== "RECENT_SIGNAL_TIED"
   ) {
-    throw new Error("Baccarat predictor must use observation plus the validated banker baseline");
+    throw new Error("Baccarat predictor must follow deterministic recent-road signals without a banker bias");
+  }
+  for (let length = 2; length <= 8; length += 1) {
+    for (let mask = 0; mask < 2 ** length; mask += 1) {
+      const sequence = Array.from(
+        { length },
+        (_, index) => ((mask >> index) & 1 ? "莊" : "閒"),
+      );
+      const mirrored = sequence.map((result) => (result === "莊" ? "閒" : "莊"));
+      const originalSignal = analyzeBaccarat(sequence);
+      const mirroredSignal = analyzeBaccarat(mirrored);
+      const expectedMirror = originalSignal.prediction === "觀望"
+        ? "觀望"
+        : (originalSignal.prediction === "莊" ? "閒" : "莊");
+      if (
+        mirroredSignal.prediction !== expectedMirror
+        || mirroredSignal.confidence !== originalSignal.confidence
+        || mirroredSignal.reasonCode !== originalSignal.reasonCode
+        || JSON.stringify(analyzeBaccarat(sequence)) !== JSON.stringify(originalSignal)
+      ) {
+        throw new Error(`Baccarat predictor lost mirror symmetry or determinism: ${sequence.join("")}`);
+      }
+    }
+  }
+  const weakBetAnalysis = firstBaccaratAnalysis({
+    mode: "動態配注",
+    history: weakSignalHistory,
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    bankroll: 10000,
+    capital: 10000,
+    maxBet: 2000,
+    startBankroll: 10000,
+    tianmenLevel: 1,
+    lastPrediction: null,
+    lastBet: 0,
+  });
+  if (weakBetAnalysis.prediction !== "觀望" || weakBetAnalysis.bet !== 0) {
+    throw new Error("Baccarat weak recent-road signals must observe without placing a bet");
   }
   const observeSession = {
     mode: "天門",
@@ -2022,6 +2111,9 @@ async function main() {
   assertIncludes(values, "結束並返回遊戲選單", "Baccarat persistent exit button");
   const dgAutoMessage = captured.replies[captured.replies.length - 1].messages[0];
   const dgAutoJson = JSON.stringify(dgAutoMessage);
+  if (dgAutoJson.includes("莊家數學基準")) {
+    throw new Error("Baccarat result card must not expose internal model wording");
+  }
   if (!collectActions(dgAutoMessage).some((action) => action.text === "首頁")) {
     throw new Error("Baccarat exit button must return to the main game menu");
   }
@@ -2076,9 +2168,9 @@ async function main() {
     throw new Error("DG result must automatically push the next analysis");
   }
   let dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(
-    dgPushTexts,
-    "過 1　倒 0　和 0　觀望 0",
+  assertBaccaratRecord(
+    captured.pushes[captured.pushes.length - 1].messages[0],
+    { 命中: 0, 未中: 1, 和局: 0, 觀望: 0 },
     "Baccarat automatic immediate recommendation result",
   );
 
@@ -2089,7 +2181,11 @@ async function main() {
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "過 1　倒 0　和 1　觀望 0", "Baccarat automatic tie result");
+  assertBaccaratRecord(
+    captured.pushes[captured.pushes.length - 1].messages[0],
+    { 命中: 0, 未中: 1, 和局: 1, 觀望: 0 },
+    "Baccarat automatic tie result",
+  );
 
   dgSource.ingestMessage({
     cmd: 1004,
@@ -2098,7 +2194,11 @@ async function main() {
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
-  assertIncludes(dgPushTexts, "過 2　倒 0　和 1　觀望 0", "Baccarat automatic result");
+  assertBaccaratRecord(
+    captured.pushes[captured.pushes.length - 1].messages[0],
+    { 命中: 0, 未中: 2, 和局: 1, 觀望: 0 },
+    "Baccarat automatic result",
+  );
   if (dgPushTexts.some((value) => String(value).includes("上局結算"))) {
     throw new Error("Baccarat Flex must not show the previous-round settlement row");
   }
@@ -2124,16 +2224,16 @@ async function main() {
   dgPushTexts = captured.pushes[captured.pushes.length - 1].messages
     .flatMap((message) => collectText(message));
   assertIncludes(dgPushTexts, "缺漏局已略過，本次未計算過倒", "Baccarat gap resync notice");
-  assertIncludes(
-    dgPushTexts,
-    "過 2　倒 0　和 1　觀望 0",
+  assertBaccaratRecord(
+    captured.pushes[captured.pushes.length - 1].messages[0],
+    { 命中: 0, 未中: 2, 和局: 1, 觀望: 0 },
     "Baccarat gap must not change the settlement record",
   );
   const baccaratAudit = getBaccaratSession("user-smoke").predictionAudit || [];
   if (
     baccaratAudit.length !== 3
-    || baccaratAudit.some((record) => record.modelVersion !== "baccarat-banker-baseline-v3")
-    || baccaratAudit[baccaratAudit.length - 1].verdict !== "過"
+    || baccaratAudit.some((record) => record.modelVersion !== "baccarat-recent-road-v4")
+    || baccaratAudit[baccaratAudit.length - 1].verdict !== "倒"
   ) {
     throw new Error("Baccarat must retain an exact model-versioned audit for settled live events only");
   }
@@ -2181,14 +2281,14 @@ async function main() {
     "路單修正已同步，既有統計已重新計算",
     "Baccarat correction reconciliation notice",
   );
-  assertIncludes(
-    dgCorrectionTexts,
-    "過 1　倒 1　和 1　觀望 0",
+  assertBaccaratRecord(
+    captured.pushes[captured.pushes.length - 1].messages[0],
+    { 命中: 1, 未中: 1, 和局: 1, 觀望: 0 },
     "Baccarat corrected accounting",
   );
   const correctedAudit = (getBaccaratSession("user-smoke").predictionAudit || [])
     .find((record) => Number(record.roundIndex) === 6);
-  if (correctedAudit?.actual !== "閒" || correctedAudit?.verdict !== "倒") {
+  if (correctedAudit?.actual !== "閒" || correctedAudit?.verdict !== "過") {
     throw new Error("Baccarat correction must reconcile the original audit and verdict");
   }
 
@@ -2445,7 +2545,7 @@ async function main() {
   const mtPushTexts = captured.pushes[captured.pushes.length - 1].messages
     .flatMap((message) => collectText(message));
   const mtPushSummary = mtPushTexts.join(" | ");
-  if (!mtPushSummary.includes("莊 | 1 | 閒 | 1 | 和 | 0 | 總 | 2")) {
+  if (!mtPushSummary.includes("莊家 | 1 | 閒家 | 1 | 和局 | 0 | 總局數 | 2")) {
     throw new Error(`MT live room statistics are incorrect: ${mtPushSummary}`);
   }
   if (mtPushTexts.some((value) => String(value).includes("上局結算"))) {

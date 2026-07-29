@@ -154,30 +154,44 @@ function resultActionPanel() {
 function roomStat(label, value, color) {
   return {
     type: "box",
-    layout: "horizontal",
+    layout: "vertical",
     flex: 1,
     spacing: "xs",
-    alignItems: "center",
-    paddingAll: "6px",
-    backgroundColor: "#171511",
-    cornerRadius: "8px",
+    paddingAll: "9px",
+    backgroundColor: "#181612",
+    cornerRadius: "10px",
+    borderColor: "#302A20",
+    borderWidth: "1px",
     contents: [
       {
         type: "box",
-        layout: "vertical",
-        width: "24px",
-        height: "24px",
-        backgroundColor: color,
-        cornerRadius: "5px",
-        justifyContent: "center",
-        contents: [text(label, { size: "xs", weight: "bold", color: COLORS.white, align: "center", wrap: false })],
+        layout: "horizontal",
+        spacing: "xs",
+        alignItems: "center",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            width: "8px",
+            height: "8px",
+            backgroundColor: color,
+            cornerRadius: "4px",
+            contents: [],
+          },
+          text(label, {
+            size: "xs",
+            weight: "bold",
+            color: COLORS.gray,
+            flex: 1,
+            wrap: false,
+          }),
+        ],
       },
       text(value, {
-        size: "md",
+        size: "lg",
         weight: "bold",
         color: COLORS.white,
-        align: "center",
-        flex: 1,
+        align: "start",
         wrap: false,
         adjustMode: "shrink-to-fit",
       }),
@@ -190,33 +204,169 @@ function roomStatsPanel(stats) {
     type: "box",
     layout: "vertical",
     spacing: "sm",
-    paddingAll: "10px",
+    paddingAll: "12px",
     backgroundColor: "#11100E",
-    cornerRadius: "12px",
+    cornerRadius: "14px",
     borderColor: "#4C3C1E",
     borderWidth: "1px",
     contents: [
-      text("本房牌路統計", { size: "xs", color: COLORS.blueSoft, weight: "bold" }),
+      text("本房牌路統計", {
+        size: "sm",
+        color: COLORS.blueSoft,
+        weight: "bold",
+      }),
       {
         type: "box",
         layout: "horizontal",
-        spacing: "xs",
+        spacing: "sm",
         contents: [
-          roomStat("莊", stats.banker, "#D71920"),
-          roomStat("閒", stats.player, "#1464D2"),
+          roomStat("莊家", stats.banker, "#D71920"),
+          roomStat("閒家", stats.player, "#1464D2"),
         ],
       },
       {
         type: "box",
         layout: "horizontal",
-        spacing: "xs",
+        spacing: "sm",
         contents: [
-          roomStat("和", stats.tie, "#278A18"),
-          roomStat("總", stats.total, "#9A6728"),
+          roomStat("和局", stats.tie, "#278A18"),
+          roomStat("總局數", stats.total, "#9A6728"),
         ],
       },
     ],
   };
+}
+
+function recordStat(label, value, color) {
+  return {
+    type: "box",
+    layout: "vertical",
+    flex: 1,
+    spacing: "xs",
+    paddingAll: "7px",
+    backgroundColor: "#181612",
+    cornerRadius: "9px",
+    contents: [
+      text(value, {
+        size: "md",
+        weight: "bold",
+        color,
+        align: "center",
+        wrap: false,
+        adjustMode: "shrink-to-fit",
+      }),
+      text(label, {
+        size: "xxs",
+        color: COLORS.gray,
+        align: "center",
+        wrap: false,
+        adjustMode: "shrink-to-fit",
+      }),
+    ],
+  };
+}
+
+function performancePanel(results, hitRate) {
+  const resolvedRounds = results.pass + results.fail;
+  const trackedRounds = resolvedRounds + results.tie + results.observe;
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    paddingAll: "12px",
+    backgroundColor: "#11100E",
+    cornerRadius: "14px",
+    borderColor: "#4C3C1E",
+    borderWidth: "1px",
+    contents: [
+      {
+        type: "box",
+        layout: "horizontal",
+        alignItems: "center",
+        contents: [
+          text("推薦紀錄", {
+            size: "sm",
+            color: COLORS.blueSoft,
+            weight: "bold",
+            flex: 1,
+            wrap: false,
+          }),
+          text(`共 ${trackedRounds} 局`, {
+            size: "xxs",
+            color: COLORS.muted,
+            align: "end",
+            flex: 1,
+            wrap: false,
+          }),
+        ],
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "xs",
+        contents: [
+          recordStat("命中", results.pass, COLORS.green),
+          recordStat("未中", results.fail, COLORS.red),
+          recordStat("和局", results.tie, "#8FCB65"),
+          recordStat("觀望", results.observe, COLORS.muted),
+        ],
+      },
+      {
+        type: "separator",
+        color: "#4C3C1E",
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "sm",
+        alignItems: "center",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            spacing: "xs",
+            flex: 3,
+            contents: [
+              text("有效命中率", {
+                size: "sm",
+                weight: "bold",
+                color: COLORS.white,
+                wrap: false,
+              }),
+              text(
+                resolvedRounds ? `依 ${resolvedRounds} 局有效推薦計算` : "尚無已結算推薦",
+                {
+                  size: "xxs",
+                  color: COLORS.muted,
+                  wrap: false,
+                  adjustMode: "shrink-to-fit",
+                },
+              ),
+            ],
+          },
+          text(hitRate, {
+            size: "xl",
+            weight: "bold",
+            color: resolvedRounds ? COLORS.green : COLORS.gray,
+            align: "end",
+            flex: 2,
+            wrap: false,
+            adjustMode: "shrink-to-fit",
+          }),
+        ],
+      },
+    ],
+  };
+}
+
+function naturalReason(reason, { isFreeBet, isObserve }) {
+  if (isObserve) return reason;
+  if (/莊家數學基準|短期路單|天門五關/.test(String(reason || ""))) {
+    return isFreeBet
+      ? "本局方向已完成分析"
+      : "已依目前設定提供本局建議";
+  }
+  return reason;
 }
 
 function baccaratAnalysisFlex({
@@ -234,6 +384,7 @@ function baccaratAnalysisFlex({
   const isObserve = prediction === "觀望";
   const betLabel = isFreeBet ? "配注方式" : "建議下注";
   const betText = isFreeBet ? "玩家自行決定" : String(bet);
+  const displayReason = naturalReason(reason, { isFreeBet, isObserve });
   const results = {
     pass: session.results.pass || 0,
     fail: session.results.fail || 0,
@@ -258,7 +409,7 @@ function baccaratAnalysisFlex({
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
-      metric(isObserve ? "本局策略" : "建議", prediction, reason),
+      metric(isObserve ? "本局策略" : "建議", prediction, displayReason),
       ...(!isObserve ? [
         metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
       ] : []),
@@ -267,11 +418,7 @@ function baccaratAnalysisFlex({
         infoLine("目前獲利", String(profit)),
       ] : []),
       roomStatsPanel(tableStats),
-      infoLine(
-        "紀錄",
-        `過 ${results.pass}　倒 ${results.fail}　和 ${results.tie}　觀望 ${results.observe}`,
-      ),
-      infoLine("有效命中", `${hitRate}（不含和局與觀望）`),
+      performancePanel(results, hitRate),
       ...(notice ? [infoLine("同步狀態", notice)] : []),
       ...(autoResult ? [infoLine(
         "自動結算",
