@@ -41,7 +41,8 @@
   let wrappedSenderOwner = null;
   let originalSender = null;
   const detailFetchedAt = new Map();
-  const featureSpins = new Map();
+  const naturalFeatureSpins = new Map();
+  let activePurchasedFeature = null;
   const watchedRoomNumbers = new Set();
   let watchedRoomCursor = 0;
   let watchedRoomTimer = null;
@@ -304,7 +305,36 @@
     return Number(state.freeGameCount) > 0
       || Number(state.superMainGameCount) > 0
       || Number(state.startFreeGame) > 0
+      || Number(state.numFreeSpins) > 0
+      || state.isFreespin === true
+      || state.isBonus === true
       || /free|super|feature/i.test(String(state.action || ""));
+  }
+
+  function maxNumeric(values = []) {
+    return values.reduce((maximum, value) => {
+      const numeric = Number(value);
+      return Number.isFinite(numeric) ? Math.max(maximum, numeric) : maximum;
+    }, 0);
+  }
+
+  function featureWinnings(payload, engine, states) {
+    return maxNumeric([
+      payload?.totalWinnings,
+      payload?.freespinWinnings,
+      payload?.currentWinnings,
+      payload?.win,
+      engine?.totalWinnings,
+      engine?.freespinWinnings,
+      ...states.flatMap((state) => [
+        state?.totalWinnings,
+        state?.freespinWinnings,
+        state?.currentWinnings,
+        state?.win,
+        state?.freespinWon,
+        state?.jpWon,
+      ]),
+    ]);
   }
 
   function spinPayload(payload, trigger = "") {
@@ -312,25 +342,77 @@
     if (!engine || !states.length) return null;
     const spinId = String(engine.spinId || states.find((state) => state?.spinId)?.spinId || "");
     if (!spinId) return null;
-    if (trigger === "buyFeature") featureSpins.set(spinId, "purchased");
-    else if (states.some(isFeatureState) && !featureSpins.has(spinId)) featureSpins.set(spinId, "natural");
-    if (!featureSpins.has(spinId)) return null;
+    if (trigger === "buyFeature" && !activePurchasedFeature) {
+      activePurchasedFeature = {
+        spinId,
+        maxWinnings: 0,
+        sawActiveGames: false,
+      };
+    }
+    if (!activePurchasedFeature && states.some(isFeatureState)) {
+      naturalFeatureSpins.set(spinId, "natural");
+    }
+    const isPurchased = Boolean(activePurchasedFeature);
+    if (!isPurchased && !naturalFeatureSpins.has(spinId)) return null;
     const state = states.reduce((selected, candidate) => (
       Number(candidate?.currentView) >= Number(selected?.currentView) ? candidate : selected
     ), states[0]);
-    const currentView = Number(state?.currentView) || 0;
-    const totalViews = Math.max(1, Number(state?.totalViews) || 1);
-    if (currentView < totalViews - 1) return null;
-    const featureTrigger = featureSpins.get(spinId);
-    featureSpins.delete(spinId);
+    const winnings = featureWinnings(payload, engine, states);
+    if (activePurchasedFeature) {
+      activePurchasedFeature.maxWinnings = Math.max(
+        activePurchasedFeature.maxWinnings,
+        winnings,
+      );
+    }
+    const remainingFields = states.flatMap((item) => [
+      item?.numFreeSpins,
+      item?.freeGameCount,
+      item?.superMainGameCount,
+    ]).filter((value) => value !== undefined && value !== null);
+    const hasRemainingCounter = remainingFields.length > 0;
+    const remainingGames = maxNumeric(remainingFields);
+    if (activePurchasedFeature && remainingGames > 0) {
+      activePurchasedFeature.sawActiveGames = true;
+    }
+    const currentView = Number(state?.currentView);
+    const totalViews = Number(state?.totalViews);
+    const hasViewProgress = Number.isFinite(currentView)
+      && Number.isFinite(totalViews)
+      && totalViews > 0;
+    const viewComplete = hasViewProgress && currentView >= totalViews - 1;
+    const counterComplete = Boolean(
+      activePurchasedFeature?.sawActiveGames
+      && hasRemainingCounter
+      && remainingGames <= 0
+    );
+    const explicitEndSignal = states.some((item) => (
+      item?.complete === true
+      || /complete|finish|collect|settle|end/i.test(String(item?.status || item?.action || ""))
+    ));
+    const resolvedWinnings = activePurchasedFeature?.maxWinnings || winnings;
+    const explicitComplete = explicitEndSignal && (
+      resolvedWinnings > 0 || activePurchasedFeature?.sawActiveGames
+    );
+    const positiveWithoutProgress = trigger !== "buyFeature"
+      && !hasRemainingCounter
+      && !hasViewProgress
+      && resolvedWinnings > 0;
+    if (!viewComplete && !counterComplete && !explicitComplete && !positiveWithoutProgress) {
+      return null;
+    }
+    const featureTrigger = isPurchased ? "purchased" : naturalFeatureSpins.get(spinId);
+    const resultSpinId = activePurchasedFeature?.spinId || spinId;
+    if (isPurchased) activePurchasedFeature = null;
+    naturalFeatureSpins.delete(spinId);
+    if (!(resolvedWinnings > 0)) return null;
     return {
-      spinId,
+      spinId: resultSpinId,
       roomId: currentRoom.roomId || undefined,
       roomNumber: currentRoom.number || undefined,
-      totalWinnings: Number(state?.totalWinnings) || 0,
+      totalWinnings: resolvedWinnings,
       totalStake: Number(payload?.totalStake ?? state?.totalStake) || 0,
-      currentView,
-      totalViews,
+      currentView: Number.isFinite(currentView) ? currentView : 0,
+      totalViews: Number.isFinite(totalViews) ? totalViews : 0,
       action: state?.action,
       featureTrigger,
       capturedAt: Date.now(),
@@ -340,14 +422,6 @@
   function emitSpin(payload, trigger = "") {
     const spin = spinPayload(payload, trigger);
     if (spin) emit({ type: "spin", gameName, ...spin });
-  }
-
-  function rememberPurchasedFeature(payload) {
-    const { engine, states } = getSpinStates(payload);
-    const spinId = String(engine?.spinId || states.find((state) => state?.spinId)?.spinId || "");
-    if (!spinId) return;
-    featureSpins.set(spinId, "purchased");
-    if (featureSpins.size > 100) featureSpins.delete(featureSpins.keys().next().value);
   }
 
   function handleDispatch(eventName, payload) {
@@ -472,7 +546,7 @@
     originalSender = senderOriginal;
     wrappedSenderOwner = sender;
     wrappedSender = function blackdomainElectronicSend(request, requestPayload, callback, ...rest) {
-      const shouldObserve = requestPayload?.action === "buyFeature" || featureSpins.size > 0;
+      const shouldObserve = requestPayload?.action === "buyFeature" || activePurchasedFeature;
       if (!shouldObserve || typeof callback !== "function") {
         return senderOriginal.call(this, request, requestPayload, callback, ...rest);
       }
@@ -481,7 +555,6 @@
         setTimeout(() => {
           try {
             const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
-            if (trigger) rememberPurchasedFeature(response);
             emitSpin(response, trigger);
           } catch {
             // Keep the original network callback untouched.

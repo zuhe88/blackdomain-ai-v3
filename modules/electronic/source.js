@@ -163,20 +163,23 @@ function ingestDetail(payload = {}) {
     } else {
       pending.stableCount += 1;
     }
-    const shouldFinalize = normalized.status !== "Full"
-      || pending.stableCount >= 1
-      || now - pending.startedAt >= 90 * 1000;
+    const elapsed = now - pending.startedAt;
+    const shouldFinalize = (
+      normalized.status !== "Full" && elapsed >= 3000
+    ) || (
+      pending.stableCount >= 2 && elapsed >= 5000
+    ) || elapsed >= 90 * 1000;
     if (shouldFinalize) {
       const winnings = currentWin - pending.baselineWin;
       const stake = (Number(currentDetail?.todayBet) || 0) - pending.baselineBet;
-      if (winnings >= -1e-7 && stake >= -1e-7) {
+      if (winnings > 1e-7 && stake >= -1e-7) {
         feature = {
           type: "spin",
           gameName: state.gameName,
           roomId: normalized.roomId,
           roomNumber: normalized.number,
           spinId: `room-monitor:${normalized.roomId}:${pending.startedAt}`,
-          totalWinnings: Math.max(0, winnings),
+          totalWinnings: winnings,
           totalStake: Math.max(0, stake),
           currentView: 0,
           totalViews: 0,

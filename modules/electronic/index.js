@@ -851,13 +851,19 @@ async function handleElectronicSpin(payload = {}) {
   if (!isConfirmedFeature) return false;
   const roomNumber = Number(payload.roomNumber);
   if (!Number.isInteger(roomNumber)) return false;
+  const winnings = Number(
+    payload.totalWinnings
+    ?? payload.freespinWinnings
+    ?? payload.currentWinnings
+    ?? payload.win,
+  );
+  if (!Number.isFinite(winnings) || winnings <= 0) return false;
   const watchers = await getLiveWatchers(payload.gameName, roomNumber);
   if (!watchers.length) return false;
   const spinKey = `${payload.gameName}:${payload.spinId || roomNumber}`;
   if (notifiedSpins.has(spinKey)) return false;
   notifiedSpins.add(spinKey);
   if (notifiedSpins.size > 500) notifiedSpins.delete(notifiedSpins.values().next().value);
-  const winnings = Number(payload.totalWinnings) || 0;
   const message = electronicFeatureResultFlex(
     payload.gameName,
     formatRoom(payload.gameName, roomNumber),
