@@ -9,8 +9,21 @@ function secureEqual(left, right) {
   return a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function configuredRelayKey() {
-  return String(process.env.DG_RELAY_KEY || process.env.ATG_RELAY_KEY || "").trim();
+function configuredRelayKeys() {
+  return [process.env.DG_RELAY_KEY, process.env.ATG_RELAY_KEY]
+    .map((value) => String(value || "").trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index);
+}
+
+function validRelayKey(req) {
+  const provided = [
+    req.get("x-dg-relay-key"),
+    req.get("x-atg-relay-key"),
+    req.get("x-electronic-relay-key"),
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+  return configuredRelayKeys().some((configured) => (
+    provided.some((candidate) => secureEqual(configured, candidate))
+  ));
 }
 
 function validLocalSignature(body, signature) {
@@ -31,10 +44,10 @@ function registerMtLiveRoutes(app) {
   });
 
   app.post("/api/mt/ingest", express.json({ limit: "750kb" }), (req, res) => {
-    if (!configuredRelayKey() && !String(process.env.MT_GAME_TOKEN || "").trim()) {
+    if (!configuredRelayKeys().length && !String(process.env.MT_GAME_TOKEN || "").trim()) {
       return res.status(503).json({ ok: false, error: "MT relay is not configured." });
     }
-    const relayKeyAccepted = secureEqual(configuredRelayKey(), req.get("x-dg-relay-key"));
+    const relayKeyAccepted = validRelayKey(req);
     const localSignatureAccepted = validLocalSignature(req.body, req.get("x-mt-relay-signature"));
     if (!relayKeyAccepted && !localSignatureAccepted) {
       return res.status(401).json({ ok: false, error: "Unauthorized." });

@@ -23,9 +23,10 @@ const SESSION_KEY_PREFIX = "electronic_session:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 8000);
 const PENDING_RECOMMEND_TIMEOUT_MS = Math.min(
   120000,
-  Math.max(15000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 60000),
+  Math.max(90000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 90000),
 );
-const FIRST_SCAN_ESTIMATE = "首次建立完整房表，通常約 30～45 秒";
+const PENDING_RECOMMEND_RETRY_MS = 30000;
+const FIRST_SCAN_ESTIMATE = "正在建立完整房表，資料完成後會立即推薦";
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -67,6 +68,7 @@ function cancelPendingRecommendation(userId) {
   const pending = pendingRecommendations.get(userId);
   if (!pending) return false;
   clearTimeout(pending.timer);
+  clearInterval(pending.retryTimer);
   pendingRecommendations.delete(userId);
   return true;
 }
@@ -126,9 +128,22 @@ function queuePendingRecommendation(userId, gameName) {
     requestedAt,
     deadlineAt: requestedAt + PENDING_RECOMMEND_TIMEOUT_MS,
     timer: null,
+    retryTimer: null,
   };
+  pending.retryTimer = setInterval(() => {
+    if (pendingRecommendations.get(userId) !== pending) return;
+    if (electronicSource.hasReadyData(gameName)) {
+      handleElectronicDataReady(gameName).catch((error) => {
+        console.error("[Electronic] Pending recommendation recovery failed:", error.message);
+      });
+      return;
+    }
+    electronicSource.requestFullRefresh();
+  }, PENDING_RECOMMEND_RETRY_MS);
+  pending.retryTimer.unref?.();
   pending.timer = setTimeout(async () => {
     if (pendingRecommendations.get(userId) !== pending) return;
+    clearInterval(pending.retryTimer);
     pendingRecommendations.delete(userId);
     await push(userId, electronicPromptFlex("目前無法取得即時房況", [
       gameName,

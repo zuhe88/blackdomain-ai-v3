@@ -1321,8 +1321,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.1.7") {
-    throw new Error("Electronic relay extension version must be 1.1.7");
+  if (electronicRelayManifest.version !== "1.1.8") {
+    throw new Error("Electronic relay extension version must be 1.1.8");
   }
   const electronicBridgeSource = fs.readFileSync(
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
@@ -1354,6 +1354,15 @@ async function main() {
     || !electronicBridgeSource.includes("uninstallSenderWrapper")
   ) {
     throw new Error("Electronic relay must limit sender observation to active purchased features");
+  }
+  for (const expected of [
+    "const SCAN_PAGE_TIMEOUT_MS = 5000",
+    "const SCAN_STARTUP_GRACE_MS = 5000",
+    "const SCAN_RESTART_BACKOFF_STEPS_MS = [2000, 5000, 10000]",
+  ]) {
+    if (!electronicBridgeSource.includes(expected)) {
+      throw new Error(`Electronic first scan is missing fast recovery setting: ${expected}`);
+    }
   }
   const atgRelayEvents = [];
   const atgWindowListeners = new Map();
@@ -1516,6 +1525,112 @@ async function main() {
   );
   if (!electronicRelaySource.includes("setInterval(syncWatchRooms, 2000)")) {
     throw new Error("Electronic relay watch sync must use the reduced two-second interval");
+  }
+  const mtBridgeSource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "mt-bridge.js"),
+    "utf8",
+  );
+  const mtForwardEvents = [];
+  class FakeMtWebSocket {
+    constructor(url) {
+      this.url = url;
+      this.listeners = new Map();
+    }
+
+    addEventListener(name, listener) {
+      const listeners = this.listeners.get(name) || [];
+      listeners.push(listener);
+      this.listeners.set(name, listeners);
+    }
+
+    emit(name, eventValue) {
+      (this.listeners.get(name) || []).forEach((listener) => listener(eventValue));
+    }
+  }
+  const mtWindow = {
+    WebSocket: FakeMtWebSocket,
+    dispatchEvent(eventValue) {
+      mtForwardEvents.push(eventValue.detail);
+    },
+  };
+  vm.runInNewContext(mtBridgeSource, {
+    window: mtWindow,
+    CustomEvent: class CustomEvent {
+      constructor(type, options = {}) {
+        this.type = type;
+        this.detail = options.detail;
+      }
+    },
+    console: { info() {}, warn() {}, error() {} },
+    URL,
+    JSON,
+    Proxy,
+    Reflect,
+    Object,
+    String,
+    Array,
+  });
+  const mtSocket = new mtWindow.WebSocket("wss://a1.ofalive99.net/game/ws");
+  mtSocket.emit("message", {
+    data: JSON.stringify({
+      action: { name: "/api/v1/gametype/*/game/*/room/*/tables" },
+      msg: {
+        tables: {
+          BAG01: {
+            table_id: "BAG01",
+            table_name: "1",
+            table_type: "BAC",
+            game_sn: "mt-live-round",
+            shoe: "shoe-1",
+            trend: {
+              bead_plate2: "01#02",
+              total_round_banker: 1,
+              total_round_player: 1,
+              total_round_tie: 0,
+            },
+            account: "must-not-forward",
+            token: "must-not-forward",
+            balance: 999999,
+          },
+        },
+      },
+    }),
+  });
+  const forwardedMtJson = JSON.stringify(mtForwardEvents[0] || {});
+  if (
+    mtForwardEvents.length !== 1
+    || mtForwardEvents[0]?.type !== "tables"
+    || mtForwardEvents[0]?.tables?.[0]?.table_id !== "BAG01"
+    || /must-not-forward|account|token|balance/.test(forwardedMtJson)
+  ) {
+    throw new Error("MT extension relay must forward only sanitized baccarat table data");
+  }
+  const mtMainContentScript = electronicRelayManifest.content_scripts.find((entry) => (
+    entry.world === "MAIN" && entry.js?.includes("mt-bridge.js")
+  ));
+  const mtRelayContentScript = electronicRelayManifest.content_scripts.find((entry) => (
+    entry.js?.includes("mt-relay.js")
+  ));
+  if (
+    !mtMainContentScript?.matches?.includes("https://gsa.ofalive99.net/*")
+    || !mtRelayContentScript?.matches?.includes("https://gsa.ofalive99.net/*")
+  ) {
+    throw new Error("MT extension relay must load in the signed-in MT game page");
+  }
+  const extensionBackgroundSource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "background.js"),
+    "utf8",
+  );
+  for (const expected of ["BLACKDOMAIN_MT_FORWARD", "/api/mt/ingest", "blackdomainMtLastStatus"]) {
+    if (!extensionBackgroundSource.includes(expected)) {
+      throw new Error(`Extension background is missing MT relay support: ${expected}`);
+    }
+  }
+  const mtRouteSource = fs.readFileSync(path.join(root, "routes", "mtLive.js"), "utf8");
+  for (const expected of ["process.env.ATG_RELAY_KEY", "x-electronic-relay-key", "validRelayKey(req)"]) {
+    if (!mtRouteSource.includes(expected)) {
+      throw new Error(`MT ingest route is missing extension authorization: ${expected}`);
+    }
   }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");
@@ -1681,11 +1796,24 @@ async function main() {
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
-  assertIncludes(values, "首次建立完整房表，通常約 30～45 秒", "Electronic first-scan estimate");
-  assertIncludes(values, "最長等待 60 秒，完成後自動回傳｜請勿重複點擊", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "正在建立完整房表，資料完成後會立即推薦", "Electronic first-scan estimate");
+  assertIncludes(values, "最長等待 90 秒，完成後自動回傳｜請勿重複點擊", "Electronic pending duplicate-click warning");
   assertIncludes(values, "取消推薦", "Electronic pending cancel action");
   if (!electronicSource.getRefreshRequest()?.id) {
     throw new Error("Electronic pending recommendation must request a fresh room scan");
+  }
+  const electronicModuleSource = fs.readFileSync(
+    path.join(root, "modules", "electronic", "index.js"),
+    "utf8",
+  );
+  for (const expected of [
+    "const PENDING_RECOMMEND_RETRY_MS = 30000",
+    "handleElectronicDataReady(gameName)",
+    "clearInterval(pending.retryTimer)",
+  ]) {
+    if (!electronicModuleSource.includes(expected)) {
+      throw new Error(`Electronic first recommendation is missing automatic recovery: ${expected}`);
+    }
   }
   if (values.some((value) => value === "資訊" || value === "狀態")) {
     throw new Error("Electronic pending recommendation must not repeat generic row labels");
