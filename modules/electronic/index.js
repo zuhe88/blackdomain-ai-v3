@@ -22,9 +22,10 @@ const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 8000);
 const PENDING_RECOMMEND_TIMEOUT_MS = Math.min(
-  8000,
-  Math.max(1000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 8000),
+  120000,
+  Math.max(15000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 60000),
 );
+const FIRST_SCAN_ESTIMATE = "首次建立完整房表，通常約 30～45 秒";
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -710,8 +711,8 @@ async function performRecommendRoom(event) {
       return deliverRecommendation(event, recommendationWaitingFlex(
         "房間數據整理中",
         session.gameName,
-        "正在同步最新房表與統計",
-        `最多等待 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒`,
+        FIRST_SCAN_ESTIMATE,
+        `最長等待 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒，完成後自動回傳`,
       ));
     }
     return deliverRecommendation(event, electronicPromptFlex("目前沒有可推薦的空房", [
@@ -800,11 +801,12 @@ async function recommendRoom(event) {
   const userId = event.source.userId;
   const pending = pendingRecommendations.get(userId);
   if (pending && !event.autoPush) {
+    const remainingSeconds = Math.max(1, Math.ceil((pending.deadlineAt - Date.now()) / 1000));
     return reply(event.replyToken, recommendationWaitingFlex(
       "房間數據仍在整理中",
       pending.gameName,
-      "正在同步最新房表與統計",
-      `最多等待 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒`,
+      FIRST_SCAN_ESTIMATE,
+      `剩餘最長約 ${remainingSeconds} 秒，完成後自動回傳`,
     ));
   }
   if (recommendInFlight.has(userId)) {

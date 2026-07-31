@@ -1535,6 +1535,19 @@ async function main() {
   if (!captured.routes.post.some((route) => route.route === "/api/mt/ingest")) {
     throw new Error("MT ingest route is not registered");
   }
+  const mtRelayClientSource = fs.readFileSync(
+    path.join(root, "scripts", "mt-relay-client.js"),
+    "utf8",
+  );
+  for (const expected of [
+    'tokenRejected ? "token_rejected" : "disconnected"',
+    "MT 票證已失效，請在下方貼上新票證",
+    'res.setHeader("location", "/")',
+  ]) {
+    if (!mtRelayClientSource.includes(expected)) {
+      throw new Error(`MT relay status page is missing recovery behavior: ${expected}`);
+    }
+  }
   const baccaratRelayScript = baccaratRelayUserscript("https://example.com");
   for (const expected of [
     "@match        *://gsa.ofalive99.net/*",
@@ -1668,7 +1681,8 @@ async function main() {
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
-  assertIncludes(values, "最多等待 8 秒｜請勿重複點擊", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "首次建立完整房表，通常約 30～45 秒", "Electronic first-scan estimate");
+  assertIncludes(values, "最長等待 60 秒，完成後自動回傳｜請勿重複點擊", "Electronic pending duplicate-click warning");
   assertIncludes(values, "取消推薦", "Electronic pending cancel action");
   if (!electronicSource.getRefreshRequest()?.id) {
     throw new Error("Electronic pending recommendation must request a fresh room scan");

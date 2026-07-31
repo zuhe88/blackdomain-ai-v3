@@ -21,6 +21,7 @@ let lastForwardAt = null;
 let lastMessageAt = null;
 let lastTablesAt = null;
 let lastError = null;
+let tokenRejected = false;
 
 function stopTimers() {
   if (refreshTimer) clearInterval(refreshTimer);
@@ -97,6 +98,7 @@ function handleMessage(raw) {
     if (action === "/api/v1/authenticate") {
       if (Number(message.err) !== 0) {
         lastError = `MT authentication failed (${message.err}).`;
+        tokenRejected = true;
         socket?.close();
         return;
       }
@@ -106,6 +108,7 @@ function handleMessage(raw) {
     }
     if (message.name === "/api/v1/member/logout") {
       lastError = "MT token was rejected.";
+      tokenRejected = true;
       socket?.close();
       return;
     }
@@ -127,6 +130,7 @@ function connect(token, relayKey = activeRelayKey) {
   activeRelayKey = String(relayKey || "").trim();
   if (activeToken.length < 16) throw new Error("MT token is invalid.");
   if (activeRelayKey && activeRelayKey.length < 16) throw new Error("Relay key is invalid.");
+  tokenRejected = false;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
@@ -175,7 +179,7 @@ function connect(token, relayKey = activeRelayKey) {
     if (socket === nextSocket) socket = null;
     connectedAt = null;
     stopTimers();
-    if (activeToken && !reconnectTimer) {
+    if (activeToken && !tokenRejected && !reconnectTimer) {
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         connect(activeToken);
@@ -184,34 +188,59 @@ function connect(token, relayKey = activeRelayKey) {
   });
 }
 
+function publicStatus() {
+  const state = socket?.readyState === WebSocket.OPEN
+    ? connectedAt ? "connected" : "authenticating"
+    : tokenRejected ? "token_rejected" : "disconnected";
+  return {
+    state,
+    healthy: state === "connected" && Boolean(lastTablesAt),
+    connectedAt,
+    lastForwardAt,
+    lastMessageAt,
+    lastTablesAt,
+    lastError,
+  };
+}
+
 function html() {
   return `<!doctype html>
-<html lang="zh-Hant"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BLACKDOMAIN MT Relay</title>
-<body style="font-family:sans-serif;max-width:520px;margin:48px auto;padding:20px">
+<style>
+body{font-family:system-ui,sans-serif;max-width:560px;margin:40px auto;padding:20px;color:#171717}
+.status{border:1px solid #ddd;border-radius:12px;padding:16px;margin-bottom:22px;background:#fafafa}
+.state{font-size:20px;font-weight:700;margin-bottom:8px}.ok{color:#16803a}.bad{color:#c62828}.wait{color:#9a6700}
+.detail{line-height:1.7;color:#555}label{display:block;margin:14px 0 6px;font-weight:600}
+input{box-sizing:border-box;width:100%;padding:11px;border:1px solid #999;border-radius:6px}
+button{margin-top:14px;padding:11px 18px;border:0;border-radius:6px;background:#171717;color:white;font-weight:700}
+.hint{color:#666;font-size:14px;line-height:1.6}
+</style>
+<body>
 <h1>MT 背景轉發</h1>
-<form method="post">
-  <label>MT 票證<input name="token" type="password" required
-    style="display:block;width:100%;margin:10px 0;padding:10px"></label>
-  <label>固定轉送密鑰<input name="relayKey" type="password"
-    style="display:block;width:100%;margin:10px 0;padding:10px"></label>
-  <button type="submit" style="padding:10px 16px">啟動</button>
-</form>
-<p>票證只保留在本機記憶體，不會寫入檔案。</p>
+<section class="status"><div id="state" class="state wait">正在讀取狀態…</div><div id="detail" class="detail"></div></section>
+<form method="post"><label>MT 票證</label><input name="token" type="password" required autocomplete="off">
+<label>固定轉送密鑰</label><input name="relayKey" type="password" autocomplete="off">
+<button type="submit">更新票證並啟動</button></form>
+<p class="hint">票證只保留在本機記憶體，不會寫入檔案。此頁會每 2 秒自動更新；顯示「即時轉送中」才代表 MT 資料正常送出。</p>
+<script>
+const state = document.querySelector("#state");
+const detail = document.querySelector("#detail");
+function age(value) { if (!value) return "尚未收到"; const seconds = Math.max(0, Math.round((Date.now()-Date.parse(value))/1000)); return seconds < 60 ? seconds+" 秒前" : Math.floor(seconds/60)+" 分鐘前"; }
+async function refresh() { try { const value = await fetch("/status", { cache: "no-store" }).then(r => r.json());
+  const labels = { connected: ["即時轉送中","ok"], authenticating: ["正在驗證 MT 票證…","wait"], token_rejected: ["MT 票證已失效，請在下方貼上新票證","bad"], disconnected: ["MT 連線中斷，系統正在自動重連","bad"] };
+  const selected = labels[value.state] || labels.disconnected; state.textContent = selected[0]; state.className = "state "+selected[1];
+  detail.textContent = "最近收到房表："+age(value.lastTablesAt)+"｜最近成功轉送："+age(value.lastForwardAt)+(value.lastError ? "｜狀態："+value.lastError : "");
+} catch { state.textContent="無法讀取轉發器狀態"; state.className="state bad"; } }
+refresh(); setInterval(refresh, 2000);
+</script>
 </body></html>`;
 }
 
 const server = http.createServer((req, res) => {
   if (req.method === "GET" && req.url === "/status") {
     res.setHeader("content-type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({
-      state: socket?.readyState === WebSocket.OPEN ? connectedAt ? "connected" : "authenticating" : "disconnected",
-      connectedAt,
-      lastForwardAt,
-      lastMessageAt,
-      lastTablesAt,
-      lastError,
-    }));
+    res.end(JSON.stringify(publicStatus()));
     return;
   }
   if (req.method === "POST" && req.url === "/") {
@@ -226,7 +255,7 @@ const server = http.createServer((req, res) => {
         const relayKey = new URLSearchParams(body).get("relayKey");
         connect(token, relayKey || activeRelayKey);
         res.statusCode = 303;
-        res.setHeader("location", "/status");
+        res.setHeader("location", "/");
         res.end();
       } catch (error) {
         res.statusCode = 400;
