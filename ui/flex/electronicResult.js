@@ -24,6 +24,16 @@ function formatRate(win, bet) {
     : "尚無資料";
 }
 
+function formatAmount(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount)
+    ? amount.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    : "尚未取得";
+}
+
 function statCell(label, value, color = COLORS.white) {
   return {
     type: "box",
@@ -68,6 +78,23 @@ function rtpSummary(detail = {}) {
   };
 }
 
+function betSummary(detail = {}) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    paddingAll: "12px",
+    cornerRadius: "14px",
+    backgroundColor: "#11100E",
+    borderColor: "#4C3C1E",
+    borderWidth: "1px",
+    contents: [
+      statCell("今日總下注額", formatAmount(detail.todayBet ?? detail.hourBet), COLORS.green),
+      statCell("近30天總下注額", formatAmount(detail.dayBet), COLORS.gold),
+    ],
+  };
+}
+
 function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomData = null, options = {}) {
   const signal = entrySignal(`${gameName}:${room}`, "green");
   const detail = roomData?.detail || null;
@@ -89,6 +116,7 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomDat
       ...(detail ? [section([
         text("RTP 評估", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
         rtpSummary(detail),
+        betSummary(detail),
         text("依今日與近30天房間統計換算", {
           size: "xxs",
           color: COLORS.muted,

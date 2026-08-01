@@ -43,6 +43,13 @@ function registerElectronicRelayRoutes(app) {
         });
       });
     }
+    if (body.type === "detail") {
+      setImmediate(() => {
+        electronic.handleElectronicDataReady(body.gameName).catch((error) => {
+          console.error("[Electronic] RTP-ready recommendation failed:", error.message);
+        });
+      });
+    }
     if (body.type === "spin") await electronic.handleElectronicSpin(body);
     if (body.type === "detail" && accepted.feature) {
       electronicSource.ingestSpin(accepted.feature);

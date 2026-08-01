@@ -12,21 +12,20 @@ const { isAdminLineUserId } = require("../../config/admin");
 const electronicSessions = new Map();
 const cycleCache = new Map();
 const recommendCursorStore = new Map();
+const roomRecommendationLeases = new Map();
 const recommendInFlight = new Map();
 const pendingRecommendations = new Map();
 const liveWatches = new Map();
 const stoppedWatchKeys = new Map();
 const notifiedSpins = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
+const RECOMMEND_LEASE_MS = 2 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
-const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 8000);
-const PENDING_RECOMMEND_TIMEOUT_MS = Math.min(
-  45000,
-  Math.max(30000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 30000),
-);
-const PENDING_RECOMMEND_RETRY_MS = 10000;
+const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 20000);
+const PENDING_RECOMMEND_RETRY_MS = 5000;
 const FIRST_SCAN_ESTIMATE = "正在掃描房間中並計算 RTP";
+const RTP_WAIT_ESTIMATE = "通常約 10～30 秒，取得 RTP 後自動回傳";
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -78,6 +77,7 @@ async function cancelRecommendation(userId) {
   const inFlight = recommendInFlight.get(userId);
   if (inFlight) inFlight.cancelled = true;
   if (inFlight) await stopLiveWatch(userId);
+  releaseRoomRecommendationLeases(userId);
   return pendingCancelled || Boolean(inFlight);
 }
 
@@ -126,13 +126,13 @@ function queuePendingRecommendation(userId, gameName) {
     userId,
     gameName,
     requestedAt,
-    deadlineAt: requestedAt + PENDING_RECOMMEND_TIMEOUT_MS,
+    deadlineAt: null,
     timer: null,
     retryTimer: null,
   };
   pending.retryTimer = setInterval(() => {
     if (pendingRecommendations.get(userId) !== pending) return;
-    if (electronicSource.hasReadyData(gameName)) {
+    if (hasRecommendableRoomData(gameName)) {
       handleElectronicDataReady(gameName).catch((error) => {
         console.error("[Electronic] Pending recommendation recovery failed:", error.message);
       });
@@ -141,17 +141,6 @@ function queuePendingRecommendation(userId, gameName) {
     electronicSource.requestFullRefresh();
   }, PENDING_RECOMMEND_RETRY_MS);
   pending.retryTimer.unref?.();
-  pending.timer = setTimeout(async () => {
-    if (pendingRecommendations.get(userId) !== pending) return;
-    clearInterval(pending.retryTimer);
-    pendingRecommendations.delete(userId);
-    await push(userId, electronicPromptFlex("目前無法取得即時房況", [
-      gameName,
-      "為避免房況不一致，本次未使用舊資料推薦",
-      "等待已自動結束，稍後可再使用 AI推薦房",
-    ], afterRecommendQuickReply()));
-  }, PENDING_RECOMMEND_TIMEOUT_MS);
-  pending.timer.unref?.();
   pendingRecommendations.set(userId, pending);
   return pending;
 }
@@ -196,6 +185,7 @@ async function stopLiveWatch(userId, expectedGameName = "", expectedRoomNumber =
   }
 
   liveWatches.delete(userId);
+  releaseRoomRecommendationLeases(userId, watch.gameName);
   stoppedWatchKeys.set(watchKey(watch), Date.now());
   if (supabase) {
     const { error } = await supabase
@@ -525,7 +515,51 @@ function scoreSethRoomByRtp(room) {
   return (todayRtp * 0.65) + (monthRtp * 0.35);
 }
 
+function hasRecommendableRoomData(gameName) {
+  if (!electronicSource.hasReadyData(gameName)) return false;
+  if (gameName !== electronicSource.GAME_NAMES[1]) return true;
+  return electronicSource.getEmptyRooms(gameName)
+    .some((room) => scoreSethRoomByRtp(room) != null);
+}
+
+function roomLeaseKey(gameName, roomNumber) {
+  return `${gameName}:${Number(roomNumber)}`;
+}
+
+function pruneRoomRecommendationLeases(now = Date.now()) {
+  for (const [key, lease] of roomRecommendationLeases.entries()) {
+    if (!lease?.expiresAt || lease.expiresAt <= now) roomRecommendationLeases.delete(key);
+  }
+}
+
+function releaseRoomRecommendationLeases(userId, gameName = "") {
+  const owner = String(userId || "guest");
+  for (const [key, lease] of roomRecommendationLeases.entries()) {
+    if (lease.userId === owner && (!gameName || lease.gameName === gameName)) {
+      roomRecommendationLeases.delete(key);
+    }
+  }
+}
+
+function roomIsLeasedByAnotherUser(userId, gameName, roomNumber) {
+  const lease = roomRecommendationLeases.get(roomLeaseKey(gameName, roomNumber));
+  return Boolean(lease && lease.userId !== String(userId || "guest"));
+}
+
+function leaseRecommendedRoom(userId, gameName, roomNumber) {
+  if (!Number.isInteger(Number(roomNumber))) return;
+  const owner = String(userId || "guest");
+  roomRecommendationLeases.set(roomLeaseKey(gameName, roomNumber), {
+    userId: owner,
+    gameName,
+    roomNumber: Number(roomNumber),
+    expiresAt: Date.now() + RECOMMEND_LEASE_MS,
+  });
+}
+
 function getNextRecommendRoom(userId, gameName) {
+  pruneRoomRecommendationLeases();
+  releaseRoomRecommendationLeases(userId, gameName);
   if (
     gameName === electronicSource.GAME_NAMES[0]
     && !electronicSource.hasReadyData(gameName)
@@ -535,13 +569,22 @@ function getNextRecommendRoom(userId, gameName) {
     const existing = recommendCursorStore.get(key);
     const recentRooms = Array.isArray(existing?.recentRooms) ? existing.recentRooms : [];
     let room = crypto.randomInt(config.min, config.max + 1);
-    for (let attempt = 0; attempt < 10 && recentRooms.includes(room); attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 50 && (
+        recentRooms.includes(room)
+        || roomIsLeasedByAnotherUser(userId, gameName, room)
+      );
+      attempt += 1
+    ) {
       room = crypto.randomInt(config.min, config.max + 1);
     }
+    if (roomIsLeasedByAnotherUser(userId, gameName, room)) return null;
     recommendCursorStore.set(key, {
       recentRooms: [room, ...recentRooms.filter((value) => value !== room)].slice(0, 10),
       updatedAt: Date.now(),
     });
+    leaseRecommendedRoom(userId, gameName, room);
     return room;
   }
   if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
@@ -554,21 +597,27 @@ function getNextRecommendRoom(userId, gameName) {
         .sort((a, b) => b.rtpScore - a.rtpScore || a.room.number - b.room.number)
         .map((item) => item.room)
       : [];
+    if (gameName === electronicSource.GAME_NAMES[1] && !rtpRankedRooms.length) return null;
     const detailedRooms = emptyRooms.filter((room) => room.detail);
-    const candidates = rtpRankedRooms.length
+    const candidates = gameName === electronicSource.GAME_NAMES[1]
       ? rtpRankedRooms
       : (detailedRooms.length ? detailedRooms.slice(0, 10) : emptyRooms);
     const key = `${userId || "guest"}:${gameName}:live`;
     const existing = recommendCursorStore.get(key);
     const recentRooms = Array.isArray(existing?.recentRooms) ? existing.recentRooms : [];
-    const freshCandidates = candidates.filter((room) => !recentRooms.includes(room.number));
-    const pool = freshCandidates.length ? freshCandidates : candidates;
+    const unleasedCandidates = candidates.filter((room) => (
+      !roomIsLeasedByAnotherUser(userId, gameName, room.number)
+    ));
+    if (!unleasedCandidates.length) return null;
+    const freshCandidates = unleasedCandidates.filter((room) => !recentRooms.includes(room.number));
+    const pool = freshCandidates.length ? freshCandidates : unleasedCandidates;
     const selected = rtpRankedRooms.length ? pool[0] : pool[crypto.randomInt(pool.length)];
     const recentLimit = Math.min(5, Math.max(1, candidates.length - 1));
     recommendCursorStore.set(key, {
       recentRooms: [selected.number, ...recentRooms.filter((room) => room !== selected.number)].slice(0, recentLimit),
       updatedAt: Date.now(),
     });
+    leaseRecommendedRoom(userId, gameName, selected.number);
     return selected;
   }
   const cycle = getGameCycle(gameName);
@@ -580,9 +629,14 @@ function getNextRecommendRoom(userId, gameName) {
   const existing = recommendCursorStore.get(key);
   const initialCursor = hashScore(`START:${key}`, cycle.recommendRooms.length);
   const cursor = Number.isInteger(existing?.cursor) ? existing.cursor : initialCursor;
-  const room = cycle.recommendRooms[cursor % cycle.recommendRooms.length];
+  const availableRooms = cycle.recommendRooms.filter((candidate) => (
+    !roomIsLeasedByAnotherUser(userId, gameName, candidate)
+  ));
+  if (!availableRooms.length) return null;
+  const room = availableRooms[cursor % availableRooms.length];
 
   recommendCursorStore.set(key, { cursor: cursor + 1, updatedAt: Date.now() });
+  leaseRecommendedRoom(userId, gameName, room);
 
   return Number.isInteger(room) ? room : GAME_CONFIG[gameName]?.min || 1;
 }
@@ -693,8 +747,8 @@ async function pushRoomSyncWaiting(userId, gameName) {
     await push(userId, recommendationWaitingFlex(
       "即時房間數據同步中",
       gameName,
-      "正在確認空房與房間統計",
-      "預計 0～8 秒",
+      FIRST_SCAN_ESTIMATE,
+      RTP_WAIT_ESTIMATE,
     ));
     return true;
   } catch (error) {
@@ -773,14 +827,14 @@ async function performRecommendRoom(event) {
   if (!selected) {
     if (
       electronicSource.SUPPORTED_GAMES.has(session.gameName)
-      && (!electronicSource.hasFreshData(session.gameName) || !electronicSource.hasReadyData(session.gameName))
+      && !hasRecommendableRoomData(session.gameName)
     ) {
       queuePendingRecommendation(userId, session.gameName);
       return deliverRecommendation(event, recommendationWaitingFlex(
         "房間數據整理中",
         session.gameName,
         FIRST_SCAN_ESTIMATE,
-        `預計 5～15 秒，最長 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒`,
+        RTP_WAIT_ESTIMATE,
       ));
     }
     return deliverRecommendation(event, electronicPromptFlex("目前沒有可推薦的空房", [
@@ -813,10 +867,9 @@ async function performRecommendRoom(event) {
       )
       : null;
     if (await stopIfRecommendationCancelled(event, userId)) return false;
-    // ATG does not consistently emit a detail response for every empty room.
-    // The source snapshot still receives live occupancy deltas, so a room
-    // already confirmed as empty must remain recommendable. RTP is displayed
-    // only when its optional detail response is available.
+    // ATG does not consistently emit a new detail response for every empty
+    // room. A previously captured valid RTP snapshot remains usable, but Seth
+    // 2 must never fall back to a room without RTP statistics.
     if (
       !refreshed
       && selected.status === "Empty"
@@ -827,7 +880,7 @@ async function performRecommendRoom(event) {
     if (!refreshed || refreshed.status !== "Empty" || refreshed.occupied === true) {
       selected = getNextRecommendRoom(userId, session.gameName);
       roomNumber = selectedRoomNumber(selected);
-      if (typeof selected === "object") {
+      if (selected && typeof selected === "object") {
         rememberLiveWatch({
           userId,
           gameName: session.gameName,
@@ -847,10 +900,22 @@ async function performRecommendRoom(event) {
     } else {
       selected = refreshed;
     }
-    if (!selected || (typeof selected === "object" && (
+    const missingRequiredRtp = session.gameName === electronicSource.GAME_NAMES[1]
+      && scoreSethRoomByRtp(selected) == null;
+    if (!selected || missingRequiredRtp || (typeof selected === "object" && (
       selected.status !== "Empty" || selected.occupied === true
     ))) {
       await stopLiveWatch(userId, session.gameName, roomNumber);
+      if (session.gameName === electronicSource.GAME_NAMES[1]) {
+        queuePendingRecommendation(userId, session.gameName);
+        if (event.waitingAlreadySent) return false;
+        return deliverRecommendation(event, recommendationWaitingFlex(
+          "房間數據整理中",
+          session.gameName,
+          FIRST_SCAN_ESTIMATE,
+          RTP_WAIT_ESTIMATE,
+        ));
+      }
       return deliverRecommendation(event, electronicPromptFlex("即時房間數據同步逾時", [
         session.gameName,
         "為避免房況不一致，本次未使用舊統計推薦",
@@ -881,12 +946,11 @@ async function recommendRoom(event) {
   const userId = event.source.userId;
   const pending = pendingRecommendations.get(userId);
   if (pending && !event.autoPush) {
-    const remainingSeconds = Math.max(1, Math.ceil((pending.deadlineAt - Date.now()) / 1000));
     return reply(event.replyToken, recommendationWaitingFlex(
       "房間數據仍在整理中",
       pending.gameName,
       FIRST_SCAN_ESTIMATE,
-      `剩餘最長約 ${remainingSeconds} 秒，完成後自動回傳`,
+      RTP_WAIT_ESTIMATE,
     ));
   }
   if (recommendInFlight.has(userId)) {
@@ -894,8 +958,8 @@ async function recommendRoom(event) {
     return reply(event.replyToken, recommendationWaitingFlex(
       "即時房間數據同步中",
       currentGame,
-      "正在確認空房與房間統計",
-      "預計 5～15 秒",
+      FIRST_SCAN_ESTIMATE,
+      RTP_WAIT_ESTIMATE,
     ));
   }
   const request = { id: crypto.randomUUID(), cancelled: false };
@@ -909,7 +973,7 @@ async function recommendRoom(event) {
 }
 
 async function handleElectronicDataReady(gameName) {
-  if (!electronicSource.hasReadyData(gameName)) return 0;
+  if (!hasRecommendableRoomData(gameName)) return 0;
   const pending = [...pendingRecommendations.values()]
     .filter((item) => item.gameName === gameName);
   if (!pending.length) return 0;
@@ -919,7 +983,6 @@ async function handleElectronicDataReady(gameName) {
     message: { type: "text", text: "自動推薦" },
     autoPush: true,
     waitingAlreadySent: true,
-    recommendationDeadline: item.deadlineAt,
   })));
   return results.filter((result) => result.status === "fulfilled").length;
 }
@@ -999,6 +1062,7 @@ function getCurrentGame(userId) {
 
 function resetElectronicSession(userId) {
   cancelPendingRecommendation(userId);
+  releaseRoomRecommendationLeases(userId);
   const inFlight = recommendInFlight.get(userId);
   if (inFlight) inFlight.cancelled = true;
   stopLiveWatch(userId).catch((error) => {
@@ -1022,6 +1086,7 @@ function electronicStatus(userId) {
 }
 
 function cleanupOldCycles() {
+  pruneRoomRecommendationLeases();
   const currentCycle = getCycleKey();
   for (const [key] of cycleCache.entries()) if (!key.endsWith(currentCycle)) cycleCache.delete(key);
   for (const [key, value] of recommendCursorStore.entries()) {
@@ -1033,6 +1098,9 @@ function cleanupOldCycles() {
   }
   for (const [key, stoppedAt] of stoppedWatchKeys.entries()) {
     if (Date.now() - stoppedAt > SESSION_TIMEOUT) stoppedWatchKeys.delete(key);
+  }
+  for (const [userId, pending] of pendingRecommendations.entries()) {
+    if (Date.now() - pending.requestedAt > SESSION_TIMEOUT) cancelPendingRecommendation(userId);
   }
 }
 

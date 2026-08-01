@@ -1347,7 +1347,14 @@ async function main() {
     path.join(root, "ui", "flex", "electronicResult.js"),
     "utf8",
   );
-  for (const expected of ["RTP 評估", "今日 RTP", "30天 RTP", "可信度"]) {
+  for (const expected of [
+    "RTP 評估",
+    "今日 RTP",
+    "30天 RTP",
+    "可信度",
+    "今日總下注額",
+    "近30天總下注額",
+  ]) {
     if (!electronicResultSource.includes(expected)) {
       throw new Error(`Electronic recommendation card is missing RTP display: ${expected}`);
     }
@@ -1805,6 +1812,13 @@ async function main() {
   if (rtpRankedRoom?.number !== 3999) {
     throw new Error("Seth 2 recommendations must prioritize reliable higher-RTP empty rooms");
   }
+  const secondUserRtpRoom = electronic.getNextRecommendRoom(
+    "rtp-ranking-user-2",
+    electronicSource.GAME_NAMES[1],
+  );
+  if (secondUserRtpRoom?.number !== 3998) {
+    throw new Error("Concurrent Seth 2 users must receive different available rooms");
+  }
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "推薦房號", "Seth 1 room-pool recommendation");
@@ -1818,7 +1832,7 @@ async function main() {
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
   assertIncludes(values, "正在掃描房間中並計算 RTP", "Electronic first-scan estimate");
-  assertIncludes(values, "預計 5～15 秒，最長 30 秒｜請勿重複點擊", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "通常約 10～30 秒，取得 RTP 後自動回傳｜請勿重複點擊", "Electronic pending duplicate-click warning");
   assertIncludes(values, "取消推薦", "Electronic pending cancel action");
   if (!electronicSource.getRefreshRequest()?.id) {
     throw new Error("Electronic pending recommendation must request a fresh room scan");
@@ -1828,9 +1842,10 @@ async function main() {
     "utf8",
   );
   for (const expected of [
-    "const PENDING_RECOMMEND_RETRY_MS = 10000",
+    "const PENDING_RECOMMEND_RETRY_MS = 5000",
     "handleElectronicDataReady(gameName)",
     "clearInterval(pending.retryTimer)",
+    "if (gameName === electronicSource.GAME_NAMES[1] && !rtpRankedRooms.length) return null",
   ]) {
     if (!electronicModuleSource.includes(expected)) {
       throw new Error(`Electronic first recommendation is missing automatic recovery: ${expected}`);
@@ -1858,6 +1873,9 @@ async function main() {
     tables: [{ roomId: "seth-auto-7", number: 7, status: "Empty" }],
   })) {
     throw new Error("Electronic automatic recommendation fixture was rejected");
+  }
+  if (electronic.getNextRecommendRoom("seth-no-rtp-user", electronicSource.GAME_NAMES[1]) !== null) {
+    throw new Error("Seth 2 must not recommend an empty room before RTP is available");
   }
   electronicSource.ingestDetail({
     gameName: "戰神賽特2",
@@ -1993,7 +2011,7 @@ async function main() {
     .slice(waitingPushCount)
     .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
   assertIncludes(waitingPushTexts, "即時房間數據同步中", "Electronic recommendation waiting Flex");
-  assertIncludes(waitingPushTexts, "預計 0～8 秒｜請勿重複點擊", "Electronic recommendation waiting estimate");
+  assertIncludes(waitingPushTexts, "通常約 10～30 秒，取得 RTP 後自動回傳｜請勿重複點擊", "Electronic recommendation waiting estimate");
   assertIncludes(waitingPushTexts, "完成後會自動回傳推薦房間", "Electronic recommendation automatic response notice");
   assertIncludes(waitingPushTexts, "取消推薦", "Electronic live-detail cancel action");
   if (values.some((value) => String(value).includes("90.00%"))) {
