@@ -805,7 +805,7 @@ async function performRecommendRoom(event) {
       updatedAt: Date.now(),
     });
     const firstWaitMs = detailDeadline - Date.now();
-    const refreshed = firstWaitMs > 0
+    let refreshed = firstWaitMs > 0
       ? await electronicSource.waitForRoomDetail(
         session.gameName,
         roomNumber,
@@ -813,6 +813,18 @@ async function performRecommendRoom(event) {
       )
       : null;
     if (await stopIfRecommendationCancelled(event, userId)) return false;
+    // ATG does not consistently emit a second detail response when the same
+    // empty room was queried moments earlier.  The source snapshot is still
+    // receiving live occupancy deltas, so keep the already captured RTP
+    // detail as a safe fallback instead of incorrectly timing out.
+    if (
+      !refreshed
+      && selected.detail
+      && selected.status === "Empty"
+      && selected.occupied !== true
+    ) {
+      refreshed = selected;
+    }
     if (!refreshed || refreshed.status !== "Empty" || refreshed.occupied === true) {
       selected = getNextRecommendRoom(userId, session.gameName);
       roomNumber = selectedRoomNumber(selected);
