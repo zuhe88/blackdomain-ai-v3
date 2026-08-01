@@ -1321,8 +1321,14 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.1.8") {
-    throw new Error("Electronic relay extension version must be 1.1.8");
+  if (electronicRelayManifest.version !== "1.1.9") {
+    throw new Error("Electronic relay extension version must be 1.1.9");
+  }
+  if (electronicRelayManifest.content_scripts.some((entry) => (
+    entry.js?.some((file) => file.startsWith("mt-"))
+    || entry.matches?.some((match) => match.includes("ofalive99") || match.includes("mtx"))
+  ))) {
+    throw new Error("MT must use the local relay and must not be captured by the browser extension");
   }
   const electronicBridgeSource = fs.readFileSync(
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
@@ -1525,112 +1531,6 @@ async function main() {
   );
   if (!electronicRelaySource.includes("setInterval(syncWatchRooms, 2000)")) {
     throw new Error("Electronic relay watch sync must use the reduced two-second interval");
-  }
-  const mtBridgeSource = fs.readFileSync(
-    path.join(root, "extensions", "mb-relay", "mt-bridge.js"),
-    "utf8",
-  );
-  const mtForwardEvents = [];
-  class FakeMtWebSocket {
-    constructor(url) {
-      this.url = url;
-      this.listeners = new Map();
-    }
-
-    addEventListener(name, listener) {
-      const listeners = this.listeners.get(name) || [];
-      listeners.push(listener);
-      this.listeners.set(name, listeners);
-    }
-
-    emit(name, eventValue) {
-      (this.listeners.get(name) || []).forEach((listener) => listener(eventValue));
-    }
-  }
-  const mtWindow = {
-    WebSocket: FakeMtWebSocket,
-    dispatchEvent(eventValue) {
-      mtForwardEvents.push(eventValue.detail);
-    },
-  };
-  vm.runInNewContext(mtBridgeSource, {
-    window: mtWindow,
-    CustomEvent: class CustomEvent {
-      constructor(type, options = {}) {
-        this.type = type;
-        this.detail = options.detail;
-      }
-    },
-    console: { info() {}, warn() {}, error() {} },
-    URL,
-    JSON,
-    Proxy,
-    Reflect,
-    Object,
-    String,
-    Array,
-  });
-  const mtSocket = new mtWindow.WebSocket("wss://a1.ofalive99.net/game/ws");
-  mtSocket.emit("message", {
-    data: JSON.stringify({
-      action: { name: "/api/v1/gametype/*/game/*/room/*/tables" },
-      msg: {
-        tables: {
-          BAG01: {
-            table_id: "BAG01",
-            table_name: "1",
-            table_type: "BAC",
-            game_sn: "mt-live-round",
-            shoe: "shoe-1",
-            trend: {
-              bead_plate2: "01#02",
-              total_round_banker: 1,
-              total_round_player: 1,
-              total_round_tie: 0,
-            },
-            account: "must-not-forward",
-            token: "must-not-forward",
-            balance: 999999,
-          },
-        },
-      },
-    }),
-  });
-  const forwardedMtJson = JSON.stringify(mtForwardEvents[0] || {});
-  if (
-    mtForwardEvents.length !== 1
-    || mtForwardEvents[0]?.type !== "tables"
-    || mtForwardEvents[0]?.tables?.[0]?.table_id !== "BAG01"
-    || /must-not-forward|account|token|balance/.test(forwardedMtJson)
-  ) {
-    throw new Error("MT extension relay must forward only sanitized baccarat table data");
-  }
-  const mtMainContentScript = electronicRelayManifest.content_scripts.find((entry) => (
-    entry.world === "MAIN" && entry.js?.includes("mt-bridge.js")
-  ));
-  const mtRelayContentScript = electronicRelayManifest.content_scripts.find((entry) => (
-    entry.js?.includes("mt-relay.js")
-  ));
-  if (
-    !mtMainContentScript?.matches?.includes("https://gsa.ofalive99.net/*")
-    || !mtRelayContentScript?.matches?.includes("https://gsa.ofalive99.net/*")
-  ) {
-    throw new Error("MT extension relay must load in the signed-in MT game page");
-  }
-  const extensionBackgroundSource = fs.readFileSync(
-    path.join(root, "extensions", "mb-relay", "background.js"),
-    "utf8",
-  );
-  for (const expected of ["BLACKDOMAIN_MT_FORWARD", "/api/mt/ingest", "blackdomainMtLastStatus"]) {
-    if (!extensionBackgroundSource.includes(expected)) {
-      throw new Error(`Extension background is missing MT relay support: ${expected}`);
-    }
-  }
-  const mtRouteSource = fs.readFileSync(path.join(root, "routes", "mtLive.js"), "utf8");
-  for (const expected of ["process.env.ATG_RELAY_KEY", "x-electronic-relay-key", "validRelayKey(req)"]) {
-    if (!mtRouteSource.includes(expected)) {
-      throw new Error(`MT ingest route is missing extension authorization: ${expected}`);
-    }
   }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");

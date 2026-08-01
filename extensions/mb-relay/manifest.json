@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BLACKDOMAIN 3A Game Relay",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "description": "Synchronizes approved 3A game data with BLACKDOMAIN AI.",
   "permissions": [
     "storage"
@@ -48,33 +48,6 @@
       ],
       "js": [
         "atg-relay.js"
-      ],
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "https://gsa.ofalive99.net/*",
-        "https://gsa.mtx55.net/*",
-        "https://gsa.mtx66.net/*",
-        "https://gsa.mtx77.net/*",
-        "https://gsa.mtx88.net/*"
-      ],
-      "js": [
-        "mt-bridge.js"
-      ],
-      "run_at": "document_start",
-      "world": "MAIN"
-    },
-    {
-      "matches": [
-        "https://gsa.ofalive99.net/*",
-        "https://gsa.mtx55.net/*",
-        "https://gsa.mtx66.net/*",
-        "https://gsa.mtx77.net/*",
-        "https://gsa.mtx88.net/*"
-      ],
-      "js": [
-        "mt-relay.js"
       ],
       "run_at": "document_start"
     }
