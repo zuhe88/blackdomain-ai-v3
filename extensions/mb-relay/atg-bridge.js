@@ -709,10 +709,6 @@
     watchedRoomDiscoveryRequested = false;
     watchedRoomNumbers.clear();
     nextWatchedRoomNumbers.forEach((roomNumber) => watchedRoomNumbers.add(roomNumber));
-    if (detailQueueTimer) {
-      clearTimeout(detailQueueTimer);
-      detailQueueTimer = null;
-    }
     if (!watchedRoomNumbers.size) {
       pendingDetailRoom = null;
       pendingDetailRequestedAt = 0;

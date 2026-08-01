@@ -1330,8 +1330,15 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.9") {
-    throw new Error("Electronic relay extension version must be 1.2.9");
+  if (electronicRelayManifest.version !== "1.2.10") {
+    throw new Error("Electronic relay extension version must be 1.2.10");
+  }
+  const atgBridgeSource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
+    "utf8",
+  );
+  if (atgBridgeSource.includes("detailQueueTimer")) {
+    throw new Error("ATG bridge must not reference the removed detail queue timer");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
