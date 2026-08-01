@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.1") {
-    throw new Error("Electronic relay extension version must be 1.2.1");
+  if (electronicRelayManifest.version !== "1.2.2") {
+    throw new Error("Electronic relay extension version must be 1.2.2");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1366,6 +1366,9 @@ async function main() {
   }
   if (electronicBridgeSource.includes("data.page && data.page !== requestedScanPage")) {
     throw new Error("Electronic empty-room scans must tolerate ATG page-number reordering");
+  }
+  if (!electronicBridgeSource.includes("scheduleFullScan(SCAN_STARTUP_GRACE_MS);")) {
+    throw new Error("Electronic relay must start its first empty-room scan after ATG initialization");
   }
   if (
     !electronicBridgeSource.includes("requestPayload?.action === \"buyFeature\" || activePurchasedFeature")

@@ -460,6 +460,10 @@
         emit({ type: "tables", gameName, ...initialTables });
         scanTotalPages = initialTables.totalPages || Number(payload?.platform?.tableMeta?.totalPages) || 8;
       }
+      // INIT_RESPONSE is the first reliable signal that ATG's table dispatcher
+      // is ready. Start the initial eight-page empty-room scan here; without
+      // this kick-off only the live 500-room snapshot is ever published.
+      scheduleFullScan(SCAN_STARTUP_GRACE_MS);
       return;
     }
 
