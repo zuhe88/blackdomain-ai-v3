@@ -30,7 +30,11 @@ function normalizeTable(table = {}) {
   if (!Number.isInteger(number) || number < 1 || !roomId) return null;
   const status = normalizeStatus(table.status);
   const detail = table.detail || table;
-  const hasDetail = ["dayWin", "dayBet", "hourWin", "hourBet", "todayWin", "todayBet", "mgCounts"]
+  const hasDetail = [
+    "dayWin", "dayBet", "hourWin", "hourBet", "todayWin", "todayBet", "mgCounts",
+    "todayRtp", "todayRate", "todayScoreRate", "hourRtp", "hourRate",
+    "dayRtp", "dayRate", "dayScoreRate", "rtp", "scoreRate",
+  ]
     .some((key) => detail?.[key] != null);
   return {
     roomId,
@@ -44,9 +48,17 @@ function normalizeTable(table = {}) {
       hourBet: Number(detail.hourBet) || 0,
       todayWin: Number(detail.todayWin) || 0,
       todayBet: Number(detail.todayBet) || 0,
+      todayRtp: normalizeRtp(detail.todayRtp ?? detail.todayRate ?? detail.todayScoreRate ?? detail.hourRtp ?? detail.hourRate),
+      dayRtp: normalizeRtp(detail.dayRtp ?? detail.dayRate ?? detail.dayScoreRate ?? detail.rtp ?? detail.scoreRate),
       mgCounts: Array.isArray(detail.mgCounts) ? detail.mgCounts.slice(0, 3).map((v) => Number(v) || 0) : [],
     } : null,
   };
+}
+
+function normalizeRtp(value) {
+  const numeric = Number.parseFloat(String(value ?? "").replace("%", ""));
+  if (!Number.isFinite(numeric) || numeric < 0) return null;
+  return numeric > 0 && numeric <= 2 ? numeric * 100 : numeric;
 }
 
 function ingestTables(payload = {}) {

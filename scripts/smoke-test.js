@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.7") {
-    throw new Error("Electronic relay extension version must be 1.2.7");
+  if (electronicRelayManifest.version !== "1.2.8") {
+    throw new Error("Electronic relay extension version must be 1.2.8");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1349,8 +1349,8 @@ async function main() {
   );
   for (const expected of [
     "RTP 評估",
-    "今日 RTP",
-    "30天 RTP",
+    "今日得分率",
+    "近30天得分率",
     "可信度",
     "今日總下注額",
     "近30天總下注額",
@@ -1846,6 +1846,8 @@ async function main() {
     "handleElectronicDataReady(gameName)",
     "clearInterval(pending.retryTimer)",
     "if (gameName === electronicSource.GAME_NAMES[1] && !rtpRankedRooms.length) return null",
+    "seedRecommendationProbes(userId, gameName)",
+    "refreshPendingRecommendationProbes(gameName)",
   ]) {
     if (!electronicModuleSource.includes(expected)) {
       throw new Error(`Electronic first recommendation is missing automatic recovery: ${expected}`);
@@ -1876,6 +1878,13 @@ async function main() {
   }
   if (electronic.getNextRecommendRoom("seth-no-rtp-user", electronicSource.GAME_NAMES[1]) !== null) {
     throw new Error("Seth 2 must not recommend an empty room before RTP is available");
+  }
+  if (await electronic.handleElectronicDataReady("戰神賽特2") !== 0) {
+    throw new Error("Seth 2 must keep waiting while RTP is unavailable");
+  }
+  const pendingProbeRooms = await electronic.getActiveWatchRooms();
+  if (!pendingProbeRooms.some((room) => room.gameName === "戰神賽特2" && room.roomNumber === 7)) {
+    throw new Error("Seth 2 waiting flow must actively request candidate-room RTP details");
   }
   electronicSource.ingestDetail({
     gameName: "戰神賽特2",

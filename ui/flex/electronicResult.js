@@ -24,6 +24,13 @@ function formatRate(win, bet) {
     : "尚無資料";
 }
 
+function displayRtp(value, win, bet) {
+  const direct = Number(value);
+  return value != null && value !== "" && Number.isFinite(direct) && direct >= 0
+    ? `${direct.toFixed(2)}%`
+    : formatRate(win, bet);
+}
+
 function formatAmount(value) {
   const amount = Number(value);
   return Number.isFinite(amount)
@@ -68,11 +75,12 @@ function rtpSummary(detail = {}) {
     borderColor: "#4C3C1E",
     borderWidth: "1px",
     contents: [
-      statCell("今日 RTP", formatRate(
+      statCell("今日得分率", displayRtp(
+        detail.todayRtp,
         detail.todayWin ?? detail.hourWin,
         detail.todayBet ?? detail.hourBet,
       ), COLORS.green),
-      statCell("30天 RTP", formatRate(detail.dayWin, detail.dayBet), COLORS.gold),
+      statCell("近30天得分率", displayRtp(detail.dayRtp, detail.dayWin, detail.dayBet), COLORS.gold),
       statCell("可信度", confidence.label, confidence.color),
     ],
   };

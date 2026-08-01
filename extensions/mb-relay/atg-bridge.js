@@ -116,6 +116,8 @@
       hourBet: table.hourBet,
       todayWin: table.todayWin,
       todayBet: table.todayBet,
+      todayRtp: table.todayRtp ?? table.todayRate ?? table.todayScoreRate ?? table.hourRtp ?? table.hourRate,
+      dayRtp: table.dayRtp ?? table.dayRate ?? table.dayScoreRate ?? table.rtp ?? table.scoreRate,
       mgCounts: Array.isArray(table.mgCounts) ? table.mgCounts.slice(0, 3) : undefined,
     };
   }
@@ -268,7 +270,15 @@
   function detailPayload(payload, requestedTable = null) {
     const candidates = [payload?.detail, payload?.data?.detail, payload?.data, payload];
     const detail = candidates.find((item) => item && (
-      item.dayBet != null || item.hourBet != null || item.todayBet != null || item.mgCounts != null
+      item.dayBet != null
+      || item.hourBet != null
+      || item.todayBet != null
+      || item.todayRtp != null
+      || item.todayRate != null
+      || item.dayRtp != null
+      || item.dayRate != null
+      || item.scoreRate != null
+      || item.mgCounts != null
     ));
     if (!detail) return null;
     return {
@@ -281,6 +291,8 @@
       hourBet: detail.hourBet,
       todayWin: detail.todayWin,
       todayBet: detail.todayBet,
+      todayRtp: detail.todayRtp ?? detail.todayRate ?? detail.todayScoreRate ?? detail.hourRtp ?? detail.hourRate,
+      dayRtp: detail.dayRtp ?? detail.dayRate ?? detail.dayScoreRate ?? detail.rtp ?? detail.scoreRate,
       mgCounts: Array.isArray(detail.mgCounts) ? detail.mgCounts.slice(0, 3) : undefined,
       capturedAt: Date.now(),
     };

@@ -15,6 +15,7 @@ const recommendCursorStore = new Map();
 const roomRecommendationLeases = new Map();
 const recommendInFlight = new Map();
 const pendingRecommendations = new Map();
+const recommendationProbes = new Map();
 const liveWatches = new Map();
 const stoppedWatchKeys = new Map();
 const notifiedSpins = new Set();
@@ -69,7 +70,46 @@ function cancelPendingRecommendation(userId) {
   clearTimeout(pending.timer);
   clearInterval(pending.retryTimer);
   pendingRecommendations.delete(userId);
+  clearRecommendationProbes(userId);
   return true;
+}
+
+function clearRecommendationProbes(userId) {
+  const owner = String(userId || "guest");
+  for (const [key, probe] of recommendationProbes.entries()) {
+    if (probe.userId === owner) recommendationProbes.delete(key);
+  }
+}
+
+function seedRecommendationProbes(userId, gameName, limit = 6) {
+  if (gameName !== electronicSource.GAME_NAMES[1]) return 0;
+  const owner = String(userId || "guest");
+  clearRecommendationProbes(owner);
+  const rooms = electronicSource.getEmptyRooms(gameName)
+    .filter((room) => scoreSethRoomByRtp(room) == null)
+    .sort((left, right) => (
+      hashScore(`${owner}:${left.number}`) - hashScore(`${owner}:${right.number}`)
+    ))
+    .slice(0, limit);
+  const updatedAt = Date.now();
+  rooms.forEach((room) => {
+    const probe = {
+      userId: owner,
+      gameName,
+      roomNumber: room.number,
+      updatedAt,
+    };
+    recommendationProbes.set(`${owner}:${gameName}:${room.number}`, probe);
+  });
+  return rooms.length;
+}
+
+function refreshPendingRecommendationProbes(gameName) {
+  for (const pending of pendingRecommendations.values()) {
+    if (pending.gameName === gameName && !hasRecommendableRoomData(gameName)) {
+      seedRecommendationProbes(pending.userId, gameName);
+    }
+  }
 }
 
 async function cancelRecommendation(userId) {
@@ -130,6 +170,7 @@ function queuePendingRecommendation(userId, gameName) {
     timer: null,
     retryTimer: null,
   };
+  seedRecommendationProbes(userId, gameName);
   pending.retryTimer = setInterval(() => {
     if (pendingRecommendations.get(userId) !== pending) return;
     if (hasRecommendableRoomData(gameName)) {
@@ -138,6 +179,7 @@ function queuePendingRecommendation(userId, gameName) {
       });
       return;
     }
+    seedRecommendationProbes(userId, gameName);
     electronicSource.requestFullRefresh();
   }, PENDING_RECOMMEND_RETRY_MS);
   pending.retryTimer.unref?.();
@@ -271,6 +313,11 @@ async function getActiveWatchRooms() {
   for (const watch of liveWatches.values()) {
     if (watch?.userId && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT) {
       watches.set(watch.userId, watch);
+    }
+  }
+  for (const probe of recommendationProbes.values()) {
+    if (probe?.userId && now - Number(probe.updatedAt || 0) <= SESSION_TIMEOUT) {
+      watches.set(`probe:${probe.userId}:${probe.roomNumber}`, probe);
     }
   }
   if (supabase) {
@@ -491,13 +538,13 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
   });
 }
 
-function confidenceAdjustedRtp(win, bet, referenceBet) {
+function reportedRtp(value, win, bet) {
+  const direct = Number(value);
+  if (value != null && value !== "" && Number.isFinite(direct) && direct >= 0) return direct;
   const winnings = Number(win);
   const stake = Number(bet);
   if (!Number.isFinite(winnings) || !Number.isFinite(stake) || stake <= 0) return null;
-  const rawRtp = Math.max(50, Math.min(160, (winnings / stake) * 100));
-  const confidence = stake / (stake + referenceBet);
-  return 100 + ((rawRtp - 100) * confidence);
+  return (winnings / stake) * 100;
 }
 
 function scoreSethRoomByRtp(room) {
@@ -507,8 +554,8 @@ function scoreSethRoomByRtp(room) {
   const todayWin = Number(detail.todayWin ?? detail.hourWin) || 0;
   const dayBet = Number(detail.dayBet) || 0;
   const dayWin = Number(detail.dayWin) || 0;
-  const todayRtp = confidenceAdjustedRtp(todayWin, todayBet, 100000);
-  const monthRtp = confidenceAdjustedRtp(dayWin, dayBet, 5000000);
+  const todayRtp = reportedRtp(detail.todayRtp, todayWin, todayBet);
+  const monthRtp = reportedRtp(detail.dayRtp, dayWin, dayBet);
   if (todayRtp == null && monthRtp == null) return null;
   if (todayRtp == null) return monthRtp;
   if (monthRtp == null) return todayRtp;
@@ -973,7 +1020,10 @@ async function recommendRoom(event) {
 }
 
 async function handleElectronicDataReady(gameName) {
-  if (!hasRecommendableRoomData(gameName)) return 0;
+  if (!hasRecommendableRoomData(gameName)) {
+    refreshPendingRecommendationProbes(gameName);
+    return 0;
+  }
   const pending = [...pendingRecommendations.values()]
     .filter((item) => item.gameName === gameName);
   if (!pending.length) return 0;
