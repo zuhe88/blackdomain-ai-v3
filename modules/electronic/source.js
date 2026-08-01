@@ -71,6 +71,14 @@ function ingestTables(payload = {}) {
   payload.tables.forEach((raw) => {
     const table = normalizeTable(raw);
     if (table) {
+      // Once an empty-room scan has established the authoritative pool, live
+      // page snapshots must not reintroduce occupied/locked rooms.  They are
+      // still useful as status deltas: remove a room when it becomes non-empty
+      // and add/update it when it is empty again.
+      if (!scanId && state.dataMode === "empty-only" && table.status !== "Empty") {
+        next.delete(table.roomId);
+        return;
+      }
       const existing = state.tables.get(table.roomId);
       if (!table.detail && existing?.detail) table.detail = existing.detail;
       next.set(table.roomId, table);

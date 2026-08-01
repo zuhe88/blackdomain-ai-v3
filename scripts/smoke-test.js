@@ -1734,6 +1734,20 @@ async function main() {
     || emptyOnlySnapshot.tables.length !== 8) {
     throw new Error("Electronic eight-page empty-only scan was not published correctly");
   }
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: electronicSource.GAME_NAMES[1],
+    tables: [
+      { roomId: "seth-empty-page-1", number: 500, status: "Full" },
+      { roomId: "seth-new-empty", number: 4001, status: "Empty" },
+    ],
+  });
+  const emptyOnlyLiveSnapshot = electronicSource.getGame(electronicSource.GAME_NAMES[1]);
+  if (emptyOnlyLiveSnapshot.tables.some((table) => table.status !== "Empty")
+    || emptyOnlyLiveSnapshot.tables.some((table) => table.roomId === "seth-empty-page-1")
+    || !emptyOnlyLiveSnapshot.tables.some((table) => table.roomId === "seth-new-empty")) {
+    throw new Error("Electronic live updates polluted the empty-only recommendation pool");
+  }
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "推薦房號", "Seth 1 room-pool recommendation");
