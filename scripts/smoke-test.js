@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.2") {
-    throw new Error("Electronic relay extension version must be 1.2.2");
+  if (electronicRelayManifest.version !== "1.2.3") {
+    throw new Error("Electronic relay extension version must be 1.2.3");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1372,9 +1372,11 @@ async function main() {
   }
   if (
     !electronicBridgeSource.includes("requestPayload?.action === \"buyFeature\" || activePurchasedFeature")
-    || !electronicBridgeSource.includes("uninstallSenderWrapper")
+    || !electronicBridgeSource.includes("isTablePageRequest")
+    || !electronicBridgeSource.includes("handleDispatch(TABLE_PAGE_RESPONSE, response)")
+    || !electronicBridgeSource.includes("observedPageResponses")
   ) {
-    throw new Error("Electronic relay must limit sender observation to active purchased features");
+    throw new Error("Electronic relay must observe table callbacks and deduplicate dispatch responses");
   }
   for (const expected of [
     "const SCAN_PAGE_TIMEOUT_MS = 30000",

@@ -40,6 +40,7 @@
   let originalSender = null;
   const naturalFeatureSpins = new Map();
   const emittedFeatureSpins = new Set();
+  const observedPageResponses = new WeakSet();
   let activePurchasedFeature = null;
   const watchedRoomNumbers = new Set();
   let watchedRoomCursor = 0;
@@ -468,6 +469,10 @@
     }
 
     if (eventName === TABLE_PAGE_RESPONSE) {
+      if (payload && typeof payload === "object") {
+        if (observedPageResponses.has(payload)) return;
+        observedPageResponses.add(payload);
+      }
       const requestedScanPage = scanPage;
       const data = tablePayload(payload);
       if (!data) {
@@ -579,16 +584,22 @@
     originalSender = senderOriginal;
     wrappedSenderOwner = sender;
     wrappedSender = function blackdomainElectronicSend(request, requestPayload, callback, ...rest) {
-      const shouldObserve = requestPayload?.action === "buyFeature" || activePurchasedFeature;
-      if (!shouldObserve || typeof callback !== "function") {
+      const isTablePageRequest = request === "getSlotTables"
+        || requestPayload?.request === "getSlotTables";
+      const shouldObserveSpin = requestPayload?.action === "buyFeature" || activePurchasedFeature;
+      if ((!isTablePageRequest && !shouldObserveSpin) || typeof callback !== "function") {
         return senderOriginal.call(this, request, requestPayload, callback, ...rest);
       }
       const wrappedCallback = function blackdomainElectronicResponse(response, ...callbackArgs) {
         const result = callback.call(this, response, ...callbackArgs);
         setTimeout(() => {
           try {
-            const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
-            emitSpin(response, trigger);
+            if (isTablePageRequest) {
+              handleDispatch(TABLE_PAGE_RESPONSE, response);
+            } else {
+              const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
+              emitSpin(response, trigger);
+            }
           } catch {
             // Keep the original network callback untouched.
           }
@@ -630,7 +641,6 @@
     if (!watchedRoomNumbers.size) {
       if (watchedRoomTimer) clearInterval(watchedRoomTimer);
       watchedRoomTimer = null;
-      uninstallSenderWrapper();
       return;
     }
     if (!watchedRoomTimer) {
@@ -642,7 +652,7 @@
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", requestForcedFullScan);
 
   function installSenderAfterUserInteraction() {
-    if (gameInitializedAt && watchedRoomNumbers.size) installSenderWrapper();
+    if (gameInitializedAt) installSenderWrapper();
   }
 
   window.addEventListener("pointerdown", installSenderAfterUserInteraction, {
@@ -655,6 +665,7 @@
 
   function maintainWrappers() {
     installDispatchWrapper();
+    installSenderWrapper();
     const dispatchReady = typeof window.dispatch === "function" && window.dispatch === wrappedDispatch;
     const withinFastRetryWindow = Date.now() - wrapperBootstrapStartedAt < WRAPPER_FAST_RETRY_WINDOW_MS;
     setTimeout(
