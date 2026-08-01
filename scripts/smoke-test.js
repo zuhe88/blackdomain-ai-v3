@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.3") {
-    throw new Error("Electronic relay extension version must be 1.2.3");
+  if (electronicRelayManifest.version !== "1.2.4") {
+    throw new Error("Electronic relay extension version must be 1.2.4");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1353,6 +1353,8 @@ async function main() {
     "watchedRoomsChanged",
     "clearInterval(watchedRoomTimer)",
     "eventName === \"SlotFrameworkEvent:BUY_FEATURE_RESPONSE\"",
+    "scanTotalPages = Math.max(scanTotalPages, 8)",
+    "data.totalPages = scanTotalPages",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);

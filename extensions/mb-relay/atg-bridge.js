@@ -487,8 +487,13 @@
         // watchdog window, so use it as the authoritative page identity.
         clearScanWatchdog();
         scanPageRetries = 0;
-        if (data.totalPages) scanTotalPages = data.totalPages;
+        // Seth 2 exposes eight room pages, but ATG occasionally reports the
+        // currently rendered subset (for example 5) as totalPages. Never let
+        // that transient value truncate an in-progress full scan.
+        if (data.totalPages) scanTotalPages = Math.max(scanTotalPages, data.totalPages);
+        scanTotalPages = Math.max(scanTotalPages, 8);
         data.page = requestedScanPage;
+        data.totalPages = scanTotalPages;
         data.scanId = scanId;
         data.scanComplete = requestedScanPage >= scanTotalPages;
         data.emptyOnly = true;
