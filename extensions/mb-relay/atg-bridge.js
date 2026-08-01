@@ -553,7 +553,11 @@
         scanBatchIndex = 0;
         activeRefreshId = "";
         if (forceScanRequested) requestForcedFullScan();
-        else scheduleFullScan(ROTATING_PAGE_REFRESH_MS);
+        else scheduleFullScan(
+          cachedEmptyPages.size < SOURCE_PAGE_COUNT
+            ? SCAN_PAGE_INTERVAL_MS
+            : ROTATING_PAGE_REFRESH_MS,
+        );
       }
       return;
     }

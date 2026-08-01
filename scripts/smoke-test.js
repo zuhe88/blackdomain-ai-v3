@@ -1371,6 +1371,7 @@ async function main() {
     "scanPageQueue.splice(0, SCAN_BATCH_SIZE)",
     "cachedEmptyPages.set(requestedScanPage, data.tables)",
     "if (data.scanComplete) data.tables = cachedEmptyTables()",
+    "cachedEmptyPages.size < SOURCE_PAGE_COUNT",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);

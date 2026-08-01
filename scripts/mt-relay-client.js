@@ -219,6 +219,11 @@ function connect(token, relayKey = activeRelayKey) {
     headers: {
       "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/138.0.0.0 Safari/537.36",
       "accept-language": "zh-TW,zh;q=0.9,en;q=0.8",
+      "cache-control": "no-cache",
+      pragma: "no-cache",
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "websocket",
+      "sec-fetch-site": "same-site",
     },
   });
   socket = nextSocket;
