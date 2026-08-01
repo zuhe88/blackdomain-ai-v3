@@ -33,6 +33,8 @@
   const SCAN_BATCH_SIZE = 3;
   let scanBatchPages = [];
   let scanBatchIndex = 0;
+  let scanPageQueue = [];
+  const cachedEmptyPages = new Map();
   let scanTimer = null;
   let scanWatchdogTimer = null;
   let scanPageRetries = 0;
@@ -208,13 +210,29 @@
     }
   }
 
-  function createRandomScanBatch() {
+  function shuffledSourcePages() {
     const pages = Array.from({ length: SOURCE_PAGE_COUNT }, (_unused, index) => index + 1);
     for (let index = pages.length - 1; index > 0; index -= 1) {
       const swapIndex = Math.floor(Math.random() * (index + 1));
       [pages[index], pages[swapIndex]] = [pages[swapIndex], pages[index]];
     }
-    return pages.slice(0, SCAN_BATCH_SIZE);
+    return pages;
+  }
+
+  function createRandomScanBatch() {
+    // Cover every page once before starting another random eight-page cycle.
+    // Recommendations can still use the first three-page batch immediately,
+    // while the cached inventory grows into the complete empty-room list.
+    if (!scanPageQueue.length) scanPageQueue = shuffledSourcePages();
+    return scanPageQueue.splice(0, SCAN_BATCH_SIZE);
+  }
+
+  function cachedEmptyTables() {
+    const merged = new Map();
+    cachedEmptyPages.forEach((tables) => {
+      tables.forEach((table) => merged.set(table.roomId, table));
+    });
+    return [...merged.values()];
   }
 
   function startScanBatch() {
@@ -508,15 +526,17 @@
         scanPageRetries = 0;
         data.sourcePage = requestedScanPage;
         data.page = scanBatchIndex + 1;
-        data.totalPages = SCAN_BATCH_SIZE;
+        data.totalPages = scanBatchPages.length;
         data.scanId = scanId;
-        data.scanComplete = data.page >= SCAN_BATCH_SIZE;
+        data.scanComplete = data.page >= scanBatchPages.length;
         data.emptyOnly = true;
         if (activeRefreshId) data.refreshId = activeRefreshId;
         // The recommendation service only needs available rooms.  Keep the
         // complete table map in this page for watched-room lookups, but avoid
         // sending full and locked rooms to the cloud on every eight-page scan.
         data.tables = data.tables.filter((table) => table.status === "Empty");
+        cachedEmptyPages.set(requestedScanPage, data.tables);
+        if (data.scanComplete) data.tables = cachedEmptyTables();
       }
       emit({ type: "tables", gameName, ...data });
       if (requestedScanPage > 0) {

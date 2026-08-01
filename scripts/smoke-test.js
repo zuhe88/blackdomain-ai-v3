@@ -1367,7 +1367,10 @@ async function main() {
     "createRandomScanBatch",
     "startScanBatch()",
     "data.sourcePage = requestedScanPage",
-    "data.totalPages = SCAN_BATCH_SIZE",
+    "data.totalPages = scanBatchPages.length",
+    "scanPageQueue.splice(0, SCAN_BATCH_SIZE)",
+    "cachedEmptyPages.set(requestedScanPage, data.tables)",
+    "if (data.scanComplete) data.tables = cachedEmptyTables()",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);
