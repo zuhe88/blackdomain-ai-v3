@@ -28,6 +28,8 @@
   let currentRoom = {};
   const knownTables = new Map();
   let pendingDetailRoom = null;
+  let pendingDetailRequestedAt = 0;
+  const DETAIL_REQUEST_TIMEOUT_MS = 4000;
   let scanPage = 0;
   const SOURCE_PAGE_COUNT = 8;
   const SCAN_BATCH_SIZE = 3;
@@ -299,7 +301,12 @@
   }
 
   function requestNextWatchedRoom() {
-    if (!watchedRoomNumbers.size || typeof window.dispatch !== "function" || pendingDetailRoom) return;
+    if (!watchedRoomNumbers.size || typeof window.dispatch !== "function") return;
+    if (pendingDetailRoom) {
+      if (Date.now() - pendingDetailRequestedAt < DETAIL_REQUEST_TIMEOUT_MS) return;
+      pendingDetailRoom = null;
+      pendingDetailRequestedAt = 0;
+    }
     const numbers = [...watchedRoomNumbers];
     const roomNumber = numbers[watchedRoomCursor % numbers.length];
     watchedRoomCursor = (watchedRoomCursor + 1) % numbers.length;
@@ -312,7 +319,13 @@
       return;
     }
     pendingDetailRoom = table;
-    window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
+    pendingDetailRequestedAt = Date.now();
+    try {
+      window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
+    } catch {
+      pendingDetailRoom = null;
+      pendingDetailRequestedAt = 0;
+    }
   }
 
   function getSpinStates(payload) {
@@ -577,12 +590,14 @@
     if (eventName === TABLE_DETAIL_REQUEST) {
       const roomId = String(payload?.roomId || "");
       pendingDetailRoom = knownTables.get(roomId) || (roomId ? { roomId } : null);
+      pendingDetailRequestedAt = Date.now();
       return;
     }
 
     if (eventName === TABLE_DETAIL_RESPONSE) {
       const requestedTable = pendingDetailRoom;
       pendingDetailRoom = null;
+      pendingDetailRequestedAt = 0;
       const detail = detailPayload(payload, requestedTable);
       if (detail) emit({ type: "detail", gameName, detail });
       return;
@@ -699,6 +714,8 @@
       detailQueueTimer = null;
     }
     if (!watchedRoomNumbers.size) {
+      pendingDetailRoom = null;
+      pendingDetailRequestedAt = 0;
       if (watchedRoomTimer) clearInterval(watchedRoomTimer);
       watchedRoomTimer = null;
       return;

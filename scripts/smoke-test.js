@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.8") {
-    throw new Error("Electronic relay extension version must be 1.2.8");
+  if (electronicRelayManifest.version !== "1.2.9") {
+    throw new Error("Electronic relay extension version must be 1.2.9");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
