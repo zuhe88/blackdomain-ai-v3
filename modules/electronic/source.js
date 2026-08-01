@@ -278,7 +278,11 @@ function hasReadyData(gameName) {
   const fullScanIsFresh = state.fullScanAt
     && Date.now() - new Date(state.fullScanAt).getTime() <= FULL_SCAN_TTL_MS;
   const minimumTables = MIN_READY_TABLES.get(state.gameName) || Number.POSITIVE_INFINITY;
-  return Boolean(fullScanIsFresh || state.tables.size >= minimumTables);
+  // A scan-complete signal only proves that every page reported by the current
+  // game session was received.  ATG can expose just one room segment (for
+  // example 300/500 tables) while still marking that segment as complete.
+  // Never promote that partial segment to recommendation-ready data.
+  return Boolean(fullScanIsFresh && state.tables.size >= minimumTables);
 }
 
 function getSnapshot() {
@@ -352,6 +356,12 @@ function markRefreshGameComplete(gameName, refreshId) {
   };
 }
 
+function setMinimumReadyTablesForTest(gameName, minimum) {
+  if (!games.has(gameName) || !Number.isInteger(minimum) || minimum < 1) return false;
+  MIN_READY_TABLES.set(gameName, minimum);
+  return true;
+}
+
 function resetForTest() {
   detailWaiters.forEach((waiters) => waiters.forEach((waiter) => {
     clearTimeout(waiter.timer);
@@ -388,6 +398,7 @@ module.exports = {
   requestFullRefresh,
   getRefreshRequest,
   markRefreshGameComplete,
+  setMinimumReadyTablesForTest,
   normalizeTable,
   resetForTest,
 };

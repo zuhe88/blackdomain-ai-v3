@@ -250,6 +250,15 @@ const {
 } = require("../modules/baccarat/session");
 const electronic = require("../modules/electronic");
 const electronicSource = require("../modules/electronic/source");
+electronicSource.setMinimumReadyTablesForTest(electronicSource.GAME_NAMES[0], 1);
+electronicSource.setMinimumReadyTablesForTest(electronicSource.GAME_NAMES[1], 1);
+const electronicSourceCode = fs.readFileSync(
+  path.join(__dirname, "..", "modules", "electronic", "source.js"),
+  "utf8",
+);
+if (!electronicSourceCode.includes("fullScanIsFresh && state.tables.size >= minimumTables")) {
+  throw new Error("Electronic partial room segments must never become recommendation-ready data");
+}
 const { userscript: baccaratRelayUserscript } = require("../routes/dgRelay");
 const {
   analyzePrediction: analyzeBaccarat,
