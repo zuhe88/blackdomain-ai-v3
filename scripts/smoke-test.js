@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.6") {
-    throw new Error("Electronic relay extension version must be 1.2.6");
+  if (electronicRelayManifest.version !== "1.2.7") {
+    throw new Error("Electronic relay extension version must be 1.2.7");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1813,7 +1813,7 @@ async function main() {
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
-  assertIncludes(values, "正在隨機掃描3頁空房並計算RTP", "Electronic first-scan estimate");
+  assertIncludes(values, "正在掃描房間中並計算 RTP", "Electronic first-scan estimate");
   assertIncludes(values, "預計 5～15 秒，最長 30 秒｜請勿重複點擊", "Electronic pending duplicate-click warning");
   assertIncludes(values, "取消推薦", "Electronic pending cancel action");
   if (!electronicSource.getRefreshRequest()?.id) {

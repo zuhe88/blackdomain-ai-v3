@@ -26,7 +26,7 @@ const PENDING_RECOMMEND_TIMEOUT_MS = Math.min(
   Math.max(30000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 30000),
 );
 const PENDING_RECOMMEND_RETRY_MS = 10000;
-const FIRST_SCAN_ESTIMATE = "正在隨機掃描3頁空房並計算RTP";
+const FIRST_SCAN_ESTIMATE = "正在掃描房間中並計算 RTP";
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },

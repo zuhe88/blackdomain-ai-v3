@@ -485,11 +485,14 @@
     }
 
     if (eventName === TABLE_PAGE_RESPONSE) {
+      const requestedScanPage = scanPage;
       if (payload && typeof payload === "object") {
-        if (observedPageResponses.has(payload)) return;
+        // ATG can reuse the same response object while paging. During an
+        // active scan, the requested page is authoritative; only suppress a
+        // duplicate after that request has already been completed.
+        if (observedPageResponses.has(payload) && requestedScanPage === 0) return;
         observedPageResponses.add(payload);
       }
-      const requestedScanPage = scanPage;
       const data = tablePayload(payload);
       if (!data) {
         if (requestedScanPage > 0) handleScanPageFailure(requestedScanPage);
