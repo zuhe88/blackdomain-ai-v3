@@ -35,12 +35,9 @@
   let scanPageRetries = 0;
   let scanFailureCycles = 0;
   let scanId = "";
-  let scanEmptyCandidates = [];
-  let detailQueueTimer = null;
   let wrappedSender = null;
   let wrappedSenderOwner = null;
   let originalSender = null;
-  const detailFetchedAt = new Map();
   const naturalFeatureSpins = new Map();
   const emittedFeatureSpins = new Set();
   let activePurchasedFeature = null;
@@ -52,11 +49,14 @@
   let pendingRefreshId = "";
   let activeRefreshId = "";
   let gameInitializedAt = 0;
-  const SCAN_PAGE_INTERVAL_MS = 250;
-  const SCAN_PAGE_TIMEOUT_MS = 5000;
-  const SCAN_STARTUP_GRACE_MS = 5000;
-  const SCAN_RESTART_BACKOFF_STEPS_MS = [2000, 5000, 10000];
-  const MAX_SCAN_PAGE_RETRIES = 2;
+  // Rendering a page means rebuilding as many as 500 room cards.  Small cloud
+  // VMs regularly need more than five seconds for that work, so the previous
+  // watchdog restarted a healthy scan between pages 1 and 2 forever.
+  const SCAN_PAGE_INTERVAL_MS = 1000;
+  const SCAN_PAGE_TIMEOUT_MS = 20000;
+  const SCAN_STARTUP_GRACE_MS = 8000;
+  const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000];
+  const MAX_SCAN_PAGE_RETRIES = 3;
   const WRAPPER_FAST_RETRY_MS = 20;
   const WRAPPER_FAST_RETRY_WINDOW_MS = 30000;
   const WRAPPER_HEALTH_CHECK_MS = 1000;
@@ -192,7 +192,6 @@
     }
     if (page === 1 && !scanId) {
       scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      scanEmptyCandidates = [];
       activeRefreshId = pendingRefreshId;
       pendingRefreshId = "";
     }
@@ -217,12 +216,6 @@
   function requestForcedFullScan(event = {}) {
     const requestedId = String(event?.detail?.id || "");
     if (requestedId) pendingRefreshId = requestedId;
-    if (detailQueueTimer) {
-      clearTimeout(detailQueueTimer);
-      detailQueueTimer = null;
-    }
-    detailFetchedAt.clear();
-    scanEmptyCandidates = [];
     if (scanPage !== 0) {
       forceScanRequested = true;
       return;
@@ -254,27 +247,6 @@
       mgCounts: Array.isArray(detail.mgCounts) ? detail.mgCounts.slice(0, 3) : undefined,
       capturedAt: Date.now(),
     };
-  }
-
-  function scheduleCandidateDetails() {
-    if (watchedRoomNumbers.size) return;
-    if (detailQueueTimer) clearTimeout(detailQueueTimer);
-    const now = Date.now();
-    const queue = scanEmptyCandidates
-      .slice(0, 10)
-      .filter((table) => now - (detailFetchedAt.get(table.roomId) || 0) > 5 * 60 * 1000);
-    let index = 0;
-    const next = () => {
-      const table = queue[index++];
-      if (!table || typeof window.dispatch !== "function") {
-        detailQueueTimer = null;
-        return;
-      }
-      detailFetchedAt.set(table.roomId, Date.now());
-      window.dispatch(TABLE_DETAIL_REQUEST, { roomId: table.roomId });
-      detailQueueTimer = setTimeout(next, 1500);
-    };
-    detailQueueTimer = setTimeout(next, 3000);
   }
 
   function requestNextWatchedRoom() {
@@ -506,8 +478,12 @@
         data.page = requestedScanPage;
         data.scanId = scanId;
         data.scanComplete = requestedScanPage >= scanTotalPages;
+        data.emptyOnly = true;
         if (activeRefreshId) data.refreshId = activeRefreshId;
-        scanEmptyCandidates.push(...data.tables.filter((table) => table.status === "Empty"));
+        // The recommendation service only needs available rooms.  Keep the
+        // complete table map in this page for watched-room lookups, but avoid
+        // sending full and locked rooms to the cloud on every eight-page scan.
+        data.tables = data.tables.filter((table) => table.status === "Empty");
       }
       emit({ type: "tables", gameName, ...data });
       if (requestedScanPage > 0 && requestedScanPage < scanTotalPages) {
@@ -520,7 +496,6 @@
         scanFailureCycles = 0;
         scanId = "";
         activeRefreshId = "";
-        scheduleCandidateDetails();
         if (forceScanRequested) requestForcedFullScan();
       }
       return;

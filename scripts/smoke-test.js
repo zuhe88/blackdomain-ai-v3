@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.1.9") {
-    throw new Error("Electronic relay extension version must be 1.1.9");
+  if (electronicRelayManifest.version !== "1.2.0") {
+    throw new Error("Electronic relay extension version must be 1.2.0");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1371,9 +1371,9 @@ async function main() {
     throw new Error("Electronic relay must limit sender observation to active purchased features");
   }
   for (const expected of [
-    "const SCAN_PAGE_TIMEOUT_MS = 5000",
-    "const SCAN_STARTUP_GRACE_MS = 5000",
-    "const SCAN_RESTART_BACKOFF_STEPS_MS = [2000, 5000, 10000]",
+    "const SCAN_PAGE_TIMEOUT_MS = 20000",
+    "const SCAN_STARTUP_GRACE_MS = 8000",
+    "const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000]",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic first scan is missing fast recovery setting: ${expected}`);
@@ -1700,6 +1700,33 @@ async function main() {
   });
   if (!completedOutOfOrderScan.scanCompleted || !electronicSource.hasReadyData("戰神賽特1")) {
     throw new Error("Electronic room data must publish after all out-of-order scan pages arrive");
+  }
+  electronicSource.resetForTest();
+  for (let page = 1; page <= 8; page += 1) {
+    const emptyOnlyResult = electronicSource.ingestTables({
+      type: "tables",
+      gameName: electronicSource.GAME_NAMES[1],
+      scanId: "eight-page-empty-only-scan",
+      page,
+      totalPages: 8,
+      scanComplete: page === 8,
+      emptyOnly: true,
+      tables: [{
+        roomId: `seth-empty-page-${page}`,
+        number: page * 500,
+        status: "Empty",
+      }],
+    });
+    if (page < 8 && (emptyOnlyResult.scanCompleted
+      || electronicSource.hasReadyData(electronicSource.GAME_NAMES[1]))) {
+      throw new Error("Electronic empty-only room data must wait for all eight pages");
+    }
+  }
+  const emptyOnlySnapshot = electronicSource.getGame(electronicSource.GAME_NAMES[1]);
+  if (!electronicSource.hasReadyData(electronicSource.GAME_NAMES[1])
+    || emptyOnlySnapshot.dataMode !== "empty-only"
+    || emptyOnlySnapshot.tables.length !== 8) {
+    throw new Error("Electronic eight-page empty-only scan was not published correctly");
   }
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");

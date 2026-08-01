@@ -15,6 +15,7 @@ const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   pendingScan: null,
   updatedAt: null,
   fullScanAt: null,
+  dataMode: null,
   spins: new Map(),
   featureMonitors: new Map(),
 }]));
@@ -62,6 +63,7 @@ function ingestTables(payload = {}) {
         pages: new Set(),
         totalPages: null,
         completionSignaled: false,
+        emptyOnly: payload.emptyOnly === true,
       };
     }
     next = state.pendingScan.tables;
@@ -85,6 +87,7 @@ function ingestTables(payload = {}) {
       state.pendingScan.totalPages = page;
     }
     if (payload.scanComplete === true) state.pendingScan.completionSignaled = true;
+    if (payload.emptyOnly !== true) state.pendingScan.emptyOnly = false;
   }
   const scanPagesComplete = scanId
     && state.pendingScan.completionSignaled
@@ -96,6 +99,7 @@ function ingestTables(payload = {}) {
     ).every((page) => state.pendingScan.pages.has(page));
   if (scanPagesComplete) {
     state.tables = new Map(next);
+    state.dataMode = state.pendingScan.emptyOnly ? "empty-only" : "all-rooms";
     state.pendingScan = null;
     state.fullScanAt = new Date().toISOString();
   } else if (!scanId) {
@@ -253,6 +257,7 @@ function getGame(gameName) {
     gameName: state.gameName,
     updatedAt: state.updatedAt,
     fullScanAt: state.fullScanAt,
+    dataMode: state.dataMode,
     tables,
     recentSpins: [...state.spins.values()].slice(-5),
   };
@@ -277,7 +282,9 @@ function hasReadyData(gameName) {
   if (!state || !hasFreshData(gameName)) return false;
   const fullScanIsFresh = state.fullScanAt
     && Date.now() - new Date(state.fullScanAt).getTime() <= FULL_SCAN_TTL_MS;
-  const minimumTables = MIN_READY_TABLES.get(state.gameName) || Number.POSITIVE_INFINITY;
+  const minimumTables = state.dataMode === "empty-only"
+    ? 1
+    : MIN_READY_TABLES.get(state.gameName) || Number.POSITIVE_INFINITY;
   // A scan-complete signal only proves that every page reported by the current
   // game session was received.  ATG can expose just one room segment (for
   // example 300/500 tables) while still marking that segment as complete.
@@ -375,6 +382,7 @@ function resetForTest() {
     state.featureMonitors = new Map();
     state.updatedAt = null;
     state.fullScanAt = null;
+    state.dataMode = null;
   });
   refreshRequest = null;
   refreshSequence = 0;
