@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.4") {
-    throw new Error("Electronic relay extension version must be 1.2.4");
+  if (electronicRelayManifest.version !== "1.2.6") {
+    throw new Error("Electronic relay extension version must be 1.2.6");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1343,6 +1343,15 @@ async function main() {
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
     "utf8",
   );
+  const electronicResultSource = fs.readFileSync(
+    path.join(root, "ui", "flex", "electronicResult.js"),
+    "utf8",
+  );
+  for (const expected of ["RTP 評估", "今日 RTP", "30天 RTP", "可信度"]) {
+    if (!electronicResultSource.includes(expected)) {
+      throw new Error(`Electronic recommendation card is missing RTP display: ${expected}`);
+    }
+  }
   for (const expected of [
     "SCAN_PAGE_TIMEOUT_MS",
     "SCAN_STARTUP_GRACE_MS",
@@ -1353,8 +1362,12 @@ async function main() {
     "watchedRoomsChanged",
     "clearInterval(watchedRoomTimer)",
     "eventName === \"SlotFrameworkEvent:BUY_FEATURE_RESPONSE\"",
-    "scanTotalPages = Math.max(scanTotalPages, 8)",
-    "data.totalPages = scanTotalPages",
+    "const ROTATING_PAGE_REFRESH_MS = 60000",
+    "const SCAN_BATCH_SIZE = 3",
+    "createRandomScanBatch",
+    "startScanBatch()",
+    "data.sourcePage = requestedScanPage",
+    "data.totalPages = SCAN_BATCH_SIZE",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);
@@ -1760,6 +1773,34 @@ async function main() {
     || !emptyOnlyLiveSnapshot.tables.some((table) => table.roomId === "seth-new-empty")) {
     throw new Error("Electronic live updates polluted the empty-only recommendation pool");
   }
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: electronicSource.GAME_NAMES[1],
+    tables: [
+      {
+        roomId: "seth-rtp-low",
+        number: 3998,
+        status: "Empty",
+        todayBet: 500000,
+        todayWin: 475000,
+        dayBet: 10000000,
+        dayWin: 9700000,
+      },
+      {
+        roomId: "seth-rtp-high",
+        number: 3999,
+        status: "Empty",
+        todayBet: 500000,
+        todayWin: 550000,
+        dayBet: 10000000,
+        dayWin: 10500000,
+      },
+    ],
+  });
+  const rtpRankedRoom = electronic.getNextRecommendRoom("rtp-ranking-user", electronicSource.GAME_NAMES[1]);
+  if (rtpRankedRoom?.number !== 3999) {
+    throw new Error("Seth 2 recommendations must prioritize reliable higher-RTP empty rooms");
+  }
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "推薦房號", "Seth 1 room-pool recommendation");
@@ -1772,8 +1813,8 @@ async function main() {
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
-  assertIncludes(values, "正在建立完整房表，資料完成後會立即推薦", "Electronic first-scan estimate");
-  assertIncludes(values, "最長等待 90 秒，完成後自動回傳｜請勿重複點擊", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "正在隨機掃描3頁空房並計算RTP", "Electronic first-scan estimate");
+  assertIncludes(values, "預計 5～15 秒，最長 30 秒｜請勿重複點擊", "Electronic pending duplicate-click warning");
   assertIncludes(values, "取消推薦", "Electronic pending cancel action");
   if (!electronicSource.getRefreshRequest()?.id) {
     throw new Error("Electronic pending recommendation must request a fresh room scan");
@@ -1783,7 +1824,7 @@ async function main() {
     "utf8",
   );
   for (const expected of [
-    "const PENDING_RECOMMEND_RETRY_MS = 30000",
+    "const PENDING_RECOMMEND_RETRY_MS = 10000",
     "handleElectronicDataReady(gameName)",
     "clearInterval(pending.retryTimer)",
   ]) {

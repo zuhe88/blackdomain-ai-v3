@@ -16,13 +16,6 @@ function entrySignal(seed = "", mode = "recommend") {
   };
 }
 
-function formatAmount(value) {
-  const number = Number(value);
-  return Number.isFinite(number)
-    ? number.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : "尚無資料";
-}
-
 function formatRate(win, bet) {
   const winnings = Number(win);
   const stake = Number(bet);
@@ -44,10 +37,20 @@ function statCell(label, value, color = COLORS.white) {
   };
 }
 
-function periodStats(title, bet, win, accent = COLORS.gold) {
+function rtpConfidence(detail = {}) {
+  const todayBet = Number(detail.todayBet ?? detail.hourBet) || 0;
+  const monthBet = Number(detail.dayBet) || 0;
+  const sample = todayBet + (monthBet / 30);
+  if (sample >= 1000000) return { label: "高", color: COLORS.green };
+  if (sample >= 100000) return { label: "中", color: COLORS.gold };
+  return { label: "低", color: COLORS.muted };
+}
+
+function rtpSummary(detail = {}) {
+  const confidence = rtpConfidence(detail);
   return {
     type: "box",
-    layout: "vertical",
+    layout: "horizontal",
     spacing: "sm",
     paddingAll: "12px",
     cornerRadius: "14px",
@@ -55,20 +58,12 @@ function periodStats(title, bet, win, accent = COLORS.gold) {
     borderColor: "#4C3C1E",
     borderWidth: "1px",
     contents: [
-      text(title, { size: "sm", weight: "bold", color: accent, align: "center", wrap: false }),
-      {
-        type: "separator",
-        color: "#4C3C1E",
-      },
-      {
-        type: "box",
-        layout: "horizontal",
-        spacing: "md",
-        contents: [
-          statCell("總下注額", formatAmount(bet)),
-          statCell("得分率", formatRate(win, bet), accent),
-        ],
-      },
+      statCell("今日 RTP", formatRate(
+        detail.todayWin ?? detail.hourWin,
+        detail.todayBet ?? detail.hourBet,
+      ), COLORS.green),
+      statCell("30天 RTP", formatRate(detail.dayWin, detail.dayBet), COLORS.gold),
+      statCell("可信度", confidence.label, confidence.color),
     ],
   };
 }
@@ -92,9 +87,14 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomDat
         infoLine("更新時間", updateTime),
       ]),
       ...(detail ? [section([
-        text("房間統計", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
-        periodStats("今日", detail.todayBet ?? detail.hourBet, detail.todayWin ?? detail.hourWin, COLORS.green),
-        periodStats("近30天", detail.dayBet, detail.dayWin, COLORS.gold),
+        text("RTP 評估", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
+        rtpSummary(detail),
+        text("依今日與近30天房間統計換算", {
+          size: "xxs",
+          color: COLORS.muted,
+          align: "center",
+          wrap: true,
+        }),
       ])] : []),
       note("本分析由 BLACKDOMAIN AI 生成，僅供參考。"),
       button("結束該房間", `結束房間監控 ${gameName} ${room}`, "danger"),

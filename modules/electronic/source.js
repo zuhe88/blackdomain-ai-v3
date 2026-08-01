@@ -296,10 +296,9 @@ function hasReadyData(gameName) {
   const minimumTables = state.dataMode === "empty-only"
     ? 1
     : MIN_READY_TABLES.get(state.gameName) || Number.POSITIVE_INFINITY;
-  // A scan-complete signal only proves that every page reported by the current
-  // game session was received.  ATG can expose just one room segment (for
-  // example 300/500 tables) while still marking that segment as complete.
-  // Never promote that partial segment to recommendation-ready data.
+  // Quick recommendations intentionally publish three freshly scanned source
+  // pages as an immediately usable empty-room pool. Background batches keep
+  // refreshing different random subsets of the eight source pages.
   return Boolean(fullScanIsFresh && state.tables.size >= minimumTables);
 }
 

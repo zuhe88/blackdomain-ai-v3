@@ -22,11 +22,11 @@ const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 8000);
 const PENDING_RECOMMEND_TIMEOUT_MS = Math.min(
-  120000,
-  Math.max(90000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 90000),
+  45000,
+  Math.max(30000, Number(process.env.ELECTRONIC_PENDING_RECOMMEND_TIMEOUT_MS) || 30000),
 );
-const PENDING_RECOMMEND_RETRY_MS = 30000;
-const FIRST_SCAN_ESTIMATE = "正在建立完整房表，資料完成後會立即推薦";
+const PENDING_RECOMMEND_RETRY_MS = 10000;
+const FIRST_SCAN_ESTIMATE = "正在隨機掃描3頁空房並計算RTP";
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -501,6 +501,30 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
   });
 }
 
+function confidenceAdjustedRtp(win, bet, referenceBet) {
+  const winnings = Number(win);
+  const stake = Number(bet);
+  if (!Number.isFinite(winnings) || !Number.isFinite(stake) || stake <= 0) return null;
+  const rawRtp = Math.max(50, Math.min(160, (winnings / stake) * 100));
+  const confidence = stake / (stake + referenceBet);
+  return 100 + ((rawRtp - 100) * confidence);
+}
+
+function scoreSethRoomByRtp(room) {
+  const detail = room?.detail;
+  if (!detail) return null;
+  const todayBet = Number(detail.todayBet ?? detail.hourBet) || 0;
+  const todayWin = Number(detail.todayWin ?? detail.hourWin) || 0;
+  const dayBet = Number(detail.dayBet) || 0;
+  const dayWin = Number(detail.dayWin) || 0;
+  const todayRtp = confidenceAdjustedRtp(todayWin, todayBet, 100000);
+  const monthRtp = confidenceAdjustedRtp(dayWin, dayBet, 5000000);
+  if (todayRtp == null && monthRtp == null) return null;
+  if (todayRtp == null) return monthRtp;
+  if (monthRtp == null) return todayRtp;
+  return (todayRtp * 0.65) + (monthRtp * 0.35);
+}
+
 function getNextRecommendRoom(userId, gameName) {
   if (
     gameName === electronicSource.GAME_NAMES[0]
@@ -523,14 +547,23 @@ function getNextRecommendRoom(userId, gameName) {
   if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
     const emptyRooms = electronicSource.getEmptyRooms(gameName);
     if (!emptyRooms.length) return null;
+    const rtpRankedRooms = gameName === electronicSource.GAME_NAMES[1]
+      ? emptyRooms
+        .map((room) => ({ room, rtpScore: scoreSethRoomByRtp(room) }))
+        .filter((item) => item.rtpScore != null)
+        .sort((a, b) => b.rtpScore - a.rtpScore || a.room.number - b.room.number)
+        .map((item) => item.room)
+      : [];
     const detailedRooms = emptyRooms.filter((room) => room.detail);
-    const candidates = detailedRooms.length ? detailedRooms.slice(0, 10) : emptyRooms;
+    const candidates = rtpRankedRooms.length
+      ? rtpRankedRooms
+      : (detailedRooms.length ? detailedRooms.slice(0, 10) : emptyRooms);
     const key = `${userId || "guest"}:${gameName}:live`;
     const existing = recommendCursorStore.get(key);
     const recentRooms = Array.isArray(existing?.recentRooms) ? existing.recentRooms : [];
     const freshCandidates = candidates.filter((room) => !recentRooms.includes(room.number));
     const pool = freshCandidates.length ? freshCandidates : candidates;
-    const selected = pool[crypto.randomInt(pool.length)];
+    const selected = rtpRankedRooms.length ? pool[0] : pool[crypto.randomInt(pool.length)];
     const recentLimit = Math.min(5, Math.max(1, candidates.length - 1));
     recommendCursorStore.set(key, {
       recentRooms: [selected.number, ...recentRooms.filter((room) => room !== selected.number)].slice(0, recentLimit),
@@ -747,7 +780,7 @@ async function performRecommendRoom(event) {
         "房間數據整理中",
         session.gameName,
         FIRST_SCAN_ESTIMATE,
-        `最長等待 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒，完成後自動回傳`,
+        `預計 5～15 秒，最長 ${Math.ceil(PENDING_RECOMMEND_TIMEOUT_MS / 1000)} 秒`,
       ));
     }
     return deliverRecommendation(event, electronicPromptFlex("目前沒有可推薦的空房", [
@@ -851,7 +884,7 @@ async function recommendRoom(event) {
       "即時房間數據同步中",
       currentGame,
       "正在確認空房與房間統計",
-      "預計 0～8 秒",
+      "預計 5～15 秒",
     ));
   }
   const request = { id: crypto.randomUUID(), cancelled: false };

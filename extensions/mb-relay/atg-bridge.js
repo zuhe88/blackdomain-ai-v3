@@ -29,7 +29,10 @@
   const knownTables = new Map();
   let pendingDetailRoom = null;
   let scanPage = 0;
-  let scanTotalPages = 8;
+  const SOURCE_PAGE_COUNT = 8;
+  const SCAN_BATCH_SIZE = 3;
+  let scanBatchPages = [];
+  let scanBatchIndex = 0;
   let scanTimer = null;
   let scanWatchdogTimer = null;
   let scanPageRetries = 0;
@@ -56,6 +59,7 @@
   const SCAN_PAGE_INTERVAL_MS = 1000;
   const SCAN_PAGE_TIMEOUT_MS = 30000;
   const SCAN_STARTUP_GRACE_MS = 8000;
+  const ROTATING_PAGE_REFRESH_MS = 60000;
   const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000];
   const MAX_SCAN_PAGE_RETRIES = 3;
   const WRAPPER_FAST_RETRY_MS = 20;
@@ -176,22 +180,20 @@
 
   function requestScanPage(page) {
     if (typeof window.dispatch !== "function" || scanPage !== 0) return;
-    if (page === 1 && !gameInitializedAt) {
+    if (!gameInitializedAt) {
       scheduleFullScan(1000);
       return;
     }
-    if (page === 1 && document.readyState !== "complete") {
+    if (document.readyState !== "complete") {
       scheduleFullScan(1000);
       return;
     }
-    const startupWaitMs = page === 1
-      ? Math.max(0, gameInitializedAt + SCAN_STARTUP_GRACE_MS - Date.now())
-      : 0;
+    const startupWaitMs = Math.max(0, gameInitializedAt + SCAN_STARTUP_GRACE_MS - Date.now());
     if (startupWaitMs > 0) {
       scheduleFullScan(startupWaitMs);
       return;
     }
-    if (page === 1 && !scanId) {
+    if (!scanId) {
       scanId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       activeRefreshId = pendingRefreshId;
       pendingRefreshId = "";
@@ -206,11 +208,27 @@
     }
   }
 
+  function createRandomScanBatch() {
+    const pages = Array.from({ length: SOURCE_PAGE_COUNT }, (_unused, index) => index + 1);
+    for (let index = pages.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [pages[index], pages[swapIndex]] = [pages[swapIndex], pages[index]];
+    }
+    return pages.slice(0, SCAN_BATCH_SIZE);
+  }
+
+  function startScanBatch() {
+    if (scanPage !== 0) return;
+    scanBatchPages = createRandomScanBatch();
+    scanBatchIndex = 0;
+    requestScanPage(scanBatchPages[0]);
+  }
+
   function scheduleFullScan(delay = SCAN_RESTART_BACKOFF_STEPS_MS[0]) {
     if (scanTimer || scanPage !== 0) return;
     scanTimer = setTimeout(() => {
       scanTimer = null;
-      requestScanPage(1);
+      startScanBatch();
     }, delay);
   }
 
@@ -226,7 +244,7 @@
       clearTimeout(scanTimer);
       scanTimer = null;
     }
-    requestScanPage(1);
+    startScanBatch();
   }
 
   function detailPayload(payload, requestedTable = null) {
@@ -459,11 +477,9 @@
       const initialTables = tablePayload(payload);
       if (initialTables) {
         emit({ type: "tables", gameName, ...initialTables });
-        scanTotalPages = initialTables.totalPages || Number(payload?.platform?.tableMeta?.totalPages) || 8;
       }
-      // INIT_RESPONSE is the first reliable signal that ATG's table dispatcher
-      // is ready. Start the initial eight-page empty-room scan here; without
-      // this kick-off only the live 500-room snapshot is ever published.
+      // Scan three distinct random pages per batch. This gives the RTP ranker
+      // a broader pool without making the user wait for all eight pages.
       scheduleFullScan(SCAN_STARTUP_GRACE_MS);
       return;
     }
@@ -487,15 +503,11 @@
         // watchdog window, so use it as the authoritative page identity.
         clearScanWatchdog();
         scanPageRetries = 0;
-        // Seth 2 exposes eight room pages, but ATG occasionally reports the
-        // currently rendered subset (for example 5) as totalPages. Never let
-        // that transient value truncate an in-progress full scan.
-        if (data.totalPages) scanTotalPages = Math.max(scanTotalPages, data.totalPages);
-        scanTotalPages = Math.max(scanTotalPages, 8);
-        data.page = requestedScanPage;
-        data.totalPages = scanTotalPages;
+        data.sourcePage = requestedScanPage;
+        data.page = scanBatchIndex + 1;
+        data.totalPages = SCAN_BATCH_SIZE;
         data.scanId = scanId;
-        data.scanComplete = requestedScanPage >= scanTotalPages;
+        data.scanComplete = data.page >= SCAN_BATCH_SIZE;
         data.emptyOnly = true;
         if (activeRefreshId) data.refreshId = activeRefreshId;
         // The recommendation service only needs available rooms.  Keep the
@@ -504,17 +516,21 @@
         data.tables = data.tables.filter((table) => table.status === "Empty");
       }
       emit({ type: "tables", gameName, ...data });
-      if (requestedScanPage > 0 && requestedScanPage < scanTotalPages) {
-        const nextPage = requestedScanPage + 1;
-        scanPage = 0;
-        setTimeout(() => requestScanPage(nextPage), SCAN_PAGE_INTERVAL_MS);
-      } else if (requestedScanPage > 0) {
+      if (requestedScanPage > 0) {
         scanPage = 0;
         scanPageRetries = 0;
+        if (scanBatchIndex + 1 < scanBatchPages.length) {
+          scanBatchIndex += 1;
+          setTimeout(() => requestScanPage(scanBatchPages[scanBatchIndex]), SCAN_PAGE_INTERVAL_MS);
+          return;
+        }
         scanFailureCycles = 0;
         scanId = "";
+        scanBatchPages = [];
+        scanBatchIndex = 0;
         activeRefreshId = "";
         if (forceScanRequested) requestForcedFullScan();
+        else scheduleFullScan(ROTATING_PAGE_REFRESH_MS);
       }
       return;
     }
