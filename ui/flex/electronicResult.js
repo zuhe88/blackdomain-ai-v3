@@ -73,7 +73,7 @@ function periodStats(title, bet, win, accent = COLORS.gold) {
   };
 }
 
-function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomData = null) {
+function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomData = null, options = {}) {
   const signal = entrySignal(`${gameName}:${room}`, "green");
   const detail = roomData?.detail || null;
   return bubble({
@@ -83,9 +83,11 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomDat
     quickReply,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      metric("推薦房號", room, "即時空房"),
+      metric("推薦房號", room, options.requiresRoomConfirmation ? "房況請確認" : "即時空房"),
       section([
-        infoLine("房間狀態", roomData ? "🟢 空房" : "等待房況"),
+        infoLine("房間狀態", roomData ? "🟢 空房" : (
+          options.requiresRoomConfirmation ? "請進房確認" : "等待房況"
+        )),
         infoLine("進場燈號", signal.text),
         infoLine("更新時間", updateTime),
       ]),

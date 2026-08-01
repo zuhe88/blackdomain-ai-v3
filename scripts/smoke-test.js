@@ -1703,6 +1703,14 @@ async function main() {
   }
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
+  assertIncludes(values, "推薦房號", "Seth 1 room-pool recommendation");
+  assertIncludes(values, "房況請確認", "Seth 1 room confirmation guard");
+  assertIncludes(values, "請進房確認", "Seth 1 entry confirmation guard");
+  if (values.some((value) => String(value).includes("隨機房號"))) {
+    throw new Error("Seth 1 recommendation must not display a random-room label");
+  }
+  await send("戰神賽特2", "user-smoke");
+  values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
   assertIncludes(values, "正在建立完整房表，資料完成後會立即推薦", "Electronic first-scan estimate");
@@ -1738,7 +1746,7 @@ async function main() {
   assertIncludes(values, "房間數據仍在整理中", "Electronic pending duplicate guard");
   if (!electronicSource.ingestTables({
     type: "tables",
-    gameName: "戰神賽特1",
+    gameName: "戰神賽特2",
     scanId: "automatic-ready-recommendation",
     page: 1,
     totalPages: 1,
@@ -1748,7 +1756,7 @@ async function main() {
     throw new Error("Electronic automatic recommendation fixture was rejected");
   }
   electronicSource.ingestDetail({
-    gameName: "戰神賽特1",
+    gameName: "戰神賽特2",
     detail: {
       roomId: "seth-auto-7",
       number: 7,
@@ -1760,7 +1768,7 @@ async function main() {
     },
   });
   setTimeout(() => electronicSource.ingestDetail({
-    gameName: "戰神賽特1",
+    gameName: "戰神賽特2",
     detail: {
       roomId: "seth-auto-7",
       number: 7,
@@ -1772,7 +1780,7 @@ async function main() {
     },
   }), 10);
   const automaticRecommendationPushCount = captured.pushes.length;
-  const automaticRecommendationCount = await electronic.handleElectronicDataReady("戰神賽特1");
+  const automaticRecommendationCount = await electronic.handleElectronicDataReady("戰神賽特2");
   if (automaticRecommendationCount !== 1) {
     throw new Error(`Electronic data-ready flow returned ${automaticRecommendationCount} automatic recommendations`);
   }
@@ -1791,6 +1799,7 @@ async function main() {
     throw new Error("Electronic data-ready flow must not send a second waiting card");
   }
   electronicSource.resetForTest();
+  await send("戰神賽特1", "user-smoke");
   if (!electronicSource.ingestTables({
     type: "tables",
     gameName: "戰神賽特1",

@@ -502,6 +502,24 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
 }
 
 function getNextRecommendRoom(userId, gameName) {
+  if (
+    gameName === electronicSource.GAME_NAMES[0]
+    && !electronicSource.hasReadyData(gameName)
+  ) {
+    const config = GAME_CONFIG[gameName];
+    const key = `${userId || "guest"}:${gameName}:room-pool`;
+    const existing = recommendCursorStore.get(key);
+    const recentRooms = Array.isArray(existing?.recentRooms) ? existing.recentRooms : [];
+    let room = crypto.randomInt(config.min, config.max + 1);
+    for (let attempt = 0; attempt < 10 && recentRooms.includes(room); attempt += 1) {
+      room = crypto.randomInt(config.min, config.max + 1);
+    }
+    recommendCursorStore.set(key, {
+      recentRooms: [room, ...recentRooms.filter((value) => value !== room)].slice(0, 10),
+      updatedAt: Date.now(),
+    });
+    return room;
+  }
   if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
     const emptyRooms = electronicSource.getEmptyRooms(gameName);
     if (!emptyRooms.length) return null;
@@ -716,6 +734,8 @@ async function performRecommendRoom(event) {
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
+  const requiresRoomConfirmation = session.gameName === electronicSource.GAME_NAMES[0]
+    && !electronicSource.hasReadyData(session.gameName);
   let selected = getNextRecommendRoom(userId, session.gameName);
   if (!selected) {
     if (
@@ -809,6 +829,7 @@ async function performRecommendRoom(event) {
     getUpdateTimeText(),
     afterRecommendQuickReply(),
     typeof selected === "object" ? selected : null,
+    { requiresRoomConfirmation },
   ));
 }
 
