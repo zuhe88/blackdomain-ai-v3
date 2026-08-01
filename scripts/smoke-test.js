@@ -1330,8 +1330,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.0") {
-    throw new Error("Electronic relay extension version must be 1.2.0");
+  if (electronicRelayManifest.version !== "1.2.1") {
+    throw new Error("Electronic relay extension version must be 1.2.1");
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1364,6 +1364,9 @@ async function main() {
   if (electronicBridgeSource.includes("PASSIVE_FULL_SCAN_INTERVAL_MS")) {
     throw new Error("Electronic relay must not run passive full scans");
   }
+  if (electronicBridgeSource.includes("data.page && data.page !== requestedScanPage")) {
+    throw new Error("Electronic empty-room scans must tolerate ATG page-number reordering");
+  }
   if (
     !electronicBridgeSource.includes("requestPayload?.action === \"buyFeature\" || activePurchasedFeature")
     || !electronicBridgeSource.includes("uninstallSenderWrapper")
@@ -1371,7 +1374,7 @@ async function main() {
     throw new Error("Electronic relay must limit sender observation to active purchased features");
   }
   for (const expected of [
-    "const SCAN_PAGE_TIMEOUT_MS = 20000",
+    "const SCAN_PAGE_TIMEOUT_MS = 30000",
     "const SCAN_STARTUP_GRACE_MS = 8000",
     "const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000]",
   ]) {

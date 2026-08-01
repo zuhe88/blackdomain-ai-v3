@@ -53,7 +53,7 @@
   // VMs regularly need more than five seconds for that work, so the previous
   // watchdog restarted a healthy scan between pages 1 and 2 forever.
   const SCAN_PAGE_INTERVAL_MS = 1000;
-  const SCAN_PAGE_TIMEOUT_MS = 20000;
+  const SCAN_PAGE_TIMEOUT_MS = 30000;
   const SCAN_STARTUP_GRACE_MS = 8000;
   const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000];
   const MAX_SCAN_PAGE_RETRIES = 3;
@@ -471,7 +471,11 @@
         return;
       }
       if (requestedScanPage > 0) {
-        if (data.page && data.page !== requestedScanPage) return;
+        // In the "empty rooms" view ATG rebuilds and re-paginates the room
+        // collection while statuses change.  The response can therefore carry
+        // a stale visible-page number even though it was produced by our most
+        // recent request.  scanPage is only non-zero during that request's
+        // watchdog window, so use it as the authoritative page identity.
         clearScanWatchdog();
         scanPageRetries = 0;
         if (data.totalPages) scanTotalPages = data.totalPages;
