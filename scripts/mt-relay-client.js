@@ -126,6 +126,19 @@ function sanitizeTables(value) {
     }));
 }
 
+function normalizeToken(value) {
+  const input = String(value || "").trim();
+  if (!input) return "";
+  try {
+    const parsed = new URL(input);
+    const token = parsed.searchParams.get("token");
+    if (token) return token.trim();
+  } catch {
+    // Plain MT tokens are valid input and do not need URL parsing.
+  }
+  return input;
+}
+
 async function forwardTables(tables) {
   if (!tables.length || !activeToken) return;
   const body = JSON.stringify({ tables });
@@ -183,7 +196,7 @@ function handleMessage(raw) {
 }
 
 function connect(token, relayKey = activeRelayKey) {
-  activeToken = String(token || "").trim();
+  activeToken = normalizeToken(token);
   activeRelayKey = String(relayKey || "").trim();
   if (activeToken.length < 16) throw new Error("MT token is invalid.");
   if (activeRelayKey && activeRelayKey.length < 16) throw new Error("Relay key is invalid.");
@@ -308,7 +321,7 @@ const server = http.createServer((req, res) => {
     });
     req.on("end", () => {
       try {
-        const token = new URLSearchParams(body).get("token");
+        const token = normalizeToken(new URLSearchParams(body).get("token"));
         const relayKey = new URLSearchParams(body).get("relayKey");
         persistConfig(token, relayKey || activeRelayKey);
         connect(token, relayKey || activeRelayKey);
