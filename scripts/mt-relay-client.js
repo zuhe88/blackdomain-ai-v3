@@ -1,5 +1,9 @@
 const crypto = require("crypto");
+const childProcess = require("child_process");
+const fs = require("fs");
 const http = require("http");
+const os = require("os");
+const path = require("path");
 const WebSocket = require("ws");
 
 const PORT = Number(process.env.MT_RELAY_PORT || 43128);
@@ -22,6 +26,59 @@ let lastMessageAt = null;
 let lastTablesAt = null;
 let lastError = null;
 let tokenRejected = false;
+
+const PERSIST_CONFIG = process.platform === "win32" && process.env.MT_PERSIST_CONFIG === "true";
+const CONFIG_PATH = process.env.MT_CONFIG_PATH
+  || path.join(os.homedir(), "AppData", "Local", "BLACKDOMAIN", "mt-relay.json");
+
+function runConfigPowerShell(script, input = "") {
+  const result = childProcess.spawnSync("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    script,
+  ], {
+    encoding: "utf8",
+    env: { ...process.env, BLACKDOMAIN_MT_CONFIG_PATH: CONFIG_PATH },
+    input,
+    timeout: 10000,
+    windowsHide: true,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(String(result.stderr || "Unable to protect MT configuration.").trim());
+  return String(result.stdout || "").trim();
+}
+
+function persistConfig(token, relayKey) {
+  if (!PERSIST_CONFIG) return;
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    "$value = [Console]::In.ReadToEnd() | ConvertFrom-Json",
+    "$target = $env:BLACKDOMAIN_MT_CONFIG_PATH",
+    "$folder = Split-Path -Parent $target",
+    "New-Item -ItemType Directory -Force -Path $folder | Out-Null",
+    "$protectedToken = ConvertTo-SecureString ([string]$value.token) -AsPlainText -Force | ConvertFrom-SecureString",
+    "$protectedKey = ConvertTo-SecureString ([string]$value.relayKey) -AsPlainText -Force | ConvertFrom-SecureString",
+    "@{ token = $protectedToken; relayKey = $protectedKey } | ConvertTo-Json -Compress | Set-Content -LiteralPath $target -Encoding UTF8",
+  ].join("; ");
+  runConfigPowerShell(script, JSON.stringify({ token, relayKey }));
+}
+
+function loadPersistedConfig() {
+  if (!PERSIST_CONFIG || !fs.existsSync(CONFIG_PATH)) return null;
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    "$value = Get-Content -Raw -LiteralPath $env:BLACKDOMAIN_MT_CONFIG_PATH | ConvertFrom-Json",
+    "function Reveal([string]$text) {",
+    "  $secure = ConvertTo-SecureString -String $text",
+    "  $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)",
+    "  try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }",
+    "}",
+    "@{ token = (Reveal $value.token); relayKey = (Reveal $value.relayKey) } | ConvertTo-Json -Compress",
+  ].join("; ");
+  const output = runConfigPowerShell(script);
+  return output ? JSON.parse(output) : null;
+}
 
 function stopTimers() {
   if (refreshTimer) clearInterval(refreshTimer);
@@ -253,6 +310,7 @@ const server = http.createServer((req, res) => {
       try {
         const token = new URLSearchParams(body).get("token");
         const relayKey = new URLSearchParams(body).get("relayKey");
+        persistConfig(token, relayKey || activeRelayKey);
         connect(token, relayKey || activeRelayKey);
         res.statusCode = 303;
         res.setHeader("location", "/");
@@ -270,8 +328,17 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`BLACKDOMAIN MT relay listening on http://127.0.0.1:${PORT}`);
-  const startupToken = String(process.env.MT_TOKEN || "").trim();
-  const startupRelayKey = String(process.env.MT_RELAY_KEY || "").trim();
+  let startupToken = String(process.env.MT_TOKEN || "").trim();
+  let startupRelayKey = String(process.env.MT_RELAY_KEY || "").trim();
+  if (!startupToken && PERSIST_CONFIG) {
+    try {
+      const saved = loadPersistedConfig();
+      startupToken = String(saved?.token || "").trim();
+      startupRelayKey = String(saved?.relayKey || "").trim();
+    } catch (error) {
+      lastError = error.message;
+    }
+  }
   if (startupToken) {
     try {
       connect(startupToken, startupRelayKey);
