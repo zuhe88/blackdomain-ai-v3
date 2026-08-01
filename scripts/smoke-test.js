@@ -1719,11 +1719,18 @@ async function main() {
       totalPages: 8,
       scanComplete: page === 8,
       emptyOnly: true,
-      tables: [{
-        roomId: `seth-empty-page-${page}`,
-        number: page * 500,
-        status: "Empty",
-      }],
+      tables: [
+        {
+          roomId: `seth-empty-page-${page}`,
+          number: page * 500,
+          status: "Empty",
+        },
+        {
+          roomId: `seth-full-page-${page}`,
+          number: page * 500 - 1,
+          status: "Full",
+        },
+      ],
     });
     if (page < 8 && (emptyOnlyResult.scanCompleted
       || electronicSource.hasReadyData(electronicSource.GAME_NAMES[1]))) {
@@ -1733,7 +1740,8 @@ async function main() {
   const emptyOnlySnapshot = electronicSource.getGame(electronicSource.GAME_NAMES[1]);
   if (!electronicSource.hasReadyData(electronicSource.GAME_NAMES[1])
     || emptyOnlySnapshot.dataMode !== "empty-only"
-    || emptyOnlySnapshot.tables.length !== 8) {
+    || emptyOnlySnapshot.tables.length !== 8
+    || emptyOnlySnapshot.tables.some((table) => table.status !== "Empty")) {
     throw new Error("Electronic eight-page empty-only scan was not published correctly");
   }
   electronicSource.ingestTables({

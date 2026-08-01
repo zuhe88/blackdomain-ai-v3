@@ -93,7 +93,7 @@ New-ItemProperty -Path $edgePolicy -Name "HideFirstRunExperience" -PropertyType 
 New-ItemProperty -Path $edgePolicy -Name "DefaultBrowserSettingEnabled" -PropertyType DWord -Value 0 -Force | Out-Null
 
 $edge = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-$edgeArgs = '--no-first-run --load-extension="' + $extensionRoot + '" https://sn058.3a1788.bet/game?type=live'
+$edgeArgs = '--no-first-run --load-extension="' + $extensionRoot + '" https://sn058.3a1788.bet/game?type=live https://mbracing.cc/'
 $edgeAction = New-ScheduledTaskAction -Execute $edge -Argument $edgeArgs
 $edgeTrigger = New-ScheduledTaskTrigger -AtLogOn -User "zhouyang9812"
 $edgePrincipal = New-ScheduledTaskPrincipal -UserId "zhouyang9812" -LogonType Interactive -RunLevel Limited

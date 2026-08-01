@@ -75,7 +75,10 @@ function ingestTables(payload = {}) {
       // page snapshots must not reintroduce occupied/locked rooms.  They are
       // still useful as status deltas: remove a room when it becomes non-empty
       // and add/update it when it is empty again.
-      if (!scanId && state.dataMode === "empty-only" && table.status !== "Empty") {
+      const emptyOnlyMode = scanId
+        ? state.pendingScan.emptyOnly
+        : state.dataMode === "empty-only";
+      if (emptyOnlyMode && table.status !== "Empty") {
         next.delete(table.roomId);
         return;
       }
