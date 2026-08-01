@@ -813,13 +813,12 @@ async function performRecommendRoom(event) {
       )
       : null;
     if (await stopIfRecommendationCancelled(event, userId)) return false;
-    // ATG does not consistently emit a second detail response when the same
-    // empty room was queried moments earlier.  The source snapshot is still
-    // receiving live occupancy deltas, so keep the already captured RTP
-    // detail as a safe fallback instead of incorrectly timing out.
+    // ATG does not consistently emit a detail response for every empty room.
+    // The source snapshot still receives live occupancy deltas, so a room
+    // already confirmed as empty must remain recommendable. RTP is displayed
+    // only when its optional detail response is available.
     if (
       !refreshed
-      && selected.detail
       && selected.status === "Empty"
       && selected.occupied !== true
     ) {
@@ -849,7 +848,7 @@ async function performRecommendRoom(event) {
       selected = refreshed;
     }
     if (!selected || (typeof selected === "object" && (
-      !selected.detail || selected.status !== "Empty" || selected.occupied === true
+      selected.status !== "Empty" || selected.occupied === true
     ))) {
       await stopLiveWatch(userId, session.gameName, roomNumber);
       return deliverRecommendation(event, electronicPromptFlex("即時房間數據同步逾時", [
