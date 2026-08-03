@@ -26,8 +26,11 @@ let lastMessageAt = null;
 let lastTablesAt = null;
 let lastError = null;
 let tokenRejected = false;
+let lastHandshakeStatus = null;
+let lastCloseCode = null;
+let lastCloseReason = null;
 
-const PERSIST_CONFIG = process.platform === "win32" && process.env.MT_PERSIST_CONFIG === "true";
+const PERSIST_CONFIG = process.platform === "win32" && process.env.MT_PERSIST_CONFIG !== "false";
 const CONFIG_PATH = process.env.MT_CONFIG_PATH
   || path.join(os.homedir(), "AppData", "Local", "BLACKDOMAIN", "mt-relay.json");
 
@@ -213,6 +216,9 @@ function connect(token, relayKey = activeRelayKey) {
   connectedAt = null;
   lastTablesAt = null;
   lastError = null;
+  lastHandshakeStatus = null;
+  lastCloseCode = null;
+  lastCloseReason = null;
   const nextSocket = new WebSocket(SOCKET_URL, {
     origin: ORIGIN,
     handshakeTimeout: 15000,
@@ -247,10 +253,16 @@ function connect(token, relayKey = activeRelayKey) {
     }, 5000);
   });
   nextSocket.on("message", handleMessage);
-  nextSocket.on("error", (error) => {
-    lastError = error.message;
+  nextSocket.on("unexpected-response", (_request, response) => {
+    lastHandshakeStatus = Number(response?.statusCode) || null;
+    lastError = `MT WebSocket handshake failed (${lastHandshakeStatus || "unknown"}).`;
   });
-  nextSocket.on("close", () => {
+  nextSocket.on("error", (error) => {
+    lastError = error.message || error.code || "MT WebSocket connection failed.";
+  });
+  nextSocket.on("close", (code, reason) => {
+    lastCloseCode = Number(code) || null;
+    lastCloseReason = String(reason || "") || null;
     if (socket === nextSocket) socket = null;
     connectedAt = null;
     stopTimers();
@@ -275,6 +287,9 @@ function publicStatus() {
     lastMessageAt,
     lastTablesAt,
     lastError,
+    lastHandshakeStatus,
+    lastCloseCode,
+    lastCloseReason,
   };
 }
 
