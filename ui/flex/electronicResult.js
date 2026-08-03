@@ -41,14 +41,19 @@ function formatAmount(value) {
     : "尚未取得";
 }
 
-function statCell(label, value, color = COLORS.white) {
+function statCell(label, value, color = COLORS.white, options = {}) {
   return {
     type: "box",
     layout: "vertical",
-    flex: 1,
+    flex: options.flex || 1,
     spacing: "xs",
     contents: [
-      text(label, { size: "xs", color: COLORS.muted, align: "center", wrap: false }),
+      text(label, {
+        size: options.labelSize || "xs",
+        color: COLORS.muted,
+        align: "center",
+        wrap: false,
+      }),
       text(value, { size: "sm", weight: "bold", color, align: "center", wrap: false }),
     ],
   };
@@ -79,9 +84,14 @@ function rtpSummary(detail = {}) {
         detail.todayRtp,
         detail.todayWin ?? detail.hourWin,
         detail.todayBet ?? detail.hourBet,
-      ), COLORS.green),
-      statCell("近30天得分率", displayRtp(detail.dayRtp, detail.dayWin, detail.dayBet), COLORS.gold),
-      statCell("可信度", confidence.label, confidence.color),
+      ), COLORS.green, { flex: 11, labelSize: "xxs" }),
+      statCell(
+        "近30天得分率",
+        displayRtp(detail.dayRtp, detail.dayWin, detail.dayBet),
+        COLORS.gold,
+        { flex: 14, labelSize: "xxs" },
+      ),
+      statCell("可信度", confidence.label, confidence.color, { flex: 7, labelSize: "xxs" }),
     ],
   };
 }

@@ -1366,6 +1366,19 @@ async function main() {
       throw new Error(`Electronic recommendation card is missing RTP display: ${expected}`);
     }
   }
+  const electronicRecommendationModuleSource = fs.readFileSync(
+    path.join(root, "modules", "electronic", "index.js"),
+    "utf8",
+  );
+  for (const expected of [
+    "BACKGROUND_PROBE_OWNER",
+    "BACKGROUND_PROBE_ROTATE_MS",
+    "refreshBackgroundRecommendationProbes(now)",
+  ]) {
+    if (!electronicRecommendationModuleSource.includes(expected)) {
+      throw new Error(`Electronic recommendation must keep expanding its RTP pool: ${expected}`);
+    }
+  }
   for (const expected of [
     "SCAN_PAGE_TIMEOUT_MS",
     "SCAN_STARTUP_GRACE_MS",

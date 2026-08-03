@@ -33,8 +33,11 @@ const PENDING_RECOMMEND_RETRY_MS = 5000;
 const FIRST_SCAN_ESTIMATE = "正在掃描房間中並計算 RTP";
 const RTP_WAIT_ESTIMATE = "通常約 15～45 秒；資料較慢時會持續自動掃描";
 const RECOMMEND_PROBE_BATCH_SIZE = 12;
+const BACKGROUND_PROBE_OWNER = "seth2-background-pool";
+const BACKGROUND_PROBE_ROTATE_MS = 45 * 1000;
 const RECOMMEND_HISTORY_LIMIT = 500;
 const FALLBACK_ROOM_HISTORY_LIMIT = 100;
+let backgroundProbeSeededAt = 0;
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -120,6 +123,17 @@ function seedRecommendationProbes(userId, gameName, limit = RECOMMEND_PROBE_BATC
     recommendationProbes.set(`${owner}:${gameName}:${room.number}`, probe);
   });
   return selectedRooms.length;
+}
+
+function refreshBackgroundRecommendationProbes(now = Date.now()) {
+  const gameName = electronicSource.GAME_NAMES[1];
+  const hasActiveBatch = [...recommendationProbes.values()].some((probe) => (
+    probe.userId === BACKGROUND_PROBE_OWNER
+    && probe.gameName === gameName
+  ));
+  if (hasActiveBatch && now - backgroundProbeSeededAt < BACKGROUND_PROBE_ROTATE_MS) return;
+  seedRecommendationProbes(BACKGROUND_PROBE_OWNER, gameName);
+  backgroundProbeSeededAt = now;
 }
 
 function refreshPendingRecommendationProbes(gameName) {
@@ -328,6 +342,10 @@ async function getLiveWatchers(gameName, roomNumber) {
 async function getActiveWatchRooms() {
   const watches = new Map();
   const now = Date.now();
+  // Keep expanding the Seth 2 RTP candidate pool even after the first usable
+  // room is found. Previously the probe queue stopped as soon as room 2001
+  // produced RTP, leaving every recommendation with the same sole candidate.
+  refreshBackgroundRecommendationProbes(now);
   for (const watch of liveWatches.values()) {
     if (watch?.userId && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT) {
       watches.set(watch.userId, watch);
