@@ -1,5 +1,10 @@
 const crypto = require("crypto");
-const { reply, push, quickReply } = require("../../services/line");
+const {
+  reply,
+  push,
+  pushStrict,
+  quickReply,
+} = require("../../services/line");
 const { COLORS, bubble, button, note, section, text } = require("../../ui/flex/premium");
 const {
   electronicRecommendFlex,
@@ -26,7 +31,10 @@ const SESSION_KEY_PREFIX = "electronic_session:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 20000);
 const PENDING_RECOMMEND_RETRY_MS = 5000;
 const FIRST_SCAN_ESTIMATE = "正在掃描房間中並計算 RTP";
-const RTP_WAIT_ESTIMATE = "通常約 10～30 秒，取得 RTP 後自動回傳";
+const RTP_WAIT_ESTIMATE = "通常約 15～45 秒；資料較慢時會持續自動掃描";
+const RECOMMEND_PROBE_BATCH_SIZE = 12;
+const RECOMMEND_HISTORY_LIMIT = 500;
+const FALLBACK_ROOM_HISTORY_LIMIT = 100;
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -81,7 +89,7 @@ function clearRecommendationProbes(userId) {
   }
 }
 
-function seedRecommendationProbes(userId, gameName, limit = 6) {
+function seedRecommendationProbes(userId, gameName, limit = RECOMMEND_PROBE_BATCH_SIZE) {
   if (gameName !== electronicSource.GAME_NAMES[1]) return 0;
   const owner = String(userId || "guest");
   clearRecommendationProbes(owner);
@@ -89,10 +97,20 @@ function seedRecommendationProbes(userId, gameName, limit = 6) {
     .filter((room) => scoreSethRoomByRtp(room) == null)
     .sort((left, right) => (
       hashScore(`${owner}:${left.number}`) - hashScore(`${owner}:${right.number}`)
-    ))
-    .slice(0, limit);
+    ));
+  if (!rooms.length) return 0;
+  const cursorKey = `${owner}:${gameName}:probe-cursor`;
+  const cursor = Number(recommendCursorStore.get(cursorKey)?.cursor) || 0;
+  const batchSize = Math.min(Math.max(1, Number(limit) || 1), rooms.length);
+  const selectedRooms = Array.from({ length: batchSize }, (_, index) => (
+    rooms[(cursor + index) % rooms.length]
+  ));
+  recommendCursorStore.set(cursorKey, {
+    cursor: (cursor + batchSize) % rooms.length,
+    updatedAt: Date.now(),
+  });
   const updatedAt = Date.now();
-  rooms.forEach((room) => {
+  selectedRooms.forEach((room) => {
     const probe = {
       userId: owner,
       gameName,
@@ -101,7 +119,7 @@ function seedRecommendationProbes(userId, gameName, limit = 6) {
     };
     recommendationProbes.set(`${owner}:${gameName}:${room.number}`, probe);
   });
-  return rooms.length;
+  return selectedRooms.length;
 }
 
 function refreshPendingRecommendationProbes(gameName) {
@@ -628,7 +646,8 @@ function getNextRecommendRoom(userId, gameName) {
     }
     if (roomIsLeasedByAnotherUser(userId, gameName, room)) return null;
     recommendCursorStore.set(key, {
-      recentRooms: [room, ...recentRooms.filter((value) => value !== room)].slice(0, 10),
+      recentRooms: [room, ...recentRooms.filter((value) => value !== room)]
+        .slice(0, FALLBACK_ROOM_HISTORY_LIMIT),
       updatedAt: Date.now(),
     });
     leaseRecommendedRoom(userId, gameName, room);
@@ -659,7 +678,7 @@ function getNextRecommendRoom(userId, gameName) {
     const freshCandidates = unleasedCandidates.filter((room) => !recentRooms.includes(room.number));
     const pool = freshCandidates.length ? freshCandidates : unleasedCandidates;
     const selected = rtpRankedRooms.length ? pool[0] : pool[crypto.randomInt(pool.length)];
-    const recentLimit = Math.min(5, Math.max(1, candidates.length - 1));
+    const recentLimit = Math.min(RECOMMEND_HISTORY_LIMIT, candidates.length);
     recommendCursorStore.set(key, {
       recentRooms: [selected.number, ...recentRooms.filter((room) => room !== selected.number)].slice(0, recentLimit),
       updatedAt: Date.now(),
@@ -847,11 +866,14 @@ async function showGameMenu(event) {
   return reply(event.replyToken, message);
 }
 
-function deliverRecommendation(event, message) {
+async function deliverRecommendation(event, message) {
   if (event.recommendationRequest?.cancelled) return false;
-  return event.autoPush
-    ? push(event.source.userId, message)
-    : reply(event.replyToken, message);
+  if (event.autoPush) {
+    await pushStrict(event.source.userId, message);
+    return true;
+  }
+  await reply(event.replyToken, message);
+  return true;
 }
 
 async function stopIfRecommendationCancelled(event, userId) {
@@ -953,7 +975,7 @@ async function performRecommendRoom(event) {
       selected.status !== "Empty" || selected.occupied === true
     ))) {
       await stopLiveWatch(userId, session.gameName, roomNumber);
-      if (session.gameName === electronicSource.GAME_NAMES[1]) {
+      if (electronicSource.SUPPORTED_GAMES.has(session.gameName)) {
         queuePendingRecommendation(userId, session.gameName);
         if (event.waitingAlreadySent) return false;
         return deliverRecommendation(event, recommendationWaitingFlex(
@@ -963,11 +985,7 @@ async function performRecommendRoom(event) {
           RTP_WAIT_ESTIMATE,
         ));
       }
-      return deliverRecommendation(event, electronicPromptFlex("即時房間數據同步逾時", [
-        session.gameName,
-        "為避免房況不一致，本次未使用舊統計推薦",
-        "等待已自動結束，需要時可重新推薦",
-      ], afterRecommendQuickReply()));
+      return false;
     }
     roomNumber = selectedRoomNumber(selected);
   }
@@ -1001,6 +1019,7 @@ async function recommendRoom(event) {
     ));
   }
   if (recommendInFlight.has(userId)) {
+    if (event.autoPush) return false;
     const currentGame = getUserSession(userId).gameName || "電子AI";
     return reply(event.replyToken, recommendationWaitingFlex(
       "即時房間數據同步中",
@@ -1027,14 +1046,19 @@ async function handleElectronicDataReady(gameName) {
   const pending = [...pendingRecommendations.values()]
     .filter((item) => item.gameName === gameName);
   if (!pending.length) return 0;
-  pending.forEach((item) => cancelPendingRecommendation(item.userId));
-  const results = await Promise.allSettled(pending.map((item) => recommendRoom({
-    source: { userId: item.userId },
-    message: { type: "text", text: "自動推薦" },
-    autoPush: true,
-    waitingAlreadySent: true,
-  })));
-  return results.filter((result) => result.status === "fulfilled").length;
+  const results = await Promise.allSettled(pending.map(async (item) => {
+    const delivered = await recommendRoom({
+      source: { userId: item.userId },
+      message: { type: "text", text: "自動推薦" },
+      autoPush: true,
+      waitingAlreadySent: true,
+    });
+    if (delivered && pendingRecommendations.get(item.userId) === item) {
+      cancelPendingRecommendation(item.userId);
+    }
+    return delivered;
+  }));
+  return results.filter((result) => result.status === "fulfilled" && result.value).length;
 }
 
 async function handleElectronicSpin(payload = {}) {
