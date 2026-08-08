@@ -238,6 +238,7 @@ const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
 const atgSeed = require("../modules/atg/history-seed.json");
 const mbSource = require("../modules/mb/source");
 const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
+const { mbAnalysisFlex } = require("../modules/mb/flex");
 const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
 const mtSource = require("../modules/baccarat/mtSource");
@@ -2434,6 +2435,23 @@ async function main() {
   if (regularChipWidths !== 15 || mbAnalysisJson.includes('"width":"20px","height":"25px"')) {
     throw new Error("MB recommendation number chips must use a consistent size");
   }
+  const mbSixMessage = mbAnalysisFlex(buildMbAnalysis(mbTrack, 6), mbTrack);
+  const mbSixPickRows = [];
+  (function collectMbSixPickRows(node) {
+    if (!node || typeof node !== "object") return;
+    if (
+      node.layout === "horizontal"
+      && node.contents?.length === 6
+      && node.contents.every((item) => item?.width === "20px" && item?.height === "20px")
+    ) mbSixPickRows.push(node);
+    Object.values(node).forEach((child) => {
+      if (Array.isArray(child)) child.forEach(collectMbSixPickRows);
+      else if (child && typeof child === "object") collectMbSixPickRows(child);
+    });
+  }(mbSixMessage));
+  if (mbSixPickRows.length !== 3) {
+    throw new Error("MB six-number recommendation must render all six chips for all three ranks");
+  }
 
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("DG", "user-smoke");
@@ -2480,10 +2498,16 @@ async function main() {
   );
   const longStatsRows = longStatsPanel?.contents?.slice(1) || [];
   if (
-    longStatsRows.length !== 2
-    || longStatsRows.some((row) => row.layout !== "horizontal" || row.contents?.length !== 2)
+    longStatsRows.length !== 1
+    || longStatsRows[0]?.layout !== "horizontal"
+    || longStatsRows[0]?.contents?.length !== 4
   ) {
-    throw new Error("Baccarat room statistics must use a two-by-two layout");
+    throw new Error("Baccarat room statistics must use one platform-style badge row");
+  }
+  for (const label of ["莊", "閒", "和", "總"]) {
+    if (!findNode(longStatsPanel, (node) => node.type === "text" && node.text === label)) {
+      throw new Error(`Baccarat room statistics missing Traditional Chinese badge: ${label}`);
+    }
   }
   for (const value of ["12345", "67890", "1234", "81469"]) {
     const valueNode = findNode(longStatsPanel, (node) => node.type === "text" && node.text === value);
@@ -2882,7 +2906,7 @@ async function main() {
   const mtPushTexts = captured.pushes[captured.pushes.length - 1].messages
     .flatMap((message) => collectText(message));
   const mtPushSummary = mtPushTexts.join(" | ");
-  if (!mtPushSummary.includes("莊家 | 1 | 閒家 | 1 | 和局 | 0 | 總局數 | 2")) {
+  if (!mtPushSummary.includes("莊 | 1 | 閒 | 1 | 和 | 0 | 總 | 2")) {
     throw new Error(`MT live room statistics are incorrect: ${mtPushSummary}`);
   }
   if (mtPushTexts.some((value) => String(value).includes("上局結算"))) {

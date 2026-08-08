@@ -222,10 +222,11 @@ function numberChip(number, compact = false) {
 }
 
 function predictionRow(row) {
+  const compact = row.picks.length >= 6;
   return {
     type: "box",
     layout: "horizontal",
-    spacing: "md",
+    spacing: compact ? "xs" : "md",
     paddingAll: "10px",
     cornerRadius: "12px",
     backgroundColor: "#11100E",
@@ -237,16 +238,16 @@ function predictionRow(row) {
         size: "sm",
         weight: "bold",
         color: "#F0D58A",
-        flex: 3,
+        flex: compact ? 2 : 3,
         wrap: false,
       }),
       {
         type: "box",
         layout: "horizontal",
-        spacing: "sm",
-        flex: 7,
+        spacing: compact ? "xs" : "sm",
+        flex: compact ? 8 : 7,
         justifyContent: "flex-end",
-        contents: row.picks.map((number) => numberChip(number)),
+        contents: row.picks.map((number) => numberChip(number, compact)),
       },
     ],
   };
