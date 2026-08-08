@@ -69,7 +69,17 @@
   const WRAPPER_FAST_RETRY_MS = 20;
   const WRAPPER_FAST_RETRY_WINDOW_MS = 30000;
   const WRAPPER_HEALTH_CHECK_MS = 1000;
+  const ATG_INIT_TIMEOUT_MS = 45 * 1000;
   const wrapperBootstrapStartedAt = Date.now();
+  const startupGameName = detectGameName();
+  const startupRecoveryTimer = startupGameName
+    ? setTimeout(() => {
+      if (gameInitializedAt) return;
+      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", {
+        detail: { gameName: startupGameName, reason: "init-timeout" },
+      }));
+    }, ATG_INIT_TIMEOUT_MS)
+    : null;
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));
@@ -513,6 +523,7 @@
     if (!gameName) return;
 
     if (eventName === INIT_RESPONSE) {
+      if (startupRecoveryTimer) clearTimeout(startupRecoveryTimer);
       if (!gameInitializedAt) gameInitializedAt = Date.now();
       const table = payload?.platform?.table || payload?.platform?.slotTable || payload?.table;
       const normalized = normalizeTable(table);

@@ -6,6 +6,26 @@
   let lastRefreshId = "";
   let watchSyncInFlight = false;
   let lastGameDataAt = 0;
+  const AUTO_REOPEN_PARAM = "blackdomain_reopen";
+
+  function autoReopenSeth2() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get(AUTO_REOPEN_PARAM) !== "seth2") return;
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      const image = document.querySelector('img[alt="戰神賽特2覺醒之力"]');
+      const button = image?.closest(".card")?.querySelector("button");
+      if (!button && attempts < 60) return;
+      window.clearInterval(timer);
+      if (!button) return;
+      params.delete(AUTO_REOPEN_PARAM);
+      params.delete("blackdomain_recovered_at");
+      const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", cleanUrl);
+      button.click();
+    }, 500);
+  }
 
   function sendHeartbeat() {
     chrome.runtime.sendMessage({
@@ -59,6 +79,13 @@
     send(body);
   });
 
+  window.addEventListener("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", (event) => {
+    chrome.runtime.sendMessage({
+      type: "BLACKDOMAIN_ATG_SESSION_STALE",
+      reason: event.detail?.reason || "unknown",
+    }).catch(() => {});
+  });
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== "BLACKDOMAIN_RELAY_PING" || message.kind !== "electronic") return false;
     syncWatchRooms();
@@ -97,6 +124,7 @@
   }
 
   syncWatchRooms();
+  autoReopenSeth2();
   setInterval(syncWatchRooms, 2000);
   sendHeartbeat();
   setInterval(sendHeartbeat, 30000);

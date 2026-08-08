@@ -1394,8 +1394,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.0") {
-    throw new Error("Electronic relay extension version must be 1.3.0");
+  if (electronicRelayManifest.version !== "1.3.1") {
+    throw new Error("Electronic relay extension version must be 1.3.1");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1415,6 +1415,9 @@ async function main() {
     "chrome.alarms.onAlarm",
     "chrome.tabs.reload",
     "GAME_DATA_TIMEOUT_MS",
+    "buildFreshTokenLobbyUrl",
+    "blackdomain_reopen",
+    "TOKEN_ERROR_RECOVERY_COOLDOWN_MS",
   ]) {
     if (!relayBackgroundSource.includes(expected)) {
       throw new Error(`Relay background watchdog is missing: ${expected}`);
@@ -1426,6 +1429,15 @@ async function main() {
   );
   if (atgBridgeSource.includes("detailQueueTimer")) {
     throw new Error("ATG bridge must not reference the removed detail queue timer");
+  }
+  for (const expected of [
+    "ATG_INIT_TIMEOUT_MS = 45 * 1000",
+    "BLACKDOMAIN_ELECTRONIC_SESSION_STALE",
+    'reason: "init-timeout"',
+  ]) {
+    if (!atgBridgeSource.includes(expected)) {
+      throw new Error(`ATG startup token recovery is missing: ${expected}`);
+    }
   }
   if (electronicRelayManifest.content_scripts.some((entry) => (
     entry.js?.some((file) => file.startsWith("mt-"))
@@ -1681,6 +1693,16 @@ async function main() {
   );
   if (!electronicRelaySource.includes("setInterval(syncWatchRooms, 2000)")) {
     throw new Error("Electronic relay watch sync must use the reduced two-second interval");
+  }
+  for (const expected of [
+    "autoReopenSeth2",
+    'img[alt="戰神賽特2覺醒之力"]',
+    "button.click()",
+    "BLACKDOMAIN_ATG_SESSION_STALE",
+  ]) {
+    if (!electronicRelaySource.includes(expected)) {
+      throw new Error(`Electronic relay token recovery is missing: ${expected}`);
+    }
   }
   if (
     !electronicRelaySource.includes("BLACKDOMAIN_RELAY_HEARTBEAT")
