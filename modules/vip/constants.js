@@ -12,6 +12,8 @@ const ADMIN_COMMANDS = [
   "減少VIP",
   "永久VIP",
   "會員列表",
+  "全部開放權限",
+  "恢復原權限",
 ];
 
 const STATUSES = {

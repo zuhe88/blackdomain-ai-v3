@@ -9,6 +9,9 @@ const STATUS = {
 };
 
 const ACTIVE_REQUEST_STATUSES = [STATUS.PENDING, STATUS.APPROVED];
+const GLOBAL_AI_ACCESS_SETTING_KEY = "global_ai_access_override";
+const GLOBAL_AI_ACCESS_CACHE_MS = 5000;
+let globalAiAccessCache = { enabled: false, expiresAt: 0, updatedAt: null, updatedBy: null };
 
 function isConnected() {
   return Boolean(supabase);
@@ -16,6 +19,57 @@ function isConnected() {
 
 function normalizeAccount3A(account3A) {
   return String(account3A || "").trim().toLowerCase();
+}
+
+function normalizeGlobalAiAccess(value) {
+  return {
+    enabled: value?.enabled === true,
+    updatedAt: value?.updatedAt || null,
+    updatedBy: value?.updatedBy || null,
+  };
+}
+
+async function getGlobalAiAccessState({ force = false } = {}) {
+  if (!isConnected()) return normalizeGlobalAiAccess(null);
+  if (!force && Date.now() < globalAiAccessCache.expiresAt) {
+    return normalizeGlobalAiAccess(globalAiAccessCache);
+  }
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("*")
+    .eq("key", GLOBAL_AI_ACCESS_SETTING_KEY)
+    .maybeSingle();
+  const state = normalizeGlobalAiAccess(error ? null : data?.value);
+  globalAiAccessCache = { ...state, expiresAt: Date.now() + GLOBAL_AI_ACCESS_CACHE_MS };
+  return state;
+}
+
+async function setGlobalAiAccess(enabled, adminLineUserId) {
+  if (!isConnected()) return { ok: false, error: "Supabase 尚未連線。" };
+  const now = new Date().toISOString();
+  const previous = await getGlobalAiAccessState({ force: true });
+  const value = {
+    enabled: Boolean(enabled),
+    updatedAt: now,
+    updatedBy: adminLineUserId || null,
+  };
+  const { error } = await supabase
+    .from("lottery_settings")
+    .upsert({
+      key: GLOBAL_AI_ACCESS_SETTING_KEY,
+      value,
+      updated_at: now,
+      updated_by: adminLineUserId || null,
+    }, { onConflict: "key" });
+  if (error) return { ok: false, error: error.message || "全線權限設定失敗。" };
+  globalAiAccessCache = { ...value, expiresAt: Date.now() + GLOBAL_AI_ACCESS_CACHE_MS };
+  await logAdminAction(
+    adminLineUserId,
+    enabled ? "全部開放AI權限" : "恢復原AI權限",
+    "ALL_USERS",
+    "success",
+  );
+  return { ok: true, changed: previous.enabled !== value.enabled, state: normalizeGlobalAiAccess(value) };
 }
 
 async function selectCaseInsensitive(table, field, value) {
@@ -407,5 +461,7 @@ module.exports = {
   listVipUsers,
   logAdminAction,
   logAiUsage,
+  getGlobalAiAccessState,
+  setGlobalAiAccess,
   normalizeAccount3A,
 };

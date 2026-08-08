@@ -18,6 +18,8 @@ const {
   listPendingRequests,
   listVipUsers,
   logAiUsage,
+  getGlobalAiAccessState,
+  setGlobalAiAccess,
   normalizeAccount3A,
 } = require("./repository");
 
@@ -49,6 +51,8 @@ function vipQuickReply(isAdmin = false) {
 
 function adminQuickReply() {
   return quickReply([
+    { label: "全部開放", text: "全部開放權限" },
+    { label: "恢復權限", text: "恢復原權限" },
     { label: "待審核", text: "待審核" },
     { label: "會員列表", text: "會員列表" },
     { label: "VIP中心", text: "VIP" },
@@ -210,8 +214,16 @@ function hasAiPermission(user) {
 
 async function checkVipAccess(userId) {
   if (isAdminLineUserId(userId)) return { allowed: true, isAdmin: true, user: null };
-  const user = await findVipUserByLineUserId(userId);
-  return { allowed: hasAiPermission(user), isAdmin: false, user };
+  const [user, globalAccess] = await Promise.all([
+    findVipUserByLineUserId(userId),
+    getGlobalAiAccessState(),
+  ]);
+  return {
+    allowed: globalAccess.enabled || hasAiPermission(user),
+    isAdmin: false,
+    globalAccess: globalAccess.enabled,
+    user,
+  };
 }
 
 function simpleFlex({ title, subtitle = "BLACKDOMAIN VIP", rows = [], quickReply: qr = vipQuickReply(false), footer = "BLACKDOMAIN VIP" }) {
@@ -347,7 +359,7 @@ async function notifyAdminsBind({ lineUserId, lineName, account3A }) {
   await Promise.all(adminLineUserIds().map((adminId) => push(adminId, message)));
 }
 
-function vipCenterFlex(user, isAdmin = false) {
+function vipCenterFlex(user, isAdmin = false, globalAccessEnabled = false) {
   if (isAdmin) {
     return bubble({
       altText: "VIP中心",
@@ -364,6 +376,25 @@ function vipCenterFlex(user, isAdmin = false) {
         infoLine("剩餘天數", "永久"),
         infoLine("最後更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
         button("管理指令", "管理指令"),
+      ],
+    });
+  }
+
+  if (globalAccessEnabled) {
+    return bubble({
+      altText: "免費權限",
+      title: "免費權限",
+      subtitle: "BLACKDOMAIN AI",
+      quickReply: vipQuickReply(false),
+      footer: "BLACKDOMAIN FREE ACCESS",
+      contents: [
+        metric("權限狀態", "免費權限", "管理員已臨時開放全部 AI"),
+        infoLine("LINE名稱", user.lineName || "未取得"),
+        infoLine("3A帳號", user.account3A || "未綁定"),
+        infoLine("AI權限", AI_FEATURES),
+        infoLine("有效期間", "全線開放期間"),
+        infoLine("原會員權限", "完整保留，恢復後自動套用"),
+        button("返回首頁", "首頁"),
       ],
     });
   }
@@ -392,7 +423,7 @@ function vipCenterFlex(user, isAdmin = false) {
   });
 }
 
-function adminHelpFlex() {
+function adminHelpFlex(globalAccessEnabled = false) {
   return bubble({
     altText: "管理員功能",
     title: "管理員功能",
@@ -400,6 +431,9 @@ function adminHelpFlex() {
     quickReply: adminQuickReply(),
     footer: "BLACKDOMAIN VIP ADMIN",
     contents: [
+      infoLine("全線權限", globalAccessEnabled ? "臨時開放中" : "依會員原設定"),
+      infoLine("全部開放權限", "所有使用者暫時可使用全部 AI"),
+      infoLine("恢復原權限", "回到每位會員原本的權限狀態"),
       infoLine("待審核", "列出所有 pending"),
       infoLine("查會員", "查會員 abc123"),
       infoLine("開通", "開通 abc123 30 / 開通 abc123 永久"),
@@ -409,6 +443,8 @@ function adminHelpFlex() {
       infoLine("永久VIP", "永久VIP abc123"),
       infoLine("會員列表", "列出所有會員"),
       infoLine("更新房間數據", "強制重掃電子房間與統計"),
+      button("全部開放權限", "全部開放權限"),
+      button("恢復原權限", "恢復原權限", "secondary"),
     ],
   });
 }
@@ -443,13 +479,30 @@ async function handleAdminCommand(event) {
     return reply(event.replyToken, adminResultFlex("權限不足", [["狀態", "無權限使用此功能。"]], false));
   }
 
-  if (text === "管理指令" || text === "管理員指令") return reply(event.replyToken, adminHelpFlex());
+  if (text === "管理指令" || text === "管理員指令") {
+    const state = await getGlobalAiAccessState({ force: true });
+    return reply(event.replyToken, adminHelpFlex(state.enabled));
+  }
+
+  if (text === "全部開放權限" || text === "恢復原權限") {
+    const enabled = text === "全部開放權限";
+    const result = await setGlobalAiAccess(enabled, userId);
+    const stateText = enabled ? "所有使用者已可使用全部 AI" : "已恢復每位會員原本的權限";
+    return reply(event.replyToken, adminResultFlex(text, [
+      ["全線狀態", result.ok ? (enabled ? "臨時開放中" : "已恢復原設定") : "設定失敗"],
+      ["會員資料", "個別 VIP、到期日與權限均未修改"],
+      ["結果", result.ok ? (result.changed ? stateText : `目前已是此狀態：${stateText}`) : result.error || "失敗"],
+    ], result.ok));
+  }
 
   const [command, rawAccount3A, value] = text.split(/\s+/).filter(Boolean);
   const account3A = normalizeAccount3A(rawAccount3A);
   if (command === "待審核") return reply(event.replyToken, adminResultFlex("待審核", memberRows(await listPendingRequests())));
   if (command === "會員列表") return reply(event.replyToken, adminResultFlex("會員列表", memberRows(await listVipUsers())));
-  if (!account3A) return reply(event.replyToken, adminHelpFlex());
+  if (!account3A) {
+    const state = await getGlobalAiAccessState({ force: true });
+    return reply(event.replyToken, adminHelpFlex(state.enabled));
+  }
 
   if (command === "查會員") {
     const user = await findVipUserBy3AAccount(account3A);
@@ -602,6 +655,7 @@ async function handleVipMessage(event) {
   if (session.binding3A) return handleBindInput(event);
 
   const isAdmin = isAdminLineUserId(lineUserId);
+  const globalAccess = isAdmin ? { enabled: false } : await getGlobalAiAccessState();
   const user = isAdmin
     ? { lineName: await getLineName(lineUserId), account3A: "管理員", vipStatus: STATUS.APPROVED, aiPermission: true, expiresAt: null, isAdmin: true }
     : await findVipUserByLineUserId(lineUserId);
@@ -615,7 +669,7 @@ async function handleVipMessage(event) {
     lastUpdated: Date.now(),
   });
 
-  return reply(event.replyToken, vipCenterFlex(user, isAdmin));
+  return reply(event.replyToken, vipCenterFlex(user, isAdmin, globalAccess.enabled));
 }
 
 module.exports = {

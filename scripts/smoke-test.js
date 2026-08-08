@@ -4,6 +4,7 @@ const path = require("path");
 const vm = require("vm");
 
 process.env.SUPABASE_URL = "https://example.supabase.co";
+process.env.NODE_ENV = "test";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.ATG_DISABLE_LIVE = "true";
 process.env.DG_DISABLE_LIVE = "true";
@@ -21,6 +22,7 @@ const mockSupabaseControl = {
   cancellationAttempts: 0,
   cancellationFailuresRemaining: 0,
 };
+let mockGlobalAiAccessRow = null;
 const mockLineControl = {
   pushGate: null,
 };
@@ -179,6 +181,16 @@ function makeSupabaseTable(table) {
 }
 
 function rowsForTable(table, filters, inserted, updated) {
+  if (table === "lottery_settings") {
+    const keyFilter = filters.find((item) => item.field === "key")?.value;
+    if (inserted?.key === "global_ai_access_override") {
+      mockGlobalAiAccessRow = { ...inserted, id: "global-ai-access" };
+      return [mockGlobalAiAccessRow];
+    }
+    if (keyFilter === "global_ai_access_override") {
+      return mockGlobalAiAccessRow ? [mockGlobalAiAccessRow] : [];
+    }
+  }
   if (inserted) return [{ ...inserted, id: "inserted-1" }];
   if (updated) return [{ ...updated, id: "updated-1" }];
 
@@ -1852,7 +1864,25 @@ async function main() {
   values = await sendAndTexts("電子", "global-ai-entry-user");
   assertIncludes(values, "尚未開通黑域AI", "AI entry overrides binding session");
 
+  values = await sendAndTexts("全部開放權限", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "臨時開放中", "Admin global access enable");
+  assertIncludes(values, "個別 VIP、到期日與權限均未修改", "Global access preserves member permissions");
+  values = await sendAndTexts("VIP", "free-access-user");
+  assertIncludes(values, "免費權限", "Global free access VIP center");
+  assertIncludes(values, "原會員權限", "Global free access restore notice");
+  values = await sendAndTexts("電子", "free-access-user");
+  assertIncludes(values, "戰神賽特2", "Global free access AI entry");
+  values = await sendAndTexts("恢復原權限", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "已恢復原設定", "Admin global access restore");
+  assertIncludes(values, "個別 VIP、到期日與權限均未修改", "Global access restore preserves member permissions");
+  values = await sendAndTexts("電子", "restored-access-user");
+  assertIncludes(values, "尚未開通黑域AI", "Restored individual access enforcement");
+
   await send("電子", "user-smoke");
+  values = await sendAndTexts("戰神賽特1", "user-smoke");
+  assertIncludes(values, "暫未開放", "Disabled electronic game guard");
+  assertIncludes(values, "目前僅開放戰神賽特2", "Disabled electronic game guidance");
+  process.env.ELECTRONIC_TEST_ENABLE_LEGACY_GAMES = "true";
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
   electronicSource.resetForTest();
@@ -2407,11 +2437,16 @@ async function main() {
 
   const atgGameMenuReply = await send("ATG", "user-smoke");
   const firstAtgGame = atgGameMenuReply.messages[0]?.contents?.contents?.[0];
-  if (firstAtgGame?.hero?.action?.text !== "戰神賽特1") {
-    throw new Error("ATG electronic menu must begin with Seth 1");
+  const secondAtgGame = atgGameMenuReply.messages[0]?.contents?.contents?.[1];
+  if (firstAtgGame?.hero?.action || firstAtgGame?.body?.action) {
+    throw new Error("Disabled Seth 1 card must not be clickable");
+  }
+  if (secondAtgGame?.hero?.action?.text !== "戰神賽特2") {
+    throw new Error("ATG electronic menu must keep Seth 2 available");
   }
   values = atgGameMenuReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "戰神賽特1", "ATG combined game menu");
+  assertIncludes(values, "暫未開放", "ATG disabled game status");
   if (values.some((value) => String(value).includes("ATG賽馬"))) {
     throw new Error("ATG horse must only appear inside the lottery menu");
   }

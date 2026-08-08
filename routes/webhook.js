@@ -18,7 +18,14 @@ const { clearUser, updateSession } = require("../utils/sessionStore");
 const HOME_COMMANDS = new Set(["黑域AI", "首頁", "開始", "menu", "選單", "主選單"]);
 const CANCEL_COMMANDS = new Set(["取消", "退出", "返回首頁"]);
 const VIP_COMMANDS = new Set(["VIP", "vip", "VIP中心", "VIP查詢", "我的VIP", "會員", "查VIP", "會員中心", "綁定", "綁定3A"]);
-const ADMIN_COMMANDS = new Set(["管理指令", "管理員指令", "待審核", "會員列表"]);
+const ADMIN_COMMANDS = new Set([
+  "管理指令",
+  "管理員指令",
+  "待審核",
+  "會員列表",
+  "全部開放權限",
+  "恢復原權限",
+]);
 const OFFICIAL_WEBSITE_COMMANDS = new Set(["官網", "黑域官網", "🌐 黑域官網"]);
 const CONTACT_COMMANDS = new Set(["管理員", "客服", "聯繫管理員", "📞 聯繫管理員"]);
 const WELCOME_PREVIEW_COMMANDS = new Set(["歡迎訊息", "測試歡迎訊息"]);
@@ -120,10 +127,10 @@ async function ensureVipOrReply(event, moduleName) {
     return false;
   }
 
-  if (access.user?.account3A || access.isAdmin) {
+  if (access.user?.account3A || access.isAdmin || access.globalAccess) {
     await vip.logAiUsage({
       lineUserId: event.source.userId || "",
-      threeAAccount: access.user?.account3A || "管理員",
+      threeAAccount: access.user?.account3A || (access.isAdmin ? "管理員" : "全線臨時開放"),
       module: moduleName,
     });
   }

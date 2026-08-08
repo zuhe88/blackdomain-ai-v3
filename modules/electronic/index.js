@@ -46,6 +46,21 @@ const GAME_CONFIG = {
   虎小妹: { name: "虎小妹", min: 1, max: 3000, pad: 4 },
   赤三國: { name: "赤三國", min: 1, max: 200, pad: 3 },
 };
+const ENABLED_GAMES = new Set(["戰神賽特2"]);
+
+function isElectronicGameEnabled(gameName) {
+  if (ENABLED_GAMES.has(String(gameName || ""))) return true;
+  return process.env.NODE_ENV === "test"
+    && process.env.ELECTRONIC_TEST_ENABLE_LEGACY_GAMES === "true";
+}
+
+function unavailableGameFlex(gameName) {
+  return electronicPromptFlex(`${gameName} 暫未開放`, [
+    "此遊戲目前暫停提供 AI 功能",
+    "目前僅開放戰神賽特2",
+    "請返回電子首頁選擇戰神賽特2",
+  ]);
+}
 
 const MAIN_COMMANDS = new Set(["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
 const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
@@ -862,6 +877,11 @@ async function notifyAdminRefreshComplete(refresh) {
 async function selectGame(event, gameName) {
   const userId = event.source.userId;
   if (!GAME_CONFIG[gameName]) return reply(event.replyToken, electronicPromptFlex("遊戲不存在", ["請重新選擇電子AI遊戲。"]));
+  if (!isElectronicGameEnabled(gameName)) {
+    cancelPendingRecommendation(userId);
+    resetElectronicSession(userId);
+    return reply(event.replyToken, unavailableGameFlex(gameName));
+  }
   cancelPendingRecommendation(userId);
   setGameSession(userId, gameName);
   const electronicGameMenu = require("../../ui/flex/electronicGameMenu");
@@ -874,6 +894,10 @@ async function showGameMenu(event) {
   const userId = event.source.userId;
   const session = getUserSession(userId);
   if (!session.gameName) return showElectronicMain(event);
+  if (!isElectronicGameEnabled(session.gameName)) {
+    resetElectronicSession(userId);
+    return reply(event.replyToken, unavailableGameFlex(session.gameName));
+  }
   session.mode = "menu";
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
@@ -904,6 +928,10 @@ async function performRecommendRoom(event) {
   const userId = event.source.userId;
   const session = getUserSession(userId);
   if (!session.gameName) return showElectronicMain(event);
+  if (!isElectronicGameEnabled(session.gameName)) {
+    resetElectronicSession(userId);
+    return deliverRecommendation(event, unavailableGameFlex(session.gameName));
+  }
   session.mode = "recommend";
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
@@ -1057,6 +1085,7 @@ async function recommendRoom(event) {
 }
 
 async function handleElectronicDataReady(gameName) {
+  if (!isElectronicGameEnabled(gameName)) return 0;
   if (!hasRecommendableRoomData(gameName)) {
     refreshPendingRecommendationProbes(gameName);
     return 0;
@@ -1080,6 +1109,7 @@ async function handleElectronicDataReady(gameName) {
 }
 
 async function handleElectronicSpin(payload = {}) {
+  if (!isElectronicGameEnabled(payload.gameName)) return false;
   const featureTrigger = String(payload.featureTrigger || "");
   const featureAction = String(payload.action || "");
   const isConfirmedFeature = featureTrigger === "purchased"
