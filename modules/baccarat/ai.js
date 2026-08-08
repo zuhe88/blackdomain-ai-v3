@@ -109,6 +109,12 @@ function getTianmenFundingIssue(session) {
   return null;
 }
 
+function hasMinimumBetCapacity(session) {
+  if (session.mode === "自由配注") return true;
+  const limit = session.mode === "天門" ? getHeavenLimit(session) : getLimit(session);
+  return limit >= MIN_BET_UNIT;
+}
+
 function getBaseBet(session) {
   const capital = getBankroll(session);
   const limit = getLimit(session);
@@ -375,6 +381,14 @@ function nextAnalysis(session, opened) {
     prediction = OBSERVE;
     bet = 0;
     analysis = { ...analysis, prediction, ...fundingIssue };
+  } else if (!hasMinimumBetCapacity(session)) {
+    prediction = OBSERVE;
+    bet = 0;
+    analysis = {
+      ...analysis,
+      prediction,
+      reasonCode: "INSUFFICIENT_BET_LIMIT",
+    };
   } else if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
     prediction = OBSERVE;
     bet = 0;
@@ -399,6 +413,14 @@ function firstAnalysis(session) {
     prediction = OBSERVE;
     bet = 0;
     analysis = { ...analysis, prediction, ...fundingIssue };
+  } else if (!hasMinimumBetCapacity(session)) {
+    prediction = OBSERVE;
+    bet = 0;
+    analysis = {
+      ...analysis,
+      prediction,
+      reasonCode: "INSUFFICIENT_BET_LIMIT",
+    };
   } else if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
     prediction = OBSERVE;
     bet = 0;

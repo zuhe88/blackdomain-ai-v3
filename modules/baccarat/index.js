@@ -45,6 +45,11 @@ const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
 const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
+const TERMINAL_FUNDING_REASON_CODES = new Set([
+  "INSUFFICIENT_TIANMEN_BANKROLL",
+  "INSUFFICIENT_TIANMEN_MAX_BET",
+  "INSUFFICIENT_BET_LIMIT",
+]);
 
 function roomsForPlatform(platform) {
   const configured = platform === "DG" ? DG_ROOMS : MT_ROOMS;
@@ -350,6 +355,38 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
   return true;
 }
 
+function hasTerminalFundingIssue(analysis) {
+  return TERMINAL_FUNDING_REASON_CODES.has(
+    String(analysis?.session?.lastPredictionMeta?.reasonCode || ""),
+  );
+}
+
+function fundingStopFlex(analysis) {
+  const session = analysis.session;
+  const bankroll = Number(session.bankroll || 0).toLocaleString("en-US");
+  return baccaratPromptFlex({
+    title: "資金條件不足，已停止分析",
+    lines: [
+      getReason(session),
+      `目前本金：${bankroll}`,
+      "本房自動分析已結束，不會繼續回傳觀望。",
+      "請重新選擇百家樂並設定足夠本金與單注上限。",
+    ],
+    quickReply: restartQuickReply(),
+  });
+}
+
+async function deliverLiveDecision(originalSession, analysis, event, notice = null) {
+  if (!hasTerminalFundingIssue(analysis)) {
+    return deliverLiveAnalysis(originalSession, analysis, event, notice);
+  }
+  if (!isSameActiveSession(originalSession)) return false;
+  await pushStrict(originalSession.userId, fundingStopFlex(analysis));
+  if (!isSameActiveSession(originalSession)) return false;
+  await resetStoredSession(originalSession.userId);
+  return true;
+}
+
 async function settleLiveResult(platform, event, targetIdentity = null) {
   const targets = listActiveSessions().filter((session) => (
     (
@@ -372,12 +409,12 @@ async function settleLiveResult(platform, event, targetIdentity = null) {
     if (candidate.waitingForFreshData) {
       candidate.waitingForFreshData = false;
       const analysis = firstAnalysis(hydrateFromLiveEvent(candidate, event));
-      return deliverLiveAnalysis(session, analysis, event);
+      return deliverLiveDecision(session, analysis, event);
     }
     if (!isExpectedNextEvent(session, event)) {
       const reconciliation = reconcileReplacement(candidate, event);
       const analysis = firstAnalysis(hydrateFromLiveEvent(candidate, event));
-      return deliverLiveAnalysis(
+      return deliverLiveDecision(
         session,
         analysis,
         event,
@@ -394,7 +431,7 @@ async function settleLiveResult(platform, event, targetIdentity = null) {
     const analysis = nextAnalysis(candidate, event.result);
     appendPredictionAudit(analysis.session, event, issued, stateBefore);
     bindLiveCursor(analysis.session, event);
-    return deliverLiveAnalysis(session, analysis, event);
+    return deliverLiveDecision(session, analysis, event);
   }));
   deliveries
     .filter((delivery) => delivery.status === "rejected")
@@ -696,6 +733,10 @@ async function handleBaccaratMessage(event) {
       }));
     }
     const result = nextAnalysis(session, value);
+    if (hasTerminalFundingIssue(result)) {
+      await resetBaccaratSession(userId);
+      return reply(token, fundingStopFlex(result));
+    }
     updateAfterRound(userId, result.session);
     if (result.session.bankroll <= 0 && result.session.mode !== "自由配注") {
       await resetBaccaratSession(userId);

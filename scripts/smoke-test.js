@@ -2956,6 +2956,69 @@ async function main() {
     throw new Error("Baccarat correction must reconcile the original audit and verdict");
   }
 
+  const fundingStopUser = "funding-stop-user";
+  const fundingStopRoad = ["莊", "閒"];
+  dgSource.ingestMessage({
+    cmd: 1002,
+    table: [{
+      tableId: 303,
+      tableName: "RB03",
+      shoeId: 3030,
+      roads: dgRoad(fundingStopRoad),
+    }],
+  });
+  const fundingStopTable = dgSource.getTableByRoom("RB03");
+  const fundingStopCursor = fundingStopTable.history.at(-1);
+  setBaccaratSession(fundingStopUser, {
+    platform: "DG",
+    room: "RB03",
+    mode: "AI配注",
+    capital: 1000,
+    startBankroll: 1000,
+    bankroll: 65,
+    maxBet: 1000,
+    step: "playing",
+    history: [...fundingStopRoad],
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    lastPrediction: "莊",
+    lastBet: 0,
+    lastPredictionMeta: { modelVersion: "baccarat-recent-road-v4" },
+    lastLiveEventKey: fundingStopCursor.eventKey,
+    lastLiveGameNo: fundingStopCursor.gameNo,
+    lastLiveShoeKey: fundingStopCursor.shoeKey,
+    lastLiveRoundIndex: fundingStopCursor.roundIndex,
+  });
+  const pushesBeforeFundingStop = captured.pushes.length;
+  fundingStopRoad.push("和");
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 303,
+    shoeId: 3030,
+    list: dgRoad(fundingStopRoad),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeFundingStop + 1) {
+    throw new Error("Baccarat insufficient bankroll must push one automatic stop notice");
+  }
+  const fundingStopTexts = captured.pushes.at(-1).messages
+    .flatMap((message) => collectText(message));
+  assertIncludes(fundingStopTexts, "資金條件不足，已停止分析", "Baccarat funding stop title");
+  assertIncludes(fundingStopTexts, "不會繼續回傳觀望", "Baccarat funding stop explanation");
+  if (hasActiveBaccaratSession(fundingStopUser)) {
+    throw new Error("Baccarat insufficient bankroll must remove the active room session");
+  }
+  fundingStopRoad.push("莊");
+  dgSource.ingestMessage({
+    cmd: 1004,
+    tableId: 303,
+    shoeId: 3030,
+    list: dgRoad(fundingStopRoad),
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeFundingStop + 1) {
+    throw new Error("A stopped baccarat room must not keep pushing observe results");
+  }
+
   const repeatedCorrectionUser = "bound-user";
   const repeatedRoad = ["莊", "莊", "莊"];
   dgSource.ingestMessage({
