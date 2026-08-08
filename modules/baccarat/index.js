@@ -59,6 +59,39 @@ function roomStatsFor(session) {
   return source.getRoomStats(session.room);
 }
 
+function mtDataIsFresh(session) {
+  return session.platform !== "MT" || mtSource.isRoomFresh(session.room);
+}
+
+function mtSyncPrompt(session) {
+  return baccaratPromptFlex({
+    title: "MT 即時資料同步中",
+    lines: [
+      `${session.room} 目前尚未收到新的即時桌況`,
+      "系統不會使用上一局或逾時資料產生推薦",
+      "收到新資料後才會自動回傳本房分析",
+    ],
+    quickReply: restartQuickReply(),
+  });
+}
+
+function waitForFreshMtData(userId, session) {
+  const waiting = {
+    ...session,
+    history: [],
+    lastPrediction: null,
+    lastBet: 0,
+    lastPredictionMeta: null,
+    lastLiveEventKey: null,
+    lastLiveGameNo: null,
+    lastLiveShoeKey: null,
+    lastLiveRoundIndex: null,
+    waitingForFreshData: true,
+  };
+  updateAfterRound(userId, waiting);
+  return waiting;
+}
+
 function liveResultOptions() {
   return {
     autoResult: true,
@@ -319,12 +352,17 @@ async function settleLiveResult(platform, event, targetIdentity = null) {
     session.platform === platform
     && session.room === event.room
     && session.step === "playing"
-    && session.lastPrediction
+    && (session.lastPrediction || session.waitingForFreshData)
     && (!event.eventKey || session.lastLiveEventKey !== event.eventKey)
   ));
 
   const deliveries = await Promise.allSettled(targets.map(async (session) => {
     const candidate = cloneSession(session);
+    if (candidate.waitingForFreshData) {
+      candidate.waitingForFreshData = false;
+      const analysis = firstAnalysis(hydrateFromLiveEvent(candidate, event));
+      return deliverLiveAnalysis(session, analysis, event);
+    }
     if (!isExpectedNextEvent(session, event)) {
       const reconciliation = reconcileReplacement(candidate, event);
       const analysis = firstAnalysis(hydrateFromLiveEvent(candidate, event));
@@ -360,7 +398,7 @@ function queueLiveResult(platform, event) {
     session.platform === platform
     && session.room === event.room
     && session.step === "playing"
-    && session.lastPrediction
+    && (session.lastPrediction || session.waitingForFreshData)
     && (!event.eventKey || session.lastLiveEventKey !== event.eventKey)
   ));
   const queuedDeliveries = targets.map((target) => {
@@ -574,7 +612,12 @@ async function handleBaccaratMessage(event) {
       }
     }
     const updated = setMaxBet(userId, maxBet);
+    if (!mtDataIsFresh(updated)) {
+      const waiting = waitForFreshMtData(userId, updated);
+      return reply(token, mtSyncPrompt(waiting));
+    }
     const first = firstAnalysis(hydrateLiveHistory(updated));
+    first.session.waitingForFreshData = false;
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
       session: first.session,
@@ -598,7 +641,12 @@ async function handleBaccaratMessage(event) {
     if (updated.mode !== "自由配注") {
       return reply(token, capitalPrompt(updated.mode));
     }
+    if (!mtDataIsFresh(updated)) {
+      const waiting = waitForFreshMtData(userId, updated);
+      return reply(token, mtSyncPrompt(waiting));
+    }
     const first = firstAnalysis(hydrateLiveHistory(updated));
+    first.session.waitingForFreshData = false;
     updateAfterRound(userId, first.session);
     return reply(token, baccaratAnalysisFlex({
       session: first.session,

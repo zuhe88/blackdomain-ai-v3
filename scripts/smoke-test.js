@@ -991,6 +991,12 @@ async function main() {
     throw new Error("MT baccarat bead plate must normalize player, banker, and tie");
   }
   if (
+    !mtSource.isTimestampFresh(mtTable.updatedAt, Date.now(), 15_000)
+    || mtSource.isTimestampFresh(mtTable.updatedAt, Date.now() + 16_000, 15_000)
+  ) {
+    throw new Error("MT freshness guard must reject expired table snapshots");
+  }
+  if (
     !mtFirstRoundEvent
     || mtFirstRoundEvent.result !== "和"
     || mtFirstRoundEvent.isContinuous !== false
@@ -1825,8 +1831,13 @@ async function main() {
 
   const homeReply = await send("首頁", "user-smoke");
   values = homeReply.messages.flatMap((message) => collectText(message));
-  assertIncludes(values, "彩票AI", "Main menu lottery entry");
-  assertIncludes(values, "ATG賽馬、MB彈珠與今彩539", "Main menu lottery description");
+  assertIncludes(values, "彩票 AI", "Main menu lottery entry");
+  assertIncludes(values, "MB彈珠・今彩539", "Main menu lottery description");
+  assertIncludes(values, "系統在線", "Main menu compact status");
+  assertIncludes(values, "分析服務", "Main menu service grid");
+  if (values.some((value) => String(value).includes("AI分析摘要"))) {
+    throw new Error("Main menu must not repeat the old analysis summary panel");
+  }
 
   values = await sendAndTexts("VIP", "user-smoke");
   assertIncludes(values, "VIP狀態", "VIP center");
@@ -2510,6 +2521,7 @@ async function main() {
     throw new Error("MB six-number recommendation must render all six chips for all three ranks");
   }
 
+  mtSource.resetForTest();
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("DG", "user-smoke");
   assertIncludes(values, "RB01", "Baccarat rooms");
@@ -2893,7 +2905,7 @@ async function main() {
     deliveredIndex < 0
     || cancelledIndex <= deliveredIndex
     || captured.pushes.length !== pushesBeforeCancellationBarrier + 1
-    || !cancellationReplyTexts.some((value) => String(value).includes("彩票AI"))
+    || !cancellationReplyTexts.some((value) => String(value).includes("彩票 AI"))
     || hasActiveBaccaratSession(repeatedCorrectionUser)
   ) {
     throw new Error(`Baccarat cancellation barrier has incorrect ordering: ${cancellationGate.events.join(" -> ")}`);
@@ -2930,7 +2942,7 @@ async function main() {
   values = await sendAndTexts("重新開始", "user-smoke");
   assertIncludes(values, "DG 房號選擇", "Baccarat restart returns to current platform rooms");
   values = await sendAndTexts("返回首頁", "user-smoke");
-  assertIncludes(values, "彩票AI", "Baccarat home returns to the main menu");
+  assertIncludes(values, "彩票 AI", "Baccarat home returns to the main menu");
   if (hasActiveBaccaratSession("user-smoke")) {
     throw new Error("Baccarat home must end the active Baccarat session");
   }
@@ -2942,7 +2954,31 @@ async function main() {
   assertIncludes(values, "請選擇分析模式", "MT baccarat mode flow");
   assertIncludes(values, "自由配注", "MT baccarat mode flow");
   values = await sendAndTexts("自由配注", "user-smoke");
-  assertIncludes(values, "自動結算", "MT baccarat automatic settlement");
+  assertIncludes(values, "MT 即時資料同步中", "MT stale-data recommendation guard");
+  assertIncludes(values, "不會使用上一局或逾時資料產生推薦", "MT stale-data warning");
+  if (values.includes("AI分析結果")) {
+    throw new Error("MT must not recommend from an unavailable or stale snapshot");
+  }
+  const pushesBeforeMtRecovery = captured.pushes.length;
+  mtSource.ingestTables([{
+    table_id: 1,
+    table_name: "百家樂 1",
+    table_type: "BAC",
+    shoe: 89,
+    trend: {
+      bead_plate2: "02",
+      total_round_banker: 1,
+      total_round_player: 0,
+      total_round_tie: 0,
+    },
+  }]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeMtRecovery + 1) {
+    throw new Error("MT must automatically resume only after a fresh table event arrives");
+  }
+  const mtRecoveryTexts = captured.pushes[captured.pushes.length - 1].messages
+    .flatMap((message) => collectText(message));
+  assertIncludes(mtRecoveryTexts, "自動結算", "MT fresh-data automatic recovery");
   const pushesBeforeMtResult = captured.pushes.length;
   mtSource.ingestTables([{
     table_id: 1,

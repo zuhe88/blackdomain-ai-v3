@@ -5,6 +5,21 @@ const tables = new Map();
 const events = new EventEmitter();
 events.setMaxListeners(50);
 let updatedAt = null;
+const DEFAULT_FRESHNESS_MS = 15 * 1000;
+
+function freshnessMs() {
+  const configured = Number(process.env.MT_DATA_FRESHNESS_MS);
+  return Number.isFinite(configured) && configured >= 1000
+    ? configured
+    : DEFAULT_FRESHNESS_MS;
+}
+
+function isTimestampFresh(value, now = Date.now(), maxAgeMs = freshnessMs()) {
+  const timestamp = Date.parse(value || "");
+  return Number.isFinite(timestamp)
+    && now - timestamp >= 0
+    && now - timestamp <= maxAgeMs;
+}
 
 function roomFromName(value) {
   const normalized = String(value || "").toUpperCase().replace(/\s+/g, "");
@@ -614,6 +629,16 @@ function getTableByRoom(room) {
   } : null;
 }
 
+function isRoomFresh(room, now = Date.now(), maxAgeMs = freshnessMs()) {
+  const table = getTableByRoom(room);
+  return Boolean(
+    table
+    && table.history.length
+    && isTimestampFresh(updatedAt, now, maxAgeMs)
+    && isTimestampFresh(table.updatedAt, now, maxAgeMs)
+  );
+}
+
 function getRoomStats(room) {
   const table = getTableByRoom(room);
   const fallback = { banker: 0, player: 0, tie: 0, total: 0 };
@@ -672,6 +697,8 @@ module.exports = {
   getTableByRoom,
   ingestMessage,
   ingestTables,
+  isRoomFresh,
+  isTimestampFresh,
   normalizeHistory,
   onResult,
   resetForTest,
