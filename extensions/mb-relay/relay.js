@@ -4,6 +4,15 @@
   const STORAGE_KEY = "blackdomainMbRelayKey";
   let relayKey = "";
   let keyPromise;
+  let lastGameDataAt = 0;
+
+  function sendHeartbeat() {
+    chrome.runtime.sendMessage({
+      type: "BLACKDOMAIN_RELAY_HEARTBEAT",
+      kind: "mb",
+      dataAt: lastGameDataAt,
+    }).catch(() => {});
+  }
 
   async function ensureRelayKey() {
     if (relayKey) return relayKey;
@@ -55,13 +64,25 @@
   window.addEventListener("BLACKDOMAIN_MB_RELAY", (event) => {
     const body = event.detail;
     if (!body || !["roadmap", "socket"].includes(body.type)) return;
+    if (body.type === "socket") lastGameDataAt = Date.now();
     send(body);
+  });
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "BLACKDOMAIN_RELAY_PING" || message.kind !== "mb") return false;
+    window.dispatchEvent(new CustomEvent("BLACKDOMAIN_MB_RELAY_READY"));
+    sendHeartbeat();
+    sendResponse({ ok: true, dataAt: lastGameDataAt });
+    return false;
   });
 
   setTimeout(async () => {
     await ensureRelayKey();
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_MB_RELAY_READY"));
   }, 1000);
+
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 30000);
 
   console.info("[BLACKDOMAIN MB] 3A relay extension active");
 }());

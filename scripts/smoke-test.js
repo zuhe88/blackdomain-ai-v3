@@ -264,6 +264,7 @@ const {
   analyzePrediction: analyzeBaccarat,
   calculateBet: calculateBaccaratBet,
   firstAnalysis: firstBaccaratAnalysis,
+  getTianmenRequirements,
   nextAnalysis: nextBaccaratAnalysis,
   predict: predictBaccarat,
 } = require("../modules/baccarat/ai");
@@ -576,6 +577,68 @@ async function main() {
     || insufficientBetAnalysis.analysis.reasonCode !== "INSUFFICIENT_BET_LIMIT"
   ) {
     throw new Error("Baccarat analysis must observe when no safe wager fits the configured limits");
+  }
+  const minimumTianmen = getTianmenRequirements(5700);
+  const belowMinimumTianmen = getTianmenRequirements(5699);
+  if (
+    !minimumTianmen.sufficientBankroll
+    || minimumTianmen.baseBet !== 100
+    || minimumTianmen.requiredMaxBet !== 3100
+    || belowMinimumTianmen.sufficientBankroll
+  ) {
+    throw new Error("Tianmen must clearly require enough capital for all five 1-3-7-15-31 stages");
+  }
+  if (
+    calculateBaccaratBet({
+      mode: "天門",
+      bankroll: 5600,
+      capital: 5700,
+      startBankroll: 5700,
+      maxBet: 3100,
+      tianmenLevel: 2,
+    }, "莊") !== 300
+    || calculateBaccaratBet({
+      mode: "天門",
+      bankroll: 3100,
+      capital: 5700,
+      startBankroll: 5700,
+      maxBet: 3100,
+      tianmenLevel: 5,
+    }, "閒") !== 3100
+  ) {
+    throw new Error("Tianmen stages must keep the base wager derived from the starting bankroll");
+  }
+  const underfundedTianmen = firstBaccaratAnalysis({
+    mode: "天門",
+    history: Array(12).fill("莊"),
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    bankroll: 5000,
+    capital: 5000,
+    maxBet: 5000,
+    startBankroll: 5000,
+    tianmenLevel: 1,
+    lastPrediction: null,
+    lastBet: 0,
+  });
+  const cappedTianmen = firstBaccaratAnalysis({
+    mode: "天門",
+    history: Array(12).fill("莊"),
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    bankroll: 5700,
+    capital: 5700,
+    maxBet: 1000,
+    startBankroll: 5700,
+    tianmenLevel: 1,
+    lastPrediction: null,
+    lastBet: 0,
+  });
+  if (
+    underfundedTianmen.prediction !== "觀望"
+    || underfundedTianmen.analysis.reasonCode !== "INSUFFICIENT_TIANMEN_BANKROLL"
+    || cappedTianmen.prediction !== "觀望"
+    || cappedTianmen.analysis.reasonCode !== "INSUFFICIENT_TIANMEN_MAX_BET"
+  ) {
+    throw new Error("Tianmen must report insufficient funding instead of silently observing");
   }
   let firstRoundEvent = null;
   const stopFirstRoundListener = dgSource.onResult((result) => {
@@ -1330,8 +1393,31 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.2.10") {
-    throw new Error("Electronic relay extension version must be 1.2.10");
+  if (electronicRelayManifest.version !== "1.3.0") {
+    throw new Error("Electronic relay extension version must be 1.3.0");
+  }
+  if (!electronicRelayManifest.permissions.includes("alarms")) {
+    throw new Error("Relay extension must enable the independent background watchdog alarm");
+  }
+  for (const requiredHost of ["https://mbracing.cc/*", "https://play.godeebxp.com/*"]) {
+    if (!electronicRelayManifest.host_permissions.includes(requiredHost)) {
+      throw new Error(`Relay watchdog is missing host access: ${requiredHost}`);
+    }
+  }
+  const relayBackgroundSource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "background.js"),
+    "utf8",
+  );
+  for (const expected of [
+    "BLACKDOMAIN_RELAY_HEARTBEAT",
+    "BLACKDOMAIN_RELAY_PING",
+    "chrome.alarms.onAlarm",
+    "chrome.tabs.reload",
+    "GAME_DATA_TIMEOUT_MS",
+  ]) {
+    if (!relayBackgroundSource.includes(expected)) {
+      throw new Error(`Relay background watchdog is missing: ${expected}`);
+    }
   }
   const atgBridgeSource = fs.readFileSync(
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
@@ -1594,6 +1680,22 @@ async function main() {
   );
   if (!electronicRelaySource.includes("setInterval(syncWatchRooms, 2000)")) {
     throw new Error("Electronic relay watch sync must use the reduced two-second interval");
+  }
+  if (
+    !electronicRelaySource.includes("BLACKDOMAIN_RELAY_HEARTBEAT")
+    || !electronicRelaySource.includes("BLACKDOMAIN_RELAY_PING")
+  ) {
+    throw new Error("Electronic relay must answer independent background health checks");
+  }
+  const mbExtensionRelaySource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "relay.js"),
+    "utf8",
+  );
+  if (
+    !mbExtensionRelaySource.includes("BLACKDOMAIN_RELAY_HEARTBEAT")
+    || !mbExtensionRelaySource.includes("BLACKDOMAIN_RELAY_PING")
+  ) {
+    throw new Error("MB relay must answer independent background health checks");
   }
   if (!captured.routes.post.some((route) => route.route === "/api/mb/ingest")) {
     throw new Error("MB ingest route is not registered");

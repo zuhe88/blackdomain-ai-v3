@@ -37,6 +37,8 @@ const {
   nextAnalysis,
   getReason,
   applyResult,
+  getTianmenRequirements,
+  MIN_TIANMEN_BANKROLL,
 } = require("./ai");
 const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
 const dgSource = require("./dgSource");
@@ -426,10 +428,17 @@ mtSource.onResult((event) => {
   });
 });
 
-function capitalPrompt() {
+function capitalPrompt(mode = "") {
+  const tianmenLines = mode === "天門"
+    ? [`天門五關最低本金：${MIN_TIANMEN_BANKROLL.toLocaleString("en-US")}`, "本金不足時不會開始推薦，請重新設定足夠本金。"]
+    : [];
   return baccaratPromptFlex({
     title: "請輸入本金",
-    lines: ["本金只能輸入整數，不可為 0、負數、小數或文字。", "範例：1000、3000"],
+    lines: [
+      ...tianmenLines,
+      "本金只能輸入整數，不可為 0、負數、小數或文字。",
+      mode === "天門" ? "範例：5700、10000" : "範例：1000、3000",
+    ],
   });
 }
 
@@ -522,6 +531,17 @@ async function handleBaccaratMessage(event) {
         lines: ["請輸入正整數本金。", "範例：1000、3000"],
       }));
     }
+    if (session.mode === "天門" && capital < MIN_TIANMEN_BANKROLL) {
+      const shortage = MIN_TIANMEN_BANKROLL - capital;
+      return reply(token, baccaratPromptFlex({
+        title: "天門本金不足",
+        lines: [
+          `天門五關最低本金：${MIN_TIANMEN_BANKROLL.toLocaleString("en-US")}`,
+          `目前本金：${capital.toLocaleString("en-US")}，尚差 ${shortage.toLocaleString("en-US")}`,
+          "本金不足時不會產生推薦，請重新輸入本金。",
+        ],
+      }));
+    }
     setCapital(userId, capital);
     return reply(token, maxBetPrompt(capital));
   }
@@ -539,6 +559,19 @@ async function handleBaccaratMessage(event) {
         title: "單注上限不正確",
         lines: ["單注上限不可超過本金，且必須大於 0。"],
       }));
+    }
+    if (session.mode === "天門") {
+      const requirements = getTianmenRequirements(session.capital);
+      if (maxBet < requirements.requiredMaxBet) {
+        return reply(token, baccaratPromptFlex({
+          title: "天門單注上限不足",
+          lines: [
+            `依目前本金，單注上限至少需為 ${requirements.requiredMaxBet.toLocaleString("en-US")}`,
+            `目前設定：${maxBet.toLocaleString("en-US")}`,
+            "此門檻用於完整執行天門五關，請重新輸入單注上限。",
+          ],
+        }));
+      }
     }
     const updated = setMaxBet(userId, maxBet);
     const first = firstAnalysis(hydrateLiveHistory(updated));
@@ -563,7 +596,7 @@ async function handleBaccaratMessage(event) {
     }
     const updated = setMode(userId, value);
     if (updated.mode !== "自由配注") {
-      return reply(token, capitalPrompt());
+      return reply(token, capitalPrompt(updated.mode));
     }
     const first = firstAnalysis(hydrateLiveHistory(updated));
     updateAfterRound(userId, first.session);

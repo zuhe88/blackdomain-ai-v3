@@ -5,6 +5,15 @@
   let relayKey = "";
   let lastRefreshId = "";
   let watchSyncInFlight = false;
+  let lastGameDataAt = 0;
+
+  function sendHeartbeat() {
+    chrome.runtime.sendMessage({
+      type: "BLACKDOMAIN_RELAY_HEARTBEAT",
+      kind: "electronic",
+      dataAt: lastGameDataAt,
+    }).catch(() => {});
+  }
 
   async function getRelayKey() {
     if (relayKey) return relayKey;
@@ -46,7 +55,16 @@
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_RELAY", (event) => {
     const body = event.detail;
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
+    lastGameDataAt = Date.now();
     send(body);
+  });
+
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type !== "BLACKDOMAIN_RELAY_PING" || message.kind !== "electronic") return false;
+    syncWatchRooms();
+    sendHeartbeat();
+    sendResponse({ ok: true, dataAt: lastGameDataAt });
+    return false;
   });
 
   async function syncWatchRooms() {
@@ -80,6 +98,8 @@
 
   syncWatchRooms();
   setInterval(syncWatchRooms, 2000);
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 30000);
 
   chrome.storage.local.set({ blackdomainElectronicContentLoadedAt: Date.now() });
 

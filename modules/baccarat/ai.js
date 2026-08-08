@@ -5,6 +5,10 @@ const PREDICTION_WINDOW = 8;
 const MIN_SETTLED_ROUNDS = 2;
 const MIN_ALTERNATION_RUN = 3;
 const MIN_WEIGHTED_MARGIN_RATIO = 0.18;
+const TIANMEN_MULTIPLIERS = [1, 3, 7, 15, 31];
+const MIN_BET_UNIT = 100;
+const TIANMEN_TOTAL_MULTIPLIER = TIANMEN_MULTIPLIERS.reduce((sum, value) => sum + value, 0);
+const MIN_TIANMEN_BANKROLL = TIANMEN_TOTAL_MULTIPLIER * MIN_BET_UNIT;
 
 function roundBet(amount) {
   const numeric = Number(amount);
@@ -80,6 +84,31 @@ function getHeavenLimit(session) {
   return Math.max(0, Math.min(maxBet, bankroll));
 }
 
+function getTianmenRequirements(capital) {
+  const bankroll = Math.max(0, Number(capital) || 0);
+  const baseBet = roundBet(bankroll / TIANMEN_TOTAL_MULTIPLIER);
+  return {
+    minBankroll: MIN_TIANMEN_BANKROLL,
+    baseBet,
+    requiredMaxBet: baseBet > 0 ? baseBet * TIANMEN_MULTIPLIERS.at(-1) : 0,
+    sufficientBankroll: bankroll >= MIN_TIANMEN_BANKROLL && baseBet >= MIN_BET_UNIT,
+  };
+}
+
+function getTianmenFundingIssue(session) {
+  if (session.mode !== "天門") return null;
+  const startingCapital = Number(session.startBankroll ?? session.capital ?? getBankroll(session)) || 0;
+  const requirements = getTianmenRequirements(startingCapital);
+  if (!requirements.sufficientBankroll) {
+    return { reasonCode: "INSUFFICIENT_TIANMEN_BANKROLL", ...requirements, startingCapital };
+  }
+  const maxBet = getConfiguredMaxBet(session, startingCapital);
+  if (maxBet < requirements.requiredMaxBet) {
+    return { reasonCode: "INSUFFICIENT_TIANMEN_MAX_BET", ...requirements, startingCapital, maxBet };
+  }
+  return null;
+}
+
 function getBaseBet(session) {
   const capital = getBankroll(session);
   const limit = getLimit(session);
@@ -96,12 +125,14 @@ function getBaseBet(session) {
 
 function getHeavenBet(session) {
   const capital = getBankroll(session);
-  const levelMultipliers = [1, 3, 7, 15, 31];
+  const startingCapital = Number(session.startBankroll ?? session.capital ?? capital) || 0;
   const level = Math.max(1, Math.min(5, Number(session.tianmenLevel || 1)));
-  const totalMultiplier = levelMultipliers.reduce((sum, value) => sum + value, 0);
-  const base = roundBet(capital / totalMultiplier);
+  // Tianmen is one fixed five-stage 1-3-7-15-31 sequence. Recalculating the
+  // base from the remaining bankroll after a loss made the second stage zero
+  // at the minimum valid bankroll (5,700 -> 5,600), causing endless observes.
+  const base = roundBet(startingCapital / TIANMEN_TOTAL_MULTIPLIER);
   const limit = getHeavenLimit(session);
-  const bet = clampBet(base * levelMultipliers[level - 1], limit);
+  const bet = clampBet(base * TIANMEN_MULTIPLIERS[level - 1], limit);
 
   session.lastBetMeta = {
     baseBet: clampBet(base, limit),
@@ -339,7 +370,12 @@ function nextAnalysis(session, opened) {
   let analysis = analyzePrediction(session.history);
   let prediction = analysis.prediction;
   let bet = calculateBet(session, prediction);
-  if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
+  const fundingIssue = getTianmenFundingIssue(session);
+  if (fundingIssue) {
+    prediction = OBSERVE;
+    bet = 0;
+    analysis = { ...analysis, prediction, ...fundingIssue };
+  } else if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
     prediction = OBSERVE;
     bet = 0;
     analysis = {
@@ -358,7 +394,12 @@ function firstAnalysis(session) {
   let analysis = analyzePrediction(session.history);
   let prediction = analysis.prediction;
   let bet = calculateBet(session, prediction);
-  if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
+  const fundingIssue = getTianmenFundingIssue(session);
+  if (fundingIssue) {
+    prediction = OBSERVE;
+    bet = 0;
+    analysis = { ...analysis, prediction, ...fundingIssue };
+  } else if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
     prediction = OBSERVE;
     bet = 0;
     analysis = {
@@ -374,6 +415,15 @@ function firstAnalysis(session) {
 }
 
 function getReason(session) {
+  if (session.lastPredictionMeta?.reasonCode === "INSUFFICIENT_TIANMEN_BANKROLL") {
+    const minimum = Number(session.lastPredictionMeta.minBankroll || MIN_TIANMEN_BANKROLL).toLocaleString("en-US");
+    const current = Number(session.lastPredictionMeta.startingCapital || 0).toLocaleString("en-US");
+    return `天門五關最低本金為 ${minimum}，目前本金 ${current} 不足，請重新設定本金後再開始。`;
+  }
+  if (session.lastPredictionMeta?.reasonCode === "INSUFFICIENT_TIANMEN_MAX_BET") {
+    const minimum = Number(session.lastPredictionMeta.requiredMaxBet || 0).toLocaleString("en-US");
+    return `依目前本金，天門五關的單注上限至少需為 ${minimum}，請重新設定後再開始。`;
+  }
   if (session.lastPredictionMeta?.reasonCode === "INSUFFICIENT_BET_LIMIT") {
     return "本金或單注上限低於最低下注單位，本局不下注。";
   }
@@ -408,4 +458,6 @@ module.exports = {
   analyzePrediction,
   predict,
   applyResult,
+  getTianmenRequirements,
+  MIN_TIANMEN_BANKROLL,
 };
