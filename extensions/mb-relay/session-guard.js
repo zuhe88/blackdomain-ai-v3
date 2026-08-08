@@ -17,6 +17,7 @@
     } catch {
       return false;
     }
+    if (document.querySelector('input[type="password"]')) return true;
     const text = String(document.body?.innerText || "").replace(/\s+/g, " ");
     return /(?:請重新登入|重新登入|登入已逾時|連線逾時|session\s*(?:expired|timeout))/i.test(text);
   }
