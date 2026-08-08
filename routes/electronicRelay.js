@@ -47,7 +47,11 @@ function registerElectronicRelayRoutes(app) {
         ? electronicSource.ingestUpdates(body)
       : body.type === "detail"
         ? electronicSource.ingestDetail(body)
-        : body.type === "spin" && electronicSource.ingestSpin(body);
+        : body.type === "spin"
+          ? electronicSource.ingestSpin(body)
+          : body.type === "session"
+            && body.state === "expired"
+            && electronicSource.invalidateSession();
     if (!accepted) return res.status(400).json({ ok: false, error: "Invalid electronic payload." });
     if (body.type === "tables" && accepted.scanCompleted === true) {
       const completedRefresh = electronicSource.markRefreshGameComplete(body.gameName, body.refreshId);

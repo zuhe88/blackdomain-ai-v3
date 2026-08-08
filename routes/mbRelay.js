@@ -262,7 +262,11 @@ function registerMbRelayRoutes(app) {
     const body = req.body || {};
     const accepted = body.type === "roadmap"
       ? mbSource.ingestRoadmap(body)
-      : body.type === "socket" && mbSource.ingestSocketEvent(body);
+      : body.type === "socket"
+        ? mbSource.ingestSocketEvent(body)
+        : body.type === "session"
+          && body.state === "expired"
+          && mbSource.invalidateSession();
     if (!accepted) return res.status(400).json({ ok: false, error: "Invalid MB payload." });
     return res.status(202).json({ ok: true });
   });

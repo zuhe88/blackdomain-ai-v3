@@ -1402,6 +1402,31 @@ async function main() {
   if (staleMbAnalysis.available || staleMbAnalysis.rows.length) {
     throw new Error("MB stale live data must never expose old recommendations");
   }
+  if (!mbSource.invalidateSession()) {
+    throw new Error("MB session expiry must be accepted");
+  }
+  const expiredMbTrack = mbSource.getSnapshot().tracks
+    .find((track) => track.gameName === "PK-MBRACE-1");
+  if (
+    expiredMbTrack?.state !== "SessionExpired"
+    || expiredMbTrack.updatedAt !== null
+    || buildMbAnalysis(expiredMbTrack, 5).available
+  ) {
+    throw new Error("MB session expiry must immediately block cached recommendations");
+  }
+  if (!mbSource.ingestSocketEvent({
+    event: "RESULT_PUBLIC",
+    data: {
+      dcs_id: 368,
+      game_name: "PK-MBRACE-1",
+      draw_num: "202607240003",
+      result: [4, 10, 3, 2, 7, 6, 9, 1, 8, 5],
+      result_display: { sum: "14", over_under: "OVER", odd_even: "EVEN" },
+      result_time: 1784893282,
+    },
+  })) {
+    throw new Error("MB relay must recover after fresh data resumes");
+  }
 
   mbSource.ingestSocketEvent({
     event: "OPEN",
@@ -1507,8 +1532,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.1") {
-    throw new Error("Electronic relay extension version must be 1.3.1");
+  if (electronicRelayManifest.version !== "1.3.2") {
+    throw new Error("Electronic relay extension version must be 1.3.2");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1923,6 +1948,26 @@ async function main() {
   ) {
     throw new Error("Electronic room refresh completion is incorrect");
   }
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特2",
+    scanId: "session-expiry-scan",
+    page: 1,
+    totalPages: 1,
+    scanComplete: true,
+    tables: [{ roomId: "seth-session-room", number: 777, status: "Empty" }],
+  });
+  if (!electronicSource.hasFreshData("戰神賽特2")) {
+    throw new Error("Electronic session expiry test requires fresh data first");
+  }
+  electronicSource.invalidateSession();
+  if (
+    electronicSource.hasFreshData("戰神賽特2")
+    || electronicSource.hasReadyData("戰神賽特2")
+  ) {
+    throw new Error("3A session expiry must immediately block electronic recommendations");
+  }
+  electronicSource.resetForTest();
 
   const homeReply = await send("首頁", "user-smoke");
   values = homeReply.messages.flatMap((message) => collectText(message));

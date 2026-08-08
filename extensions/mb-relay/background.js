@@ -11,10 +11,78 @@ const RELOAD_COOLDOWN_MS = 5 * 60 * 1000;
 const TOKEN_RECOVERY_DELAY_MS = 90 * 1000;
 const TOKEN_RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
 const TOKEN_ERROR_RECOVERY_COOLDOWN_MS = 30 * 1000;
+const SESSION_NOTICE_COOLDOWN_MS = 60 * 1000;
 const RELAY_TABS = [
   { kind: "mb", url: "https://mbracing.cc/*" },
   { kind: "electronic", url: "https://play.godeebxp.com/egames/*" },
 ];
+let lastExpiredSessionNoticeAt = 0;
+
+async function invalidateRelaySession(reason = "3a-session-expired") {
+  const now = Date.now();
+  await chrome.storage.local.set({ blackdomain3aSessionExpired: true });
+  if (now - lastExpiredSessionNoticeAt < SESSION_NOTICE_COOLDOWN_MS) return true;
+  lastExpiredSessionNoticeAt = now;
+  const saved = await chrome.storage.local.get([
+    "blackdomainMbRelayKey",
+    "blackdomainElectronicRelayKey",
+  ]);
+  const mbKey = String(saved.blackdomainMbRelayKey || "").trim();
+  const electronicKey = String(saved.blackdomainElectronicRelayKey || mbKey).trim();
+  const body = JSON.stringify({
+    type: "session",
+    state: "expired",
+    reason,
+    observedAt: new Date(now).toISOString(),
+  });
+  const requests = [];
+  if (mbKey) requests.push(fetch(ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-mb-relay-key": mbKey },
+    body,
+  }));
+  if (electronicKey) requests.push(fetch(ELECTRONIC_ENDPOINT, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-electronic-relay-key": electronicKey },
+    body,
+  }));
+  const responses = await Promise.allSettled(requests);
+  return responses.length > 0 && responses.every((result) => (
+    result.status === "fulfilled" && result.value.ok
+  ));
+}
+
+async function restoreRelayGamesAfterLogin() {
+  const saved = await chrome.storage.local.get("blackdomain3aSessionExpired");
+  if (!saved.blackdomain3aSessionExpired) return true;
+  await chrome.storage.local.set({ blackdomain3aSessionExpired: false });
+  const [mbTabs, electronicTabs] = await Promise.all([
+    chrome.tabs.query({ url: "https://mbracing.cc/*" }).catch(() => []),
+    chrome.tabs.query({ url: "https://play.godeebxp.com/egames/*" }).catch(() => []),
+  ]);
+  await Promise.all(mbTabs.map((tab) => (
+    Number.isInteger(tab.id) ? chrome.tabs.reload(tab.id).catch(() => {}) : null
+  )));
+  await Promise.all(electronicTabs.map(async (tab) => {
+    if (!Number.isInteger(tab.id)) return;
+    const now = Date.now();
+    if (isAtgLobby(tab.url)) {
+      try {
+        const lobby = new URL(tab.url);
+        lobby.searchParams.set("blackdomain_reopen", "seth2");
+        lobby.searchParams.set("blackdomain_recovered_at", String(now));
+        await chrome.tabs.update(tab.id, { url: lobby.href });
+      } catch {
+        // The watchdog will retry an unavailable lobby tab.
+      }
+      return;
+    }
+    const key = healthKey(tab.id);
+    const health = (await chrome.storage.local.get(key))[key] || {};
+    await recoverAtgToken(tab, health, key, now);
+  }));
+  return true;
+}
 
 function healthKey(tabId) {
   return `blackdomainRelayHealth:${tabId}`;
@@ -167,6 +235,22 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 installRelayWatchdog();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "BLACKDOMAIN_3A_SESSION_STATE") {
+    if (message.state === "active") {
+      restoreRelayGamesAfterLogin()
+        .then((ok) => sendResponse({ ok }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    }
+    if (message.state !== "expired") {
+      sendResponse({ ok: false });
+      return false;
+    }
+    invalidateRelaySession(message.reason)
+      .then((ok) => sendResponse({ ok }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
   if (message?.type === "BLACKDOMAIN_ATG_SESSION_STALE") {
     const tab = sender.tab;
     const key = healthKey(tab?.id);

@@ -415,6 +415,23 @@ function setMinimumReadyTablesForTest(gameName, minimum) {
   return true;
 }
 
+function invalidateSession() {
+  detailWaiters.forEach((waiters) => waiters.forEach((waiter) => {
+    clearTimeout(waiter.timer);
+    waiter.resolve(null);
+  }));
+  detailWaiters.clear();
+  games.forEach((state) => {
+    state.updatedAt = null;
+    state.fullScanAt = null;
+    state.pendingScan = null;
+    state.tables.forEach((table) => {
+      table.detailUpdatedAt = null;
+    });
+  });
+  return true;
+}
+
 function resetForTest() {
   detailWaiters.forEach((waiters) => waiters.forEach((waiter) => {
     clearTimeout(waiter.timer);
@@ -453,6 +470,7 @@ module.exports = {
   requestFullRefresh,
   getRefreshRequest,
   markRefreshGameComplete,
+  invalidateSession,
   setMinimumReadyTablesForTest,
   normalizeTable,
   resetForTest,

@@ -127,6 +127,15 @@ function ingestRoadmap(payload = {}) {
   return accepted > 0;
 }
 
+function invalidateSession() {
+  states.forEach((state) => {
+    state.state = "SessionExpired";
+    state.updatedAt = null;
+    state.liveUpdatedAt = null;
+  });
+  return true;
+}
+
 function ingestSocketEvent(payload = {}) {
   const event = String(payload.event || "");
   const data = payload.data || {};
@@ -198,6 +207,7 @@ module.exports = {
   getSnapshot,
   ingestRoadmap,
   ingestSocketEvent,
+  invalidateSession,
   isFullResult,
   normalizeRoadmapRecord,
   resetForTest,

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BLACKDOMAIN 3A Game Relay",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "Synchronizes approved 3A game data with BLACKDOMAIN AI.",
   "permissions": [
     "storage",
@@ -9,6 +9,8 @@
   ],
   "host_permissions": [
     "https://blackdomain-ai-v3-production.up.railway.app/*",
+    "https://*.3a1788.bet/*",
+    "https://*.3a178.club/*",
     "https://mbracing.cc/*",
     "https://play.godeebxp.com/*"
   ],
@@ -16,6 +18,16 @@
     "service_worker": "background.js"
   },
   "content_scripts": [
+    {
+      "matches": [
+        "https://*.3a1788.bet/*",
+        "https://*.3a178.club/*"
+      ],
+      "js": [
+        "session-guard.js"
+      ],
+      "run_at": "document_start"
+    },
     {
       "matches": [
         "https://mbracing.cc/*"
@@ -31,6 +43,7 @@
         "https://mbracing.cc/*"
       ],
       "js": [
+        "session-guard.js",
         "relay.js"
       ],
       "run_at": "document_start"
