@@ -47,7 +47,17 @@ const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
 
 function roomsForPlatform(platform) {
-  return platform === "DG" ? DG_ROOMS : MT_ROOMS;
+  const configured = platform === "DG" ? DG_ROOMS : MT_ROOMS;
+  const source = platform === "DG" ? dgSource : mtSource;
+  const observed = new Set(source.getSnapshot().tables.map((table) => table.room));
+  if (!observed.size) return configured;
+  return configured.filter((room) => observed.has(room) && source.isRoomFresh(room));
+}
+
+function roomIsObservedWhenSourceOnline(platform, room) {
+  const source = platform === "DG" ? dgSource : mtSource;
+  const observed = new Set(source.getSnapshot().tables.map((table) => table.room));
+  return !observed.size || observed.has(room);
 }
 
 function roomPrompt(platform) {
@@ -59,13 +69,14 @@ function roomStatsFor(session) {
   return source.getRoomStats(session.room);
 }
 
-function mtDataIsFresh(session) {
-  return session.platform !== "MT" || mtSource.isRoomFresh(session.room);
+function liveDataIsFresh(session) {
+  const source = session.platform === "DG" ? dgSource : mtSource;
+  return source.isRoomFresh(session.room);
 }
 
-function mtSyncPrompt(session) {
+function liveSyncPrompt(session) {
   return baccaratPromptFlex({
-    title: "MT 即時資料同步中",
+    title: `${session.platform} 即時資料同步中`,
     lines: [
       `${session.room} 目前尚未收到新的即時桌況`,
       "系統不會使用上一局或逾時資料產生推薦",
@@ -75,7 +86,7 @@ function mtSyncPrompt(session) {
   });
 }
 
-function waitForFreshMtData(userId, session) {
+function waitForFreshLiveData(userId, session) {
   const waiting = {
     ...session,
     history: [],
@@ -557,6 +568,17 @@ async function handleBaccaratMessage(event) {
         lines: ["房號格式不正確，請選擇下方按鈕或輸入正確房號。"],
       }));
     }
+    if (!roomIsObservedWhenSourceOnline(session.platform, room)) {
+      return reply(token, baccaratPromptFlex({
+        title: "此房目前沒有即時資料",
+        lines: [
+          `${session.platform} ${room} 目前未出現在即時桌況中`,
+          "系統不會讓您進入無資料房間或使用舊資料推薦",
+          "請返回房號並選擇目前可用房間",
+        ],
+        quickReply: restartQuickReply(),
+      }));
+    }
     const updated = setRoom(userId, room);
     return reply(token, modePrompt(updated));
   }
@@ -612,9 +634,9 @@ async function handleBaccaratMessage(event) {
       }
     }
     const updated = setMaxBet(userId, maxBet);
-    if (!mtDataIsFresh(updated)) {
-      const waiting = waitForFreshMtData(userId, updated);
-      return reply(token, mtSyncPrompt(waiting));
+    if (!liveDataIsFresh(updated)) {
+      const waiting = waitForFreshLiveData(userId, updated);
+      return reply(token, liveSyncPrompt(waiting));
     }
     const first = firstAnalysis(hydrateLiveHistory(updated));
     first.session.waitingForFreshData = false;
@@ -641,9 +663,9 @@ async function handleBaccaratMessage(event) {
     if (updated.mode !== "自由配注") {
       return reply(token, capitalPrompt(updated.mode));
     }
-    if (!mtDataIsFresh(updated)) {
-      const waiting = waitForFreshMtData(userId, updated);
-      return reply(token, mtSyncPrompt(waiting));
+    if (!liveDataIsFresh(updated)) {
+      const waiting = waitForFreshLiveData(userId, updated);
+      return reply(token, liveSyncPrompt(waiting));
     }
     const first = firstAnalysis(hydrateLiveHistory(updated));
     first.session.waitingForFreshData = false;

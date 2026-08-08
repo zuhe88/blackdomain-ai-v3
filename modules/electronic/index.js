@@ -1,7 +1,6 @@
 const crypto = require("crypto");
 const {
   reply,
-  push,
   pushStrict,
   quickReply,
 } = require("../../services/line");
@@ -24,14 +23,20 @@ const recommendationProbes = new Map();
 const liveWatches = new Map();
 const stoppedWatchKeys = new Map();
 const notifiedSpins = new Set();
+const notifyingSpins = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 const RECOMMEND_LEASE_MS = 2 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
+const PENDING_KEY_PREFIX = "electronic_pending:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 20000);
 const PENDING_RECOMMEND_RETRY_MS = 5000;
+const PENDING_RECOMMEND_TIMEOUT_MS = Math.max(
+  5000,
+  Number(process.env.ELECTRONIC_PENDING_TIMEOUT_MS) || 90 * 1000,
+);
 const FIRST_SCAN_ESTIMATE = "正在掃描房間中並計算 RTP";
-const RTP_WAIT_ESTIMATE = "通常約 15～45 秒；資料較慢時會持續自動掃描";
+const RTP_WAIT_ESTIMATE = "通常約 15～45 秒，最長等待 90 秒";
 const RECOMMEND_PROBE_BATCH_SIZE = 12;
 const BACKGROUND_PROBE_OWNER = "seth2-background-pool";
 const BACKGROUND_PROBE_ROTATE_MS = 45 * 1000;
@@ -90,13 +95,25 @@ function isCancelRecommendationCommand(value) {
   return CANCEL_RECOMMEND_COMMANDS.has(String(value || "").trim());
 }
 
-function cancelPendingRecommendation(userId) {
+function removePendingPersistence(userId) {
+  if (!supabase || !userId) return;
+  supabase
+    .from("lottery_settings")
+    .delete()
+    .eq("key", `${PENDING_KEY_PREFIX}${userId}`)
+    .then(({ error }) => {
+      if (error) console.error("[Electronic] Pending recommendation removal failed:", error.message);
+    });
+}
+
+function cancelPendingRecommendation(userId, { removePersistent = true } = {}) {
   const pending = pendingRecommendations.get(userId);
   if (!pending) return false;
   clearTimeout(pending.timer);
   clearInterval(pending.retryTimer);
   pendingRecommendations.delete(userId);
   clearRecommendationProbes(userId);
+  if (removePersistent) removePendingPersistence(userId);
   return true;
 }
 
@@ -205,15 +222,46 @@ function recommendationWaitingFlex(title, gameName, message, eta) {
   });
 }
 
-function queuePendingRecommendation(userId, gameName) {
-  cancelPendingRecommendation(userId);
+function recommendationTimeoutFlex(gameName) {
+  return electronicPromptFlex("本次推薦已停止", [
+    gameName,
+    "90 秒內仍未取得足夠的即時空房與 RTP 資料",
+    "本次不會使用舊資料或無 RTP 房間產生推薦",
+    "資料恢復後可再次按「AI推薦房」",
+  ], electronicModeQuickReply());
+}
+
+function persistPendingRecommendation(pending) {
+  if (!supabase || !pending?.userId) return;
+  supabase
+    .from("lottery_settings")
+    .upsert({
+      key: `${PENDING_KEY_PREFIX}${pending.userId}`,
+      value: {
+        userId: pending.userId,
+        gameName: pending.gameName,
+        requestedAt: pending.requestedAt,
+        deadlineAt: pending.deadlineAt,
+      },
+      updated_at: new Date(pending.requestedAt).toISOString(),
+      updated_by: pending.userId,
+    }, { onConflict: "key" })
+    .then(({ error }) => {
+      if (error) console.error("[Electronic] Pending recommendation persistence failed:", error.message);
+    });
+}
+
+function queuePendingRecommendation(userId, gameName, options = {}) {
+  cancelPendingRecommendation(userId, { removePersistent: false });
   electronicSource.requestFullRefresh();
-  const requestedAt = Date.now();
+  const requestedAt = Number(options.requestedAt) || Date.now();
+  const deadlineAt = Number(options.deadlineAt) || requestedAt + PENDING_RECOMMEND_TIMEOUT_MS;
+  if (deadlineAt <= Date.now()) return null;
   const pending = {
     userId,
     gameName,
     requestedAt,
-    deadlineAt: null,
+    deadlineAt,
     timer: null,
     retryTimer: null,
   };
@@ -230,8 +278,46 @@ function queuePendingRecommendation(userId, gameName) {
     electronicSource.requestFullRefresh();
   }, PENDING_RECOMMEND_RETRY_MS);
   pending.retryTimer.unref?.();
+  pending.timer = setTimeout(async () => {
+    if (pendingRecommendations.get(userId) !== pending) return;
+    try {
+      await pushStrict(userId, recommendationTimeoutFlex(gameName));
+    } catch (error) {
+      console.error("[Electronic] Recommendation timeout notice failed:", error.message);
+    } finally {
+      cancelPendingRecommendation(userId);
+    }
+  }, Math.max(1, deadlineAt - Date.now()));
+  pending.timer.unref?.();
   pendingRecommendations.set(userId, pending);
+  persistPendingRecommendation(pending);
   return pending;
+}
+
+async function hydratePendingRecommendations() {
+  if (!supabase) return 0;
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("value")
+    .like("key", `${PENDING_KEY_PREFIX}%`);
+  if (error) {
+    console.error("[Electronic] Pending recommendation hydration failed:", error.message);
+    return 0;
+  }
+  let restored = 0;
+  for (const row of data || []) {
+    const pending = row?.value;
+    if (!pending?.userId) continue;
+    if (
+      !isElectronicGameEnabled(pending.gameName)
+      || Number(pending.deadlineAt) <= Date.now()
+    ) {
+      removePendingPersistence(pending.userId);
+      continue;
+    }
+    if (queuePendingRecommendation(pending.userId, pending.gameName, pending)) restored += 1;
+  }
+  return restored;
 }
 
 function rememberLiveWatch(watch) {
@@ -599,6 +685,7 @@ function reportedRtp(value, win, bet) {
 }
 
 function scoreSethRoomByRtp(room) {
+  if (!electronicSource.hasFreshRoomDetail(room)) return null;
   const detail = room?.detail;
   if (!detail) return null;
   const todayBet = Number(detail.todayBet ?? detail.hourBet) || 0;
@@ -843,7 +930,7 @@ async function handleAdminRefreshCommand(event) {
 
 async function pushRoomSyncWaiting(userId, gameName) {
   try {
-    await push(userId, recommendationWaitingFlex(
+    await pushStrict(userId, recommendationWaitingFlex(
       "即時房間數據同步中",
       gameName,
       FIRST_SCAN_ESTIMATE,
@@ -860,7 +947,7 @@ async function notifyAdminRefreshComplete(refresh) {
   if (!refresh?.requestedBy) return false;
   const snapshots = electronicSource.getSnapshot();
   try {
-    await push(refresh.requestedBy, electronicPromptFlex("房間數據更新完成", [
+    await pushStrict(refresh.requestedBy, electronicPromptFlex("房間數據更新完成", [
       ...snapshots.map((snapshot) => (
         `${snapshot.gameName}：${snapshot.tables.length} 房／更新 ${formatSnapshotTime(snapshot.fullScanAt || snapshot.updatedAt)}`
       )),
@@ -1128,9 +1215,12 @@ async function handleElectronicSpin(payload = {}) {
   const watchers = await getLiveWatchers(payload.gameName, roomNumber);
   if (!watchers.length) return false;
   const spinKey = `${payload.gameName}:${payload.spinId || roomNumber}`;
-  if (notifiedSpins.has(spinKey)) return false;
-  notifiedSpins.add(spinKey);
-  if (notifiedSpins.size > 500) notifiedSpins.delete(notifiedSpins.values().next().value);
+  const pendingWatchers = watchers.filter((watch) => {
+    const notificationKey = `${spinKey}:${watch.userId}`;
+    return !notifiedSpins.has(notificationKey) && !notifyingSpins.has(notificationKey);
+  });
+  if (!pendingWatchers.length) return false;
+  pendingWatchers.forEach((watch) => notifyingSpins.add(`${spinKey}:${watch.userId}`));
   const message = electronicFeatureResultFlex(
     payload.gameName,
     formatRoom(payload.gameName, roomNumber),
@@ -1138,9 +1228,21 @@ async function handleElectronicSpin(payload = {}) {
     afterRecommendQuickReply(),
   );
   const results = await Promise.allSettled(
-    watchers.map((watch) => require("../../services/line").push(watch.userId, message)),
+    pendingWatchers.map((watch) => pushStrict(watch.userId, message)),
   );
-  return results.some((result) => result.status === "fulfilled");
+  let delivered = false;
+  results.forEach((result, index) => {
+    const notificationKey = `${spinKey}:${pendingWatchers[index].userId}`;
+    notifyingSpins.delete(notificationKey);
+    if (result.status === "fulfilled") {
+      delivered = true;
+      notifiedSpins.add(notificationKey);
+    } else {
+      console.error("[Electronic] Feature notification failed:", result.reason?.message || result.reason);
+    }
+  });
+  while (notifiedSpins.size > 500) notifiedSpins.delete(notifiedSpins.values().next().value);
+  return delivered;
 }
 
 async function changeRecommendRoom(event) {
@@ -1246,6 +1348,7 @@ module.exports = {
   getActiveWatchRooms,
   handleAdminRefreshCommand,
   notifyAdminRefreshComplete,
+  hydratePendingRecommendations,
   ADMIN_REFRESH_COMMANDS,
   isStopWatchCommand,
   isCancelRecommendationCommand,

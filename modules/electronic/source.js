@@ -24,6 +24,14 @@ function normalizeStatus(value) {
   return String(value || "").trim();
 }
 
+function capturedAtIso(value) {
+  let timestamp = Number(value);
+  if (Number.isFinite(timestamp) && timestamp > 0 && timestamp < 1e12) timestamp *= 1000;
+  if (!Number.isFinite(timestamp) || timestamp <= 0) timestamp = Date.now();
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
 function normalizeTable(table = {}) {
   const number = Number(table.number ?? table.tableNumber ?? table.room ?? table.roomNo);
   const roomId = String(table.roomId ?? table.room_id ?? "").trim();
@@ -52,6 +60,9 @@ function normalizeTable(table = {}) {
       dayRtp: normalizeRtp(detail.dayRtp ?? detail.dayRate ?? detail.dayScoreRate ?? detail.rtp ?? detail.scoreRate),
       mgCounts: Array.isArray(detail.mgCounts) ? detail.mgCounts.slice(0, 3).map((v) => Number(v) || 0) : [],
     } : null,
+    detailUpdatedAt: hasDetail
+      ? capturedAtIso(detail.capturedAt ?? table.capturedAt)
+      : null,
   };
 }
 
@@ -95,7 +106,10 @@ function ingestTables(payload = {}) {
         return;
       }
       const existing = state.tables.get(table.roomId);
-      if (!table.detail && existing?.detail) table.detail = existing.detail;
+      if (!table.detail && existing?.detail) {
+        table.detail = existing.detail;
+        table.detailUpdatedAt = existing.detailUpdatedAt || null;
+      }
       next.set(table.roomId, table);
     }
   });
@@ -300,6 +314,16 @@ function hasFreshData(gameName) {
   );
 }
 
+function hasFreshRoomDetail(room, now = Date.now(), maxAgeMs = LIVE_TTL_MS) {
+  const timestamp = Date.parse(room?.detailUpdatedAt || "");
+  return Boolean(
+    room?.detail
+    && Number.isFinite(timestamp)
+    && now - timestamp >= 0
+    && now - timestamp <= maxAgeMs
+  );
+}
+
 function hasReadyData(gameName) {
   const state = games.get(String(gameName || ""));
   if (!state || !hasFreshData(gameName)) return false;
@@ -422,6 +446,7 @@ module.exports = {
   getGame,
   getEmptyRooms,
   hasFreshData,
+  hasFreshRoomDetail,
   hasReadyData,
   getSnapshot,
   waitForRoomDetail,

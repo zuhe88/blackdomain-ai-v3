@@ -7,6 +7,12 @@ async function start() {
   const restored = await hydrateSessions();
   if (restored) console.log(`[Baccarat] Restored ${restored} active session(s).`);
 
+  const { hydratePendingRecommendations } = require("./modules/electronic");
+  const restoredElectronic = await hydratePendingRecommendations();
+  if (restoredElectronic) {
+    console.log(`[Electronic] Restored ${restoredElectronic} pending recommendation(s).`);
+  }
+
   const { app } = require("./app");
   app.listen(PORT, () => {
     console.log(`BLACKDOMAIN AI V3 running on port ${PORT}`);

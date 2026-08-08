@@ -209,8 +209,17 @@ function registerDgRelayRoutes(app) {
   });
 
   app.get("/api/dg/status", (_req, res) => {
+    const snapshot = dgSource.getSnapshot();
     res.json({
-      ...dgSource.getSnapshot(),
+      source: snapshot.source,
+      updatedAt: snapshot.updatedAt,
+      tableCount: snapshot.tables.length,
+      rooms: snapshot.tables.map((table) => ({
+        room: table.room,
+        historyCount: table.historyCount,
+        updatedAt: table.updatedAt,
+        fresh: dgSource.isRoomFresh(table.room),
+      })),
       live: dgLive.getStatus(),
     });
   });

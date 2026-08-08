@@ -269,7 +269,6 @@ function syncTime(value) {
 }
 
 function mbAnalysisFlex(analysis, track) {
-  const stale = analysis.updatedAt && Date.now() - new Date(analysis.updatedAt).getTime() > 180000;
   if (!analysis.available) {
     return bubble({
       altText: `MB彈珠AI ${track.name} 資料不足`,
@@ -279,13 +278,15 @@ function mbAnalysisFlex(analysis, track) {
       footer: "BLACKDOMAIN MB AI",
       contents: [
         infoLine("資料狀態", `${analysis.historyCount}期`),
-        infoLine("最低需求", "至少 20 期完整排名"),
-        note("即時資料仍在同步，本次不使用不完整資料推薦。"),
+        infoLine("最低需求", "至少 20 期且即時資料未逾時"),
+        note(analysis.stale
+          ? "即時資料已中斷，本次不顯示舊推薦；恢復同步後請重新分析。"
+          : "即時資料仍在同步，本次不使用不完整資料推薦。"),
       ],
     });
   }
 
-  const targetPeriod = stale ? "等待重新同步" : (analysis.targetPeriodId || "等待下一期");
+  const targetPeriod = analysis.targetPeriodId || "等待下一期";
   const recommendationTitle = /^\d+$/.test(targetPeriod)
     ? `第 ${targetPeriod} 期 AI推薦`
     : targetPeriod;

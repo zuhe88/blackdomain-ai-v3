@@ -11,6 +11,7 @@ const { registerElectronicRelayRoutes } = require("./routes/electronicRelay");
 const { registerMbRelayRoutes } = require("./routes/mbRelay");
 const { registerDgRelayRoutes } = require("./routes/dgRelay");
 const { registerMtLiveRoutes } = require("./routes/mtLive");
+const { errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
 
@@ -24,6 +25,7 @@ registerElectronicRelayRoutes(app);
 registerMbRelayRoutes(app);
 registerDgRelayRoutes(app);
 registerMtLiveRoutes(app);
+app.use(errorHandler);
 
 module.exports = {
   app,

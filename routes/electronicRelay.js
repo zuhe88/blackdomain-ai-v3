@@ -3,6 +3,10 @@ const express = require("express");
 const electronicSource = require("../modules/electronic/source");
 const electronic = require("../modules/electronic");
 
+function asyncRoute(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
 function secureEqual(left, right) {
   const a = Buffer.from(String(left || ""));
   const b = Buffer.from(String(right || ""));
@@ -10,8 +14,19 @@ function secureEqual(left, right) {
 }
 
 function registerElectronicRelayRoutes(app) {
-  app.get("/api/electronic/status", (_req, res) => res.json({ games: electronicSource.getSnapshot() }));
-  app.get("/api/electronic/watch-rooms", async (req, res) => {
+  app.get("/api/electronic/status", (_req, res) => res.json({
+    games: electronicSource.getSnapshot().map((game) => ({
+      gameName: game.gameName,
+      updatedAt: game.updatedAt,
+      fullScanAt: game.fullScanAt,
+      dataMode: game.dataMode,
+      tableCount: game.tables.length,
+      emptyCount: game.tables.filter((table) => table.status === "Empty" && !table.occupied).length,
+      freshDetailCount: game.tables.filter((table) => electronicSource.hasFreshRoomDetail(table)).length,
+      ready: electronicSource.hasReadyData(game.gameName),
+    })),
+  }));
+  app.get("/api/electronic/watch-rooms", asyncRoute(async (req, res) => {
     const key = String(process.env.ATG_RELAY_KEY || "").trim();
     if (!key) return res.status(503).json({ ok: false, error: "Electronic relay is not configured." });
     if (!secureEqual(key, req.get("x-atg-relay-key") || req.get("x-electronic-relay-key"))) return res.status(401).json({ ok: false, error: "Unauthorized." });
@@ -20,8 +35,8 @@ function registerElectronicRelayRoutes(app) {
       rooms: await electronic.getActiveWatchRooms(),
       refresh: electronicSource.getRefreshRequest(),
     });
-  });
-  app.post("/api/electronic/ingest", express.json({ limit: "250kb" }), async (req, res) => {
+  }));
+  app.post("/api/electronic/ingest", express.json({ limit: "250kb" }), asyncRoute(async (req, res) => {
     const key = String(process.env.ATG_RELAY_KEY || "").trim();
     if (!key) return res.status(503).json({ ok: false, error: "Electronic relay is not configured." });
     if (!secureEqual(key, req.get("x-atg-relay-key") || req.get("x-electronic-relay-key"))) return res.status(401).json({ ok: false, error: "Unauthorized." });
@@ -56,7 +71,7 @@ function registerElectronicRelayRoutes(app) {
       await electronic.handleElectronicSpin(accepted.feature);
     }
     return res.status(202).json({ ok: true });
-  });
+  }));
 }
 
 module.exports = { registerElectronicRelayRoutes };

@@ -1,5 +1,6 @@
 const PICK_COUNTS = [3, 4, 5, 6];
 const RANK_LABELS = ["冠軍", "亞軍", "季軍"];
+const LIVE_TTL_MS = 3 * 60 * 1000;
 
 function normalizeHistory(records = []) {
   const seen = new Set();
@@ -75,8 +76,14 @@ function buildAnalysis(track, pickCount) {
   const count = Number(pickCount);
   if (!PICK_COUNTS.includes(count)) throw new Error("MB pick count must be between 3 and 6.");
   const history = normalizeHistory(track?.history || []);
+  const updatedAt = track?.liveUpdatedAt || track?.updatedAt || null;
+  const updatedTimestamp = Date.parse(updatedAt || "");
+  const stale = !Number.isFinite(updatedTimestamp)
+    || Date.now() - updatedTimestamp < 0
+    || Date.now() - updatedTimestamp > LIVE_TTL_MS;
   const base = {
-    available: history.length >= 20,
+    available: history.length >= 20 && !stale,
+    stale,
     count,
     gameName: track?.gameName || null,
     trackName: track?.name || "MB彈珠",
@@ -84,7 +91,7 @@ function buildAnalysis(track, pickCount) {
     historyCount: history.length,
     targetPeriodId: track?.targetPeriodId || null,
     latestPeriodId: history[0]?.periodId || null,
-    updatedAt: track?.liveUpdatedAt || track?.updatedAt || null,
+    updatedAt,
     recentResults: history.slice(0, 3),
     rows: [],
   };

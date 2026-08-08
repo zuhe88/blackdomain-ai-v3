@@ -80,13 +80,22 @@ function registerWebhookRoutes(app) {
   app.post("/webhook", line.middleware(lineConfig), async (req, res) => {
     res.status(200).end();
     const events = req.body.events || [];
-    for (const event of events) {
-      try {
-        await handleEvent(event);
-      } catch (err) {
-        logError("E008", err);
+    const eventGroups = new Map();
+    events.forEach((event, index) => {
+      const key = event.source?.userId || event.source?.groupId || `event-${index}`;
+      const group = eventGroups.get(key) || [];
+      group.push(event);
+      eventGroups.set(key, group);
+    });
+    await Promise.allSettled([...eventGroups.values()].map(async (group) => {
+      for (const event of group) {
+        try {
+          await handleEvent(event);
+        } catch (err) {
+          logError("E008", err);
+        }
       }
-    }
+    }));
   });
 }
 
@@ -188,7 +197,10 @@ async function handleEvent(event) {
     return replyHome(event);
   }
 
-  if (ATG_MAINTENANCE_COMMANDS.has(text)) {
+  if (
+    ATG_MAINTENANCE_COMMANDS.has(text)
+    || (text !== "ATG" && atg.isAtgCommand(text))
+  ) {
     await clearAllUserSessions(userId);
     return reply(event.replyToken, "ATG賽馬 AI 目前維護中，服務暫停開放，完成後將重新上線。");
   }

@@ -1,4 +1,5 @@
 const { PICK_COUNTS, RANK_LABELS } = require("./constants");
+const LIVE_TTL_MS = 3 * 60 * 1000;
 
 function isPermutation(result) {
   if (!Array.isArray(result) || result.length !== 10) return false;
@@ -94,12 +95,19 @@ function buildAnalysis(records, pickCount, metadata = {}) {
   if (!PICK_COUNTS.includes(count)) throw new Error("ATG pick count must be between 3 and 6.");
 
   const history = normalizeHistory(records);
-  if (history.length < 20) {
+  const source = metadata.source || "unavailable";
+  const timestamp = Date.parse(metadata.updatedAt || "");
+  const stale = !["live", "relay"].includes(source)
+    || !Number.isFinite(timestamp)
+    || Date.now() - timestamp < 0
+    || Date.now() - timestamp > LIVE_TTL_MS;
+  if (history.length < 20 || stale) {
     return {
       available: false,
+      stale,
       count,
       historyCount: history.length,
-      source: metadata.source || "unavailable",
+      source,
       targetPeriodId: metadata.targetPeriodId || null,
       updatedAt: metadata.updatedAt || null,
       rows: [],

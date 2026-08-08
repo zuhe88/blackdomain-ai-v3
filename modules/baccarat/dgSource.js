@@ -7,6 +7,21 @@ const tables = new Map();
 const events = new EventEmitter();
 events.setMaxListeners(50);
 let updatedAt = null;
+const DEFAULT_FRESHNESS_MS = 15 * 1000;
+
+function freshnessMs() {
+  const configured = Number(process.env.DG_DATA_FRESHNESS_MS);
+  return Number.isFinite(configured) && configured >= 1000
+    ? configured
+    : DEFAULT_FRESHNESS_MS;
+}
+
+function isTimestampFresh(value, now = Date.now(), maxAgeMs = freshnessMs()) {
+  const timestamp = Date.parse(value || "");
+  return Number.isFinite(timestamp)
+    && now - timestamp >= 0
+    && now - timestamp <= maxAgeMs;
+}
 
 function roomFromName(value) {
   const match = String(value || "").toUpperCase().match(/\b(RB\d{2}|S\d{2})\b/);
@@ -625,6 +640,16 @@ function getRoomStats(room) {
   return stats;
 }
 
+function isRoomFresh(room, now = Date.now(), maxAgeMs = freshnessMs()) {
+  const table = getTableByRoom(room);
+  return Boolean(
+    table
+    && table.history.length
+    && isTimestampFresh(updatedAt, now, maxAgeMs)
+    && isTimestampFresh(table.updatedAt, now, maxAgeMs)
+  );
+}
+
 function getSnapshot() {
   const items = [...tables.values()]
     .filter((table) => table.room)
@@ -665,6 +690,8 @@ module.exports = {
   getRoomStats,
   getSnapshot,
   getTableByRoom,
+  isRoomFresh,
+  isTimestampFresh,
   ingestFrame,
   ingestMessage,
   normalizeHistory,

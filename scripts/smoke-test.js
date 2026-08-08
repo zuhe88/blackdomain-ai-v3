@@ -18,6 +18,7 @@ const captured = {
   routes: { use: [], get: [], post: [], static: [] },
 };
 const mockBaccaratRows = new Map();
+const mockElectronicRows = new Map();
 const mockSupabaseControl = {
   cancellationAttempts: 0,
   cancellationFailuresRemaining: 0,
@@ -25,6 +26,7 @@ const mockSupabaseControl = {
 let mockGlobalAiAccessRow = null;
 const mockLineControl = {
   pushGate: null,
+  pushFailuresRemaining: 0,
 };
 
 function createDeferred() {
@@ -120,6 +122,10 @@ class MockLineClient {
 
   async replyMessage(replyToken, messages) { captured.replies.push({ replyToken, messages }); }
   async pushMessage(userId, messages) {
+    if (mockLineControl.pushFailuresRemaining > 0) {
+      mockLineControl.pushFailuresRemaining -= 1;
+      throw new Error("mock LINE push failure");
+    }
     const gate = mockLineControl.pushGate;
     if (gate) {
       gate.events.push("push-start");
@@ -154,6 +160,28 @@ function makeSupabaseTable(table) {
     then(resolve) {
       if (table === "lottery_settings") {
         const insertedKey = String(inserted?.key || "");
+        const keyFilter = String(filters.find((item) => item.field === "key")?.value || "");
+        if (updated?.deleted && keyFilter.startsWith("electronic_")) {
+          mockElectronicRows.delete(keyFilter);
+          resolve({ data: [], error: null });
+          return;
+        }
+        if (insertedKey.startsWith("electronic_")) {
+          const row = { ...inserted, id: insertedKey };
+          mockElectronicRows.set(insertedKey, row);
+          resolve({ data: [row], error: null });
+          return;
+        }
+        if (keyFilter.startsWith("electronic_pending:") && keyFilter.endsWith("%")) {
+          const prefix = keyFilter.slice(0, -1);
+          resolve({
+            data: [...mockElectronicRows.entries()]
+              .filter(([key]) => key.startsWith(prefix))
+              .map(([, row]) => row),
+            error: null,
+          });
+          return;
+        }
         if (insertedKey.startsWith("baccarat_session:")) {
           if (inserted?.value?.cancelled) {
             mockSupabaseControl.cancellationAttempts += 1;
@@ -183,6 +211,9 @@ function makeSupabaseTable(table) {
 function rowsForTable(table, filters, inserted, updated) {
   if (table === "lottery_settings") {
     const keyFilter = filters.find((item) => item.field === "key")?.value;
+    if (keyFilter && mockElectronicRows.has(keyFilter)) {
+      return [mockElectronicRows.get(keyFilter)];
+    }
     if (inserted?.key === "global_ai_access_override") {
       mockGlobalAiAccessRow = { ...inserted, id: "global-ai-access" };
       return [mockGlobalAiAccessRow];
@@ -445,6 +476,12 @@ async function main() {
   }
   if (dgTable.history.map((record) => record.result).join("") !== "莊閒和") {
     throw new Error("DG baccarat road results were not normalized correctly");
+  }
+  if (
+    !dgSource.isRoomFresh("RB01", Date.now(), 15_000)
+    || dgSource.isRoomFresh("RB01", Date.now() + 16_000, 15_000)
+  ) {
+    throw new Error("DG freshness guard must reject expired table snapshots");
   }
   const newestFirstRoad = dgSource.normalizeHistory(["#5#0#8", "#1#0#7"], "shoe");
   if (newestFirstRoad.map((record) => record.result).join("") !== "莊閒") {
@@ -1296,6 +1333,13 @@ async function main() {
     throw new Error("MT marker-first updates must wait for the actual road result");
   }
 
+  await send("百家樂", "user-smoke");
+  const mtRoomMenuValues = await sendAndTexts("MT", "user-smoke");
+  if (mtRoomMenuValues.includes("MT16") || mtRoomMenuValues.includes("MT17")) {
+    throw new Error("MT room menu must hide rooms absent from the live source");
+  }
+  await send("首頁", "user-smoke");
+
   mbSource.resetForTest();
   if (!mbSource.ingestRoadmap({
     items: [{
@@ -1350,6 +1394,14 @@ async function main() {
       throw new Error(`MB analysis must return ${count} picks per rank`);
     }
   }
+  const staleMbAnalysis = buildMbAnalysis({
+    ...mbTrack,
+    updatedAt: new Date(Date.now() - 181000).toISOString(),
+    liveUpdatedAt: new Date(Date.now() - 181000).toISOString(),
+  }, 5);
+  if (staleMbAnalysis.available || staleMbAnalysis.rows.length) {
+    throw new Error("MB stale live data must never expose old recommendations");
+  }
 
   mbSource.ingestSocketEvent({
     event: "OPEN",
@@ -1375,8 +1427,9 @@ async function main() {
   }
 
   const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
-    source: "seed",
+    source: "live",
     targetPeriodId: atgSeed.targetPeriodId,
+    updatedAt: new Date().toISOString(),
   });
   if (!atgAnalysis.available || atgAnalysis.rows.length !== 10) throw new Error("ATG analysis must cover all 10 ranks");
   if (atgAnalysis.recentResults.length !== 3) throw new Error("ATG analysis must expose the latest 3 results");
@@ -1388,10 +1441,52 @@ async function main() {
 
   require("../app");
   const root = path.join(__dirname, "..");
+  if (!captured.routes.use.some((entry) => entry.route === require("../middleware/errorHandler").errorHandler)) {
+    throw new Error("Express error middleware must be registered after all routes");
+  }
+  const electronicStatusRoute = captured.routes.get.find((route) => route.route === "/api/electronic/status");
+  let electronicStatusPayload = null;
+  electronicStatusRoute.handler({}, { json(value) { electronicStatusPayload = value; } });
+  if (
+    !electronicStatusPayload?.games?.every((game) => Number.isInteger(game.tableCount))
+    || electronicStatusPayload.games.some((game) => Object.prototype.hasOwnProperty.call(game, "tables"))
+  ) {
+    throw new Error("Public electronic status must expose summaries without raw room financial data");
+  }
+  for (const statusPath of ["/api/dg/status", "/api/mt/status"]) {
+    const statusRoute = captured.routes.get.find((route) => route.route === statusPath);
+    let payload = null;
+    statusRoute.handler({}, { json(value) { payload = value; } });
+    if (!Number.isInteger(payload?.tableCount) || payload.rooms?.some((room) => room.latest || room.gameNo)) {
+      throw new Error(`${statusPath} must expose a compact redacted status`);
+    }
+  }
   const staticPath = captured.routes.static[0];
   if (!staticPath || path.resolve(staticPath) !== path.join(root, "assets", "images")) throw new Error("Static image route points to the wrong directory");
   if (!captured.routes.static.some((staticRoot) => path.resolve(staticRoot) === path.join(root, "public", "brand"))) {
     throw new Error("Brand image route is not registered");
+  }
+  const staleAtgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
+    source: "seed",
+    targetPeriodId: atgSeed.targetPeriodId,
+    updatedAt: atgSeed.updatedAt,
+  });
+  if (staleAtgAnalysis.available || staleAtgAnalysis.rows.length) {
+    throw new Error("ATG seed or stale data must never expose old recommendations");
+  }
+  const timestampedRoom = electronicSource.normalizeTable({
+    roomId: "freshness-room",
+    number: 99,
+    status: "Empty",
+    capturedAt: Date.now(),
+    todayWin: 99,
+    todayBet: 100,
+  });
+  if (
+    !electronicSource.hasFreshRoomDetail(timestampedRoom, Date.now(), 120000)
+    || electronicSource.hasFreshRoomDetail(timestampedRoom, Date.now() + 120001, 120000)
+  ) {
+    throw new Error("Electronic RTP freshness must be enforced per room");
   }
   if (!captured.routes.get.some((route) => route.route === "/mb-relay.user.js")) {
     throw new Error("MB relay userscript route is not registered");
@@ -2037,7 +2132,7 @@ async function main() {
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
   assertIncludes(values, "正在掃描房間中並計算 RTP", "Electronic first-scan estimate");
-  assertIncludes(values, "通常約 15～45 秒；資料較慢時會持續自動掃描｜請勿重複點擊", "Electronic pending duplicate-click warning");
+  assertIncludes(values, "通常約 15～45 秒，最長等待 90 秒｜請勿重複點擊", "Electronic pending duplicate-click warning");
   assertIncludes(values, "取消推薦", "Electronic pending cancel action");
   if (!electronicSource.getRefreshRequest()?.id) {
     throw new Error("Electronic pending recommendation must request a fresh room scan");
@@ -2230,7 +2325,7 @@ async function main() {
     .slice(waitingPushCount)
     .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
   assertIncludes(waitingPushTexts, "即時房間數據同步中", "Electronic recommendation waiting Flex");
-  assertIncludes(waitingPushTexts, "通常約 15～45 秒；資料較慢時會持續自動掃描｜請勿重複點擊", "Electronic recommendation waiting estimate");
+  assertIncludes(waitingPushTexts, "通常約 15～45 秒，最長等待 90 秒｜請勿重複點擊", "Electronic recommendation waiting estimate");
   assertIncludes(waitingPushTexts, "完成後會自動回傳推薦房間", "Electronic recommendation automatic response notice");
   assertIncludes(waitingPushTexts, "取消推薦", "Electronic live-detail cancel action");
   if (values.some((value) => String(value).includes("90.00%"))) {
@@ -2246,6 +2341,28 @@ async function main() {
   });
   if (zeroPayoutNotified || captured.pushes.length !== zeroPayoutPushCount) {
     throw new Error("Electronic feature monitoring must never send a premature zero payout");
+  }
+  const retryableFeaturePushCount = captured.pushes.length;
+  mockLineControl.pushFailuresRemaining = 1;
+  const failedFeatureNotification = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特1",
+    roomNumber: 88,
+    spinId: "retryable-feature",
+    totalWinnings: 500,
+    featureTrigger: "purchased",
+  });
+  if (failedFeatureNotification || captured.pushes.length !== retryableFeaturePushCount) {
+    throw new Error("Electronic failed LINE pushes must not be marked as delivered");
+  }
+  const retriedFeatureNotification = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特1",
+    roomNumber: 88,
+    spinId: "retryable-feature",
+    totalWinnings: 500,
+    featureTrigger: "purchased",
+  });
+  if (!retriedFeatureNotification || captured.pushes.length !== retryableFeaturePushCount + 1) {
+    throw new Error("Electronic feature notifications must remain retryable after a LINE failure");
   }
   values = await sendAndTexts("結束房間監控 戰神賽特1 089", "user-smoke");
   assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
@@ -2317,6 +2434,27 @@ async function main() {
   await homeCancelledRecommendation;
   if (captured.replies.length !== homeCancelReplyCount) {
     throw new Error("Returning home must cancel an in-flight electronic recommendation");
+  }
+  const restoredPendingKey = "electronic_pending:restored-pending-user";
+  mockElectronicRows.set(restoredPendingKey, {
+    id: restoredPendingKey,
+    key: restoredPendingKey,
+    value: {
+      userId: "restored-pending-user",
+      gameName: "戰神賽特2",
+      requestedAt: Date.now(),
+      deadlineAt: Date.now() + 60000,
+    },
+  });
+  const restoredPendingCount = await electronic.hydratePendingRecommendations();
+  if (restoredPendingCount < 1) {
+    throw new Error("Electronic pending recommendations must restore after a restart");
+  }
+  values = await sendAndTexts("取消推薦", "restored-pending-user");
+  assertIncludes(values, "已取消推薦", "Restored electronic recommendation cancellation");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (mockElectronicRows.has(restoredPendingKey)) {
+    throw new Error("Cancelling a restored recommendation must remove persistence");
   }
   electronicSource.resetForTest();
   electronicSource.ingestTables({
@@ -2525,7 +2663,9 @@ async function main() {
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("DG", "user-smoke");
   assertIncludes(values, "RB01", "Baccarat rooms");
-  assertIncludes(values, "S07", "Baccarat rooms");
+  if (values.includes("S07")) {
+    throw new Error("DG room menu must hide stale live rooms");
+  }
   await send("RB01", "user-smoke");
   values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "本房牌路統計", "Baccarat room statistics");
@@ -3016,6 +3156,8 @@ async function main() {
   assertIncludes(values, "目前維護中", "ATG maintenance reply");
   values = await sendAndTexts("ATG賽馬 維護中", "user-smoke");
   assertIncludes(values, "服務暫停開放", "ATG maintenance card action");
+  values = await sendAndTexts("ATG 5碼", "user-smoke");
+  assertIncludes(values, "服務暫停開放", "ATG maintenance direct-command guard");
 
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");
