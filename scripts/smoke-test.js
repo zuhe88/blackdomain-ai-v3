@@ -1654,7 +1654,9 @@ async function main() {
     throw new Error("Electronic relay must start its first empty-room scan after ATG initialization");
   }
   if (
-    !electronicBridgeSource.includes("requestPayload?.action === \"buyFeature\" || activePurchasedFeature")
+    !electronicBridgeSource.includes("requestPayload?.action === \"buyFeature\"")
+    || !electronicBridgeSource.includes("|| activePurchasedFeature")
+    || !electronicBridgeSource.includes("|| activeNaturalFeature")
     || !electronicBridgeSource.includes("isTablePageRequest")
     || !electronicBridgeSource.includes("handleDispatch(TABLE_PAGE_RESPONSE, response)")
     || !electronicBridgeSource.includes("observedPageResponses")
@@ -1824,6 +1826,53 @@ async function main() {
     .find((item) => item?.type === "spin" && item?.spinId === "seth-late-total-456");
   if (lateFeatureTotal?.totalWinnings !== 456) {
     throw new Error("Electronic relay must preserve a positive total arriving after a temporary zero");
+  }
+  atgWindow.dispatch("SlotFrameworkEvent:SPIN_RESPONSE", {
+    engine: {
+      spinId: "seth-natural-root-321",
+      gameState: {
+        action: "startFreeGame",
+        numFreeSpins: 10,
+        totalWinnings: 0,
+      },
+    },
+  });
+  atgWindow.dispatch("SlotFrameworkEvent:SPIN_RESPONSE", {
+    engine: {
+      spinId: "seth-natural-child-1",
+      gameState: {
+        action: "freeSpin",
+        numFreeSpins: 5,
+        totalWinnings: 321,
+      },
+    },
+  });
+  const naturalFeatureEvent = atgRelayEvents.find((item) => (
+    item?.type === "spin" && item?.spinId === "seth-natural-root-321"
+  ));
+  if (
+    naturalFeatureEvent?.totalWinnings !== 321
+    || naturalFeatureEvent?.featureTrigger !== "natural"
+  ) {
+    throw new Error("Natural Seth features must survive changing spin IDs and return the first total");
+  }
+  const naturalFeatureEventCount = atgRelayEvents.filter((item) => (
+    item?.type === "spin" && item?.spinId === "seth-natural-root-321"
+  )).length;
+  atgWindow.dispatch("SlotFrameworkEvent:SPIN_RESPONSE", {
+    engine: {
+      spinId: "seth-natural-child-2",
+      gameState: {
+        action: "freeSpin",
+        numFreeSpins: 0,
+        totalWinnings: 500,
+      },
+    },
+  });
+  if (atgRelayEvents.filter((item) => (
+    item?.type === "spin" && item?.spinId === "seth-natural-root-321"
+  )).length !== naturalFeatureEventCount) {
+    throw new Error("Natural Seth features must only be delivered once");
   }
   const electronicRelaySource = fs.readFileSync(
     path.join(root, "extensions", "mb-relay", "atg-relay.js"),

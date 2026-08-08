@@ -49,6 +49,7 @@
   const emittedFeatureSpins = new Set();
   const observedPageResponses = new WeakSet();
   let activePurchasedFeature = null;
+  let activeNaturalFeature = null;
   const watchedRoomNumbers = new Set();
   let watchedRoomCursor = 0;
   let watchedRoomTimer = null;
@@ -422,19 +423,29 @@
       };
     }
     if (!activePurchasedFeature && states.some(isFeatureState)) {
-      if (emittedFeatureSpins.has(spinId)) return null;
+      if (!activeNaturalFeature) {
+        if (emittedFeatureSpins.has(spinId)) return null;
+        activeNaturalFeature = {
+          spinId,
+          maxWinnings: 0,
+          sawActiveGames: false,
+          notified: false,
+        };
+      }
       naturalFeatureSpins.set(spinId, "natural");
     }
     const isPurchased = Boolean(activePurchasedFeature);
-    if (!isPurchased && !naturalFeatureSpins.has(spinId)) return null;
+    const isNatural = !isPurchased && Boolean(activeNaturalFeature);
+    if (!isPurchased && !isNatural && !naturalFeatureSpins.has(spinId)) return null;
     const state = states.reduce((selected, candidate) => (
       Number(candidate?.currentView) >= Number(selected?.currentView) ? candidate : selected
     ), states[0]);
     const winnings = featureWinnings(payload, engine, states);
     const aggregateWinnings = aggregateFeatureWinnings(payload, engine, states);
-    if (activePurchasedFeature) {
-      activePurchasedFeature.maxWinnings = Math.max(
-        activePurchasedFeature.maxWinnings,
+    const activeFeature = activePurchasedFeature || activeNaturalFeature;
+    if (activeFeature) {
+      activeFeature.maxWinnings = Math.max(
+        activeFeature.maxWinnings,
         winnings,
       );
     }
@@ -445,8 +456,8 @@
     ]).filter((value) => value !== undefined && value !== null);
     const hasRemainingCounter = remainingFields.length > 0;
     const remainingGames = maxNumeric(remainingFields);
-    if (activePurchasedFeature && remainingGames > 0) {
-      activePurchasedFeature.sawActiveGames = true;
+    if (activeFeature && remainingGames > 0) {
+      activeFeature.sawActiveGames = true;
     }
     const currentView = Number(state?.currentView);
     const totalViews = Number(state?.totalViews);
@@ -455,7 +466,7 @@
       && totalViews > 0;
     const viewComplete = hasViewProgress && currentView >= totalViews - 1;
     const counterComplete = Boolean(
-      activePurchasedFeature?.sawActiveGames
+      activeFeature?.sawActiveGames
       && hasRemainingCounter
       && remainingGames <= 0
     );
@@ -463,9 +474,9 @@
       item?.complete === true
       || /complete|finish|collect|settle|end/i.test(String(item?.status || item?.action || ""))
     ));
-    const resolvedWinnings = activePurchasedFeature?.maxWinnings || winnings;
+    const resolvedWinnings = activeFeature?.maxWinnings || winnings;
     const explicitComplete = explicitEndSignal && (
-      resolvedWinnings > 0 || activePurchasedFeature?.sawActiveGames
+      resolvedWinnings > 0 || activeFeature?.sawActiveGames
     );
     const positiveWithoutProgress = trigger !== "buyFeature"
       && !hasRemainingCounter
@@ -476,24 +487,37 @@
       || explicitComplete
       || positiveWithoutProgress;
     const purchasedTotalAvailable = isPurchased && aggregateWinnings > 0;
-    if (isPurchased && activePurchasedFeature.notified) {
+    const naturalTotalAvailable = isNatural && aggregateWinnings > 0;
+    if (activeFeature?.notified) {
       rememberEmittedFeatureSpin(spinId);
-      if (completionReached) activePurchasedFeature = null;
+      if (completionReached) {
+        if (isPurchased) activePurchasedFeature = null;
+        else {
+          activeNaturalFeature = null;
+          naturalFeatureSpins.clear();
+        }
+      }
       return null;
     }
     const shouldEmit = isPurchased
       ? purchasedTotalAvailable
-      : completionReached && resolvedWinnings > 0;
+      : naturalTotalAvailable || (completionReached && resolvedWinnings > 0);
     if (!shouldEmit) {
       if (!isPurchased && completionReached) naturalFeatureSpins.delete(spinId);
       return null;
     }
-    const featureTrigger = isPurchased ? "purchased" : naturalFeatureSpins.get(spinId);
-    const resultSpinId = activePurchasedFeature?.spinId || spinId;
-    const reportedWinnings = isPurchased ? aggregateWinnings : resolvedWinnings;
+    const featureTrigger = isPurchased ? "purchased" : "natural";
+    const resultSpinId = activeFeature?.spinId || spinId;
+    const reportedWinnings = aggregateWinnings > 0 ? aggregateWinnings : resolvedWinnings;
     if (isPurchased) {
       activePurchasedFeature.notified = true;
       if (completionReached) activePurchasedFeature = null;
+    } else if (activeNaturalFeature) {
+      activeNaturalFeature.notified = true;
+      if (completionReached) {
+        activeNaturalFeature = null;
+        naturalFeatureSpins.clear();
+      }
     } else {
       naturalFeatureSpins.delete(spinId);
     }
@@ -672,7 +696,9 @@
     wrappedSender = function blackdomainElectronicSend(request, requestPayload, callback, ...rest) {
       const isTablePageRequest = request === "getSlotTables"
         || requestPayload?.request === "getSlotTables";
-      const shouldObserveSpin = requestPayload?.action === "buyFeature" || activePurchasedFeature;
+      const shouldObserveSpin = requestPayload?.action === "buyFeature"
+        || activePurchasedFeature
+        || activeNaturalFeature;
       if ((!isTablePageRequest && !shouldObserveSpin) || typeof callback !== "function") {
         return senderOriginal.call(this, request, requestPayload, callback, ...rest);
       }
