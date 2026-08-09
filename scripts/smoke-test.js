@@ -2040,6 +2040,22 @@ async function main() {
   assertIncludes(values, "您已有綁定申請待審核", "Pending bind");
   assertIncludes(values, "abc123", "Pending bind");
 
+  values = await sendAndTexts("開通 abc123 15 分鐘", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "15分鐘", "Minute VIP approval duration");
+  assertIncludes(values, "到期時間", "Minute VIP approval expiry");
+  assertIncludes(values, "已開通並通知會員", "Minute VIP approval result");
+  const minuteVipPush = captured.pushes[captured.pushes.length - 1];
+  const minuteVipPushText = minuteVipPush.messages.flatMap((message) => collectText(message));
+  assertIncludes(minuteVipPushText, "+15分鐘", "Minute VIP member notification");
+  assertIncludes(minuteVipPushText, "剩餘時間", "Minute VIP remaining-time display");
+
+  values = await sendAndTexts("開通 abc123 0分鐘", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "開通分鐘必須大於 0", "Minute VIP invalid duration guard");
+
+  values = await sendAndTexts("延長VIP test3a 5分鐘", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "5分鐘", "Minute VIP extension duration");
+  assertIncludes(values, "已延長並通知會員", "Minute VIP extension result");
+
   values = await sendAndTexts("綁定", "new-user");
   assertIncludes(values, "請輸入", "Bind prompt");
   values = await sendAndTexts("new3a", "new-user");

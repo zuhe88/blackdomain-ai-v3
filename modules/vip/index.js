@@ -102,6 +102,33 @@ function daysLeft(value, permanent = false) {
   return String(Math.max(0, Math.ceil(diff / 86400000)));
 }
 
+function remainingTimeText(value, permanent = false) {
+  if (!value) return permanent ? "永久" : "—";
+  const diff = Math.max(0, new Date(value).getTime() - Date.now());
+  if (diff < 86400000) return `${Math.ceil(diff / 60000)}分鐘`;
+  return `${Math.ceil(diff / 86400000)}天`;
+}
+
+function parseVipDuration(value, defaultDays = 30) {
+  const raw = String(value ?? defaultDays).trim().toLowerCase();
+  if (raw === "永久") return { ok: true, permanent: true, amount: 0, unit: "permanent", label: "永久" };
+  const match = raw.match(/^(\d+)(分鐘|分|m|天|日|d)?$/i);
+  if (!match) return { ok: false, error: "時間格式不正確，請輸入例如 30分鐘、7天或永久。" };
+  const amount = Number(match[1]);
+  const suffix = String(match[2] || "天").toLowerCase();
+  const unit = ["分鐘", "分", "m"].includes(suffix) ? "minutes" : "days";
+  if (!Number.isSafeInteger(amount) || amount < 0 || (unit === "minutes" && amount === 0)) {
+    return { ok: false, error: "開通分鐘必須大於 0。" };
+  }
+  return {
+    ok: true,
+    permanent: false,
+    amount,
+    unit,
+    label: `${amount}${unit === "minutes" ? "分鐘" : "天"}`,
+  };
+}
+
 async function pushVipUpdateOrError(user, message) {
   if (!user?.lineUserId) {
     return { ok: false, error: "找不到此會員的 LINE User ID，無法推送通知。" };
@@ -132,18 +159,18 @@ function vipUpdateFlex({ title, status, account3A, daysText, expiresAt, remainTe
     contents: [
       metric("會員狀態", status, "黑域AI會員通知"),
       infoLine("3A帳號", account3A || "未綁定"),
-      infoLine("異動天數", daysText || "—"),
+      infoLine("異動時間", daysText || "—"),
       infoLine("目前到期", expiresAt || "—"),
-      infoLine("剩餘天數", remainText || "—"),
+      infoLine("剩餘時間", remainText || "—"),
       note(noteText || "請輸入「黑域AI」開始使用。"),
       button("開啟黑域AI", "黑域AI"),
     ],
   });
 }
 
-async function notifyVipOpened(user, days, permanent = false) {
-  const numericDays = Number(days);
-  if (!permanent && (!Number.isFinite(numericDays) || numericDays <= 0)) {
+async function notifyVipOpened(user, amount, permanent = false, unit = "days") {
+  const numericAmount = Number(amount);
+  if (!permanent && (!Number.isFinite(numericAmount) || numericAmount <= 0)) {
     return pushVipUpdateOrError(
       user,
       vipUpdateFlex({
@@ -164,9 +191,9 @@ async function notifyVipOpened(user, days, permanent = false) {
       title: "黑域AI會員已更新",
       status: "已開通",
       account3A: user.account3A,
-      daysText: permanent ? "永久" : `+${days}天`,
+      daysText: permanent ? "永久" : `+${amount}${unit === "minutes" ? "分鐘" : "天"}`,
       expiresAt: formatDateTime(user.expiresAt, permanent),
-      remainText: `${daysLeft(user.expiresAt, permanent)}${permanent ? "" : "天"}`,
+      remainText: remainingTimeText(user.expiresAt, permanent),
       noteText: "請輸入「黑域AI」開始使用。",
     })
   );
@@ -379,8 +406,8 @@ function vipCenterFlex(user, isAdmin = false, globalAccessEnabled = false) {
         infoLine("LINE名稱", user?.lineName || "未取得"),
         infoLine("3A帳號", "管理員"),
         infoLine("AI權限", "無限制"),
-        infoLine("到期日期", "永久"),
-        infoLine("剩餘天數", "永久"),
+        infoLine("到期時間", "永久"),
+        infoLine("剩餘時間", "永久"),
         infoLine("最後更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
         button("管理指令", "管理指令"),
       ],
@@ -421,8 +448,8 @@ function vipCenterFlex(user, isAdmin = false, globalAccessEnabled = false) {
       infoLine("LINE名稱", user.lineName || "未取得"),
       infoLine("3A帳號", user.account3A || "未綁定"),
       infoLine("AI權限", permission),
-      infoLine("到期日期", formatDate(user.expiresAt, isPermanentVip)),
-      infoLine("剩餘天數", daysLeft(user.expiresAt, isPermanentVip)),
+      infoLine("到期時間", formatDateTime(user.expiresAt, isPermanentVip)),
+      infoLine("剩餘時間", remainingTimeText(user.expiresAt, isPermanentVip)),
       infoLine("最後更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       button("綁定3A帳號", "綁定"),
       button("聯繫管理員", "聯繫管理員", "secondary"),
@@ -446,9 +473,9 @@ function adminHelpFlex(globalAccessEnabled = false, electronicAllEnabled = areAl
       infoLine("僅開放賽特2", "關閉其他電子遊戲並取消相關等待"),
       infoLine("待審核", "列出所有 pending"),
       infoLine("查會員", "查會員 abc123"),
-      infoLine("開通", "開通 abc123 30 / 開通 abc123 永久"),
+      infoLine("開通", "開通 abc123 30分鐘 / 7天 / 永久"),
       infoLine("取消VIP", "取消VIP abc123"),
-      infoLine("延長VIP", "延長VIP abc123 30"),
+      infoLine("延長VIP", "延長VIP abc123 30分鐘 / 7天"),
       infoLine("扣天數", "扣天數 abc123 10"),
       infoLine("永久VIP", "永久VIP abc123"),
       infoLine("會員列表", "列出所有會員"),
@@ -518,7 +545,8 @@ async function handleAdminCommand(event) {
     ], result.ok));
   }
 
-  const [command, rawAccount3A, value] = text.split(/\s+/).filter(Boolean);
+  const [command, rawAccount3A, ...valueParts] = text.split(/\s+/).filter(Boolean);
+  const value = valueParts.join("");
   const account3A = normalizeAccount3A(rawAccount3A);
   if (command === "待審核") return reply(event.replyToken, adminResultFlex("待審核", memberRows(await listPendingRequests())));
   if (command === "會員列表") return reply(event.replyToken, adminResultFlex("會員列表", memberRows(await listVipUsers())));
@@ -535,27 +563,38 @@ async function handleAdminCommand(event) {
       ["VIP狀態", vipStatusText(user)],
       ["AI權限", hasAiPermission(user) ? "已開通" : "尚未開通"],
       ["到期", formatDate(user.expiresAt, user.vipStatus === STATUS.APPROVED && !user.expiresAt)],
-      ["剩餘天數", daysLeft(user.expiresAt, user.vipStatus === STATUS.APPROVED && !user.expiresAt)],
+      ["剩餘時間", remainingTimeText(user.expiresAt, user.vipStatus === STATUS.APPROVED && !user.expiresAt)],
       ["LINE User ID", user.lineUserId || "未綁定"],
     ]));
   }
 
   if (command === "開通") {
-    const permanent = value === "永久";
-    const days = permanent ? 36500 : parseInt(value ?? "30", 10);
-    if (!permanent && (!Number.isFinite(days) || days < 0)) {
+    const duration = parseVipDuration(value, 30);
+    if (!duration.ok) {
       return reply(event.replyToken, adminResultFlex("開通VIP", [
         ["3A帳號", account3A],
-        ["狀態", "天數格式不正確"],
+        ["狀態", duration.error],
       ], false));
     }
-    const result = await approveVip({ account3A, days, permanent, adminLineUserId: userId });
+    const result = await approveVip({
+      account3A,
+      days: duration.unit === "days" ? duration.amount : undefined,
+      minutes: duration.unit === "minutes" ? duration.amount : undefined,
+      permanent: duration.permanent,
+      adminLineUserId: userId,
+    });
     let notifyResult = { ok: true };
-    if (result.ok) notifyResult = await notifyVipOpened(result.user, days, permanent);
+    if (result.ok) notifyResult = await notifyVipOpened(
+      result.user,
+      duration.amount,
+      duration.permanent,
+      duration.unit,
+    );
     return reply(event.replyToken, adminResultFlex("開通VIP", [
       ["3A帳號", account3A],
-      ["天數", permanent ? "永久" : `${days}天`],
-      ["狀態", result.ok && notifyResult.ok ? (days === 0 && !permanent ? "已審核綁定，AI權限未開通" : "已開通並通知會員") : result.error || notifyResult.error || "失敗"],
+      ["開通時間", duration.label],
+      ["到期時間", result.ok ? formatDateTime(result.user.expiresAt, duration.permanent) : "—"],
+      ["狀態", result.ok && notifyResult.ok ? (duration.amount === 0 && !duration.permanent ? "已審核綁定，AI權限未開通" : "已開通並通知會員") : result.error || notifyResult.error || "失敗"],
     ], result.ok && notifyResult.ok));
   }
 
@@ -570,13 +609,20 @@ async function handleAdminCommand(event) {
   }
 
   if (command === "延長VIP") {
-    const days = parseInt(value || "30", 10);
-    const result = await extendVip(account3A, days, userId);
+    const duration = parseVipDuration(value, 30);
+    if (!duration.ok || duration.permanent || duration.amount <= 0) {
+      return reply(event.replyToken, adminResultFlex("延長VIP", [
+        ["3A帳號", account3A],
+        ["狀態", duration.error || "延長時間必須大於 0；永久權限請使用「永久VIP 帳號」。"],
+      ], false));
+    }
+    const result = await extendVip(account3A, duration.amount, userId, duration.unit);
     let notifyResult = { ok: true };
-    if (result.ok) notifyResult = await notifyVipOpened(result.user, days, false);
+    if (result.ok) notifyResult = await notifyVipOpened(result.user, duration.amount, false, duration.unit);
     return reply(event.replyToken, adminResultFlex("延長VIP", [
       ["3A帳號", account3A],
-      ["增加天數", `${days}天`],
+      ["增加時間", duration.label],
+      ["到期時間", result.ok ? formatDateTime(result.user.expiresAt) : "—"],
       ["狀態", result.ok && notifyResult.ok ? "已延長並通知會員" : result.error || notifyResult.error || "失敗"],
     ], result.ok && notifyResult.ok));
   }
@@ -688,7 +734,7 @@ async function handleVipMessage(event) {
     account3A: isAdmin ? "管理員" : user.account3A || "未綁定",
     aiPermission: isAdmin ? "無限制" : hasAiPermission(user),
     expiresAt: isAdmin ? "永久" : user.expiresAt || null,
-    daysLeft: isAdmin ? "永久" : daysLeft(user.expiresAt),
+    daysLeft: isAdmin ? "永久" : remainingTimeText(user.expiresAt),
     lastUpdated: Date.now(),
   });
 

@@ -264,6 +264,12 @@ function expiresAfterDays(days) {
   return new Date(Date.now() + count * 86400000).toISOString();
 }
 
+function expiresAfterMinutes(minutes) {
+  const count = Number(minutes);
+  if (!Number.isFinite(count) || count <= 0) return null;
+  return new Date(Date.now() + count * 60000).toISOString();
+}
+
 async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPermission, expiresAt, isAdmin = false }) {
   if (!isConnected()) return { ok: false, error: "Supabase尚未連線" };
 
@@ -303,16 +309,22 @@ async function upsertVipUser({ lineUserId, lineName, account3A, vipStatus, aiPer
   return { ok: true, user: normalizeUser(data) };
 }
 
-async function approveVip({ account3A, days, permanent = false, adminLineUserId }) {
+async function approveVip({ account3A, days, minutes, permanent = false, adminLineUserId }) {
   const normalizedAccount = normalizeAccount3A(account3A);
   const request = await findRequestBy3AAccount(normalizedAccount);
   const existingUser = await findVipUserBy3AAccount(normalizedAccount);
   const lineUserId = request?.lineUserId || existingUser.lineUserId;
   const lineName = request?.lineName || existingUser.lineName || "未取得";
   const numericDays = Number(days);
+  const numericMinutes = Number(minutes);
   const hasDays = Number.isFinite(numericDays) && numericDays > 0;
-  const expiresAt = permanent ? null : expiresAfterDays(numericDays);
-  const aiPermission = permanent || hasDays;
+  const hasMinutes = Number.isFinite(numericMinutes) && numericMinutes > 0;
+  const expiresAt = permanent
+    ? null
+    : hasMinutes
+      ? expiresAfterMinutes(numericMinutes)
+      : expiresAfterDays(numericDays);
+  const aiPermission = permanent || hasDays || hasMinutes;
 
   if (!lineUserId) return { ok: false, error: "找不到此會員的 LINE User ID，無法推送通知。" };
 
@@ -348,14 +360,16 @@ async function approveVip({ account3A, days, permanent = false, adminLineUserId 
   return result;
 }
 
-async function extendVip(account3A, days, adminLineUserId) {
+async function extendVip(account3A, amount, adminLineUserId, unit = "days") {
   const normalizedAccount = normalizeAccount3A(account3A);
   const user = await findVipUserBy3AAccount(normalizedAccount);
   if (!user.account3A) return { ok: false, error: "查無3A帳號" };
   const base = user.expiresAt && new Date(user.expiresAt).getTime() > Date.now()
     ? new Date(user.expiresAt).getTime()
     : Date.now();
-  const expiresAt = new Date(base + Math.max(1, Number(days || 30)) * 86400000).toISOString();
+  const numericAmount = Math.max(1, Number(amount || (unit === "minutes" ? 1 : 30)));
+  const durationMs = unit === "minutes" ? numericAmount * 60000 : numericAmount * 86400000;
+  const expiresAt = new Date(base + durationMs).toISOString();
   const result = await upsertVipUser({
     lineUserId: user.lineUserId,
     lineName: user.lineName,
