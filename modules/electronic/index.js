@@ -1049,6 +1049,7 @@ async function performRecommendRoom(event) {
       && !hasRecommendableRoomData(session.gameName)
     ) {
       queuePendingRecommendation(userId, session.gameName);
+      if (event.waitingAlreadySent) return false;
       return deliverRecommendation(event, recommendationWaitingFlex(
         "房間數據整理中",
         session.gameName,
@@ -1172,11 +1173,41 @@ async function recommendRoom(event) {
     if (event.autoPush) return false;
     const currentGame = getUserSession(userId).gameName || "電子AI";
     return reply(event.replyToken, recommendationWaitingFlex(
-      "即時房間數據同步中",
+      "房間數據仍在整理中",
       currentGame,
       FIRST_SCAN_ESTIMATE,
       RTP_WAIT_ESTIMATE,
     ));
+  }
+  const currentGame = getUserSession(userId).gameName;
+  if (!event.autoPush && currentGame === electronicSource.GAME_NAMES[1]) {
+    const request = { id: crypto.randomUUID(), cancelled: false };
+    recommendInFlight.set(userId, request);
+    await reply(event.replyToken, recommendationWaitingFlex(
+      "房間數據整理中",
+      currentGame,
+      FIRST_SCAN_ESTIMATE,
+      RTP_WAIT_ESTIMATE,
+    ));
+    setImmediate(() => {
+      performRecommendRoom({
+        ...event,
+        autoPush: true,
+        waitingAlreadySent: true,
+        recommendationDeadline: Date.now() + PENDING_RECOMMEND_TIMEOUT_MS,
+        recommendationRequest: request,
+      }).catch((error) => {
+        console.error("[Electronic] Background recommendation failed:", error.message);
+        if (!request.cancelled) {
+          pushStrict(userId, recommendationTimeoutFlex(currentGame)).catch((pushError) => {
+            console.error("[Electronic] Background failure notice failed:", pushError.message);
+          });
+        }
+      }).finally(() => {
+        if (recommendInFlight.get(userId) === request) recommendInFlight.delete(userId);
+      });
+    });
+    return true;
   }
   const request = { id: crypto.randomUUID(), cancelled: false };
   recommendInFlight.set(userId, request);

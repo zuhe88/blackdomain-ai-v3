@@ -2248,6 +2248,7 @@ async function main() {
   }
   await send("戰神賽特2", "user-smoke");
   values = await sendAndTexts("AI推薦房", "user-smoke");
+  await new Promise((resolve) => setImmediate(resolve));
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation");
   assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic pending automatic response notice");
   assertIncludes(values, "正在掃描房間中並計算 RTP", "Electronic first-scan estimate");
@@ -2289,6 +2290,7 @@ async function main() {
   assertIncludes(values, "房間數據整理中", "Electronic pending recommendation restart after cancellation");
   values = await sendAndTexts("重新推薦", "user-smoke");
   assertIncludes(values, "房間數據仍在整理中", "Electronic pending duplicate guard");
+  await new Promise((resolve) => setImmediate(resolve));
   if (!electronicSource.ingestTables({
     type: "tables",
     gameName: "戰神賽特2",
@@ -2353,6 +2355,62 @@ async function main() {
   if (automaticRecommendationTexts.some((value) => value === "即時房間數據同步中")) {
     throw new Error("Electronic data-ready flow must not send a second waiting card");
   }
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特2",
+    tables: [{ roomId: "seth-background-8", number: 8, status: "Empty" }],
+  });
+  electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-background-8",
+      number: 8,
+      status: "Empty",
+      todayWin: 97,
+      todayBet: 100,
+      dayWin: 970,
+      dayBet: 1000,
+    },
+  });
+  electronic.setGameSession("user-smoke", "戰神賽特2");
+  setTimeout(() => electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "seth-background-8",
+      number: 8,
+      status: "Empty",
+      todayWin: 194,
+      todayBet: 200,
+      dayWin: 1940,
+      dayBet: 2000,
+    },
+  }), 20);
+  const backgroundDeliveryPushCount = captured.pushes.length;
+  const backgroundDeliveryReply = await send("AI推薦房", "user-smoke");
+  const backgroundDeliveryReplyTexts = backgroundDeliveryReply.messages
+    .flatMap((message) => collectText(message));
+  assertIncludes(
+    backgroundDeliveryReplyTexts,
+    "房間數據整理中",
+    "Seth 2 must immediately acknowledge a recommendation request",
+  );
+  if (backgroundDeliveryReplyTexts.some((value) => String(value).includes("推薦房號"))) {
+    throw new Error("Seth 2 final recommendation must not depend on the original LINE reply token");
+  }
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const backgroundDeliveryPushTexts = captured.pushes
+    .slice(backgroundDeliveryPushCount)
+    .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
+  assertIncludes(
+    backgroundDeliveryPushTexts,
+    "推薦房號",
+    "Seth 2 must deliver the final room through a background LINE push",
+  );
+  assertIncludes(
+    backgroundDeliveryPushTexts,
+    "97.00%",
+    "Seth 2 background delivery must use freshly confirmed RTP",
+  );
   electronicSource.resetForTest();
   await send("戰神賽特1", "user-smoke");
   if (!electronicSource.ingestTables({
