@@ -4,6 +4,11 @@ const { getSession, updateSession } = require("../../utils/sessionStore");
 const { bubble, button, infoLine, metric, note, text } = require("../../ui/flex/premium");
 const { COMMANDS, BIND_COMMANDS, ADMIN_COMMANDS, STATUSES } = require("./constants");
 const { validateAccount3A } = require("./validator");
+const electronic = require("../electronic");
+const {
+  areAllElectronicGamesEnabled,
+  setAllElectronicGamesEnabled,
+} = require("../electronic/availability");
 const {
   STATUS,
   findVipUserByLineUserId,
@@ -53,6 +58,8 @@ function adminQuickReply() {
   return quickReply([
     { label: "全部開放", text: "全部開放權限" },
     { label: "恢復權限", text: "恢復原權限" },
+    { label: "開放電子", text: "開放全部電子遊戲" },
+    { label: "僅賽特2", text: "僅開放賽特2" },
     { label: "待審核", text: "待審核" },
     { label: "會員列表", text: "會員列表" },
     { label: "VIP中心", text: "VIP" },
@@ -423,7 +430,7 @@ function vipCenterFlex(user, isAdmin = false, globalAccessEnabled = false) {
   });
 }
 
-function adminHelpFlex(globalAccessEnabled = false) {
+function adminHelpFlex(globalAccessEnabled = false, electronicAllEnabled = areAllElectronicGamesEnabled()) {
   return bubble({
     altText: "管理員功能",
     title: "管理員功能",
@@ -434,6 +441,9 @@ function adminHelpFlex(globalAccessEnabled = false) {
       infoLine("全線權限", globalAccessEnabled ? "臨時開放中" : "依會員原設定"),
       infoLine("全部開放權限", "所有使用者暫時可使用全部 AI"),
       infoLine("恢復原權限", "回到每位會員原本的權限狀態"),
+      infoLine("電子遊戲", electronicAllEnabled ? "全部遊戲開放中" : "目前僅開放戰神賽特2"),
+      infoLine("開放全部電子遊戲", "開啟賽特1、賽特2、古神巴風特、虎小妹、赤三國"),
+      infoLine("僅開放賽特2", "關閉其他電子遊戲並取消相關等待"),
       infoLine("待審核", "列出所有 pending"),
       infoLine("查會員", "查會員 abc123"),
       infoLine("開通", "開通 abc123 30 / 開通 abc123 永久"),
@@ -445,6 +455,8 @@ function adminHelpFlex(globalAccessEnabled = false) {
       infoLine("更新房間數據", "強制重掃電子房間與統計"),
       button("全部開放權限", "全部開放權限"),
       button("恢復原權限", "恢復原權限", "secondary"),
+      button("開放全部電子遊戲", "開放全部電子遊戲"),
+      button("僅開放賽特2", "僅開放賽特2", "secondary"),
     ],
   });
 }
@@ -481,7 +493,18 @@ async function handleAdminCommand(event) {
 
   if (text === "管理指令" || text === "管理員指令") {
     const state = await getGlobalAiAccessState({ force: true });
-    return reply(event.replyToken, adminHelpFlex(state.enabled));
+    return reply(event.replyToken, adminHelpFlex(state.enabled, areAllElectronicGamesEnabled()));
+  }
+
+  if (text === "開放全部電子遊戲" || text === "僅開放賽特2") {
+    const enabled = text === "開放全部電子遊戲";
+    const result = await setAllElectronicGamesEnabled(enabled, userId);
+    if (result.ok) electronic.enforceGameAvailability();
+    return reply(event.replyToken, adminResultFlex(text, [
+      ["電子遊戲狀態", result.ok ? (enabled ? "全部開放" : "僅開放戰神賽特2") : "設定失敗"],
+      ["已套用遊戲", enabled ? "賽特1、賽特2、古神巴風特、虎小妹、赤三國" : "戰神賽特2"],
+      ["處理結果", result.ok ? (result.changed ? "已更新並永久保存" : "目前已是此設定") : result.error || "設定失敗"],
+    ], result.ok));
   }
 
   if (text === "全部開放權限" || text === "恢復原權限") {
@@ -501,7 +524,7 @@ async function handleAdminCommand(event) {
   if (command === "會員列表") return reply(event.replyToken, adminResultFlex("會員列表", memberRows(await listVipUsers())));
   if (!account3A) {
     const state = await getGlobalAiAccessState({ force: true });
-    return reply(event.replyToken, adminHelpFlex(state.enabled));
+    return reply(event.replyToken, adminHelpFlex(state.enabled, areAllElectronicGamesEnabled()));
   }
 
   if (command === "查會員") {
@@ -580,7 +603,7 @@ async function handleAdminCommand(event) {
     ], result.ok && notifyResult.ok));
   }
 
-  return reply(event.replyToken, adminHelpFlex());
+  return reply(event.replyToken, adminHelpFlex(false, areAllElectronicGamesEnabled()));
 }
 
 async function handleBindCommand(event) {

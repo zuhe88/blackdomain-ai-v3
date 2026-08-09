@@ -65,7 +65,7 @@ function gameCard({ title, subtitle, image, actionText, unavailable = false }) {
   };
 }
 
-function electronicMenuFlex() {
+function electronicMenuFlex(isGameEnabled = () => true) {
   return {
     type: "flex",
     altText: "ATG AI 遊戲選單",
@@ -77,34 +77,35 @@ function electronicMenuFlex() {
           subtitle: "AI 房號推薦",
           image: "seth1-hd.webp",
           actionText: "戰神賽特1",
-          unavailable: true,
+          unavailable: !isGameEnabled("戰神賽特1"),
         }),
         gameCard({
           title: "戰神賽特2",
           subtitle: "AI 即時空桌推薦與房間數據",
           image: "seth2-hd.webp",
           actionText: "戰神賽特2",
+          unavailable: !isGameEnabled("戰神賽特2"),
         }),
         gameCard({
           title: "古神巴風特",
           subtitle: "AI 房號推薦",
           image: "baphomet-hd.webp",
           actionText: "古神巴風特",
-          unavailable: true,
+          unavailable: !isGameEnabled("古神巴風特"),
         }),
         gameCard({
           title: "虎小妹",
           subtitle: "AI 房號推薦",
           image: "tiger-girl-hd.webp",
           actionText: "虎小妹",
-          unavailable: true,
+          unavailable: !isGameEnabled("虎小妹"),
         }),
         gameCard({
           title: "赤三國",
           subtitle: "AI 房號推薦",
           image: "red-three-kingdoms-hd.webp",
           actionText: "赤三國",
-          unavailable: true,
+          unavailable: !isGameEnabled("赤三國"),
         }),
       ],
     },

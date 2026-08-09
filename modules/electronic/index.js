@@ -11,6 +11,7 @@ const {
 } = require("../../ui/flex/electronicResult");
 const supabase = require("../../services/supabase");
 const electronicSource = require("./source");
+const electronicAvailability = require("./availability");
 const { isAdminLineUserId } = require("../../config/admin");
 
 const electronicSessions = new Map();
@@ -51,12 +52,8 @@ const GAME_CONFIG = {
   虎小妹: { name: "虎小妹", min: 1, max: 3000, pad: 4 },
   赤三國: { name: "赤三國", min: 1, max: 200, pad: 3 },
 };
-const ENABLED_GAMES = new Set(["戰神賽特2"]);
-
 function isElectronicGameEnabled(gameName) {
-  if (ENABLED_GAMES.has(String(gameName || ""))) return true;
-  return process.env.NODE_ENV === "test"
-    && process.env.ELECTRONIC_TEST_ENABLE_LEGACY_GAMES === "true";
+  return electronicAvailability.isGameEnabled(gameName);
 }
 
 function unavailableGameFlex(gameName) {
@@ -843,7 +840,18 @@ function afterRecommendQuickReply() {
 
 async function showElectronicMain(event) {
   const electronicMenuFlex = require("../../ui/flex/electronicMenu");
-  return reply(event.replyToken, electronicMenuFlex());
+  return reply(event.replyToken, electronicMenuFlex(isElectronicGameEnabled));
+}
+
+function enforceGameAvailability() {
+  for (const [userId, session] of electronicSessions.entries()) {
+    if (session?.gameName && !isElectronicGameEnabled(session.gameName)) {
+      resetElectronicSession(userId);
+    }
+  }
+  for (const [userId, pending] of pendingRecommendations.entries()) {
+    if (!isElectronicGameEnabled(pending.gameName)) cancelPendingRecommendation(userId);
+  }
 }
 
 async function stopRoomMonitoring(event) {
@@ -1353,4 +1361,6 @@ module.exports = {
   isStopWatchCommand,
   isCancelRecommendationCommand,
   handleElectronicDataReady,
+  isElectronicGameEnabled,
+  enforceGameAvailability,
 };

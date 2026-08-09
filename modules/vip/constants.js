@@ -14,6 +14,8 @@ const ADMIN_COMMANDS = [
   "會員列表",
   "全部開放權限",
   "恢復原權限",
+  "開放全部電子遊戲",
+  "僅開放賽特2",
 ];
 
 const STATUSES = {

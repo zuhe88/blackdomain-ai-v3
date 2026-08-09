@@ -2078,11 +2078,17 @@ async function main() {
   values = await sendAndTexts("電子", "restored-access-user");
   assertIncludes(values, "尚未開通黑域AI", "Restored individual access enforcement");
 
+  values = await sendAndTexts("僅開放賽特2", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "僅開放戰神賽特2", "Admin electronic access restriction");
+  assertIncludes(values, "已更新並永久保存", "Electronic access persistence");
   await send("電子", "user-smoke");
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "暫未開放", "Disabled electronic game guard");
   assertIncludes(values, "目前僅開放戰神賽特2", "Disabled electronic game guidance");
-  process.env.ELECTRONIC_TEST_ENABLE_LEGACY_GAMES = "true";
+  values = await sendAndTexts("開放全部電子遊戲", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "全部開放", "Admin electronic access enable");
+  assertIncludes(values, "已更新並永久保存", "Electronic access enable persistence");
+  await send("電子", "user-smoke");
   values = await sendAndTexts("戰神賽特1", "user-smoke");
   assertIncludes(values, "AI推薦房", "Electronic menu");
   electronicSource.resetForTest();
@@ -2679,17 +2685,16 @@ async function main() {
   }
 
   const atgGameMenuReply = await send("ATG", "user-smoke");
-  const firstAtgGame = atgGameMenuReply.messages[0]?.contents?.contents?.[0];
-  const secondAtgGame = atgGameMenuReply.messages[0]?.contents?.contents?.[1];
-  if (firstAtgGame?.hero?.action || firstAtgGame?.body?.action) {
-    throw new Error("Disabled Seth 1 card must not be clickable");
-  }
-  if (secondAtgGame?.hero?.action?.text !== "戰神賽特2") {
-    throw new Error("ATG electronic menu must keep Seth 2 available");
+  const electronicCards = atgGameMenuReply.messages[0]?.contents?.contents || [];
+  const electronicActions = electronicCards.map((item) => item.hero?.action?.text);
+  if (electronicActions.join(",") !== "戰神賽特1,戰神賽特2,古神巴風特,虎小妹,赤三國") {
+    throw new Error(`ATG electronic menu has incorrect game availability: ${electronicActions.join(",")}`);
   }
   values = atgGameMenuReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "戰神賽特1", "ATG combined game menu");
-  assertIncludes(values, "暫未開放", "ATG disabled game status");
+  if (values.some((value) => String(value).includes("暫未開放"))) {
+    throw new Error("Enabled electronic game menu must not show unavailable status");
+  }
   if (values.some((value) => String(value).includes("ATG賽馬"))) {
     throw new Error("ATG horse must only appear inside the lottery menu");
   }

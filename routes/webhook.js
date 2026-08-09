@@ -25,6 +25,8 @@ const ADMIN_COMMANDS = new Set([
   "會員列表",
   "全部開放權限",
   "恢復原權限",
+  "開放全部電子遊戲",
+  "僅開放賽特2",
 ]);
 const OFFICIAL_WEBSITE_COMMANDS = new Set(["官網", "黑域官網", "🌐 黑域官網"]);
 const CONTACT_COMMANDS = new Set(["管理員", "客服", "聯繫管理員", "📞 聯繫管理員"]);
@@ -227,7 +229,7 @@ async function handleEvent(event) {
 
   if (["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"].includes(text)) {
     await clearAllUserSessions(userId);
-    return reply(event.replyToken, electronicMenuFlex());
+    return reply(event.replyToken, electronicMenuFlex(electronic.isElectronicGameEnabled));
   }
 
   if (["彩票", "彩票AI", "🎟️ 彩票AI"].includes(text)) {

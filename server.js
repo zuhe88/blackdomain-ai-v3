@@ -3,6 +3,9 @@ require("dotenv").config();
 const PORT = process.env.PORT || 3000;
 
 async function start() {
+  const { hydrateElectronicGameAccess } = require("./modules/electronic/availability");
+  await hydrateElectronicGameAccess();
+
   const { hydrateSessions } = require("./modules/baccarat/session");
   const restored = await hydrateSessions();
   if (restored) console.log(`[Baccarat] Restored ${restored} active session(s).`);
