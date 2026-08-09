@@ -180,8 +180,7 @@ function ingestDetail(payload = {}) {
   const previous = state.featureMonitors.get(normalized.roomId);
   const currentCounts = currentDetail?.mgCounts || [];
   const previousCounts = previous?.detail?.mgCounts || [];
-  const featureReset = previous?.status === "Full"
-    && normalized.status === "Full"
+  const featureReset = normalized.status === "Full"
     && previousCounts[0] > 0
     && currentCounts[0] === 0
     && currentCounts[1] === previousCounts[0]

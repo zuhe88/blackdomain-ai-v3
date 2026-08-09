@@ -51,6 +51,8 @@
   let activePurchasedFeature = null;
   let activeNaturalFeature = null;
   const watchedRoomNumbers = new Set();
+  let watchedRoomQueue = [];
+  let watchedRoomSignature = "";
   let watchedRoomCursor = 0;
   let watchedRoomTimer = null;
   let watchedRoomDiscoveryRequested = false;
@@ -318,7 +320,7 @@
       pendingDetailRoom = null;
       pendingDetailRequestedAt = 0;
     }
-    const numbers = [...watchedRoomNumbers];
+    const numbers = watchedRoomQueue.length ? watchedRoomQueue : [...watchedRoomNumbers];
     const roomNumber = numbers[watchedRoomCursor % numbers.length];
     watchedRoomCursor = (watchedRoomCursor + 1) % numbers.length;
     const table = [...knownTables.values()].find((item) => item.number === roomNumber);
@@ -735,17 +737,34 @@
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_WATCH_ROOMS", (event) => {
     const rooms = Array.isArray(event.detail?.rooms) ? event.detail.rooms : [];
     const nextWatchedRoomNumbers = new Set();
+    const featureRoomNumbers = [];
+    const rtpRoomNumbers = [];
     rooms.forEach((room) => {
       if (room?.gameName === gameName && Number.isInteger(Number(room.roomNumber))) {
-        nextWatchedRoomNumbers.add(Number(room.roomNumber));
+        const roomNumber = Number(room.roomNumber);
+        nextWatchedRoomNumbers.add(roomNumber);
+        if (room.priority === "feature") featureRoomNumbers.push(roomNumber);
+        else rtpRoomNumbers.push(roomNumber);
       }
     });
-    const watchedRoomsChanged = nextWatchedRoomNumbers.size !== watchedRoomNumbers.size
-      || [...nextWatchedRoomNumbers].some((roomNumber) => !watchedRoomNumbers.has(roomNumber));
+    const nextSignature = JSON.stringify({ featureRoomNumbers, rtpRoomNumbers });
+    const watchedRoomsChanged = nextSignature !== watchedRoomSignature;
     if (!watchedRoomsChanged) return;
+    watchedRoomSignature = nextSignature;
     watchedRoomDiscoveryRequested = false;
     watchedRoomNumbers.clear();
     nextWatchedRoomNumbers.forEach((roomNumber) => watchedRoomNumbers.add(roomNumber));
+    watchedRoomQueue = [];
+    if (featureRoomNumbers.length) {
+      const queueLength = Math.max(featureRoomNumbers.length, rtpRoomNumbers.length);
+      for (let index = 0; index < queueLength; index += 1) {
+        watchedRoomQueue.push(featureRoomNumbers[index % featureRoomNumbers.length]);
+        if (rtpRoomNumbers[index] != null) watchedRoomQueue.push(rtpRoomNumbers[index]);
+      }
+    } else {
+      watchedRoomQueue = [...rtpRoomNumbers];
+    }
+    watchedRoomCursor = 0;
     if (!watchedRoomNumbers.size) {
       pendingDetailRoom = null;
       pendingDetailRequestedAt = 0;
@@ -754,7 +773,7 @@
       return;
     }
     if (!watchedRoomTimer) {
-      watchedRoomTimer = setInterval(requestNextWatchedRoom, 2500);
+      watchedRoomTimer = setInterval(requestNextWatchedRoom, 1500);
     }
     requestNextWatchedRoom();
   });

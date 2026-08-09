@@ -1532,8 +1532,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.3") {
-    throw new Error("Electronic relay extension version must be 1.3.3");
+  if (electronicRelayManifest.version !== "1.3.4") {
+    throw new Error("Electronic relay extension version must be 1.3.4");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1624,6 +1624,9 @@ async function main() {
     "SCAN_PAGE_INTERVAL_MS",
     "WRAPPER_HEALTH_CHECK_MS",
     "watchedRoomsChanged",
+    "watchedRoomQueue",
+    "room.priority === \"feature\"",
+    "setInterval(requestNextWatchedRoom, 1500)",
     "clearInterval(watchedRoomTimer)",
     "eventName === \"SlotFrameworkEvent:BUY_FEATURE_RESPONSE\"",
     "const ROTATING_PAGE_REFRESH_MS = 60000",
@@ -2480,6 +2483,17 @@ async function main() {
   if (!retriedFeatureNotification || captured.pushes.length !== retryableFeaturePushCount + 1) {
     throw new Error("Electronic feature notifications must remain retryable after a LINE failure");
   }
+  const naturalFeaturePushCount = captured.pushes.length;
+  const naturalFeatureNotification = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特1",
+    roomNumber: 88,
+    spinId: "natural-feature-without-action",
+    totalWinnings: 321,
+    featureTrigger: "natural",
+  });
+  if (!naturalFeatureNotification || captured.pushes.length !== naturalFeaturePushCount + 1) {
+    throw new Error("Confirmed natural features must not require an optional action label");
+  }
   values = await sendAndTexts("結束房間監控 戰神賽特1 089", "user-smoke");
   assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
   values = await sendAndTexts("結束房間監控 戰神賽特1 088", "user-smoke");
@@ -2580,14 +2594,14 @@ async function main() {
     page: 1,
     totalPages: 1,
     scanComplete: true,
-    tables: [{ roomId: "seth-199", number: 199, status: "Full" }],
+    tables: [{ roomId: "seth-199", number: 199, status: "Empty" }],
   });
   electronicSource.ingestDetail({
     gameName: "戰神賽特2",
     detail: {
       roomId: "seth-199",
       number: 199,
-      status: "Full",
+      status: "Empty",
       todayWin: 111905.47,
       todayBet: 112025,
       mgCounts: [17, 3, 13],
@@ -2610,7 +2624,7 @@ async function main() {
     featureStart.feature?.featureTrigger !== "room-monitor"
     || Math.abs(featureStart.feature.totalWinnings - 132.8) > 1e-6
   ) {
-    throw new Error("Room feature monitor must return an available positive payout immediately");
+    throw new Error("Room feature monitor must catch a payout immediately after an empty room becomes occupied");
   }
   const featureStillRunning = electronicSource.ingestDetail({
     gameName: "戰神賽特2",

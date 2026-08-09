@@ -26,6 +26,7 @@ const stoppedWatchKeys = new Map();
 const notifiedSpins = new Set();
 const notifyingSpins = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
+const LIVE_WATCH_TIMEOUT = 6 * 60 * 60 * 1000;
 const RECOMMEND_LEASE_MS = 2 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
@@ -408,7 +409,7 @@ async function getLiveWatchers(gameName, roomNumber) {
     if (
       watch.gameName === gameName
       && Number(watch.roomNumber) === roomNumber
-      && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT
+      && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT
     ) watchers.set(watch.userId, watch);
   }
   if (!supabase) {
@@ -428,7 +429,7 @@ async function getLiveWatchers(gameName, roomNumber) {
       watch?.userId
       && watch.gameName === gameName
       && Number(watch.roomNumber) === roomNumber
-      && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT
+      && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT
     ) {
       watchers.set(watch.userId, watch);
       liveWatches.set(watch.userId, watch);
@@ -445,13 +446,13 @@ async function getActiveWatchRooms() {
   // produced RTP, leaving every recommendation with the same sole candidate.
   refreshBackgroundRecommendationProbes(now);
   for (const watch of liveWatches.values()) {
-    if (watch?.userId && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT) {
-      watches.set(watch.userId, watch);
+    if (watch?.userId && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT) {
+      watches.set(watch.userId, { ...watch, purpose: "feature" });
     }
   }
   for (const probe of recommendationProbes.values()) {
     if (probe?.userId && now - Number(probe.updatedAt || 0) <= SESSION_TIMEOUT) {
-      watches.set(`probe:${probe.userId}:${probe.roomNumber}`, probe);
+      watches.set(`probe:${probe.userId}:${probe.roomNumber}`, { ...probe, purpose: "rtp" });
     }
   }
   if (supabase) {
@@ -464,8 +465,8 @@ async function getActiveWatchRooms() {
     } else {
       for (const row of data || []) {
         const watch = row?.value;
-        if (watch?.userId && now - Number(watch.updatedAt || 0) <= SESSION_TIMEOUT) {
-          watches.set(watch.userId, watch);
+        if (watch?.userId && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT) {
+          watches.set(watch.userId, { ...watch, purpose: "feature" });
           liveWatches.set(watch.userId, watch);
         }
       }
@@ -479,7 +480,15 @@ async function getActiveWatchRooms() {
       || !electronicSource.SUPPORTED_GAMES.has(watch.gameName)
       || !Number.isInteger(roomNumber)
     ) continue;
-    rooms.set(`${watch.gameName}:${roomNumber}`, { gameName: watch.gameName, roomNumber });
+    const key = `${watch.gameName}:${roomNumber}`;
+    const existing = rooms.get(key);
+    if (!existing || watch.purpose === "feature") {
+      rooms.set(key, {
+        gameName: watch.gameName,
+        roomNumber,
+        priority: watch.purpose === "feature" ? "feature" : "rtp",
+      });
+    }
   }
   return [...rooms.values()];
 }
@@ -1206,10 +1215,9 @@ async function handleElectronicDataReady(gameName) {
 async function handleElectronicSpin(payload = {}) {
   if (!isElectronicGameEnabled(payload.gameName)) return false;
   const featureTrigger = String(payload.featureTrigger || "");
-  const featureAction = String(payload.action || "");
   const isConfirmedFeature = featureTrigger === "purchased"
     || featureTrigger === "room-monitor"
-    || (featureTrigger === "natural" && /free|super|feature/i.test(featureAction));
+    || featureTrigger === "natural";
   if (!isConfirmedFeature) return false;
   const roomNumber = Number(payload.roomNumber);
   if (!Number.isInteger(roomNumber)) return false;
