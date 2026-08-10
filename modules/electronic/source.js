@@ -165,10 +165,16 @@ function ingestDetail(payload = {}) {
   const detail = payload.detail;
   if (!state || !detail?.roomId) return false;
   const existing = state.tables.get(String(detail.roomId));
-  if (!existing) return false;
-  const normalized = normalizeTable({ ...existing, ...detail, detail });
+  // A recommended empty room disappears from the authoritative empty-room
+  // pool as soon as the player enters it.  The relay must still be allowed to
+  // submit detail samples for that occupied room so feature monitoring can
+  // observe the mgCounts transition and payout.  Do not add the occupied room
+  // back to the recommendation pool; keep its monitoring state separately.
+  const normalized = normalizeTable({ ...(existing || {}), ...detail, detail });
   if (!normalized) return false;
-  state.tables.set(normalized.roomId, normalized);
+  if (existing || normalized.status === "Empty") {
+    state.tables.set(normalized.roomId, normalized);
+  }
   state.updatedAt = new Date().toISOString();
   const waiterKey = `${state.gameName}:${normalized.number}`;
   const waiters = detailWaiters.get(waiterKey);

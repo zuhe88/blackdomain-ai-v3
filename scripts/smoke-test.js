@@ -2921,6 +2921,58 @@ async function main() {
     throw new Error("Room feature monitor must return the first later positive payout immediately");
   }
 
+  electronicSource.resetForTest();
+  electronicSource.ingestTables({
+    gameName: "戰神賽特2",
+    tables: [{
+      roomId: "occupied-watched-room",
+      number: 2468,
+      status: "Empty",
+      todayWin: 100,
+      todayBet: 200,
+      mgCounts: [12, 5, 1],
+    }],
+  });
+  electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "occupied-watched-room",
+      number: 2468,
+      status: "Empty",
+      todayWin: 100,
+      todayBet: 200,
+      mgCounts: [12, 5, 1],
+      capturedAt: Date.now(),
+    },
+  });
+  electronicSource.ingestTables({
+    gameName: "戰神賽特2",
+    scanId: "empty-pool-after-player-entered",
+    page: 1,
+    totalPages: 1,
+    scanComplete: true,
+    emptyOnly: true,
+    tables: [],
+  });
+  const removedRoomFeature = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "occupied-watched-room",
+      number: 2468,
+      status: "Full",
+      todayWin: 188,
+      todayBet: 210,
+      mgCounts: [0, 12, 5],
+      capturedAt: Date.now() + 1000,
+    },
+  });
+  if (
+    removedRoomFeature?.feature?.featureTrigger !== "room-monitor"
+    || Math.abs(removedRoomFeature.feature.totalWinnings - 88) > 1e-6
+  ) {
+    throw new Error("Occupied recommended rooms must remain feature-monitored after leaving the empty-room pool");
+  }
+
   const atgGameMenuReply = await send("ATG", "user-smoke");
   const electronicCards = atgGameMenuReply.messages[0]?.contents?.contents || [];
   const electronicActions = electronicCards.map((item) => item.hero?.action?.text);
