@@ -32,6 +32,7 @@
   const DETAIL_REQUEST_TIMEOUT_MS = 4000;
   let scanPage = 0;
   const SOURCE_PAGE_COUNT = 8;
+  let activeSourcePageCount = SOURCE_PAGE_COUNT;
   const SCAN_BATCH_SIZE = 3;
   let scanBatchPages = [];
   let scanBatchIndex = 0;
@@ -268,7 +269,7 @@
   }
 
   function shuffledSourcePages() {
-    const pages = Array.from({ length: SOURCE_PAGE_COUNT }, (_unused, index) => index + 1);
+    const pages = Array.from({ length: activeSourcePageCount }, (_unused, index) => index + 1);
     for (let index = pages.length - 1; index > 0; index -= 1) {
       const swapIndex = Math.floor(Math.random() * (index + 1));
       [pages[index], pages[swapIndex]] = [pages[swapIndex], pages[index]];
@@ -619,6 +620,30 @@
         return;
       }
       if (requestedScanPage > 0) {
+        const reportedSourcePage = Number(data.page);
+        const reportedSourcePageCount = Number(data.totalPages);
+        if (
+          Number.isInteger(reportedSourcePageCount)
+          && reportedSourcePageCount > 0
+          && reportedSourcePageCount <= SOURCE_PAGE_COUNT
+        ) {
+          activeSourcePageCount = reportedSourcePageCount;
+          scanPageQueue = scanPageQueue.filter((page) => page <= activeSourcePageCount);
+          scanBatchPages = [
+            ...scanBatchPages.slice(0, scanBatchIndex + 1),
+            ...scanBatchPages.slice(scanBatchIndex + 1)
+              .filter((page) => page <= activeSourcePageCount),
+          ];
+          for (const page of cachedEmptyPages.keys()) {
+            if (page > activeSourcePageCount) cachedEmptyPages.delete(page);
+          }
+        }
+        const effectiveSourcePage = requestedScanPage > activeSourcePageCount
+          && Number.isInteger(reportedSourcePage)
+          && reportedSourcePage > 0
+          && reportedSourcePage <= activeSourcePageCount
+          ? reportedSourcePage
+          : requestedScanPage;
         // In the "empty rooms" view ATG rebuilds and re-paginates the room
         // collection while statuses change.  The response can therefore carry
         // a stale visible-page number even though it was produced by our most
@@ -626,7 +651,7 @@
         // watchdog window, so use it as the authoritative page identity.
         clearScanWatchdog();
         scanPageRetries = 0;
-        data.sourcePage = requestedScanPage;
+        data.sourcePage = effectiveSourcePage;
         data.page = scanBatchIndex + 1;
         data.totalPages = scanBatchPages.length;
         data.scanId = scanId;
@@ -637,9 +662,9 @@
         // complete table map in this page for watched-room lookups, but avoid
         // sending full and locked rooms to the cloud on every eight-page scan.
         data.tables = data.tables.filter((table) => table.status === "Empty");
-        cachedEmptyPages.set(requestedScanPage, data.tables);
+        cachedEmptyPages.set(effectiveSourcePage, data.tables);
         data.sourcePagesCovered = cachedEmptyPages.size;
-        data.sourcePageCount = SOURCE_PAGE_COUNT;
+        data.sourcePageCount = activeSourcePageCount;
         if (data.scanComplete) data.tables = cachedEmptyTables();
       }
       emit({ type: "tables", gameName, ...data });
@@ -658,7 +683,7 @@
         activeRefreshId = "";
         if (forceScanRequested) requestForcedFullScan();
         else scheduleFullScan(
-          cachedEmptyPages.size < SOURCE_PAGE_COUNT
+          cachedEmptyPages.size < activeSourcePageCount
             ? SCAN_PAGE_INTERVAL_MS
             : ROTATING_PAGE_REFRESH_MS,
         );

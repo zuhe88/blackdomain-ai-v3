@@ -1533,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.6") {
-    throw new Error("Electronic relay extension version must be 1.3.6");
+  if (electronicRelayManifest.version !== "1.3.7") {
+    throw new Error("Electronic relay extension version must be 1.3.7");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1638,12 +1638,12 @@ async function main() {
     "const SCAN_BATCH_SIZE = 3",
     "createRandomScanBatch",
     "startScanBatch()",
-    "data.sourcePage = requestedScanPage",
+    "data.sourcePage = effectiveSourcePage",
     "data.totalPages = scanBatchPages.length",
     "scanPageQueue.splice(0, SCAN_BATCH_SIZE)",
-    "cachedEmptyPages.set(requestedScanPage, data.tables)",
+    "cachedEmptyPages.set(effectiveSourcePage, data.tables)",
     "if (data.scanComplete) data.tables = cachedEmptyTables()",
-    "cachedEmptyPages.size < SOURCE_PAGE_COUNT",
+    "cachedEmptyPages.size < activeSourcePageCount",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);
@@ -1675,6 +1675,9 @@ async function main() {
     "const SCAN_PAGE_TIMEOUT_MS = 30000",
     "const SCAN_STARTUP_GRACE_MS = 8000",
     "const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000]",
+    "let activeSourcePageCount = SOURCE_PAGE_COUNT",
+    "reportedSourcePageCount",
+    "cachedEmptyPages.size < activeSourcePageCount",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic first scan is missing fast recovery setting: ${expected}`);
