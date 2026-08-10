@@ -6,7 +6,44 @@
   let lastRefreshId = "";
   let watchSyncInFlight = false;
   let lastGameDataAt = 0;
+  let autoEnterTimer = null;
   const AUTO_REOPEN_PARAM = "blackdomain_reopen";
+
+  function stopAutoEnter() {
+    if (autoEnterTimer) window.clearInterval(autoEnterTimer);
+    autoEnterTimer = null;
+  }
+
+  function autoEnterAtgGame() {
+    if (!window.location.pathname.includes("/game/")) return;
+    let attempts = 0;
+    autoEnterTimer = window.setInterval(() => {
+      attempts += 1;
+      if (lastGameDataAt || attempts > 30) {
+        stopAutoEnter();
+        return;
+      }
+      const canvas = [...document.querySelectorAll("canvas")]
+        .filter((item) => {
+          const rect = item.getBoundingClientRect();
+          return rect.width > 200 && rect.height > 150;
+        })
+        .sort((left, right) => (
+          right.getBoundingClientRect().width * right.getBoundingClientRect().height
+          - left.getBoundingClientRect().width * left.getBoundingClientRect().height
+        ))[0];
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const clientX = rect.left + rect.width / 2;
+      const clientY = rect.top + rect.height / 2;
+      const eventOptions = { bubbles: true, cancelable: true, composed: true, clientX, clientY };
+      canvas.dispatchEvent(new PointerEvent("pointerdown", eventOptions));
+      canvas.dispatchEvent(new MouseEvent("mousedown", eventOptions));
+      canvas.dispatchEvent(new PointerEvent("pointerup", eventOptions));
+      canvas.dispatchEvent(new MouseEvent("mouseup", eventOptions));
+      canvas.dispatchEvent(new MouseEvent("click", eventOptions));
+    }, 1000);
+  }
 
   function autoReopenSeth2() {
     const params = new URLSearchParams(window.location.search);
@@ -94,6 +131,7 @@
     const body = event.detail;
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
     lastGameDataAt = Date.now();
+    stopAutoEnter();
     send(body);
   });
 
@@ -144,6 +182,7 @@
   syncWatchRooms();
   rememberRecoveryLobby();
   autoReopenSeth2();
+  autoEnterAtgGame();
   setInterval(syncWatchRooms, 2000);
   sendHeartbeat();
   setInterval(sendHeartbeat, 30000);
