@@ -17,9 +17,10 @@
   function autoEnterAtgGame() {
     if (!window.location.pathname.includes("/game/")) return;
     let attempts = 0;
-    autoEnterTimer = window.setInterval(() => {
+    let trustedClicks = 0;
+    autoEnterTimer = window.setInterval(async () => {
       attempts += 1;
-      if (lastGameDataAt || attempts > 30) {
+      if (attempts > 12 || trustedClicks >= 3) {
         stopAutoEnter();
         return;
       }
@@ -35,14 +36,14 @@
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const clientX = rect.left + rect.width / 2;
-      const clientY = rect.top + rect.height / 2;
-      const eventOptions = { bubbles: true, cancelable: true, composed: true, clientX, clientY };
-      canvas.dispatchEvent(new PointerEvent("pointerdown", eventOptions));
-      canvas.dispatchEvent(new MouseEvent("mousedown", eventOptions));
-      canvas.dispatchEvent(new PointerEvent("pointerup", eventOptions));
-      canvas.dispatchEvent(new MouseEvent("mouseup", eventOptions));
-      canvas.dispatchEvent(new MouseEvent("click", eventOptions));
-    }, 1000);
+      const clientY = rect.top + rect.height * 0.84;
+      const response = await chrome.runtime.sendMessage({
+        type: "BLACKDOMAIN_ATG_ENTRY_CLICK",
+        x: clientX,
+        y: clientY,
+      }).catch(() => null);
+      if (response?.ok) trustedClicks += 1;
+    }, 2500);
   }
 
   function autoReopenSeth2() {

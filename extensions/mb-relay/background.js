@@ -245,6 +245,54 @@ function installRelayWatchdog() {
   runRelayWatchdog();
 }
 
+async function clickAtgCanvas(tab, x, y) {
+  if (!Number.isInteger(tab?.id)) return false;
+  let url;
+  try {
+    url = new URL(tab.url);
+  } catch {
+    return false;
+  }
+  if (url.hostname !== "play.godeebxp.com" || !url.pathname.includes("/egames/") || !url.pathname.includes("/game/")) {
+    return false;
+  }
+  const clientX = Number(x);
+  const clientY = Number(y);
+  if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || clientX < 0 || clientY < 0) return false;
+  const target = { tabId: tab.id };
+  let attached = false;
+  try {
+    await chrome.debugger.attach(target, "1.3");
+    attached = true;
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: clientX,
+      y: clientY,
+    });
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mousePressed",
+      x: clientX,
+      y: clientY,
+      button: "left",
+      buttons: 1,
+      clickCount: 1,
+    });
+    await chrome.debugger.sendCommand(target, "Input.dispatchMouseEvent", {
+      type: "mouseReleased",
+      x: clientX,
+      y: clientY,
+      button: "left",
+      buttons: 0,
+      clickCount: 1,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (attached) await chrome.debugger.detach(target).catch(() => {});
+  }
+}
+
 chrome.runtime.onInstalled.addListener(installRelayWatchdog);
 chrome.runtime.onStartup.addListener(installRelayWatchdog);
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -253,6 +301,12 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 installRelayWatchdog();
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "BLACKDOMAIN_ATG_ENTRY_CLICK") {
+    clickAtgCanvas(sender.tab, message.x, message.y)
+      .then((ok) => sendResponse({ ok }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
   if (message?.type === "BLACKDOMAIN_3A_SESSION_STATE") {
     if (message.state === "active") {
       restoreRelayGamesAfterLogin()

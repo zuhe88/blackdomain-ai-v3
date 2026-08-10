@@ -1533,11 +1533,14 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.12") {
-    throw new Error("Electronic relay extension version must be 1.3.12");
+  if (electronicRelayManifest.version !== "1.3.13") {
+    throw new Error("Electronic relay extension version must be 1.3.13");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
+  }
+  if (!electronicRelayManifest.permissions.includes("debugger")) {
+    throw new Error("Relay extension must support a trusted ATG canvas entry click");
   }
   for (const requiredHost of ["https://mbracing.cc/*", "https://play.godeebxp.com/*"]) {
     if (!electronicRelayManifest.host_permissions.includes(requiredHost)) {
@@ -1562,6 +1565,17 @@ async function main() {
   ]) {
     if (!relayBackgroundSource.includes(expected)) {
       throw new Error(`Relay background watchdog is missing: ${expected}`);
+    }
+  }
+  for (const expected of [
+    "clickAtgCanvas",
+    'chrome.debugger.attach(target, "1.3")',
+    '"Input.dispatchMouseEvent"',
+    'message?.type === "BLACKDOMAIN_ATG_ENTRY_CLICK"',
+    'url.hostname !== "play.godeebxp.com"',
+  ]) {
+    if (!relayBackgroundSource.includes(expected)) {
+      throw new Error(`ATG trusted entry click is missing: ${expected}`);
     }
   }
   const atgBridgeSource = fs.readFileSync(
@@ -1903,8 +1917,9 @@ async function main() {
     "autoReopenSeth2",
     "autoEnterAtgGame",
     'document.querySelectorAll("canvas")',
-    'new PointerEvent("pointerdown"',
-    "if (lastGameDataAt || attempts > 30)",
+    'type: "BLACKDOMAIN_ATG_ENTRY_CLICK"',
+    "rect.height * 0.84",
+    "trustedClicks >= 3",
     'img[alt*="戰神賽特2"]',
     "blackdomainAtgRecoveryLobbyUrl",
     "button.click()",

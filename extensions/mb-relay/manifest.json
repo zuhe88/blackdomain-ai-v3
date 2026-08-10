@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "BLACKDOMAIN 3A Game Relay",
-  "version": "1.3.12",
+  "version": "1.3.13",
   "description": "Synchronizes approved 3A game data with BLACKDOMAIN AI.",
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "debugger"
   ],
   "host_permissions": [
     "https://blackdomain-ai-v3-production.up.railway.app/*",
