@@ -20,6 +20,8 @@ function registerElectronicRelayRoutes(app) {
       updatedAt: game.updatedAt,
       fullScanAt: game.fullScanAt,
       dataMode: game.dataMode,
+      sourcePagesCovered: game.sourcePagesCovered,
+      sourcePageCount: game.sourcePageCount,
       tableCount: game.tables.length,
       emptyCount: game.tables.filter((table) => table.status === "Empty" && !table.occupied).length,
       freshDetailCount: game.tables.filter((table) => electronicSource.hasFreshRoomDetail(table)).length,

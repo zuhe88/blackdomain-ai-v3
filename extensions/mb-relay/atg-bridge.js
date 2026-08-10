@@ -638,6 +638,8 @@
         // sending full and locked rooms to the cloud on every eight-page scan.
         data.tables = data.tables.filter((table) => table.status === "Empty");
         cachedEmptyPages.set(requestedScanPage, data.tables);
+        data.sourcePagesCovered = cachedEmptyPages.size;
+        data.sourcePageCount = SOURCE_PAGE_COUNT;
         if (data.scanComplete) data.tables = cachedEmptyTables();
       }
       emit({ type: "tables", gameName, ...data });

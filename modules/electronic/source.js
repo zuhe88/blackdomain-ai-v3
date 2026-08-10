@@ -14,8 +14,10 @@ const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   tables: new Map(),
   pendingScan: null,
   updatedAt: null,
-  fullScanAt: null,
-  dataMode: null,
+    fullScanAt: null,
+    dataMode: null,
+    sourcePagesCovered: 0,
+    sourcePageCount: 0,
   spins: new Map(),
   featureMonitors: new Map(),
 }]));
@@ -76,6 +78,14 @@ function ingestTables(payload = {}) {
   const gameName = String(payload.gameName || "").trim();
   const state = games.get(gameName);
   if (!state || !Array.isArray(payload.tables)) return false;
+  const sourcePagesCovered = Number(payload.sourcePagesCovered);
+  const sourcePageCount = Number(payload.sourcePageCount);
+  if (Number.isInteger(sourcePagesCovered) && sourcePagesCovered >= 0) {
+    state.sourcePagesCovered = sourcePagesCovered;
+  }
+  if (Number.isInteger(sourcePageCount) && sourcePageCount > 0) {
+    state.sourcePageCount = sourcePageCount;
+  }
   const scanId = String(payload.scanId || "").trim();
   let next = new Map(state.tables);
   if (scanId) {
@@ -294,6 +304,8 @@ function getGame(gameName) {
     updatedAt: state.updatedAt,
     fullScanAt: state.fullScanAt,
     dataMode: state.dataMode,
+    sourcePagesCovered: state.sourcePagesCovered,
+    sourcePageCount: state.sourcePageCount,
     tables,
     recentSpins: [...state.spins.values()].slice(-5),
   };
@@ -445,6 +457,8 @@ function resetForTest() {
     state.updatedAt = null;
     state.fullScanAt = null;
     state.dataMode = null;
+    state.sourcePagesCovered = 0;
+    state.sourcePageCount = 0;
   });
   refreshRequest = null;
   refreshSequence = 0;

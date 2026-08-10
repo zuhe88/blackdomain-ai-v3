@@ -31,6 +31,7 @@ const RECOMMEND_LEASE_MS = 2 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
 const PENDING_KEY_PREFIX = "electronic_pending:";
+const RECOMMEND_HISTORY_KEY_PREFIX = "electronic_recommend_history:";
 const DETAIL_WAIT_MS = Math.max(1000, Number(process.env.ELECTRONIC_DETAIL_WAIT_MS) || 20000);
 const PENDING_RECOMMEND_RETRY_MS = 5000;
 const PENDING_RECOMMEND_TIMEOUT_MS = Math.max(
@@ -44,6 +45,7 @@ const BACKGROUND_PROBE_OWNER = "seth2-background-pool";
 const BACKGROUND_PROBE_ROTATE_MS = 45 * 1000;
 const RECOMMEND_HISTORY_LIMIT = 500;
 const FALLBACK_ROOM_HISTORY_LIMIT = 100;
+const recommendHistoryHydrated = new Set();
 let backgroundProbeSeededAt = 0;
 
 const GAME_CONFIG = {
@@ -91,6 +93,57 @@ function isStopWatchCommand(value) {
 
 function isCancelRecommendationCommand(value) {
   return CANCEL_RECOMMEND_COMMANDS.has(String(value || "").trim());
+}
+
+function recommendHistoryKey(userId, gameName) {
+  return `${RECOMMEND_HISTORY_KEY_PREFIX}${userId}:${gameName}`;
+}
+
+function persistRecommendHistory(userId, gameName, recentRooms) {
+  if (!supabase || !userId || !gameName) return;
+  const rooms = [...new Set((recentRooms || []).map(Number).filter(Number.isInteger))]
+    .slice(0, RECOMMEND_HISTORY_LIMIT);
+  const updatedAt = Date.now();
+  supabase
+    .from("lottery_settings")
+    .upsert({
+      key: recommendHistoryKey(userId, gameName),
+      value: { userId, gameName, recentRooms: rooms, updatedAt },
+      updated_at: new Date(updatedAt).toISOString(),
+      updated_by: userId,
+    }, { onConflict: "key" })
+    .then(({ error }) => {
+      if (error) console.error("[Electronic] Recommendation history persistence failed:", error.message);
+    });
+}
+
+async function hydrateRecommendHistory(userId, gameName) {
+  const hydrationKey = `${userId}:${gameName}`;
+  if (!supabase || recommendHistoryHydrated.has(hydrationKey)) return false;
+  const key = `${userId || "guest"}:${gameName}:live`;
+  if (recommendCursorStore.has(key)) {
+    recommendHistoryHydrated.add(hydrationKey);
+    return false;
+  }
+  recommendHistoryHydrated.add(hydrationKey);
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("value")
+    .eq("key", recommendHistoryKey(userId, gameName))
+    .maybeSingle();
+  if (error) {
+    recommendHistoryHydrated.delete(hydrationKey);
+    console.error("[Electronic] Recommendation history hydration failed:", error.message);
+    return false;
+  }
+  const stored = data?.value;
+  if (!Array.isArray(stored?.recentRooms)) return false;
+  recommendCursorStore.set(key, {
+    recentRooms: [...new Set(stored.recentRooms.map(Number).filter(Number.isInteger))]
+      .slice(0, RECOMMEND_HISTORY_LIMIT),
+    updatedAt: Number(stored.updatedAt) || Date.now(),
+  });
+  return true;
 }
 
 function removePendingPersistence(userId) {
@@ -806,6 +859,7 @@ function getNextRecommendRoom(userId, gameName) {
         .slice(0, FALLBACK_ROOM_HISTORY_LIMIT),
       updatedAt: Date.now(),
     });
+    persistRecommendHistory(userId, gameName, recommendCursorStore.get(key).recentRooms);
     leaseRecommendedRoom(userId, gameName, room);
     return room;
   }
@@ -839,6 +893,7 @@ function getNextRecommendRoom(userId, gameName) {
       recentRooms: [selected.number, ...recentRooms.filter((room) => room !== selected.number)].slice(0, recentLimit),
       updatedAt: Date.now(),
     });
+    persistRecommendHistory(userId, gameName, recommendCursorStore.get(key).recentRooms);
     leaseRecommendedRoom(userId, gameName, selected.number);
     return selected;
   }
@@ -1066,6 +1121,7 @@ async function performRecommendRoom(event) {
     resetElectronicSession(userId);
     return deliverRecommendation(event, unavailableGameFlex(session.gameName));
   }
+  await hydrateRecommendHistory(userId, session.gameName);
   session.mode = "recommend";
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
@@ -1387,7 +1443,10 @@ function cleanupOldCycles() {
   for (const [key] of cycleCache.entries()) if (!key.endsWith(currentCycle)) cycleCache.delete(key);
   for (const [key, value] of recommendCursorStore.entries()) {
     if (key.endsWith(":live")) {
-      if (Date.now() - value.updatedAt > SESSION_TIMEOUT) recommendCursorStore.delete(key);
+      if (Date.now() - value.updatedAt > SESSION_TIMEOUT) {
+        recommendCursorStore.delete(key);
+        recommendHistoryHydrated.delete(key.slice(0, -":live".length));
+      }
     } else if (!key.endsWith(`:${currentCycle}`)) {
       recommendCursorStore.delete(key);
     }
@@ -1421,6 +1480,7 @@ module.exports = {
   handleAdminRefreshCommand,
   notifyAdminRefreshComplete,
   hydratePendingRecommendations,
+  hydrateRecommendHistory,
   ADMIN_REFRESH_COMMANDS,
   isStopWatchCommand,
   isCancelRecommendationCommand,

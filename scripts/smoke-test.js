@@ -10,6 +10,7 @@ process.env.ATG_DISABLE_LIVE = "true";
 process.env.DG_DISABLE_LIVE = "true";
 process.env.MT_DISABLE_LIVE = "true";
 process.env.LINE_HTTP_TIMEOUT_MS = "4321";
+process.env.ELECTRONIC_PENDING_TIMEOUT_MS = "5000";
 
 const captured = {
   replies: [],
@@ -1532,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.5") {
-    throw new Error("Electronic relay extension version must be 1.3.5");
+  if (electronicRelayManifest.version !== "1.3.6") {
+    throw new Error("Electronic relay extension version must be 1.3.6");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -2150,6 +2151,8 @@ async function main() {
       totalPages: 8,
       scanComplete: page === 8,
       emptyOnly: true,
+      sourcePagesCovered: page,
+      sourcePageCount: 8,
       tables: [
         {
           roomId: `seth-empty-page-${page}`,
@@ -2171,10 +2174,56 @@ async function main() {
   const emptyOnlySnapshot = electronicSource.getGame(electronicSource.GAME_NAMES[1]);
   if (!electronicSource.hasReadyData(electronicSource.GAME_NAMES[1])
     || emptyOnlySnapshot.dataMode !== "empty-only"
+    || emptyOnlySnapshot.sourcePagesCovered !== 8
+    || emptyOnlySnapshot.sourcePageCount !== 8
     || emptyOnlySnapshot.tables.length !== 8
     || emptyOnlySnapshot.tables.some((table) => table.status !== "Empty")) {
     throw new Error("Electronic eight-page empty-only scan was not published correctly");
   }
+  const rotationStarted = electronicSource.ingestTables({
+    type: "tables",
+    gameName: electronicSource.GAME_NAMES[1],
+    scanId: "background-rotation-scan",
+    page: 1,
+    totalPages: 3,
+    scanComplete: false,
+    emptyOnly: true,
+    sourcePagesCovered: 8,
+    sourcePageCount: 8,
+    tables: [emptyOnlySnapshot.tables[0]],
+  });
+  const snapshotDuringRotation = electronicSource.getGame(electronicSource.GAME_NAMES[1]);
+  if (
+    rotationStarted.scanCompleted
+    || !electronicSource.hasReadyData(electronicSource.GAME_NAMES[1])
+    || snapshotDuringRotation.tables.length !== emptyOnlySnapshot.tables.length
+  ) {
+    throw new Error("Background page rotation must keep the previous recommendation pool available");
+  }
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: electronicSource.GAME_NAMES[1],
+    scanId: "background-rotation-scan",
+    page: 2,
+    totalPages: 3,
+    scanComplete: false,
+    emptyOnly: true,
+    sourcePagesCovered: 8,
+    sourcePageCount: 8,
+    tables: [emptyOnlySnapshot.tables[1]],
+  });
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: electronicSource.GAME_NAMES[1],
+    scanId: "background-rotation-scan",
+    page: 3,
+    totalPages: 3,
+    scanComplete: true,
+    emptyOnly: true,
+    sourcePagesCovered: 8,
+    sourcePageCount: 8,
+    tables: emptyOnlySnapshot.tables,
+  });
   electronicSource.ingestTables({
     type: "tables",
     gameName: electronicSource.GAME_NAMES[1],
@@ -2242,6 +2291,56 @@ async function main() {
   ));
   if (new Set(rotationRooms).size !== rotationRooms.length) {
     throw new Error(`Seth 2 recent recommendations must not repeat: ${rotationRooms.join(",")}`);
+  }
+  electronicSource.resetForTest();
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: electronicSource.GAME_NAMES[1],
+    scanId: "persistent-history-scan",
+    page: 1,
+    totalPages: 1,
+    scanComplete: true,
+    emptyOnly: true,
+    tables: [
+      {
+        roomId: "persistent-history-3001",
+        number: 3001,
+        status: "Empty",
+        todayRtp: 120,
+        dayRtp: 110,
+      },
+      {
+        roomId: "persistent-history-3002",
+        number: 3002,
+        status: "Empty",
+        todayRtp: 105,
+        dayRtp: 102,
+      },
+    ],
+  });
+  const persistentHistoryKey = "electronic_recommend_history:persistent-history-user:戰神賽特2";
+  mockElectronicRows.set(persistentHistoryKey, {
+    id: persistentHistoryKey,
+    key: persistentHistoryKey,
+    value: {
+      userId: "persistent-history-user",
+      gameName: "戰神賽特2",
+      recentRooms: [3001],
+      updatedAt: Date.now(),
+    },
+  });
+  await electronic.hydrateRecommendHistory("persistent-history-user", "戰神賽特2");
+  const persistedRotationRoom = electronic.getNextRecommendRoom(
+    "persistent-history-user",
+    "戰神賽特2",
+  );
+  if (persistedRotationRoom?.number !== 3002) {
+    throw new Error("Seth 2 must preserve per-user non-repeat history across service restarts");
+  }
+  await new Promise((resolve) => setImmediate(resolve));
+  const updatedHistory = mockElectronicRows.get(persistentHistoryKey)?.value?.recentRooms || [];
+  if (updatedHistory[0] !== 3002 || !updatedHistory.includes(3001)) {
+    throw new Error("Seth 2 must persist the updated recommendation rotation history");
   }
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
@@ -2673,6 +2772,18 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 0));
   if (mockElectronicRows.has(restoredPendingKey)) {
     throw new Error("Cancelling a restored recommendation must remove persistence");
+  }
+  electronicSource.resetForTest();
+  electronic.setGameSession("recommend-timeout-user", "戰神賽特2");
+  const timeoutPushCount = captured.pushes.length;
+  await electronic.recommendRoom(event("AI推薦房", "recommend-timeout-user"));
+  await new Promise((resolve) => setTimeout(resolve, 5200));
+  const timeoutPushTexts = captured.pushes
+    .slice(timeoutPushCount)
+    .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
+  assertIncludes(timeoutPushTexts, "本次推薦已停止", "Electronic recommendation hard timeout notice");
+  if (timeoutPushTexts.some((value) => String(value).includes("推薦房號"))) {
+    throw new Error("Timed-out electronic recommendations must not send a room card");
   }
   electronicSource.resetForTest();
   electronicSource.ingestTables({
