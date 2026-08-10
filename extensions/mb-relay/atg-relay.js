@@ -14,16 +14,32 @@
     autoEnterTimer = null;
   }
 
+  function isRecoveredSethLaunch() {
+    try {
+      const current = new URL(window.location.href);
+      if (current.searchParams.get(AUTO_REOPEN_PARAM) === "seth2") return true;
+      const rawLobbyUrl = current.searchParams.get("goback_url");
+      if (!rawLobbyUrl) return false;
+      const lobby = new URL(rawLobbyUrl);
+      return lobby.searchParams.get(AUTO_REOPEN_PARAM) === "seth2";
+    } catch {
+      return false;
+    }
+  }
+
   function autoEnterAtgGame() {
-    if (!window.location.pathname.includes("/game/")) return;
-    let attempts = 0;
-    let trustedClicks = 0;
+    if (!window.location.pathname.includes("/game/") || !isRecoveredSethLaunch()) return;
+    const startedAt = Date.now();
+    let clickInFlight = false;
+    let lastClickAt = 0;
     autoEnterTimer = window.setInterval(async () => {
-      attempts += 1;
-      if (attempts > 12 || trustedClicks >= 3) {
+      const now = Date.now();
+      const elapsed = now - startedAt;
+      if (elapsed > 120000) {
         stopAutoEnter();
         return;
       }
+      if (elapsed < 12000 || clickInFlight || now - lastClickAt < 12000) return;
       const canvas = [...document.querySelectorAll("canvas")]
         .filter((item) => {
           const rect = item.getBoundingClientRect();
@@ -36,13 +52,18 @@
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       const clientX = rect.left + rect.width / 2;
-      const clientY = rect.top + rect.height * 0.84;
-      const response = await chrome.runtime.sendMessage({
-        type: "BLACKDOMAIN_ATG_ENTRY_CLICK",
-        x: clientX,
-        y: clientY,
-      }).catch(() => null);
-      if (response?.ok) trustedClicks += 1;
+      const clientY = rect.top + rect.height * 0.92;
+      clickInFlight = true;
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "BLACKDOMAIN_ATG_ENTRY_CLICK",
+          x: clientX,
+          y: clientY,
+        }).catch(() => null);
+        if (response?.ok) lastClickAt = Date.now();
+      } finally {
+        clickInFlight = false;
+      }
     }, 2500);
   }
 
@@ -132,7 +153,6 @@
     const body = event.detail;
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
     lastGameDataAt = Date.now();
-    stopAutoEnter();
     send(body);
   });
 

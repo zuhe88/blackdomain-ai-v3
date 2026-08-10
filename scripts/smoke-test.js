@@ -1533,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.13") {
-    throw new Error("Electronic relay extension version must be 1.3.13");
+  if (electronicRelayManifest.version !== "1.3.14") {
+    throw new Error("Electronic relay extension version must be 1.3.14");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1918,8 +1918,11 @@ async function main() {
     "autoEnterAtgGame",
     'document.querySelectorAll("canvas")',
     'type: "BLACKDOMAIN_ATG_ENTRY_CLICK"',
-    "rect.height * 0.84",
-    "trustedClicks >= 3",
+    "isRecoveredSethLaunch",
+    "elapsed > 120000",
+    "elapsed < 12000",
+    "rect.height * 0.92",
+    "now - lastClickAt < 12000",
     'img[alt*="戰神賽特2"]',
     "blackdomainAtgRecoveryLobbyUrl",
     "button.click()",
