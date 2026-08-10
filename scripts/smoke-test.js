@@ -1533,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.10") {
-    throw new Error("Electronic relay extension version must be 1.3.10");
+  if (electronicRelayManifest.version !== "1.3.11") {
+    throw new Error("Electronic relay extension version must be 1.3.11");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1578,6 +1578,9 @@ async function main() {
     'reportSessionStale("connection-timeout-dialog")',
     "連線\\s*逾時",
     'reportSessionStale("token-error-dialog")',
+    "installGameSocketObserver",
+    'reportSessionStale("game-socket-closed")',
+    "socket\\.godeebxp\\.com",
     "MutationObserver",
   ]) {
     if (!atgBridgeSource.includes(expected)) {

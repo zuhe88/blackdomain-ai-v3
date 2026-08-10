@@ -4,6 +4,11 @@ $relayRoot = Join-Path $env:LOCALAPPDATA "BLACKDOMAIN"
 $relayConfigPath = Join-Path $relayRoot "mt-relay.json"
 $relayScriptPath = Join-Path $PSScriptRoot "mt-relay-client.js"
 
+$existingRelay = Get-NetTCPConnection -LocalAddress "127.0.0.1" -LocalPort 43128 -State Listen -ErrorAction SilentlyContinue
+if ($existingRelay) {
+  exit 0
+}
+
 function ConvertFrom-ProtectedString {
   param([Parameter(Mandatory = $true)][string]$Value)
 

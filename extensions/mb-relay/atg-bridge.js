@@ -78,6 +78,9 @@
   const wrapperBootstrapStartedAt = Date.now();
   let lastSessionStaleAt = 0;
   let tokenErrorCheckTimer = null;
+  let gameSocketSequence = 0;
+  let gameSocketRecoveryTimer = null;
+  let pageUnloading = false;
   const startupGameName = detectGameName();
   const startupRecoveryTimer = startupGameName
     ? setTimeout(() => {
@@ -96,6 +99,45 @@
       detail: { gameName: gameName || startupGameName, reason },
     }));
   }
+
+  function monitorGameSocket(socket, url) {
+    if (!/socket\.godeebxp\.com/i.test(String(url || ""))) return;
+    const sequence = ++gameSocketSequence;
+    socket.addEventListener("open", () => {
+      if (sequence !== gameSocketSequence) return;
+      if (gameSocketRecoveryTimer) clearTimeout(gameSocketRecoveryTimer);
+      gameSocketRecoveryTimer = null;
+    });
+    socket.addEventListener("close", () => {
+      if (pageUnloading) return;
+      if (gameSocketRecoveryTimer) clearTimeout(gameSocketRecoveryTimer);
+      gameSocketRecoveryTimer = setTimeout(() => {
+        gameSocketRecoveryTimer = null;
+        if (pageUnloading || sequence !== gameSocketSequence) return;
+        reportSessionStale("game-socket-closed");
+      }, 5000);
+    });
+  }
+
+  function installGameSocketObserver() {
+    const NativeWebSocket = window.WebSocket;
+    if (typeof NativeWebSocket !== "function" || NativeWebSocket.__blackdomainObserved) return;
+    class BlackdomainObservedWebSocket extends NativeWebSocket {
+      constructor(url, protocols) {
+        if (protocols === undefined) super(url);
+        else super(url, protocols);
+        monitorGameSocket(this, url);
+      }
+    }
+    Object.defineProperty(BlackdomainObservedWebSocket, "__blackdomainObserved", { value: true });
+    window.WebSocket = BlackdomainObservedWebSocket;
+  }
+
+  window.addEventListener("beforeunload", () => {
+    pageUnloading = true;
+    if (gameSocketRecoveryTimer) clearTimeout(gameSocketRecoveryTimer);
+  });
+  installGameSocketObserver();
 
   function detectTokenError() {
     tokenErrorCheckTimer = null;
