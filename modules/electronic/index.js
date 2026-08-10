@@ -887,7 +887,11 @@ function getNextRecommendRoom(userId, gameName) {
     if (!unleasedCandidates.length) return null;
     const freshCandidates = unleasedCandidates.filter((room) => !recentRooms.includes(room.number));
     const pool = freshCandidates.length ? freshCandidates : unleasedCandidates;
-    const selected = rtpRankedRooms.length ? pool[0] : pool[crypto.randomInt(pool.length)];
+    const qualityPoolSize = rtpRankedRooms.length
+      ? Math.min(pool.length, Math.max(10, Math.ceil(pool.length * 0.5)))
+      : pool.length;
+    const qualityPool = pool.slice(0, qualityPoolSize);
+    const selected = qualityPool[crypto.randomInt(qualityPool.length)];
     const recentLimit = Math.min(RECOMMEND_HISTORY_LIMIT, candidates.length);
     recommendCursorStore.set(key, {
       recentRooms: [selected.number, ...recentRooms.filter((room) => room !== selected.number)].slice(0, recentLimit),

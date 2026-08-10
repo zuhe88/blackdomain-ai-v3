@@ -1533,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.8") {
-    throw new Error("Electronic relay extension version must be 1.3.8");
+  if (electronicRelayManifest.version !== "1.3.9") {
+    throw new Error("Electronic relay extension version must be 1.3.9");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1637,7 +1637,7 @@ async function main() {
     "const ROTATING_PAGE_REFRESH_MS = 60000",
     "const SCAN_BATCH_SIZE = 3",
     "createScanBatch",
-    "sourcePagesInOrder",
+    "shuffledSourcePages",
     "startScanBatch()",
     "data.sourcePage = effectiveSourcePage",
     "data.totalPages = scanBatchPages.length",
@@ -2268,14 +2268,17 @@ async function main() {
     ],
   });
   const rtpRankedRoom = electronic.getNextRecommendRoom("rtp-ranking-user", electronicSource.GAME_NAMES[1]);
-  if (rtpRankedRoom?.number !== 3999) {
-    throw new Error("Seth 2 recommendations must prioritize reliable higher-RTP empty rooms");
+  if (![3998, 3999].includes(rtpRankedRoom?.number)) {
+    throw new Error("Seth 2 recommendations must stay inside the valid RTP room pool");
   }
   const secondUserRtpRoom = electronic.getNextRecommendRoom(
     "rtp-ranking-user-2",
     electronicSource.GAME_NAMES[1],
   );
-  if (secondUserRtpRoom?.number !== 3998) {
+  if (
+    ![3998, 3999].includes(secondUserRtpRoom?.number)
+    || secondUserRtpRoom?.number === rtpRankedRoom?.number
+  ) {
     throw new Error("Concurrent Seth 2 users must receive different available rooms");
   }
   electronicSource.ingestTables({

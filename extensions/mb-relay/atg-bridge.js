@@ -271,15 +271,19 @@
     }
   }
 
-  function sourcePagesInOrder() {
-    return Array.from({ length: activeSourcePageCount }, (_unused, index) => index + 1);
+  function shuffledSourcePages() {
+    const pages = Array.from({ length: activeSourcePageCount }, (_unused, index) => index + 1);
+    for (let index = pages.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [pages[index], pages[swapIndex]] = [pages[swapIndex], pages[index]];
+    }
+    return pages;
   }
 
   function createScanBatch() {
-    // ATG rebuilds the filtered empty-room list while statuses change. Request
-    // pages in order so a batch cannot jump across a moving pagination window.
-    // Recommendations continue using the previously published pool meanwhile.
-    if (!scanPageQueue.length) scanPageQueue = sourcePagesInOrder();
+    // Randomize a complete page cycle while guaranteeing that each available
+    // source page is visited exactly once before a new cycle is shuffled.
+    if (!scanPageQueue.length) scanPageQueue = shuffledSourcePages();
     return scanPageQueue.splice(0, SCAN_BATCH_SIZE);
   }
 
