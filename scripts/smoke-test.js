@@ -1533,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.9") {
-    throw new Error("Electronic relay extension version must be 1.3.9");
+  if (electronicRelayManifest.version !== "1.3.10") {
+    throw new Error("Electronic relay extension version must be 1.3.10");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1575,6 +1575,8 @@ async function main() {
     "ATG_INIT_TIMEOUT_MS = 45 * 1000",
     "BLACKDOMAIN_ELECTRONIC_SESSION_STALE",
     'reason: "init-timeout"',
+    'reportSessionStale("connection-timeout-dialog")',
+    "連線\\s*逾時",
     'reportSessionStale("token-error-dialog")',
     "MutationObserver",
   ]) {

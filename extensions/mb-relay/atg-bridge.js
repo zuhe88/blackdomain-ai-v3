@@ -100,7 +100,9 @@
   function detectTokenError() {
     tokenErrorCheckTimer = null;
     const text = String(document.body?.innerText || "").replace(/\s+/g, " ");
-    if (/找不到\s*Token\s*資料|verify-login-132|token\s*(?:missing|not found|expired)/i.test(text)) {
+    if (/連線\s*逾時[^。！!]*請\s*重新\s*連線|connection\s*(?:timed?\s*out|timeout)/i.test(text)) {
+      reportSessionStale("connection-timeout-dialog");
+    } else if (/找不到\s*Token\s*資料|verify-login-132|token\s*(?:missing|not found|expired)/i.test(text)) {
       reportSessionStale("token-error-dialog");
     }
   }
