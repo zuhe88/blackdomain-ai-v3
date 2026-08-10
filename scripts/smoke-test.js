@@ -2675,6 +2675,17 @@ async function main() {
   if (!naturalFeatureNotification || captured.pushes.length !== naturalFeaturePushCount + 1) {
     throw new Error("Confirmed natural features must not require an optional action label");
   }
+  const crossPathDuplicatePushCount = captured.pushes.length;
+  const crossPathDuplicateNotification = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特1",
+    roomNumber: 88,
+    spinId: "room-monitor-different-id-same-feature",
+    totalWinnings: 321,
+    featureTrigger: "room-monitor",
+  });
+  if (crossPathDuplicateNotification || captured.pushes.length !== crossPathDuplicatePushCount) {
+    throw new Error("Electronic feature delivery must deduplicate the same result across game-event and room-monitor paths");
+  }
   values = await sendAndTexts("結束房間監控 戰神賽特1 089", "user-smoke");
   assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
   values = await sendAndTexts("結束房間監控 戰神賽特1 088", "user-smoke");

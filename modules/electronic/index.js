@@ -25,8 +25,11 @@ const liveWatches = new Map();
 const stoppedWatchKeys = new Map();
 const notifiedSpins = new Set();
 const notifyingSpins = new Set();
+const recentFeatureResults = new Map();
+const notifyingFeatureResults = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 const LIVE_WATCH_TIMEOUT = 6 * 60 * 60 * 1000;
+const FEATURE_RESULT_DEDUPE_MS = 30 * 1000;
 const RECOMMEND_LEASE_MS = 2 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
@@ -1347,12 +1350,26 @@ async function handleElectronicSpin(payload = {}) {
   const watchers = await getLiveWatchers(payload.gameName, roomNumber);
   if (!watchers.length) return false;
   const spinKey = `${payload.gameName}:${payload.spinId || roomNumber}`;
+  const normalizedWinnings = Math.round(winnings * 1e6) / 1e6;
+  const now = Date.now();
   const pendingWatchers = watchers.filter((watch) => {
     const notificationKey = `${spinKey}:${watch.userId}`;
-    return !notifiedSpins.has(notificationKey) && !notifyingSpins.has(notificationKey);
+    const roomResultKey = `${watch.userId}:${payload.gameName}:${roomNumber}`;
+    const resultKey = `${roomResultKey}:${normalizedWinnings}`;
+    const recent = recentFeatureResults.get(roomResultKey);
+    const duplicateResult = recent
+      && recent.winnings === normalizedWinnings
+      && now - recent.deliveredAt <= FEATURE_RESULT_DEDUPE_MS;
+    return !duplicateResult
+      && !notifyingFeatureResults.has(resultKey)
+      && !notifiedSpins.has(notificationKey)
+      && !notifyingSpins.has(notificationKey);
   });
   if (!pendingWatchers.length) return false;
-  pendingWatchers.forEach((watch) => notifyingSpins.add(`${spinKey}:${watch.userId}`));
+  pendingWatchers.forEach((watch) => {
+    notifyingSpins.add(`${spinKey}:${watch.userId}`);
+    notifyingFeatureResults.add(`${watch.userId}:${payload.gameName}:${roomNumber}:${normalizedWinnings}`);
+  });
   const message = electronicFeatureResultFlex(
     payload.gameName,
     formatRoom(payload.gameName, roomNumber),
@@ -1364,11 +1381,19 @@ async function handleElectronicSpin(payload = {}) {
   );
   let delivered = false;
   results.forEach((result, index) => {
-    const notificationKey = `${spinKey}:${pendingWatchers[index].userId}`;
+    const watcher = pendingWatchers[index];
+    const notificationKey = `${spinKey}:${watcher.userId}`;
+    const roomResultKey = `${watcher.userId}:${payload.gameName}:${roomNumber}`;
+    const resultKey = `${roomResultKey}:${normalizedWinnings}`;
     notifyingSpins.delete(notificationKey);
+    notifyingFeatureResults.delete(resultKey);
     if (result.status === "fulfilled") {
       delivered = true;
       notifiedSpins.add(notificationKey);
+      recentFeatureResults.set(roomResultKey, {
+        winnings: normalizedWinnings,
+        deliveredAt: Date.now(),
+      });
     } else {
       console.error("[Electronic] Feature notification failed:", result.reason?.message || result.reason);
     }
@@ -1457,6 +1482,9 @@ function cleanupOldCycles() {
   }
   for (const [key, stoppedAt] of stoppedWatchKeys.entries()) {
     if (Date.now() - stoppedAt > LIVE_WATCH_TIMEOUT) stoppedWatchKeys.delete(key);
+  }
+  for (const [key, result] of recentFeatureResults.entries()) {
+    if (Date.now() - result.deliveredAt > FEATURE_RESULT_DEDUPE_MS) recentFeatureResults.delete(key);
   }
   for (const [userId, pending] of pendingRecommendations.entries()) {
     if (Date.now() - pending.requestedAt > SESSION_TIMEOUT) cancelPendingRecommendation(userId);
