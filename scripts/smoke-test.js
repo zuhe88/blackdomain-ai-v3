@@ -1533,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.7") {
-    throw new Error("Electronic relay extension version must be 1.3.7");
+  if (electronicRelayManifest.version !== "1.3.8") {
+    throw new Error("Electronic relay extension version must be 1.3.8");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1636,7 +1636,8 @@ async function main() {
     "eventName === \"SlotFrameworkEvent:BUY_FEATURE_RESPONSE\"",
     "const ROTATING_PAGE_REFRESH_MS = 60000",
     "const SCAN_BATCH_SIZE = 3",
-    "createRandomScanBatch",
+    "createScanBatch",
+    "sourcePagesInOrder",
     "startScanBatch()",
     "data.sourcePage = effectiveSourcePage",
     "data.totalPages = scanBatchPages.length",
@@ -1644,6 +1645,7 @@ async function main() {
     "cachedEmptyPages.set(effectiveSourcePage, data.tables)",
     "if (data.scanComplete) data.tables = cachedEmptyTables()",
     "cachedEmptyPages.size < activeSourcePageCount",
+    "rawTables.length > 0 && !tables.length",
   ]) {
     if (!electronicBridgeSource.includes(expected)) {
       throw new Error(`Electronic relay bridge is missing scan recovery: ${expected}`);

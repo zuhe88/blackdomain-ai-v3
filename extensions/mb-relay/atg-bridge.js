@@ -182,8 +182,11 @@
     const candidates = [payload, payload?.data, payload?.platform, payload?.platform?.tableMeta];
     const container = candidates.find((item) => Array.isArray(item?.tables));
     if (!container) return null;
-    const tables = container.tables.map(normalizeTable).filter(Boolean);
-    if (!tables.length) return null;
+    const rawTables = container.tables;
+    const tables = rawTables.map(normalizeTable).filter(Boolean);
+    // A genuinely empty page is a valid result and must advance the scan.
+    // A non-empty response where every row is malformed remains retryable.
+    if (rawTables.length > 0 && !tables.length) return null;
     tables.forEach((table) => knownTables.set(table.roomId, table));
     const reportedPage = Number(
       container.currentPage
@@ -268,20 +271,15 @@
     }
   }
 
-  function shuffledSourcePages() {
-    const pages = Array.from({ length: activeSourcePageCount }, (_unused, index) => index + 1);
-    for (let index = pages.length - 1; index > 0; index -= 1) {
-      const swapIndex = Math.floor(Math.random() * (index + 1));
-      [pages[index], pages[swapIndex]] = [pages[swapIndex], pages[index]];
-    }
-    return pages;
+  function sourcePagesInOrder() {
+    return Array.from({ length: activeSourcePageCount }, (_unused, index) => index + 1);
   }
 
-  function createRandomScanBatch() {
-    // Cover every page once before starting another random eight-page cycle.
-    // Recommendations can still use the first three-page batch immediately,
-    // while the cached inventory grows into the complete empty-room list.
-    if (!scanPageQueue.length) scanPageQueue = shuffledSourcePages();
+  function createScanBatch() {
+    // ATG rebuilds the filtered empty-room list while statuses change. Request
+    // pages in order so a batch cannot jump across a moving pagination window.
+    // Recommendations continue using the previously published pool meanwhile.
+    if (!scanPageQueue.length) scanPageQueue = sourcePagesInOrder();
     return scanPageQueue.splice(0, SCAN_BATCH_SIZE);
   }
 
@@ -295,7 +293,7 @@
 
   function startScanBatch() {
     if (scanPage !== 0) return;
-    scanBatchPages = createRandomScanBatch();
+    scanBatchPages = createScanBatch();
     scanBatchIndex = 0;
     requestScanPage(scanBatchPages[0]);
   }
