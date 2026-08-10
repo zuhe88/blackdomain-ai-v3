@@ -73,7 +73,10 @@
   const WRAPPER_FAST_RETRY_WINDOW_MS = 30000;
   const WRAPPER_HEALTH_CHECK_MS = 1000;
   const ATG_INIT_TIMEOUT_MS = 45 * 1000;
+  const SESSION_STALE_COOLDOWN_MS = 30 * 1000;
   const wrapperBootstrapStartedAt = Date.now();
+  let lastSessionStaleAt = 0;
+  let tokenErrorCheckTimer = null;
   const startupGameName = detectGameName();
   const startupRecoveryTimer = startupGameName
     ? setTimeout(() => {
@@ -83,6 +86,43 @@
       }));
     }, ATG_INIT_TIMEOUT_MS)
     : null;
+
+  function reportSessionStale(reason) {
+    const now = Date.now();
+    if (now - lastSessionStaleAt < SESSION_STALE_COOLDOWN_MS) return;
+    lastSessionStaleAt = now;
+    window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", {
+      detail: { gameName: gameName || startupGameName, reason },
+    }));
+  }
+
+  function detectTokenError() {
+    tokenErrorCheckTimer = null;
+    const text = String(document.body?.innerText || "").replace(/\s+/g, " ");
+    if (/找不到\s*Token\s*資料|verify-login-132|token\s*(?:missing|not found|expired)/i.test(text)) {
+      reportSessionStale("token-error-dialog");
+    }
+  }
+
+  function scheduleTokenErrorCheck() {
+    if (tokenErrorCheckTimer) return;
+    tokenErrorCheckTimer = setTimeout(detectTokenError, 200);
+  }
+
+  function installTokenErrorObserver() {
+    if (!document.documentElement) {
+      document.addEventListener?.("DOMContentLoaded", installTokenErrorObserver, { once: true });
+      return;
+    }
+    new MutationObserver(scheduleTokenErrorCheck).observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    scheduleTokenErrorCheck();
+  }
+
+  installTokenErrorObserver();
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", { detail: body }));

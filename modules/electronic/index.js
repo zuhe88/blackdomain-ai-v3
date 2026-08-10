@@ -319,10 +319,9 @@ async function hydratePendingRecommendations() {
 }
 
 function rememberLiveWatch(watch) {
-  if (!watch?.userId) return;
-  stoppedWatchKeys.delete(watchKey(watch));
+  if (!watch?.userId || stoppedWatchKeys.has(watchKey(watch))) return false;
   liveWatches.set(watch.userId, watch);
-  if (!supabase) return;
+  if (!supabase) return true;
   supabase
     .from("lottery_settings")
     .upsert({
@@ -334,6 +333,16 @@ function rememberLiveWatch(watch) {
     .then(({ error }) => {
       if (error) console.error("[Electronic] Watch persistence failed:", error.message);
     });
+  return true;
+}
+
+function allowNewLiveWatch(userId) {
+  const ownerPrefix = `${String(userId || "")}:`;
+  for (const key of stoppedWatchKeys.keys()) {
+    if (key.startsWith(ownerPrefix)) stoppedWatchKeys.delete(key);
+  }
+  const stopped = liveWatches.get(userId);
+  if (stopped?.stoppedAt) liveWatches.delete(userId);
 }
 
 async function stopLiveWatch(userId, expectedGameName = "", expectedRoomNumber = null) {
@@ -346,7 +355,7 @@ async function stopLiveWatch(userId, expectedGameName = "", expectedRoomNumber =
       .maybeSingle();
     watch = data?.value || null;
   }
-  if (!watch) return { stopped: false, reason: "none" };
+  if (!watch || watch.stoppedAt) return { stopped: false, reason: "none" };
   if (
     (expectedGameName && watch.gameName !== expectedGameName)
     || (
@@ -357,15 +366,20 @@ async function stopLiveWatch(userId, expectedGameName = "", expectedRoomNumber =
     return { stopped: false, reason: "changed", watch };
   }
 
+  const stoppedAt = Date.now();
   liveWatches.delete(userId);
   releaseRoomRecommendationLeases(userId, watch.gameName);
-  stoppedWatchKeys.set(watchKey(watch), Date.now());
+  stoppedWatchKeys.set(watchKey(watch), stoppedAt);
   if (supabase) {
     const { error } = await supabase
       .from("lottery_settings")
-      .delete()
-      .eq("key", `${WATCH_KEY_PREFIX}${userId}`);
-    if (error) console.error("[Electronic] Watch removal failed:", error.message);
+      .upsert({
+        key: `${WATCH_KEY_PREFIX}${userId}`,
+        value: { ...watch, stoppedAt },
+        updated_at: new Date(stoppedAt).toISOString(),
+        updated_by: userId,
+      }, { onConflict: "key" });
+    if (error) console.error("[Electronic] Watch stop persistence failed:", error.message);
   }
   return { stopped: true, watch };
 }
@@ -409,6 +423,7 @@ async function getLiveWatchers(gameName, roomNumber) {
     if (
       watch.gameName === gameName
       && Number(watch.roomNumber) === roomNumber
+      && !watch.stoppedAt
       && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT
     ) watchers.set(watch.userId, watch);
   }
@@ -429,6 +444,7 @@ async function getLiveWatchers(gameName, roomNumber) {
       watch?.userId
       && watch.gameName === gameName
       && Number(watch.roomNumber) === roomNumber
+      && !watch.stoppedAt
       && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT
     ) {
       watchers.set(watch.userId, watch);
@@ -446,7 +462,7 @@ async function getActiveWatchRooms() {
   // produced RTP, leaving every recommendation with the same sole candidate.
   refreshBackgroundRecommendationProbes(now);
   for (const watch of liveWatches.values()) {
-    if (watch?.userId && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT) {
+    if (watch?.userId && !watch.stoppedAt && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT) {
       watches.set(watch.userId, { ...watch, purpose: "feature" });
     }
   }
@@ -465,7 +481,7 @@ async function getActiveWatchRooms() {
     } else {
       for (const row of data || []) {
         const watch = row?.value;
-        if (watch?.userId && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT) {
+        if (watch?.userId && !watch.stoppedAt && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT) {
           watches.set(watch.userId, { ...watch, purpose: "feature" });
           liveWatches.set(watch.userId, watch);
         }
@@ -1179,6 +1195,7 @@ async function recommendRoom(event) {
       RTP_WAIT_ESTIMATE,
     ));
   }
+  if (!event.autoPush) allowNewLiveWatch(userId);
   const currentGame = getUserSession(userId).gameName;
   if (!event.autoPush && currentGame === electronicSource.GAME_NAMES[1]) {
     const request = { id: crypto.randomUUID(), cancelled: false };
@@ -1368,7 +1385,7 @@ function cleanupOldCycles() {
     }
   }
   for (const [key, stoppedAt] of stoppedWatchKeys.entries()) {
-    if (Date.now() - stoppedAt > SESSION_TIMEOUT) stoppedWatchKeys.delete(key);
+    if (Date.now() - stoppedAt > LIVE_WATCH_TIMEOUT) stoppedWatchKeys.delete(key);
   }
   for (const [userId, pending] of pendingRecommendations.entries()) {
     if (Date.now() - pending.requestedAt > SESSION_TIMEOUT) cancelPendingRecommendation(userId);

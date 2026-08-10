@@ -130,8 +130,26 @@ function buildFreshTokenLobbyUrl(gameUrl, now) {
   }
 }
 
+function refreshRecoveryLobbyUrl(value, now) {
+  try {
+    const lobby = new URL(value);
+    if (lobby.hostname !== "play.godeebxp.com" || !isAtgLobby(lobby.href)) return "";
+    lobby.searchParams.set("blackdomain_reopen", "seth2");
+    lobby.searchParams.set("blackdomain_recovered_at", String(now));
+    return lobby.href;
+  } catch {
+    return "";
+  }
+}
+
 async function recoverAtgToken(tab, health, key, now) {
-  const lobbyUrl = buildFreshTokenLobbyUrl(tab.url, now);
+  let lobbyUrl = buildFreshTokenLobbyUrl(tab.url, now);
+  if (lobbyUrl) {
+    await chrome.storage.local.set({ blackdomainAtgRecoveryLobbyUrl: lobbyUrl });
+  } else {
+    const saved = await chrome.storage.local.get("blackdomainAtgRecoveryLobbyUrl");
+    lobbyUrl = refreshRecoveryLobbyUrl(saved.blackdomainAtgRecoveryLobbyUrl, now);
+  }
   if (!lobbyUrl) return false;
   await chrome.storage.local.set({
     [key]: {

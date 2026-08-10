@@ -14,8 +14,13 @@
     let attempts = 0;
     const timer = window.setInterval(() => {
       attempts += 1;
-      const image = document.querySelector('img[alt="戰神賽特2覺醒之力"]');
-      const button = image?.closest(".card")?.querySelector("button");
+      const image = document.querySelector(
+        'img[alt*="戰神賽特2"], img[alt*="賽特2"], img[src*="golden-seth"]',
+      );
+      const container = image?.closest('.card, [class*="card"], li, article, [role="button"]');
+      const button = container?.querySelector('button, a, [role="button"]')
+        || image?.closest('button, a, [role="button"]')
+        || image;
       if (!button && attempts < 60) return;
       window.clearInterval(timer);
       if (!button) return;
@@ -25,6 +30,19 @@
       window.history.replaceState(null, "", cleanUrl);
       button.click();
     }, 500);
+  }
+
+  function rememberRecoveryLobby() {
+    try {
+      const current = new URL(window.location.href);
+      const rawLobbyUrl = current.searchParams.get("goback_url");
+      if (!rawLobbyUrl) return;
+      const lobby = new URL(rawLobbyUrl);
+      if (lobby.hostname !== current.hostname || !lobby.pathname.includes("/egames/lobby/game/")) return;
+      chrome.storage.local.set({ blackdomainAtgRecoveryLobbyUrl: lobby.href });
+    } catch {
+      // The watchdog can still recover from the current URL when available.
+    }
   }
 
   function sendHeartbeat() {
@@ -124,6 +142,7 @@
   }
 
   syncWatchRooms();
+  rememberRecoveryLobby();
   autoReopenSeth2();
   setInterval(syncWatchRooms, 2000);
   sendHeartbeat();

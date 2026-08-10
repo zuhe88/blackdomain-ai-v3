@@ -1532,8 +1532,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.4") {
-    throw new Error("Electronic relay extension version must be 1.3.4");
+  if (electronicRelayManifest.version !== "1.3.5") {
+    throw new Error("Electronic relay extension version must be 1.3.5");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1554,6 +1554,8 @@ async function main() {
     "chrome.tabs.reload",
     "GAME_DATA_TIMEOUT_MS",
     "buildFreshTokenLobbyUrl",
+    "blackdomainAtgRecoveryLobbyUrl",
+    "refreshRecoveryLobbyUrl",
     "blackdomain_reopen",
     "TOKEN_ERROR_RECOVERY_COOLDOWN_MS",
   ]) {
@@ -1572,6 +1574,8 @@ async function main() {
     "ATG_INIT_TIMEOUT_MS = 45 * 1000",
     "BLACKDOMAIN_ELECTRONIC_SESSION_STALE",
     'reason: "init-timeout"',
+    'reportSessionStale("token-error-dialog")',
+    "MutationObserver",
   ]) {
     if (!atgBridgeSource.includes(expected)) {
       throw new Error(`ATG startup token recovery is missing: ${expected}`);
@@ -1886,7 +1890,8 @@ async function main() {
   }
   for (const expected of [
     "autoReopenSeth2",
-    'img[alt="戰神賽特2覺醒之力"]',
+    'img[alt*="戰神賽特2"]',
+    "blackdomainAtgRecoveryLobbyUrl",
     "button.click()",
     "BLACKDOMAIN_ATG_SESSION_STALE",
   ]) {
@@ -2556,6 +2561,20 @@ async function main() {
   assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
   values = await sendAndTexts("結束房間監控 戰神賽特1 088", "user-smoke");
   assertIncludes(values, "已結束房間監控", "Electronic room monitoring stop");
+  const stoppedWatchRow = mockElectronicRows.get("electronic_watch:user-smoke");
+  if (
+    stoppedWatchRow?.value?.gameName !== "戰神賽特1"
+    || stoppedWatchRow?.value?.roomNumber !== 88
+    || !Number.isFinite(Number(stoppedWatchRow?.value?.stoppedAt))
+  ) {
+    throw new Error("Stopped electronic watches must persist a restart-safe tombstone");
+  }
+  const activeRoomsAfterStop = await electronic.getActiveWatchRooms();
+  if (activeRoomsAfterStop.some((room) => (
+    room.gameName === "戰神賽特1" && room.roomNumber === 88
+  ))) {
+    throw new Error("Stopped electronic rooms must be removed from the relay watch queue");
+  }
   values = await sendAndTexts("結束房間監控 格式錯誤", "user-smoke");
   assertIncludes(values, "無法辨識房間", "Malformed electronic stop-room command guard");
   const stoppedWatchPushCount = captured.pushes.length;
