@@ -2488,6 +2488,17 @@ async function main() {
   const waitingPushCount = captured.pushes.length;
   const freshRecommendationPromise = send("重新推薦", "user-smoke");
   await new Promise((resolve) => setTimeout(resolve, 5));
+  const provisionalFeaturePushCount = captured.pushes.length;
+  const provisionalFeatureNotified = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特1",
+    roomNumber: 88,
+    spinId: "provisional-candidate-feature",
+    totalWinnings: 290,
+    featureTrigger: "natural",
+  });
+  if (provisionalFeatureNotified || captured.pushes.length !== provisionalFeaturePushCount) {
+    throw new Error("RTP candidate rooms must not send feature results before the recommendation is delivered");
+  }
   const duplicateRecommendationReply = await send("重新推薦", "user-smoke");
   const duplicateRecommendationTexts = duplicateRecommendationReply.messages
     .flatMap((message) => collectText(message));

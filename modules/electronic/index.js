@@ -122,6 +122,20 @@ function clearRecommendationProbes(userId) {
   }
 }
 
+function watchRecommendationCandidate(userId, gameName, roomNumber) {
+  const owner = String(userId || "guest");
+  const number = Number(roomNumber);
+  if (!Number.isInteger(number)) return false;
+  clearRecommendationProbes(owner);
+  recommendationProbes.set(`${owner}:${gameName}:${number}`, {
+    userId: owner,
+    gameName,
+    roomNumber: number,
+    updatedAt: Date.now(),
+  });
+  return true;
+}
+
 function seedRecommendationProbes(userId, gameName, limit = RECOMMEND_PROBE_BATCH_SIZE) {
   if (gameName !== electronicSource.GAME_NAMES[1]) return 0;
   const owner = String(userId || "guest");
@@ -178,7 +192,7 @@ async function cancelRecommendation(userId) {
   const pendingCancelled = cancelPendingRecommendation(userId);
   const inFlight = recommendInFlight.get(userId);
   if (inFlight) inFlight.cancelled = true;
-  if (inFlight) await stopLiveWatch(userId);
+  if (inFlight) clearRecommendationProbes(userId);
   releaseRoomRecommendationLeases(userId);
   return pendingCancelled || Boolean(inFlight);
 }
@@ -1040,7 +1054,7 @@ async function deliverRecommendation(event, message) {
 
 async function stopIfRecommendationCancelled(event, userId) {
   if (!event.recommendationRequest?.cancelled) return false;
-  await stopLiveWatch(userId);
+  clearRecommendationProbes(userId);
   return true;
 }
 
@@ -1088,12 +1102,7 @@ async function performRecommendRoom(event) {
     if (!event.waitingAlreadySent) {
       await pushRoomSyncWaiting(userId, session.gameName);
     }
-    rememberLiveWatch({
-      userId,
-      gameName: session.gameName,
-      roomNumber,
-      updatedAt: Date.now(),
-    });
+    watchRecommendationCandidate(userId, session.gameName, roomNumber);
     const firstWaitMs = detailDeadline - Date.now();
     let refreshed = firstWaitMs > 0
       ? await electronicSource.waitForRoomDetail(
@@ -1117,12 +1126,7 @@ async function performRecommendRoom(event) {
       selected = getNextRecommendRoom(userId, session.gameName);
       roomNumber = selectedRoomNumber(selected);
       if (selected && typeof selected === "object") {
-        rememberLiveWatch({
-          userId,
-          gameName: session.gameName,
-          roomNumber,
-          updatedAt: Date.now(),
-        });
+        watchRecommendationCandidate(userId, session.gameName, roomNumber);
         const remainingWaitMs = detailDeadline - Date.now();
         selected = remainingWaitMs > 0
           ? await electronicSource.waitForRoomDetail(
@@ -1141,7 +1145,7 @@ async function performRecommendRoom(event) {
     if (!selected || missingRequiredRtp || (typeof selected === "object" && (
       selected.status !== "Empty" || selected.occupied === true
     ))) {
-      await stopLiveWatch(userId, session.gameName, roomNumber);
+      clearRecommendationProbes(userId);
       if (electronicSource.SUPPORTED_GAMES.has(session.gameName)) {
         queuePendingRecommendation(userId, session.gameName);
         if (event.waitingAlreadySent) return false;
@@ -1158,13 +1162,14 @@ async function performRecommendRoom(event) {
   }
   if (await stopIfRecommendationCancelled(event, userId)) return false;
   const room = formatRoom(session.gameName, roomNumber);
-  rememberLiveWatch({
+  clearRecommendationProbes(userId);
+  const watch = {
     userId,
     gameName: session.gameName,
     roomNumber,
     updatedAt: Date.now(),
-  });
-  return deliverRecommendation(event, electronicRecommendFlex(
+  };
+  const delivered = await deliverRecommendation(event, electronicRecommendFlex(
     session.gameName,
     room,
     getUpdateTimeText(),
@@ -1172,6 +1177,9 @@ async function performRecommendRoom(event) {
     typeof selected === "object" ? selected : null,
     { requiresRoomConfirmation },
   ));
+  if (!delivered || event.recommendationRequest?.cancelled) return false;
+  rememberLiveWatch(watch);
+  return true;
 }
 
 async function recommendRoom(event) {
