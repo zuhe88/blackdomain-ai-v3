@@ -29,7 +29,8 @@ const recentFeatureResults = new Map();
 const notifyingFeatureResults = new Set();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
 const LIVE_WATCH_TIMEOUT = 6 * 60 * 60 * 1000;
-const FEATURE_RESULT_DEDUPE_MS = 30 * 1000;
+const FEATURE_RESULT_LIFECYCLE_MS = 10 * 60 * 1000;
+const FEATURE_RESULT_CLOSED_GRACE_MS = 30 * 1000;
 const RECOMMEND_LEASE_MS = 2 * 60 * 1000;
 const WATCH_KEY_PREFIX = "electronic_watch:";
 const SESSION_KEY_PREFIX = "electronic_session:";
@@ -1357,9 +1358,23 @@ async function handleElectronicSpin(payload = {}) {
     const roomResultKey = `${watch.userId}:${payload.gameName}:${roomNumber}`;
     const resultKey = `${roomResultKey}:${normalizedWinnings}`;
     const recent = recentFeatureResults.get(roomResultKey);
-    const duplicateResult = recent
-      && recent.winnings === normalizedWinnings
-      && now - recent.deliveredAt <= FEATURE_RESULT_DEDUPE_MS;
+    const sameSpin = recent
+      && String(recent.spinId || "") === String(payload.spinId || "");
+    const sameResult = recent?.winnings === normalizedWinnings;
+    const withinLifecycle = recent
+      && now - recent.deliveredAt <= FEATURE_RESULT_LIFECYCLE_MS;
+    const withinClosedGrace = recent?.closedAt
+      && now - recent.closedAt <= FEATURE_RESULT_CLOSED_GRACE_MS;
+    const duplicateResult = sameResult && (
+      sameSpin
+      || (!recent.closedAt && withinLifecycle)
+      || withinClosedGrace
+    );
+    if (duplicateResult) {
+      recent.lastSeenAt = now;
+      if (!sameSpin && !recent.closedAt) recent.closedAt = now;
+      recentFeatureResults.set(roomResultKey, recent);
+    }
     return !duplicateResult
       && !notifyingFeatureResults.has(resultKey)
       && !notifiedSpins.has(notificationKey)
@@ -1393,6 +1408,10 @@ async function handleElectronicSpin(payload = {}) {
       recentFeatureResults.set(roomResultKey, {
         winnings: normalizedWinnings,
         deliveredAt: Date.now(),
+        lastSeenAt: Date.now(),
+        closedAt: 0,
+        spinId: String(payload.spinId || ""),
+        featureTrigger,
       });
     } else {
       console.error("[Electronic] Feature notification failed:", result.reason?.message || result.reason);
@@ -1484,7 +1503,9 @@ function cleanupOldCycles() {
     if (Date.now() - stoppedAt > LIVE_WATCH_TIMEOUT) stoppedWatchKeys.delete(key);
   }
   for (const [key, result] of recentFeatureResults.entries()) {
-    if (Date.now() - result.deliveredAt > FEATURE_RESULT_DEDUPE_MS) recentFeatureResults.delete(key);
+    if (Date.now() - (result.lastSeenAt || result.deliveredAt) > FEATURE_RESULT_LIFECYCLE_MS) {
+      recentFeatureResults.delete(key);
+    }
   }
   for (const [userId, pending] of pendingRecommendations.entries()) {
     if (Date.now() - pending.requestedAt > SESSION_TIMEOUT) cancelPendingRecommendation(userId);
