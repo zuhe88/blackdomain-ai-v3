@@ -50,10 +50,6 @@ const AI_BROWSE_COMMANDS = new Set([
   "古神巴風特",
   "虎小妹",
   "赤三國",
-  "539",
-  "539AI",
-  "今彩539",
-  "🎯 539AI",
   "彩票",
   "彩票AI",
   "🎟️ 彩票AI",
@@ -62,12 +58,6 @@ const AI_BROWSE_COMMANDS = new Set([
   "SPORT",
   "SPORT AI",
   "ATG",
-  "ATG賽馬",
-  "ATG賽馬AI",
-  "🏇 ATG賽馬AI",
-  "MB",
-  "MB彈珠",
-  "MB彈珠AI",
 ]);
 
 function registerWebhookRoutes(app) {
@@ -185,6 +175,8 @@ async function handleEvent(event) {
     || (text !== "ATG" && atg.isAtgCommand(text))
   ) {
     await clearAllUserSessions(userId);
+    const allowed = await ensureVipOrReply(event, "atg");
+    if (!allowed) return;
     return reply(event.replyToken, "ATG賽馬 AI 目前維護中，服務暫停開放，完成後將重新上線。");
   }
 
@@ -198,7 +190,7 @@ async function handleEvent(event) {
     return official.handleOfficialMessage(event);
   }
 
-  if (AI_BROWSE_COMMANDS.has(text) || mb.isBrowseCommand?.(text)) {
+  if (AI_BROWSE_COMMANDS.has(text)) {
     await clearAllUserSessions(userId);
   }
 
@@ -223,17 +215,14 @@ async function handleEvent(event) {
 
   if (lottery539.is539Command(text) && ["539", "539AI", "今彩539", "🎯 539AI"].includes(text)) {
     await clearAllUserSessions(userId);
+    const allowed = await ensureVipOrReply(event, "539");
+    if (!allowed) return;
     return lottery539.handle539Message(event);
   }
 
   if (atg.isEntryCommand(text)) {
     await clearAllUserSessions(userId);
     return atg.handleAtgMessage(event);
-  }
-
-  if (mb.isBrowseCommand?.(text)) {
-    await clearAllUserSessions(userId);
-    return mb.handleMbMessage(event);
   }
 
   if (sports.isSportsCommand(text) && ["體育", "體育AI", "SPORT", "SPORT AI"].includes(text)) {

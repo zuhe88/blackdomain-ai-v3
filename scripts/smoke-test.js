@@ -2131,10 +2131,16 @@ async function main() {
   values = await sendAndTexts("DG", "non-vip-baccarat-user");
   assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked when entering baccarat analysis");
 
-  values = await sendAndTexts("539", "non-vip-539-user");
-  assertIncludes(values, "AI今日預測", "Non-VIP can browse 539 feature cards");
-  values = await sendAndTexts("AI今日預測", "non-vip-539-user");
-  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked when starting 539 analysis");
+  values = await sendAndTexts("彩票", "non-vip-lottery-user");
+  assertIncludes(values, "ATG賽馬 AI", "Non-VIP can browse the lottery game cards");
+  assertIncludes(values, "MB彈珠", "Non-VIP can see the MB lottery card");
+  assertIncludes(values, "今彩539", "Non-VIP can see the 539 lottery card");
+  values = await sendAndTexts("539", "non-vip-lottery-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked on the 539 lottery card");
+  values = await sendAndTexts("MB彈珠", "non-vip-lottery-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked on the MB lottery card");
+  values = await sendAndTexts("ATG賽馬 維護中", "non-vip-lottery-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked on the ATG lottery card");
 
   values = await sendAndTexts("體育", "non-vip-sports-user");
   assertIncludes(values, "MLB AI", "Non-VIP can browse sports league cards");
@@ -3077,14 +3083,8 @@ async function main() {
   if (!mbHeroUrl.includes("mb-marble-hd.webp")) {
     throw new Error("MB menu must use the enhanced MB marble image");
   }
-  values = await sendAndTexts("mb彈珠", "user-smoke-lowercase");
+  values = await sendAndTexts("mb彈珠", "user-smoke");
   assertIncludes(values, "獨立四賽道即時資料", "Lowercase MB command");
-  values = await sendAndTexts("MB彈珠", "non-vip-mb-user");
-  assertIncludes(values, "獨立四賽道即時資料", "Non-VIP can browse MB game cards");
-  values = await sendAndTexts("MB 賭城賽車", "non-vip-mb-user");
-  assertIncludes(values, "主流 5碼", "Non-VIP can browse MB track feature cards");
-  values = await sendAndTexts("MB 賭城賽車 5碼", "non-vip-mb-user");
-  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked when starting MB analysis");
   values = await sendAndTexts("MB 賭城賽車", "user-smoke");
   assertIncludes(values, "主流 5碼", "MB track pick menu");
   values = await sendAndTexts("MB 賭城賽車 5碼", "user-smoke");

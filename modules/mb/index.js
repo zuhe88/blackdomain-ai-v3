@@ -26,11 +26,6 @@ function isEntryCommand(value) {
   return ENTRY_COMMANDS.has(normalizeCommand(value));
 }
 
-function isBrowseCommand(value) {
-  const text = normalizeCommand(value);
-  return isEntryCommand(text) || TRACK_COMMANDS.has(text);
-}
-
 function isMbCommand(value) {
   const text = normalizeCommand(value);
   return isEntryCommand(text)
@@ -111,7 +106,6 @@ async function handleMbMessage(event) {
 module.exports = {
   handleMbMessage,
   hasActiveMbSession,
-  isBrowseCommand,
   isEntryCommand,
   isMbCommand,
   resetMbSession,
