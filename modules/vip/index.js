@@ -271,17 +271,27 @@ function simpleFlex({ title, subtitle = "BLACKDOMAIN VIP", rows = [], quickReply
   });
 }
 
-function accessDeniedFlex() {
+function accessDeniedFlex(moduleName = "AI") {
+  const featureName = {
+    baccarat: "百家樂 AI",
+    electronic: "電子 AI",
+    539: "539 AI",
+    mb: "MB 彈珠 AI",
+    atg: "ATG 賽馬 AI",
+    sports: "體育 AI",
+  }[moduleName] || "AI 分析";
   return bubble({
-    altText: "尚未開通黑域AI",
-    title: "尚未開通黑域AI",
+    altText: "此分析功能需要 VIP 權限",
+    title: "VIP 分析權限",
     subtitle: "BLACKDOMAIN VIP",
     quickReply: vipQuickReply(false),
     footer: "BLACKDOMAIN VIP",
     contents: [
-      metric("AI權限", "尚未開通", "請先完成3A帳號綁定"),
-      infoLine("請輸入", "綁定"),
-      note("完成綁定後，等待管理員審核開通。"),
+      metric("分析功能", featureName, "VIP 會員限定"),
+      infoLine("目前可使用", "瀏覽遊戲與功能卡片"),
+      infoLine("開始 AI 分析", "需先開通 VIP 權限"),
+      infoLine("開通方式", "輸入「綁定」"),
+      note("完成 3A 帳號綁定並經管理員開通後，即可使用分析功能。"),
     ],
   });
 }

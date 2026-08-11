@@ -33,7 +33,7 @@ const CONTACT_COMMANDS = new Set(["管理員", "客服", "聯繫管理員", "�
 const WELCOME_PREVIEW_COMMANDS = new Set(["歡迎訊息", "測試歡迎訊息"]);
 const ATG_MAINTENANCE_COMMANDS = new Set(["ATG賽馬", "ATG賽馬AI", "🏇 ATG賽馬AI", "ATG賽馬 維護中"]);
 
-const AI_ENTRY_COMMANDS = new Set([
+const AI_BROWSE_COMMANDS = new Set([
   "百家樂",
   "百家樂AI",
   "baccarat",
@@ -54,7 +54,6 @@ const AI_ENTRY_COMMANDS = new Set([
   "539AI",
   "今彩539",
   "🎯 539AI",
-  "AI今日預測",
   "彩票",
   "彩票AI",
   "🎟️ 彩票AI",
@@ -62,13 +61,6 @@ const AI_ENTRY_COMMANDS = new Set([
   "體育AI",
   "SPORT",
   "SPORT AI",
-  "CPBL",
-  "CPBL AI",
-  "中華職棒",
-  "中職",
-  "MLB",
-  "MLB AI",
-  "NBA",
   "ATG",
   "ATG賽馬",
   "ATG賽馬AI",
@@ -120,21 +112,10 @@ function isAdminCommand(text) {
   );
 }
 
-function moduleNameFromText(text) {
-  if (["百家樂", "百家樂AI", "baccarat", "🎲 百家樂AI"].includes(text)) return "baccarat";
-  if (["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI", "戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"].includes(text)) return "electronic";
-  if (["539", "539AI", "今彩539", "🎯 539AI", "AI今日預測"].includes(text)) return "539";
-  if (["彩票", "彩票AI", "🎟️ 彩票AI"].includes(text)) return "lottery";
-  if (["ATG", "ATG賽馬", "ATG賽馬AI", "🏇 ATG賽馬AI"].includes(text)) return "atg";
-  if (["MB", "MB彈珠", "MB彈珠AI"].includes(text)) return "mb";
-  if (["體育", "體育AI", "SPORT", "SPORT AI", "CPBL", "CPBL AI", "中華職棒", "中職", "MLB", "MLB AI", "NBA"].includes(text)) return "sports";
-  return "AI";
-}
-
 async function ensureVipOrReply(event, moduleName) {
   const access = await vip.checkVipAccess(event.source.userId || "");
   if (!access.allowed) {
-    await reply(event.replyToken, vip.accessDeniedFlex());
+    await reply(event.replyToken, vip.accessDeniedFlex(moduleName));
     return false;
   }
 
@@ -217,10 +198,8 @@ async function handleEvent(event) {
     return official.handleOfficialMessage(event);
   }
 
-  if (AI_ENTRY_COMMANDS.has(text)) {
+  if (AI_BROWSE_COMMANDS.has(text) || mb.isBrowseCommand?.(text)) {
     await clearAllUserSessions(userId);
-    const allowed = await ensureVipOrReply(event, moduleNameFromText(text));
-    if (!allowed) return;
   }
 
   if (vip.hasActiveVipSession && vip.hasActiveVipSession(userId)) {
@@ -252,7 +231,7 @@ async function handleEvent(event) {
     return atg.handleAtgMessage(event);
   }
 
-  if (mb.isEntryCommand(text)) {
+  if (mb.isBrowseCommand?.(text)) {
     await clearAllUserSessions(userId);
     return mb.handleMbMessage(event);
   }
@@ -284,7 +263,11 @@ async function handleEvent(event) {
     return baccarat.handleBaccaratMessage(event);
   }
 
-  if (lottery539.is539Command(text)) return lottery539.handle539Message(event);
+  if (lottery539.is539Command(text)) {
+    const allowed = await ensureVipOrReply(event, "539");
+    if (!allowed) return;
+    return lottery539.handle539Message(event);
+  }
   if (mb.hasActiveMbSession(userId) || mb.isMbCommand(text)) {
     const allowed = await ensureVipOrReply(event, "mb");
     if (!allowed) return;
@@ -297,7 +280,11 @@ async function handleEvent(event) {
     const handled = await atg.handleAtgMessage(event);
     if (handled !== false) return handled;
   }
-  if (sports.isSportsCommand(text)) return sports.handleSportsMessage(event);
+  if (sports.isSportsCommand(text)) {
+    const allowed = await ensureVipOrReply(event, "sports");
+    if (!allowed) return;
+    return sports.handleSportsMessage(event);
+  }
   if (vip.isVipCommand(text)) return vip.handleVipMessage(event);
 
   return replyHome(event);

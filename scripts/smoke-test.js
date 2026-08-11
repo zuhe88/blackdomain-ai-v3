@@ -2119,7 +2119,27 @@ async function main() {
   values = await sendAndTexts("綁定", "global-ai-entry-user");
   assertIncludes(values, "請輸入", "AI entry bind prompt");
   values = await sendAndTexts("電子", "global-ai-entry-user");
-  assertIncludes(values, "尚未開通黑域AI", "AI entry overrides binding session");
+  assertIncludes(values, "戰神賽特2", "Non-VIP can browse electronic game cards");
+  values = await sendAndTexts("戰神賽特2", "global-ai-entry-user");
+  assertIncludes(values, "AI推薦房", "Non-VIP can browse the selected game feature card");
+  values = await sendAndTexts("AI推薦房", "global-ai-entry-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked only when starting electronic analysis");
+  assertIncludes(values, "瀏覽遊戲與功能卡片", "Non-VIP access guidance");
+
+  values = await sendAndTexts("百家樂", "non-vip-baccarat-user");
+  assertIncludes(values, "DG 百家樂AI", "Non-VIP can browse baccarat platform cards");
+  values = await sendAndTexts("DG", "non-vip-baccarat-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked when entering baccarat analysis");
+
+  values = await sendAndTexts("539", "non-vip-539-user");
+  assertIncludes(values, "AI今日預測", "Non-VIP can browse 539 feature cards");
+  values = await sendAndTexts("AI今日預測", "non-vip-539-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked when starting 539 analysis");
+
+  values = await sendAndTexts("體育", "non-vip-sports-user");
+  assertIncludes(values, "MLB AI", "Non-VIP can browse sports league cards");
+  values = await sendAndTexts("MLB", "non-vip-sports-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked when starting sports analysis");
 
   values = await sendAndTexts("全部開放權限", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "臨時開放中", "Admin global access enable");
@@ -2133,7 +2153,11 @@ async function main() {
   assertIncludes(values, "已恢復原設定", "Admin global access restore");
   assertIncludes(values, "個別 VIP、到期日與權限均未修改", "Global access restore preserves member permissions");
   values = await sendAndTexts("電子", "restored-access-user");
-  assertIncludes(values, "尚未開通黑域AI", "Restored individual access enforcement");
+  assertIncludes(values, "戰神賽特2", "Restored non-VIP can still browse game cards");
+  values = await sendAndTexts("戰神賽特2", "restored-access-user");
+  assertIncludes(values, "AI推薦房", "Restored non-VIP can browse feature cards");
+  values = await sendAndTexts("AI推薦房", "restored-access-user");
+  assertIncludes(values, "VIP 分析權限", "Restored individual analysis access enforcement");
 
   values = await sendAndTexts("僅開放賽特2", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "僅開放戰神賽特2", "Admin electronic access restriction");
@@ -3055,6 +3079,12 @@ async function main() {
   }
   values = await sendAndTexts("mb彈珠", "user-smoke-lowercase");
   assertIncludes(values, "獨立四賽道即時資料", "Lowercase MB command");
+  values = await sendAndTexts("MB彈珠", "non-vip-mb-user");
+  assertIncludes(values, "獨立四賽道即時資料", "Non-VIP can browse MB game cards");
+  values = await sendAndTexts("MB 賭城賽車", "non-vip-mb-user");
+  assertIncludes(values, "主流 5碼", "Non-VIP can browse MB track feature cards");
+  values = await sendAndTexts("MB 賭城賽車 5碼", "non-vip-mb-user");
+  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked when starting MB analysis");
   values = await sendAndTexts("MB 賭城賽車", "user-smoke");
   assertIncludes(values, "主流 5碼", "MB track pick menu");
   values = await sendAndTexts("MB 賭城賽車 5碼", "user-smoke");
