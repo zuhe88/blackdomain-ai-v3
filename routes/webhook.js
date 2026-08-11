@@ -45,11 +45,6 @@ const AI_BROWSE_COMMANDS = new Set([
   "⚡ 電子AI",
   "ATGAI",
   "ATG AI",
-  "戰神賽特1",
-  "戰神賽特2",
-  "古神巴風特",
-  "虎小妹",
-  "赤三國",
   "彩票",
   "彩票AI",
   "🎟️ 彩票AI",
@@ -237,7 +232,11 @@ async function handleEvent(event) {
     if (handled !== false) return handled;
   }
 
-  if (electronic.isElectronicCommand(text)) return electronic.handleElectronicMessage(event);
+  if (electronic.isElectronicCommand(text)) {
+    const allowed = await ensureVipOrReply(event, "electronic");
+    if (!allowed) return;
+    return electronic.handleElectronicMessage(event);
+  }
 
   if (baccarat.hasActiveBaccaratSession(userId)) {
     const allowed = await ensureVipOrReply(event, "baccarat");

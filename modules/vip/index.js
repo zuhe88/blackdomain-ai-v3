@@ -288,7 +288,7 @@ function accessDeniedFlex(moduleName = "AI") {
     footer: "BLACKDOMAIN VIP",
     contents: [
       metric("分析功能", featureName, "VIP 會員限定"),
-      infoLine("目前可使用", "瀏覽遊戲與功能卡片"),
+      infoLine("目前可使用", "瀏覽遊戲卡片"),
       infoLine("開始 AI 分析", "需先開通 VIP 權限"),
       infoLine("開通方式", "輸入「綁定」"),
       note("完成 3A 帳號綁定並經管理員開通後，即可使用分析功能。"),
