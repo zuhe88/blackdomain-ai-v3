@@ -1529,8 +1529,11 @@ async function main() {
   if (!webChannelSource.includes("timeoutMs = 90000")) {
     throw new Error("Web commands must allow slow external analysis to return before timing out");
   }
-  for (const expected of ["eventPayload(entry)", "lastEventId", "history.slice(cursor + 1)", "id: ${entry.id}"]) {
+  for (const expected of ["eventPayload(entry)", "lastEventId", "history.slice(cursor + 1)", "entry.replayable === true", "remember(userId, messages, true)", "id: ${entry.id}"]) {
     if (!webChannelSource.includes(expected)) throw new Error(`Web realtime replay is missing: ${expected}`);
+  }
+  for (const expected of ["remember(userId, messages)", "activeBaccaratSession", "resumeBaccaratSession", "[...restoredMessages].reverse().find"]) {
+    if (!webChannelSource.includes(expected) && !webPortalRouteSource.includes(expected) && !webPortalAppSource.includes(expected)) throw new Error(`Web session recovery is missing: ${expected}`);
   }
   for (const expected of ['req.get("last-event-id")', 'res.write(": keep-alive', "clearInterval(heartbeat)"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Web realtime recovery route is missing: ${expected}`);

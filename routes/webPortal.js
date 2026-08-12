@@ -2,6 +2,7 @@ const path = require("path");
 const express = require("express");
 const web = require("../services/webChannel");
 const vip = require("../modules/vip");
+const baccarat = require("../modules/baccarat");
 
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
@@ -57,6 +58,8 @@ function registerWebPortalRoutes(app) {
     return res.json({
       authenticated: true,
       accessAllowed: Boolean(access.allowed),
+      activeBaccaratSession: baccarat.hasActiveBaccaratSession(userId),
+      activeBaccaratPlatform: baccarat.activeBaccaratPlatform(userId),
       messages: web.history(userId),
     });
     } catch (error) { return next(error); }
@@ -79,7 +82,7 @@ function registerWebPortalRoutes(app) {
       const userId = user(req); if (!userId) return res.status(401).json({ error: "請重新登入" });
       const text = String(req.body?.text || "").trim().slice(0, 300);
       if (!text) return res.status(400).json({ error: "請輸入指令" });
-      const replyToken = `web:${require("crypto").randomUUID()}`;
+      const replyToken = `web:${userId}:${require("crypto").randomUUID()}`;
       const pending = web.waitReply(replyToken);
       const { handleEvent } = require("./webhook");
       try {

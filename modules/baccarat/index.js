@@ -776,9 +776,14 @@ function isBaccaratCommand(value) {
   ].includes(String(value || "").trim());
 }
 
+function activeBaccaratPlatform(userId) {
+  return hasActiveSession(userId) ? getSession(userId).platform : null;
+}
+
 module.exports = {
   handleBaccaratMessage,
   isBaccaratCommand,
   hasActiveBaccaratSession: hasActiveSession,
+  activeBaccaratPlatform,
   resetBaccaratSession,
 };
