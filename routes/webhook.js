@@ -139,7 +139,7 @@ async function handleEvent(event) {
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
 
-  if (["網站登入", "網頁登入", "網站版", "網頁版"].includes(text)) {
+  if (["網站登入", "網頁登入"].includes(text)) {
     const code = webChannel.issue(userId);
     const base = String(process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app").replace(/\/$/, "");
     return reply(event.replyToken, textMessage(`黑域AI 網站登入連結（10分鐘內有效）：\n${base}/portal/login?code=${code}\n\n登入後可使用完整功能，請勿轉傳此連結。`));

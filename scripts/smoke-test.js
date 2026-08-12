@@ -2088,6 +2088,8 @@ async function main() {
   if (webLoginAliasValues.includes("本房自動結算中")) {
     throw new Error("網頁登入 must not be consumed by an active baccarat session");
   }
+  const websiteLoginValues = await sendAndTexts("網站登入", "website-login-user");
+  assertIncludes(websiteLoginValues, "網站登入連結", "Website login command");
   let values = followReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "歡迎進入黑域 AI", "Follow welcome");
   assertIncludes(values, "綁定 3A 帳號", "Follow welcome binding guide");
@@ -2102,6 +2104,14 @@ async function main() {
   values = await sendAndTexts("歡迎訊息", "regular-user");
   if (values.some((value) => String(value).includes("歡迎進入黑域 AI"))) {
     throw new Error("Welcome preview command must be admin-only");
+  }
+
+  values = await sendAndTexts("首頁", "web-entry-home-user");
+  assertIncludes(values, "開啟網頁分析", "Home web analysis entry");
+  assertIncludes(values, "進入完整網頁版分析中心", "Home web analysis entry subtitle");
+  const homeWebActions = captured.replies[captured.replies.length - 1].messages.flatMap((message) => collectActions(message));
+  if (!homeWebActions.some((action) => action.label === "網站登入" || action.text === "網站登入")) {
+    throw new Error("Home web analysis entry must request a website login link");
   }
 
   electronicSource.resetForTest();

@@ -168,6 +168,31 @@ function mainMenuFlex() {
             type: "box",
             layout: "horizontal",
             spacing: "sm",
+            alignItems: "center",
+            paddingAll: "13px",
+            cornerRadius: "18px",
+            backgroundColor: "#10141A",
+            borderColor: COLORS.blueSoft,
+            borderWidth: "1px",
+            action: { type: "message", text: "網站登入" },
+            contents: [
+              {
+                type: "box",
+                layout: "vertical",
+                flex: 1,
+                spacing: "xs",
+                contents: [
+                  text("開啟網頁分析", { size: "sm", weight: "bold", color: COLORS.white, wrap: false }),
+                  text("進入完整網頁版分析中心", { size: "xxs", color: COLORS.muted, wrap: false }),
+                ],
+              },
+              text("開啟 ›", { size: "xs", color: COLORS.blueSoft, align: "end", flex: 0, wrap: false }),
+            ],
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
             contents: [
               utilityButton("官方網站", "黑域官網"),
               utilityButton("聯繫管理員", "聯繫管理員", COLORS.gray),
