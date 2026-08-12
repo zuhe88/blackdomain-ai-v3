@@ -1492,6 +1492,7 @@ async function main() {
   }
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
+  const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
   for (const expected of ["智能分析中心", "id=\"view\""]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal is missing feature: ${expected}`);
   }
@@ -1568,6 +1569,12 @@ async function main() {
     if (!mbRelayScript.includes(expected)) {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
+  }
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "routeForCommand", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
+  }
+  for (const expected of [".road-grid", ".baccarat-decision", ".finance-grid"]) {
+    if (!webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat result styling is missing: ${expected}`);
   }
   if (!captured.routes.get.some((route) => route.route === "/api/mb/status")) {
     throw new Error("MB status route is not registered");
