@@ -164,6 +164,10 @@ async function push(userId, messages) {
 async function pushStrict(userId, messages) {
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
   const normalized = normalizeMessages(messages);
+  if (String(process.env.LINE_WEBSITE_ONLY_MODE || "true").toLowerCase() !== "false") {
+    webChannel.publish(userId, normalized);
+    return;
+  }
   if (webChannel.connected(userId)) {
     webChannel.publish(userId, normalized);
     return;
@@ -173,7 +177,12 @@ async function pushStrict(userId, messages) {
 
 async function multicast(userIds, messages) {
   try {
-    await lineClient.multicast(userIds, normalizeMessages(messages));
+    const normalized = normalizeMessages(messages);
+    if (String(process.env.LINE_WEBSITE_ONLY_MODE || "true").toLowerCase() !== "false") {
+      userIds.forEach((userId) => webChannel.publish(userId, normalized));
+      return;
+    }
+    await lineClient.multicast(userIds, normalized);
   } catch (err) {
     logError("E002", err);
   }

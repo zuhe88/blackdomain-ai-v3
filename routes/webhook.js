@@ -99,6 +99,21 @@ function isAdminCommand(text) {
   );
 }
 
+function lineWebsiteOnlyMode() {
+  return String(process.env.LINE_WEBSITE_ONLY_MODE || "true").toLowerCase() !== "false";
+}
+
+function websiteAccessReply(event) {
+  const userId = event.source?.userId || "";
+  const code = webChannel.issue(userId);
+  const base = String(
+    process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app",
+  ).replace(/\/$/, "");
+  return reply(event.replyToken, textMessage(
+    `黑域AI 已全面移至網站版\n\n網站登入連結（10 分鐘內有效）：\n${base}/portal/login?code=${code}\n\n請點擊連結進入分析中心，請勿轉傳。`,
+  ));
+}
+
 async function ensureVipOrReply(event, moduleName) {
   const access = await vip.checkVipAccess(event.source.userId || "");
   if (!access.allowed) {
@@ -130,6 +145,7 @@ async function replyHome(event) {
 
 async function handleEvent(event) {
   if (event.type === "follow") {
+    if (lineWebsiteOnlyMode()) return websiteAccessReply(event);
     return reply(event.replyToken, welcomeFlex());
   }
 
@@ -139,11 +155,15 @@ async function handleEvent(event) {
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
 
-  if (["網站登入", "網頁登入"].includes(text)) {
-    const code = webChannel.issue(userId);
-    const base = String(process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app").replace(/\/$/, "");
-    return reply(event.replyToken, textMessage(`黑域AI 網站登入連結（10分鐘內有效）：\n${base}/portal/login?code=${code}\n\n登入後可使用完整功能，請勿轉傳此連結。`));
-  }
+  if (["網站登入", "網頁登入"].includes(text)) return websiteAccessReply(event);
+
+  const adminLineCommand = isAdminLineUserId(userId) && (
+    WELCOME_PREVIEW_COMMANDS.has(text)
+    || VIP_COMMANDS.has(text)
+    || isAdminCommand(text)
+    || electronic.ADMIN_REFRESH_COMMANDS?.has(text)
+  );
+  if (lineWebsiteOnlyMode() && !adminLineCommand) return websiteAccessReply(event);
 
   if (WELCOME_PREVIEW_COMMANDS.has(text) && isAdminLineUserId(userId)) {
     return reply(event.replyToken, welcomeFlex());

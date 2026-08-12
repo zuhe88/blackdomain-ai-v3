@@ -457,6 +457,7 @@ function dgSnapshotFrame() {
 }
 
 async function main() {
+  process.env.LINE_WEBSITE_ONLY_MODE = "false";
   await lineClient.getProfile("line-timeout-smoke");
   if (
     lineConfig.httpConfig.timeout !== 4321
@@ -1529,6 +1530,8 @@ async function main() {
     throw new Error("Web portal brand logo asset is missing");
   }
   const webChannelSource = fs.readFileSync(path.join(root, "services", "webChannel.js"), "utf8");
+  const webhookSource = fs.readFileSync(path.join(root, "routes", "webhook.js"), "utf8");
+  const lineServiceSource = fs.readFileSync(path.join(root, "services", "line.js"), "utf8");
   const baccaratSessionSource = fs.readFileSync(path.join(root, "modules", "baccarat", "session.js"), "utf8");
   const baccaratModuleSource = fs.readFileSync(path.join(root, "modules", "baccarat", "index.js"), "utf8");
   if (!webChannelSource.includes("timeoutMs = 90000")) {
@@ -1542,6 +1545,12 @@ async function main() {
   }
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
+  }
+  for (const expected of ["lineWebsiteOnlyMode", "websiteAccessReply", "黑域AI 已全面移至網站版", "adminLineCommand", "LINE_WEBSITE_ONLY_MODE"]) {
+    if (!webhookSource.includes(expected)) throw new Error(`LINE website-only mode is missing: ${expected}`);
+  }
+  for (const expected of ["LINE_WEBSITE_ONLY_MODE", "webChannel.publish(userId, normalized)", "userIds.forEach((userId) => webChannel.publish"]) {
+    if (!lineServiceSource.includes(expected)) throw new Error(`LINE outbound website-only guard is missing: ${expected}`);
   }
   for (const expected of ['req.get("last-event-id")', 'res.write(": keep-alive', "clearInterval(heartbeat)"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Web realtime recovery route is missing: ${expected}`);
@@ -2129,6 +2138,13 @@ async function main() {
   }
   const websiteLoginValues = await sendAndTexts("網站登入", "website-login-user");
   assertIncludes(websiteLoginValues, "網站登入連結", "Website login command");
+  process.env.LINE_WEBSITE_ONLY_MODE = "true";
+  const websiteOnlyValues = await sendAndTexts("百家樂", "website-only-user");
+  assertIncludes(websiteOnlyValues, "已全面移至網站版", "LINE website-only redirect");
+  if (websiteOnlyValues.some((value) => String(value).includes("DG 百家樂AI"))) {
+    throw new Error("Website-only mode must not enter the LINE baccarat flow");
+  }
+  process.env.LINE_WEBSITE_ONLY_MODE = "false";
   let values = followReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "歡迎進入黑域 AI", "Follow welcome");
   assertIncludes(values, "綁定 3A 帳號", "Follow welcome binding guide");
