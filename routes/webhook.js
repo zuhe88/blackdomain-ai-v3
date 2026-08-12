@@ -14,6 +14,8 @@ const vip = require("../modules/vip");
 const official = require("../modules/official");
 const { isAdminLineUserId } = require("../config/admin");
 const { clearUser, updateSession } = require("../utils/sessionStore");
+const webChannel = require("../services/webChannel");
+const { text: textMessage } = require("../services/line");
 
 const HOME_COMMANDS = new Set(["黑域AI", "首頁", "開始", "menu", "選單", "主選單"]);
 const CANCEL_COMMANDS = new Set(["取消", "退出", "返回首頁"]);
@@ -136,6 +138,12 @@ async function handleEvent(event) {
 
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
+
+  if (text === "網站登入" || text === "網站版") {
+    const code = webChannel.issue(userId);
+    const base = String(process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app").replace(/\/$/, "");
+    return reply(event.replyToken, textMessage(`黑域AI 網站登入連結（10分鐘內有效）：\n${base}/portal/login?code=${code}\n\n登入後可使用完整功能，請勿轉傳此連結。`));
+  }
 
   if (WELCOME_PREVIEW_COMMANDS.has(text) && isAdminLineUserId(userId)) {
     return reply(event.replyToken, welcomeFlex());

@@ -1,5 +1,6 @@
 const line = require("@line/bot-sdk");
 const { USER_ERROR_TEXT, logError } = require("../utils/errorCodes");
+const webChannel = require("./webChannel");
 
 const lineConfig = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -140,8 +141,13 @@ function normalizeMessages(messages) {
 }
 
 async function reply(replyToken, messages) {
+  const normalized = normalizeMessages(messages);
+  if (String(replyToken || "").startsWith("web:")) {
+    webChannel.resolveReply(replyToken, normalized);
+    return;
+  }
   try {
-    await lineClient.replyMessage(replyToken, normalizeMessages(messages));
+    await lineClient.replyMessage(replyToken, normalized);
   } catch (err) {
     logError("E001", err);
   }
@@ -157,7 +163,12 @@ async function push(userId, messages) {
 
 async function pushStrict(userId, messages) {
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
-  await lineClient.pushMessage(userId, normalizeMessages(messages));
+  const normalized = normalizeMessages(messages);
+  if (webChannel.connected(userId)) {
+    webChannel.publish(userId, normalized);
+    return;
+  }
+  await lineClient.pushMessage(userId, normalized);
 }
 
 async function multicast(userIds, messages) {

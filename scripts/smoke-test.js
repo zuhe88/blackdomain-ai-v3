@@ -3,6 +3,8 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
+process.env.WEB_SESSION_SECRET = "test-web-session-secret";
+
 process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.NODE_ENV = "test";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
@@ -1467,6 +1469,17 @@ async function main() {
 
   require("../app");
   const root = path.join(__dirname, "..");
+  for (const route of ["/portal/login", "/api/web/me", "/api/web/events", "/api/web/command"]) {
+    const registered = [...captured.routes.get, ...captured.routes.post].some((entry) => entry.route === route);
+    if (!registered) throw new Error(`Web portal route is missing: ${route}`);
+  }
+  if (!captured.routes.use.some((entry) => entry.route === "/portal")) {
+    throw new Error("Web portal static assets are not registered");
+  }
+  const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
+  for (const expected of ["百家樂 AI", "電子 AI", "彩票 AI", "體育 AI", "會員中心", "EventSource('/api/web/events')"]) {
+    if (!webPortalSource.includes(expected)) throw new Error(`Web portal is missing feature: ${expected}`);
+  }
   if (!captured.routes.use.some((entry) => entry.route === require("../middleware/errorHandler").errorHandler)) {
     throw new Error("Express error middleware must be registered after all routes");
   }
