@@ -1493,7 +1493,7 @@ async function main() {
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["智能分析中心", "id=\"view\""]) {
+  for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal is missing feature: ${expected}`);
   }
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
