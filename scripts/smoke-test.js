@@ -1488,8 +1488,12 @@ async function main() {
     throw new Error("Web portal static assets are not registered");
   }
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
-  for (const expected of ["百家樂 AI", "電子 AI", "彩票 AI", "體育 AI", "會員中心", "EventSource('/api/web/events')"]) {
+  const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
+  for (const expected of ["百家樂 AI", "ATG AI", "彩票 AI", "體育 AI", "VIP 權限"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal is missing feature: ${expected}`);
+  }
+  for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\""]){
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
   if (!captured.routes.use.some((entry) => entry.route === require("../middleware/errorHandler").errorHandler)) {
     throw new Error("Express error middleware must be registered after all routes");
