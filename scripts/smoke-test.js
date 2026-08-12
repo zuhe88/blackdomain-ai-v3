@@ -1505,6 +1505,9 @@ async function main() {
   for (const expected of ["automaticBaccarat", "本局已結算", "下一局分析已自動更新", "automatic-round-update"]) {
     if (!webPortalAppSource.includes(expected) && !webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat round transition is missing: ${expected}`);
   }
+  for (const expected of ["baccaratRoomSelectionCard", "room-button-grid", "uniqueActions.slice(0,8)", "rooms.length"]) {
+    if (!webPortalAppSource.includes(expected) && !webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat room card is missing: ${expected}`);
+  }
   for (const expected of ["data-state=access-granted", "data-state=access-denied"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web portal permission indicator styling is missing: ${expected}`);
   }
