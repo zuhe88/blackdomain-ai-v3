@@ -1594,7 +1594,7 @@ async function main() {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
   }
-  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "MB 賭城賽車 5碼", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/analyze"]) {
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "valueBefore(section,\"命中\")", "valueBefore(section,\"觀望\")", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "MB 賭城賽車 5碼", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/analyze"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
   }
   const lottery539ServiceSource = fs.readFileSync(path.join(__dirname, "..", "modules", "lottery539", "service.js"), "utf8");
