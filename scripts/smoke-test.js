@@ -1499,10 +1499,16 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
-  for (const expected of ["blackdomain-ai-logo.png", "recommendationCard", "genericResultBody", "disabled:true", "initializeGame", 'send("百家樂"', "quickReplyActions", "baccaratForm", "自選房分析"]) {
+  for (const expected of ["blackdomain-ai-logo.png", "recommendationCard", "genericResultBody", "disabled:true", "initializeGame", 'send("百家樂"', "quickReplyActions", "baccaratForm"]) {
     if (!webPortalAppSource.includes(expected) && !webPortalSource.includes(expected)) {
       throw new Error(`Web portal UI flow is missing: ${expected}`);
     }
+  }
+  if (webPortalAppSource.includes('actionButton("自選房分析"')) {
+    throw new Error("Web electronic game pages must not expose custom-room analysis");
+  }
+  if (!webPortalAppSource.includes('categoryKey==="atg"&&mode==="custom"')) {
+    throw new Error("Legacy web electronic custom-room URLs must redirect to the game page");
   }
   if (!fs.existsSync(path.join(root, "public", "brand", "blackdomain-ai-logo.png"))) {
     throw new Error("Web portal brand logo asset is missing");
@@ -1570,7 +1576,7 @@ async function main() {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
   }
-  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "MB 賭城賽車 5碼", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "MB 賭城賽車 5碼", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/analyze"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
   }
   const lottery539ServiceSource = fs.readFileSync(path.join(__dirname, "..", "modules", "lottery539", "service.js"), "utf8");

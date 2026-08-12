@@ -8,7 +8,6 @@ const { COLORS, bubble, button, note, section, text } = require("../../ui/flex/p
 const {
   electronicRecommendFlex,
   electronicFeatureResultFlex,
-  electronicAnalyzeFlex,
 } = require("../../ui/flex/electronicResult");
 const supabase = require("../../services/supabase");
 const electronicSource = require("./source");
@@ -74,7 +73,7 @@ function unavailableGameFlex(gameName) {
 
 const MAIN_COMMANDS = new Set(["ATG", "ATGAI", "ATG AI", "電子", "電子AI", "Electronic", "electronic", "⚡ 電子AI"]);
 const RECOMMEND_COMMANDS = new Set(["AI推薦房", "推薦房", "重新推薦"]);
-const CUSTOM_COMMANDS = new Set(["自選分析", "自選房號分析"]);
+const REMOVED_CUSTOM_COMMANDS = new Set(["自選分析", "自選房分析", "自選房號分析"]);
 const BACK_TO_GAME_COMMANDS = new Set(["返回電子首頁", "返回遊戲選單"]);
 const ADMIN_REFRESH_COMMANDS = new Set([
   "更新房間數據",
@@ -1156,39 +1155,6 @@ async function showGameMenu(event) {
   return reply(event.replyToken, message);
 }
 
-async function askCustomRoom(event) {
-  const userId = event.source.userId;
-  const session = getUserSession(userId);
-  if (!session.gameName) return showElectronicMain(event);
-  session.mode = "custom";
-  session.waitingCustomRoom = true;
-  session.updatedAt = Date.now();
-  electronicSessions.set(userId, session);
-  const config = GAME_CONFIG[session.gameName];
-  return reply(event.replyToken, electronicPromptFlex("請輸入房號", [
-    session.gameName,
-    `房號範圍：${formatRoom(session.gameName, config.min)} ~ ${formatRoom(session.gameName, config.max)}`,
-  ]));
-}
-
-async function analyzeCustomRoom(event, value) {
-  const userId = event.source.userId;
-  const session = getUserSession(userId);
-  if (!session.gameName) return showElectronicMain(event);
-  const room = parseRoomInput(value);
-  const check = validateRoom(session.gameName, room);
-  if (!check.ok) return reply(event.replyToken, electronicPromptFlex("房號錯誤", [check.message]));
-  session.mode = "menu";
-  session.waitingCustomRoom = false;
-  session.updatedAt = Date.now();
-  electronicSessions.set(userId, session);
-  return reply(event.replyToken, electronicAnalyzeFlex(
-    session.gameName,
-    formatRoom(session.gameName, room),
-    getUpdateTimeText(),
-  ));
-}
-
 async function deliverRecommendation(event, message) {
   if (event.recommendationRequest?.cancelled) return false;
   if (event.autoPush) {
@@ -1516,8 +1482,14 @@ async function handleElectronicMessage(event) {
   if (isStopWatchCommand(value)) return stopRoomMonitoring(event);
   if (MAIN_COMMANDS.has(value)) return showElectronicMain(event);
   if (GAME_CONFIG[value]) return selectGame(event, value);
-  if (session.waitingCustomRoom) return analyzeCustomRoom(event, value);
-  if (CUSTOM_COMMANDS.has(value)) return askCustomRoom(event);
+  if (REMOVED_CUSTOM_COMMANDS.has(value)) {
+    session.mode = "menu";
+    session.waitingCustomRoom = false;
+    return reply(event.replyToken, electronicPromptFlex("請使用 AI 推薦房", [
+      "電子自選房分析已關閉",
+      "系統只會推薦具備即時房況資料的房間",
+    ], electronicModeQuickReply()));
+  }
   if (RECOMMEND_COMMANDS.has(value)) {
     await restoreElectronicSession(event.source.userId);
     return recommendRoom(event);
@@ -1534,7 +1506,7 @@ function isElectronicCommand(value) {
   return MAIN_COMMANDS.has(value)
     || Boolean(GAME_CONFIG[value])
     || RECOMMEND_COMMANDS.has(value)
-    || CUSTOM_COMMANDS.has(value)
+    || REMOVED_CUSTOM_COMMANDS.has(value)
     || BACK_TO_GAME_COMMANDS.has(value)
     || isStopWatchCommand(value)
     || isCancelRecommendationCommand(value);
