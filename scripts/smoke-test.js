@@ -2079,6 +2079,15 @@ async function main() {
 
   await handleEvent(followEvent());
   const followReply = captured.replies[captured.replies.length - 1];
+
+  await send("百家樂", "web-login-alias-user");
+  await send("DG", "web-login-alias-user");
+  await send("RB01", "web-login-alias-user");
+  const webLoginAliasValues = await sendAndTexts("網頁登入", "web-login-alias-user");
+  assertIncludes(webLoginAliasValues, "網站登入連結", "Web login alias must bypass an active baccarat session");
+  if (webLoginAliasValues.includes("本房自動結算中")) {
+    throw new Error("網頁登入 must not be consumed by an active baccarat session");
+  }
   let values = followReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "歡迎進入黑域 AI", "Follow welcome");
   assertIncludes(values, "綁定 3A 帳號", "Follow welcome binding guide");
@@ -3215,6 +3224,11 @@ async function main() {
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("DG", "user-smoke");
   assertIncludes(values, "RB01", "Baccarat rooms");
+  assertIncludes(values, "請選擇下方房號", "Baccarat room selection instruction");
+  assertIncludes(values, "可選房號：", "Baccarat room selection must repeat the actual buttons");
+  if (values.some((value) => value.includes("也可以直接輸入正確房號") || value.includes("支援手動輸入"))) {
+    throw new Error("Baccarat room selection must not advertise unrelated manual room examples");
+  }
   if (values.includes("S07")) {
     throw new Error("DG room menu must hide stale live rooms");
   }

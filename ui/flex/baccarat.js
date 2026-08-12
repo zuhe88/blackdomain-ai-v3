@@ -99,7 +99,7 @@ function baccaratRoomFlex(platform, rooms, quickReply) {
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
-      text("請選擇下方房號，也可以直接輸入正確房號。", { size: "sm", color: COLORS.white, align: "center" }),
+      text("請選擇下方房號", { size: "sm", color: COLORS.white, align: "center" }),
       ...chunk(rooms, 3).map((row) => ({
         type: "box",
         layout: "horizontal",
@@ -109,7 +109,7 @@ function baccaratRoomFlex(platform, rooms, quickReply) {
           ...Array.from({ length: 3 - row.length }, () => ({ type: "box", layout: "vertical", flex: 1, contents: [] })),
         ],
       })),
-      note("支援手動輸入，例如 rb01、RB01、s01、MT3A、MT13A。"),
+      note(`可選房號：${rooms.join("、")}`),
     ],
   });
 }
