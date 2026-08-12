@@ -1499,6 +1499,15 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
+  for (const expected of ["accessAllowed", "renderAccessDenied", "LINE：@893jrweh", "https://line.me/ti/p/@893jrweh", "if(!accessAllowed)return renderAccessDenied(categoryKey)", "setAccessIndicator", 'action.text==="綁定"']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal card-level access guard is missing: ${expected}`);
+  }
+  for (const expected of ["data-state=access-granted", "data-state=access-denied"]) {
+    if (!webPortalStylesSource.includes(expected)) throw new Error(`Web portal permission indicator styling is missing: ${expected}`);
+  }
+  if (!webPortalRouteSource.includes("vip.checkVipAccess(userId)") || !webPortalRouteSource.includes("accessAllowed:")) {
+    throw new Error("Web member endpoint must expose the current AI access state");
+  }
   for (const expected of ["blackdomain-ai-logo.png", "recommendationCard", "genericResultBody", "disabled:true", "initializeGame", 'send("百家樂"', "quickReplyActions", "baccaratForm"]) {
     if (!webPortalAppSource.includes(expected) && !webPortalSource.includes(expected)) {
       throw new Error(`Web portal UI flow is missing: ${expected}`);

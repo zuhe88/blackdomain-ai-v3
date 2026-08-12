@@ -1,6 +1,7 @@
 const path = require("path");
 const express = require("express");
 const web = require("../services/webChannel");
+const vip = require("../modules/vip");
 
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
@@ -48,9 +49,17 @@ function registerWebPortalRoutes(app) {
     res.setHeader("cache-control", "no-cache");
     return res.sendFile(path.join(__dirname, "..", "public", "portal", "index.html"));
   });
-  app.get("/api/web/me", (req, res) => {
+  app.get("/api/web/me", async (req, res, next) => {
+    try {
     const userId = user(req);
-    res.json({ authenticated: Boolean(userId), messages: userId ? web.history(userId) : [] });
+    if (!userId) return res.json({ authenticated: false, accessAllowed: false, messages: [] });
+    const access = await vip.checkVipAccess(userId);
+    return res.json({
+      authenticated: true,
+      accessAllowed: Boolean(access.allowed),
+      messages: web.history(userId),
+    });
+    } catch (error) { return next(error); }
   });
   app.get("/api/web/events", (req, res) => {
     const userId = user(req); if (!userId) return res.status(401).end();
