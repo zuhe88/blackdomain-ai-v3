@@ -142,7 +142,6 @@ async function replyHome(event) {
 
 async function handleEvent(event) {
   if (event.type === "follow") {
-    if (isLineWebsiteOnlyMode()) return websiteAccessReply(event);
     return reply(event.replyToken, welcomeFlex());
   }
 
@@ -161,7 +160,22 @@ async function handleEvent(event) {
     || isAdminCommand(text)
     || electronic.ADMIN_REFRESH_COMMANDS?.has(text)
   );
-  if (isLineWebsiteOnlyMode() && !isWebsiteCommand && !adminLineCommand) {
+  const memberUtilityCommand = (
+    HOME_COMMANDS.has(text)
+    || CANCEL_COMMANDS.has(text)
+    || VIP_COMMANDS.has(text)
+    || vip.isVipCommand(text)
+    || vip.hasActiveVipSession?.(userId)
+    || OFFICIAL_WEBSITE_COMMANDS.has(text)
+    || CONTACT_COMMANDS.has(text)
+    || official.isOfficialCommand(text)
+  );
+  if (
+    isLineWebsiteOnlyMode()
+    && !isWebsiteCommand
+    && !adminLineCommand
+    && !memberUtilityCommand
+  ) {
     return websiteAccessReply(event);
   }
 

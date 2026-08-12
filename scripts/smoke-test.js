@@ -1566,7 +1566,7 @@ async function main() {
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
-  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "LINE 分析功能暫時改由網站版提供", "成功登入後不受此限制", "adminLineCommand"]) {
+  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "LINE 分析功能暫時改由網站版提供", "成功登入後不受此限制", "adminLineCommand", "memberUtilityCommand", "vip.hasActiveVipSession?.(userId)"]) {
     if (!webhookSource.includes(expected)) throw new Error(`LINE website-only mode is missing: ${expected}`);
   }
   for (const expected of ["isLineWebsiteOnlyMode", "webChannel.publish(userId, normalized)", "userIds.forEach((userId) => webChannel.publish"]) {
@@ -2163,6 +2163,14 @@ async function main() {
   assertIncludes(websiteOnlyValues, "暫時改由網站版提供", "LINE website-only redirect");
   if (websiteOnlyValues.some((value) => String(value).includes("DG 百家樂AI"))) {
     throw new Error("Website-only mode must not enter the LINE baccarat flow");
+  }
+  const websiteOnlyBindingUser = "website-only-binding-user";
+  const websiteOnlyBindPrompt = await sendAndTexts("綁定", websiteOnlyBindingUser);
+  assertIncludes(websiteOnlyBindPrompt, "請輸入", "LINE website-only mode must preserve the 3A binding prompt");
+  const websiteOnlyBindResult = await sendAndTexts("webbind123", websiteOnlyBindingUser);
+  assertIncludes(websiteOnlyBindResult, "已收到", "LINE website-only mode must preserve the 3A binding submission");
+  if (websiteOnlyBindResult.some((value) => String(value).includes("暫時改由網站版提供"))) {
+    throw new Error("3A binding input must not be redirected to website analysis");
   }
   const websiteReplyToken = "web:website-command-user:website-only-bypass";
   const websiteReplyPending = webChannel.waitReply(websiteReplyToken, 1000);

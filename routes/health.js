@@ -16,6 +16,7 @@ function registerHealthRoutes(app) {
       websiteCommandsBypassLineRedirect: true,
       websiteMonitoringLifecycle: "server-session-v2",
       portalDirectReplyRendering: "unfiltered-v2",
+      lineMemberBindingPreserved: true,
     });
   });
 }
