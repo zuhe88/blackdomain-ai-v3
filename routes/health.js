@@ -1,4 +1,5 @@
 const { lineConfig } = require("../services/line");
+const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
 
 function registerHealthRoutes(app) {
   app.get("/", (req, res) => {
@@ -11,6 +12,7 @@ function registerHealthRoutes(app) {
       service: "BLACKDOMAIN AI V3",
       time: new Date().toISOString(),
       lineConfigured: Boolean(lineConfig.channelAccessToken && lineConfig.channelSecret),
+      lineWebsiteOnlyMode: isLineWebsiteOnlyMode(),
     });
   });
 }

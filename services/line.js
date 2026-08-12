@@ -1,6 +1,7 @@
 const line = require("@line/bot-sdk");
 const { USER_ERROR_TEXT, logError } = require("../utils/errorCodes");
 const webChannel = require("./webChannel");
+const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
 
 const lineConfig = {
   channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
@@ -164,7 +165,7 @@ async function push(userId, messages) {
 async function pushStrict(userId, messages) {
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
   const normalized = normalizeMessages(messages);
-  if (String(process.env.LINE_WEBSITE_ONLY_MODE || "true").toLowerCase() !== "false") {
+  if (isLineWebsiteOnlyMode()) {
     webChannel.publish(userId, normalized);
     return;
   }
@@ -178,7 +179,7 @@ async function pushStrict(userId, messages) {
 async function multicast(userIds, messages) {
   try {
     const normalized = normalizeMessages(messages);
-    if (String(process.env.LINE_WEBSITE_ONLY_MODE || "true").toLowerCase() !== "false") {
+    if (isLineWebsiteOnlyMode()) {
       userIds.forEach((userId) => webChannel.publish(userId, normalized));
       return;
     }

@@ -457,6 +457,7 @@ function dgSnapshotFrame() {
 }
 
 async function main() {
+  process.env.NODE_ENV = "test";
   process.env.LINE_WEBSITE_ONLY_MODE = "false";
   await lineClient.getProfile("line-timeout-smoke");
   if (
@@ -1546,10 +1547,10 @@ async function main() {
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
-  for (const expected of ["lineWebsiteOnlyMode", "websiteAccessReply", "黑域AI 已全面移至網站版", "adminLineCommand", "LINE_WEBSITE_ONLY_MODE"]) {
+  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "黑域AI 已全面移至網站版", "adminLineCommand"]) {
     if (!webhookSource.includes(expected)) throw new Error(`LINE website-only mode is missing: ${expected}`);
   }
-  for (const expected of ["LINE_WEBSITE_ONLY_MODE", "webChannel.publish(userId, normalized)", "userIds.forEach((userId) => webChannel.publish"]) {
+  for (const expected of ["isLineWebsiteOnlyMode", "webChannel.publish(userId, normalized)", "userIds.forEach((userId) => webChannel.publish"]) {
     if (!lineServiceSource.includes(expected)) throw new Error(`LINE outbound website-only guard is missing: ${expected}`);
   }
   for (const expected of ['req.get("last-event-id")', 'res.write(": keep-alive', "clearInterval(heartbeat)"]) {

@@ -13,6 +13,7 @@ const mb = require("../modules/mb");
 const vip = require("../modules/vip");
 const official = require("../modules/official");
 const { isAdminLineUserId } = require("../config/admin");
+const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
 const { clearUser, updateSession } = require("../utils/sessionStore");
 const webChannel = require("../services/webChannel");
 const { text: textMessage } = require("../services/line");
@@ -99,10 +100,6 @@ function isAdminCommand(text) {
   );
 }
 
-function lineWebsiteOnlyMode() {
-  return String(process.env.LINE_WEBSITE_ONLY_MODE || "true").toLowerCase() !== "false";
-}
-
 function websiteAccessReply(event) {
   const userId = event.source?.userId || "";
   const code = webChannel.issue(userId);
@@ -145,7 +142,7 @@ async function replyHome(event) {
 
 async function handleEvent(event) {
   if (event.type === "follow") {
-    if (lineWebsiteOnlyMode()) return websiteAccessReply(event);
+    if (isLineWebsiteOnlyMode()) return websiteAccessReply(event);
     return reply(event.replyToken, welcomeFlex());
   }
 
@@ -163,7 +160,7 @@ async function handleEvent(event) {
     || isAdminCommand(text)
     || electronic.ADMIN_REFRESH_COMMANDS?.has(text)
   );
-  if (lineWebsiteOnlyMode() && !adminLineCommand) return websiteAccessReply(event);
+  if (isLineWebsiteOnlyMode() && !adminLineCommand) return websiteAccessReply(event);
 
   if (WELCOME_PREVIEW_COMMANDS.has(text) && isAdminLineUserId(userId)) {
     return reply(event.replyToken, welcomeFlex());
