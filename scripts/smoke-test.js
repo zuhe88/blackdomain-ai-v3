@@ -1526,6 +1526,12 @@ async function main() {
   if (!webChannelSource.includes("timeoutMs = 90000")) {
     throw new Error("Web commands must allow slow external analysis to return before timing out");
   }
+  for (const expected of ["eventPayload(entry)", "lastEventId", "history.slice(cursor + 1)", "id: ${entry.id}"]) {
+    if (!webChannelSource.includes(expected)) throw new Error(`Web realtime replay is missing: ${expected}`);
+  }
+  for (const expected of ['req.get("last-event-id")', 'res.write(": keep-alive', "clearInterval(heartbeat)"]) {
+    if (!webPortalRouteSource.includes(expected)) throw new Error(`Web realtime recovery route is missing: ${expected}`);
+  }
   if (!captured.routes.use.some((entry) => entry.route === require("../middleware/errorHandler").errorHandler)) {
     throw new Error("Express error middleware must be registered after all routes");
   }

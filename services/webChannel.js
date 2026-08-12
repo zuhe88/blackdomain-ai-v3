@@ -59,19 +59,29 @@ function cancelReply(token) {
   handler([]);
   return true;
 }
-function subscribe(userId, response) {
+function eventPayload(entry) {
+  return `id: ${entry.id}\nevent: message\ndata: ${JSON.stringify(entry.messages)}\n\n`;
+}
+function subscribe(userId, response, lastEventId = "") {
   const set = clients.get(userId) || new Set();
   set.add(response); clients.set(userId, set);
+  if (lastEventId) {
+    const history = recentMessages.get(userId) || [];
+    const cursor = history.findIndex((entry) => entry.id === lastEventId);
+    const missed = cursor >= 0 ? history.slice(cursor + 1) : history.slice(-1);
+    missed.forEach((entry) => response.write(eventPayload(entry)));
+  }
   return () => { set.delete(response); if (!set.size) clients.delete(userId); };
 }
 function connected(userId) { return Boolean(clients.get(userId)?.size); }
 function publish(userId, messages) {
   const history = recentMessages.get(userId) || [];
-  history.push({ id: randomToken(8), at: Date.now(), messages });
+  const entry = { id: randomToken(8), at: Date.now(), messages };
+  history.push(entry);
   recentMessages.set(userId, history.slice(-30));
   const set = clients.get(userId);
   if (!set?.size) return false;
-  const payload = `event: message\ndata: ${JSON.stringify(messages)}\n\n`;
+  const payload = eventPayload(entry);
   [...set].forEach((response) => { try { response.write(payload); } catch { set.delete(response); } });
   return set.size > 0;
 }

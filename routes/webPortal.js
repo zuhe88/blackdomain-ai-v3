@@ -66,9 +66,13 @@ function registerWebPortalRoutes(app) {
     res.setHeader("content-type", "text/event-stream; charset=utf-8");
     res.setHeader("cache-control", "no-cache, no-transform");
     res.setHeader("connection", "keep-alive");
-    res.write("event: ready\ndata: {}\n\n");
-    const unsubscribe = web.subscribe(userId, res);
-    req.on("close", unsubscribe);
+    res.write("retry: 2000\nevent: ready\ndata: {}\n\n");
+    const unsubscribe = web.subscribe(userId, res, req.get("last-event-id") || "");
+    const heartbeat = setInterval(() => res.write(": keep-alive\n\n"), 15000);
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+    });
   });
   app.post("/api/web/command", express.json({ limit: "16kb" }), async (req, res, next) => {
     try {
