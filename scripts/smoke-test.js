@@ -2237,15 +2237,15 @@ async function main() {
   assertIncludes(values, "戰神賽特2", "Non-VIP can browse electronic game cards");
   for (const gameName of ["戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"]) {
     values = await sendAndTexts(gameName, "global-ai-entry-user");
-    assertIncludes(values, "VIP 分析權限", `Non-VIP is blocked on the ${gameName} card`);
+    assertIncludes(values, "需要開通權限", `Non-VIP is blocked on the ${gameName} card`);
   }
-  assertIncludes(values, "瀏覽遊戲卡片", "Non-VIP access guidance");
+  assertIncludes(values, "LINE：@893jrweh", "Non-VIP access guidance");
 
   values = await sendAndTexts("百家樂", "non-vip-baccarat-user");
   assertIncludes(values, "DG 百家樂AI", "Non-VIP can browse baccarat platform cards");
   for (const platform of ["DG", "MT"]) {
     values = await sendAndTexts(platform, "non-vip-baccarat-user");
-    assertIncludes(values, "VIP 分析權限", `Non-VIP is blocked on the ${platform} baccarat card`);
+    assertIncludes(values, "需要開通權限", `Non-VIP is blocked on the ${platform} baccarat card`);
   }
 
   values = await sendAndTexts("彩票", "non-vip-lottery-user");
@@ -2253,17 +2253,17 @@ async function main() {
   assertIncludes(values, "MB彈珠", "Non-VIP can see the MB lottery card");
   assertIncludes(values, "今彩539", "Non-VIP can see the 539 lottery card");
   values = await sendAndTexts("539", "non-vip-lottery-user");
-  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked on the 539 lottery card");
+  assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the 539 lottery card");
   values = await sendAndTexts("MB彈珠", "non-vip-lottery-user");
-  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked on the MB lottery card");
+  assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the MB lottery card");
   values = await sendAndTexts("ATG賽馬 維護中", "non-vip-lottery-user");
-  assertIncludes(values, "VIP 分析權限", "Non-VIP is blocked on the ATG lottery card");
+  assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the ATG lottery card");
 
   values = await sendAndTexts("體育", "non-vip-sports-user");
   assertIncludes(values, "MLB AI", "Non-VIP can browse sports league cards");
   for (const league of ["CPBL", "MLB", "NBA"]) {
     values = await sendAndTexts(league, "non-vip-sports-user");
-    assertIncludes(values, "VIP 分析權限", `Non-VIP is blocked on the ${league} sports card`);
+    assertIncludes(values, "需要開通權限", `Non-VIP is blocked on the ${league} sports card`);
   }
 
   values = await sendAndTexts("全部開放權限", "Uaf293ee976e5170d4e8672d2c12b3f76");
@@ -2280,7 +2280,7 @@ async function main() {
   values = await sendAndTexts("電子", "restored-access-user");
   assertIncludes(values, "戰神賽特2", "Restored non-VIP can still browse game cards");
   values = await sendAndTexts("戰神賽特2", "restored-access-user");
-  assertIncludes(values, "VIP 分析權限", "Restored non-VIP is blocked on the electronic game card");
+  assertIncludes(values, "需要開通權限", "Restored non-VIP is blocked on the electronic game card");
 
   values = await sendAndTexts("僅開放賽特2", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "僅開放戰神賽特2", "Admin electronic access restriction");

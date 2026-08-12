@@ -1,7 +1,7 @@
 const { lineClient, push, pushStrict, quickReply, reply } = require("../../services/line");
 const { adminLineUserIds, isAdminLineUserId } = require("../../config/admin");
 const { getSession, updateSession } = require("../../utils/sessionStore");
-const { bubble, button, infoLine, metric, note, text } = require("../../ui/flex/premium");
+const { bubble, button, infoLine, metric, note, text, uriButton } = require("../../ui/flex/premium");
 const { COMMANDS, BIND_COMMANDS, ADMIN_COMMANDS, STATUSES } = require("./constants");
 const { validateAccount3A } = require("./validator");
 const electronic = require("../electronic");
@@ -271,27 +271,15 @@ function simpleFlex({ title, subtitle = "BLACKDOMAIN VIP", rows = [], quickReply
   });
 }
 
-function accessDeniedFlex(moduleName = "AI") {
-  const featureName = {
-    baccarat: "百家樂 AI",
-    electronic: "電子 AI",
-    539: "539 AI",
-    mb: "MB 彈珠 AI",
-    atg: "ATG 賽馬 AI",
-    sports: "體育 AI",
-  }[moduleName] || "AI 分析";
+function accessDeniedFlex() {
   return bubble({
-    altText: "此分析功能需要 VIP 權限",
-    title: "VIP 分析權限",
-    subtitle: "BLACKDOMAIN VIP",
-    quickReply: vipQuickReply(false),
-    footer: "BLACKDOMAIN VIP",
+    altText: "需要開通權限",
+    title: "需要開通權限",
+    subtitle: "BLACKDOMAIN AI",
+    footer: "BLACKDOMAIN AI",
     contents: [
-      metric("分析功能", featureName, "VIP 會員限定"),
-      infoLine("目前可使用", "瀏覽遊戲卡片"),
-      infoLine("開始 AI 分析", "需先開通 VIP 權限"),
-      infoLine("開通方式", "輸入「綁定」"),
-      note("完成 3A 帳號綁定並經管理員開通後，即可使用分析功能。"),
+      metric("開通權限", "請聯絡管理員", "LINE：@893jrweh"),
+      uriButton("聯絡管理員", "https://line.me/ti/p/@893jrweh"),
     ],
   });
 }
