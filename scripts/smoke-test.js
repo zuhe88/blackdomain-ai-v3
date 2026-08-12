@@ -1570,7 +1570,7 @@ async function main() {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
   }
-  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
   }
   for (const expected of [".road-grid", ".baccarat-decision", ".finance-grid"]) {
