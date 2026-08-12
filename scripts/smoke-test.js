@@ -1554,13 +1554,19 @@ async function main() {
   for (const expected of ["stopMonitoringAndGoHome", 'fetch("/api/web/stop"', 'normalizePath(route.dataset.go)==="/portal"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Website home monitoring stop flow is missing: ${expected}`);
   }
+  for (const expected of ["renderResults(data.messages)", "showAnalysisState", "25_000", 'error.name==="AbortError"']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Website analysis anti-stall behavior is missing: ${expected}`);
+  }
+  if (webPortalAppSource.includes("renderResults(data.messages,{enforceScope:Boolean(activeOperation)})")) {
+    throw new Error("Direct website command replies must not be discarded by background-event filtering");
+  }
   if (!webPortalAppSource.includes('navigator.sendBeacon("/api/web/disconnect"')) {
     throw new Error("Website close must notify the monitoring grace-period endpoint");
   }
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
-  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "LINE 分析功能暫時改由網站版提供", "adminLineCommand"]) {
+  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "LINE 分析功能暫時改由網站版提供", "成功登入後不受此限制", "adminLineCommand"]) {
     if (!webhookSource.includes(expected)) throw new Error(`LINE website-only mode is missing: ${expected}`);
   }
   for (const expected of ["isLineWebsiteOnlyMode", "webChannel.publish(userId, normalized)", "userIds.forEach((userId) => webChannel.publish"]) {
