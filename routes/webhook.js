@@ -151,6 +151,7 @@ async function handleEvent(event) {
 
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
+  const isWebsiteCommand = String(event.replyToken || "").startsWith("web:");
 
   if (["網站登入", "網頁登入"].includes(text)) return websiteAccessReply(event);
 
@@ -160,7 +161,9 @@ async function handleEvent(event) {
     || isAdminCommand(text)
     || electronic.ADMIN_REFRESH_COMMANDS?.has(text)
   );
-  if (isLineWebsiteOnlyMode() && !adminLineCommand) return websiteAccessReply(event);
+  if (isLineWebsiteOnlyMode() && !isWebsiteCommand && !adminLineCommand) {
+    return websiteAccessReply(event);
+  }
 
   if (WELCOME_PREVIEW_COMMANDS.has(text) && isAdminLineUserId(userId)) {
     return reply(event.replyToken, welcomeFlex());

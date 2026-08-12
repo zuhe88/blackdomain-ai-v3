@@ -273,6 +273,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
 };
 
 const { handleEvent } = require("../index");
+const webChannel = require("../services/webChannel");
 const {
   image,
   lineClient,
@@ -2144,6 +2145,20 @@ async function main() {
   assertIncludes(websiteOnlyValues, "已全面移至網站版", "LINE website-only redirect");
   if (websiteOnlyValues.some((value) => String(value).includes("DG 百家樂AI"))) {
     throw new Error("Website-only mode must not enter the LINE baccarat flow");
+  }
+  const websiteReplyToken = "web:website-command-user:website-only-bypass";
+  const websiteReplyPending = webChannel.waitReply(websiteReplyToken, 1000);
+  await handleEvent({
+    type: "message",
+    replyToken: websiteReplyToken,
+    source: { userId: "website-command-user" },
+    message: { type: "text", text: "百家樂" },
+  });
+  const websiteCommandValues = (await websiteReplyPending)
+    .flatMap((message) => collectText(message));
+  assertIncludes(websiteCommandValues, "DG", "Website commands must bypass the LINE redirect");
+  if (websiteCommandValues.some((value) => String(value).includes("已全面移至網站版"))) {
+    throw new Error("Website commands must never be redirected back to the website login link");
   }
   process.env.LINE_WEBSITE_ONLY_MODE = "false";
   let values = followReply.messages.flatMap((message) => collectText(message));

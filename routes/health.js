@@ -13,6 +13,7 @@ function registerHealthRoutes(app) {
       time: new Date().toISOString(),
       lineConfigured: Boolean(lineConfig.channelAccessToken && lineConfig.channelSecret),
       lineWebsiteOnlyMode: isLineWebsiteOnlyMode(),
+      websiteCommandsBypassLineRedirect: true,
     });
   });
 }
