@@ -787,6 +787,41 @@ function electronicPromptFlex(title, lines = [], quickReplyData = null) {
   });
 }
 
+function electronicStopMonitoringFlex(result, quickReplyData = null) {
+  const watch = result.watch || {};
+  const room = formatRoom(watch.gameName, watch.roomNumber);
+  return bubble({
+    altText: "已結束房間監控",
+    title: "監控已結束",
+    subtitle: watch.gameName || "電子 AI",
+    quickReply: quickReplyData,
+    footer: "BLACKDOMAIN ELECTRONIC AI",
+    contents: [
+      {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "18px",
+        cornerRadius: "18px",
+        backgroundColor: "#121714",
+        borderColor: "#315B46",
+        borderWidth: "1px",
+        contents: [
+          text("✓ 已停止接收通知", { size: "md", weight: "bold", color: COLORS.green, align: "center" }),
+          text(room, { size: "xxl", weight: "bold", color: COLORS.white, align: "center" }),
+          text("後續特色遊戲結果不會再傳送給您", {
+            size: "xs",
+            color: COLORS.muted,
+            align: "center",
+            wrap: true,
+          }),
+        ],
+      },
+      note("需要其他房間時，可直接使用下方的「重新推薦」。"),
+    ],
+  });
+}
+
 function reportedRtp(value, win, bet) {
   const direct = Number(value);
   if (value != null && value !== "" && Number.isFinite(direct) && direct >= 0) return direct;
@@ -990,10 +1025,7 @@ async function stopRoomMonitoring(event) {
     match?.[2] == null ? null : Number(match[2]),
   );
   if (result.stopped) {
-    return reply(event.replyToken, electronicPromptFlex("已結束房間監控", [
-      `${result.watch.gameName} ${formatRoom(result.watch.gameName, result.watch.roomNumber)}`,
-      "已停止接收該房特色遊戲通知",
-    ], afterRecommendQuickReply()));
+    return reply(event.replyToken, electronicStopMonitoringFlex(result, afterRecommendQuickReply()));
   }
   if (result.reason === "changed") {
     return reply(event.replyToken, electronicPromptFlex("目前監控房間已變更", [

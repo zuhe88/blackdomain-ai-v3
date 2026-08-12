@@ -1,6 +1,9 @@
 const { askLottery539AI } = require("../../services/openai");
 const { loadHistory } = require("./repository");
 
+const analysisCache = new Map();
+const analysisInFlight = new Map();
+
 function taiwanParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("zh-TW", {
     timeZone: "Asia/Taipei",
@@ -200,7 +203,16 @@ async function gptAnalysis(history, offset) {
   };
 }
 
-async function buildAnalysis(offset) {
+function cloneAnalysis(analysis) {
+  return {
+    ...analysis,
+    prediction: [...analysis.prediction],
+    hot: [...analysis.hot],
+    cold: [...analysis.cold],
+  };
+}
+
+async function computeAnalysis(cacheKey, offset) {
   const history = await loadHistory();
   if (!history.length) {
     return {
@@ -226,11 +238,27 @@ async function buildAnalysis(offset) {
     result = statisticalAnalysis(history, `${offset}:mixed`);
   }
 
-  return {
+  const analysis = {
     date: formatDate(targetDate()),
     ...result,
     updatedAt: taiwanNowText(),
   };
+  analysisCache.clear();
+  analysisCache.set(cacheKey, analysis);
+  return analysis;
+}
+
+async function buildAnalysis(offset) {
+  const cacheKey = dateKey(targetDate());
+  const cached = analysisCache.get(cacheKey);
+  if (cached) return cloneAnalysis(cached);
+
+  let pending = analysisInFlight.get(cacheKey);
+  if (!pending) {
+    pending = computeAnalysis(cacheKey, offset).finally(() => analysisInFlight.delete(cacheKey));
+    analysisInFlight.set(cacheKey, pending);
+  }
+  return cloneAnalysis(await pending);
 }
 
 module.exports = {

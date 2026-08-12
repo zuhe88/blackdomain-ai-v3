@@ -1570,8 +1570,12 @@ async function main() {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
   }
-  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "MB 賭城賽車 5碼", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
+  }
+  const lottery539ServiceSource = fs.readFileSync(path.join(__dirname, "..", "modules", "lottery539", "service.js"), "utf8");
+  for (const expected of ["analysisCache", "analysisInFlight", "computeAnalysis(cacheKey, offset)", "cloneAnalysis(await pending)"]) {
+    if (!lottery539ServiceSource.includes(expected)) throw new Error(`539 same-draw result lock is missing: ${expected}`);
   }
   for (const expected of [".road-grid", ".baccarat-decision", ".finance-grid"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat result styling is missing: ${expected}`);
@@ -2861,7 +2865,9 @@ async function main() {
   values = await sendAndTexts("結束房間監控 戰神賽特1 089", "user-smoke");
   assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
   values = await sendAndTexts("結束房間監控 戰神賽特1 088", "user-smoke");
-  assertIncludes(values, "已結束房間監控", "Electronic room monitoring stop");
+  assertIncludes(values, "監控已結束", "Electronic room monitoring stop");
+  assertIncludes(values, "已停止接收通知", "Electronic room monitoring stop confirmation");
+  assertIncludes(values, "後續特色遊戲結果不會再傳送給您", "Electronic room monitoring stop explanation");
   const stoppedWatchRow = mockElectronicRows.get("electronic_watch:user-smoke");
   if (
     stoppedWatchRow?.value?.gameName !== "戰神賽特1"

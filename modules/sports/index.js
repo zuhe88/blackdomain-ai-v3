@@ -187,9 +187,14 @@ async function handleSportsMessage(event) {
     return reply(event.replyToken, menuFlex());
   }
 
-  if (["CPBL", "CPBL AI", "中華職棒", "中職"].includes(value)) return pushLeagueAfterLoading(event, "CPBL");
-  if (["MLB", "MLB AI"].includes(value)) return pushLeagueAfterLoading(event, "MLB");
-  if (value === "NBA") return pushLeagueAfterLoading(event, "NBA");
+  const isWeb = String(event.replyToken || "").startsWith("web:");
+  const deliverLeague = (league) => (isWeb
+    ? replyLeague(event, league)
+    : pushLeagueAfterLoading(event, league));
+
+  if (["CPBL", "CPBL AI", "中華職棒", "中職"].includes(value)) return deliverLeague("CPBL");
+  if (["MLB", "MLB AI"].includes(value)) return deliverLeague("MLB");
+  if (value === "NBA") return deliverLeague("NBA");
 
   return false;
 }
