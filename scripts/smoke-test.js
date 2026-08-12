@@ -1533,8 +1533,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.14") {
-    throw new Error("Electronic relay extension version must be 1.3.14");
+  if (electronicRelayManifest.version !== "1.3.15") {
+    throw new Error("Electronic relay extension version must be 1.3.15");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1683,7 +1683,7 @@ async function main() {
     throw new Error("Electronic relay must start its first empty-room scan after ATG initialization");
   }
   if (
-    !electronicBridgeSource.includes("requestPayload?.action === \"buyFeature\"")
+    !electronicBridgeSource.includes("isSpinLikeRequest(request, requestPayload)")
     || !electronicBridgeSource.includes("|| activePurchasedFeature")
     || !electronicBridgeSource.includes("|| activeNaturalFeature")
     || !electronicBridgeSource.includes("isTablePageRequest")
@@ -1705,11 +1705,23 @@ async function main() {
     }
   }
   const atgRelayEvents = [];
+  const atgFeatureOrder = [];
   const atgWindowListeners = new Map();
+  const atgSender = {
+    send(request, requestPayload, callback) {
+      return callback(requestPayload?.testResponse);
+    },
+  };
   const atgWindow = {
+    App: {
+      senderManager: {
+        _datas: new Map([["g1005", atgSender]]),
+      },
+    },
     dispatch() {},
     dispatchEvent(eventValue) {
       atgRelayEvents.push(eventValue.detail);
+      if (eventValue.detail?.type === "spin") atgFeatureOrder.push("relay");
     },
     addEventListener(name, listener) {
       const listeners = atgWindowListeners.get(name) || [];
@@ -1752,6 +1764,30 @@ async function main() {
       table: { roomId: "seth-room-138", number: 138, status: "Full" },
     },
   });
+  atgFeatureOrder.length = 0;
+  atgSender.send("spin", {
+    action: "spin",
+    testResponse: {
+      engine: {
+        spinId: "seth-natural-precomputed-678",
+        gameState: [
+          { action: "startFreeGame", numFreeSpins: 10, totalWinnings: 0 },
+          { action: "freeSpin", numFreeSpins: 0, totalWinnings: 678 },
+        ],
+      },
+    },
+  }, () => {
+    atgFeatureOrder.push("game-callback");
+  });
+  const preRenderedNaturalFeature = atgRelayEvents.find((item) => (
+    item?.type === "spin" && item?.spinId === "seth-natural-precomputed-678"
+  ));
+  if (
+    preRenderedNaturalFeature?.totalWinnings !== 678
+    || atgFeatureOrder.join(",") !== "relay,game-callback"
+  ) {
+    throw new Error("Electronic relay must capture a natural feature before ATG renders it");
+  }
   atgWindow.dispatch("SlotFrameworkEvent:BUY_FEATURE_RESPONSE", {
     engine: {
       spinId: "seth-feature-234",

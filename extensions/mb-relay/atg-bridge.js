@@ -538,14 +538,23 @@
         winnings,
       );
     }
-    const remainingFields = states.flatMap((item) => [
+    // A precomputed response contains the whole animation sequence. Only the
+    // terminal state represents what remains; taking the maximum across the
+    // sequence leaves a completed feature incorrectly marked as active.
+    const allRemainingFields = states.flatMap((item) => [
       item?.numFreeSpins,
       item?.freeGameCount,
       item?.superMainGameCount,
     ]).filter((value) => value !== undefined && value !== null);
+    const terminalState = states[states.length - 1] || {};
+    const remainingFields = [
+      terminalState?.numFreeSpins,
+      terminalState?.freeGameCount,
+      terminalState?.superMainGameCount,
+    ].filter((value) => value !== undefined && value !== null);
     const hasRemainingCounter = remainingFields.length > 0;
     const remainingGames = maxNumeric(remainingFields);
-    if (activeFeature && remainingGames > 0) {
+    if (activeFeature && maxNumeric(allRemainingFields) > 0) {
       activeFeature.sawActiveGames = true;
     }
     const currentView = Number(state?.currentView);
@@ -780,7 +789,8 @@
       if (!OBSERVED_DISPATCH_EVENTS.has(eventName)) {
         return original.call(this, eventName, payload, ...rest);
       }
-      if (eventName === TABLE_DETAIL_REQUEST) {
+      const handleBeforeGame = eventName === TABLE_DETAIL_REQUEST || SPIN_EVENTS.has(eventName);
+      if (handleBeforeGame) {
         try {
           handleDispatch(eventName, payload);
         } catch {
@@ -788,7 +798,7 @@
         }
       }
       const result = original.call(this, eventName, payload, ...rest);
-      if (eventName !== TABLE_DETAIL_REQUEST) {
+      if (!handleBeforeGame) {
         setTimeout(() => {
           try {
             handleDispatch(eventName, payload);
@@ -802,6 +812,14 @@
     window.dispatch = wrappedDispatch;
   }
 
+  function isSpinLikeRequest(request, requestPayload = {}) {
+    const requestName = String(requestPayload?.request ?? request ?? "").toLowerCase();
+    const action = String(requestPayload?.action || "").toLowerCase();
+    return action === "spin"
+      || action === "buyfeature"
+      || /spin|feature/.test(requestName);
+  }
+
   function installSenderWrapper() {
     const sender = window.App?.senderManager?._datas?.get?.("g1005");
     if (!sender || typeof sender.send !== "function" || sender.send === wrappedSender) return;
@@ -811,22 +829,29 @@
     wrappedSender = function blackdomainElectronicSend(request, requestPayload, callback, ...rest) {
       const isTablePageRequest = request === "getSlotTables"
         || requestPayload?.request === "getSlotTables";
-      const shouldObserveSpin = requestPayload?.action === "buyFeature"
+      const shouldObserveSpin = isSpinLikeRequest(request, requestPayload)
         || activePurchasedFeature
         || activeNaturalFeature;
       if ((!isTablePageRequest && !shouldObserveSpin) || typeof callback !== "function") {
         return senderOriginal.call(this, request, requestPayload, callback, ...rest);
       }
       const wrappedCallback = function blackdomainElectronicResponse(response, ...callbackArgs) {
-        const result = callback.call(this, response, ...callbackArgs);
-        setTimeout(() => {
+        // A spin response can contain the completed feature total before ATG
+        // starts its animation. Relay it before handing control back to ATG.
+        if (!isTablePageRequest) {
           try {
-            if (isTablePageRequest) {
-              handleDispatch(TABLE_PAGE_RESPONSE, response);
-            } else {
-              const trigger = requestPayload?.action === "buyFeature" ? "buyFeature" : "";
-              emitSpin(response, trigger);
-            }
+            const trigger = String(requestPayload?.action || "").toLowerCase() === "buyfeature"
+              ? "buyFeature"
+              : "";
+            emitSpin(response, trigger);
+          } catch {
+            // Keep the original network callback untouched.
+          }
+        }
+        const result = callback.call(this, response, ...callbackArgs);
+        if (isTablePageRequest) setTimeout(() => {
+          try {
+            handleDispatch(TABLE_PAGE_RESPONSE, response);
           } catch {
             // Keep the original network callback untouched.
           }
