@@ -3,89 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#06070b">
-  <meta name="description" content="黑域AI 即時數據與智能分析中心">
-  <title>黑域AI｜即時分析中心</title>
+  <meta name="theme-color" content="#07080c">
+  <meta name="description" content="黑域AI 即時分析中心">
+  <title>黑域AI｜智能分析中心</title>
   <link rel="stylesheet" href="/portal/styles.css">
 </head>
 <body>
-  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
   <div class="app-shell" id="app">
     <header class="app-header">
-      <button class="brand" data-view="home" aria-label="返回首頁">
-        <span class="brand-mark"><span>AI</span></span>
-        <span class="brand-copy"><strong>黑域AI</strong><small>BLACKDOMAIN INTELLIGENCE</small></span>
-      </button>
-      <div class="connection" id="connection" data-state="connecting"><span></span><b>連線中</b></div>
+      <button class="brand" data-go="/portal/" aria-label="回到首頁"><span class="brand-mark">AI</span><span><b>黑域AI</b><small>BLACKDOMAIN AI</small></span></button>
+      <div class="connection" id="connection" data-state="connecting"><i></i><span>連線中</span></div>
     </header>
-
-    <main>
-      <section class="view is-active" id="homeView" data-view-panel="home">
-        <section class="hero-section">
-          <div class="hero-visual" aria-hidden="true">
-            <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
-            <div class="hero-core"><span>AI</span></div>
-          </div>
-          <div class="hero-content">
-            <p class="eyebrow"><span></span> REAL-TIME INTELLIGENCE</p>
-            <h1>黑域AI<br><em>智能分析系統</em></h1>
-            <p class="hero-lead">串接即時平台數據，以清晰、快速的 AI 分析流程，協助你掌握每一次決策。</p>
-            <div class="hero-signals" aria-label="系統能力">
-              <span><i></i>即時數據同步</span><span><i></i>AI 智能分析</span><span><i></i>房況持續更新</span>
-            </div>
-            <button class="primary-button hero-button" data-scroll-features>開始使用 <span>→</span></button>
-          </div>
-        </section>
-
-        <section class="section feature-section" id="features">
-          <div class="section-heading"><div><p class="eyebrow">AI MODULES</p><h2>選擇分析功能</h2></div><p>所有功能沿用目前帳號權限與即時資料串接</p></div>
-          <div class="feature-grid">
-            <article class="feature-card" style="--accent:#6d8dff">
-              <div class="feature-image"><img src="/images/electronic/dg.png" alt="百家樂 AI" loading="lazy"></div>
-              <div class="feature-body"><div class="feature-meta"><span class="module-icon">B</span><span class="status-pill"><i></i>即時</span></div><h3>百家樂 AI</h3><p>DG・MT 即時牌路分析與下一局判定</p><button class="card-button" data-cmd="百家樂">進入分析 <span>→</span></button></div>
-            </article>
-            <article class="feature-card featured" style="--accent:#8b63ff">
-              <div class="feature-image"><img src="/images/electronic/seth2-hd.webp" alt="ATG 電子選房" loading="lazy"></div>
-              <div class="feature-body"><div class="feature-meta"><span class="module-icon">A</span><span class="status-pill"><i></i>數據同步</span></div><h3>ATG AI</h3><p>電子選房、RTP 房況與特色遊戲分析</p><button class="card-button" data-cmd="電子">開始選房 <span>→</span></button></div>
-            </article>
-            <article class="feature-card" style="--accent:#44b9d7">
-              <div class="feature-image"><img src="/images/electronic/mb-marble-hd.webp" alt="彩票 AI" loading="lazy"></div>
-              <div class="feature-body"><div class="feature-meta"><span class="module-icon">L</span><span class="status-pill"><i></i>即時</span></div><h3>彩票 AI</h3><p>ATG 賽馬・MB 彈珠・今彩 539</p><button class="card-button" data-cmd="彩票">進入分析 <span>→</span></button></div>
-            </article>
-            <article class="feature-card" style="--accent:#f06a78">
-              <div class="feature-image"><img src="/images/electronic/nba.png" alt="體育 AI" loading="lazy"></div>
-              <div class="feature-body"><div class="feature-meta"><span class="module-icon">S</span><span class="status-pill subtle">賽前分析</span></div><h3>體育 AI</h3><p>CPBL・MLB・NBA 賽事智能分析</p><button class="card-button" data-cmd="體育">查看預測 <span>→</span></button></div>
-            </article>
-            <article class="feature-card vip-card" style="--accent:#d7b35d">
-              <div class="feature-image brand-image"><img src="/brand/blackdomain-ai-fb-cover-mobile-640x360.png" alt="黑域AI VIP" loading="lazy"></div>
-              <div class="feature-body"><div class="feature-meta"><span class="module-icon">V</span><span class="status-pill subtle">會員中心</span></div><h3>VIP 權限</h3><p>查看目前 AI 功能權限與會員狀態</p><button class="card-button" data-cmd="VIP">查看權限 <span>→</span></button></div>
-            </article>
-          </div>
-        </section>
-      </section>
-
-      <section class="view analysis-view" id="analysisView" data-view-panel="analysis">
-        <div class="analysis-header"><div><p class="eyebrow">AI WORKSPACE</p><h1>即時分析中心</h1><p>分析結果與房況更新會自動顯示在這裡</p></div><button class="ghost-button" data-view="home">返回首頁</button></div>
-        <div class="quick-modules" aria-label="快速切換功能">
-          <button data-cmd="百家樂"><span>B</span>百家樂</button><button data-cmd="電子"><span>A</span>ATG</button><button data-cmd="彩票"><span>L</span>彩票</button><button data-cmd="體育"><span>S</span>體育</button><button data-cmd="VIP"><span>V</span>VIP</button>
-        </div>
-        <section class="analysis-stage">
-          <div class="feed" id="feed"><div class="empty-state"><div class="empty-core">AI</div><h2>準備開始分析</h2><p>選擇上方功能，最新結果將在此自動更新</p></div></div>
-        </section>
-      </section>
-    </main>
-
-    <nav class="bottom-navigation" aria-label="主要導覽">
-      <button class="is-active" data-view="home"><span class="nav-icon">⌂</span><b>首頁</b></button>
-      <button data-view="analysis"><span class="nav-icon">AI</span><b>分析</b></button>
-      <button data-cmd="VIP"><span class="nav-icon">V</span><b>VIP</b></button>
-    </nav>
+    <main id="view" tabindex="-1"></main>
   </div>
-
-  <form class="command-dock" id="composer" hidden>
-    <label for="command">輸入操作指令</label><div><input id="command" autocomplete="off" maxlength="300" placeholder="輸入功能或操作指令"><button type="submit">送出</button></div>
-  </form>
-  <div class="loading-overlay" id="loading" hidden><div class="analyzing"><div class="scanner"><span>AI</span></div><p class="eyebrow">AI ANALYZING</p><h2>同步平台數據中</h2><small>請稍候，結果完成後會自動顯示</small></div></div>
+  <div class="loading-overlay" id="loading" hidden><div class="loader"><span>AI</span></div><b>AI 分析中</b><small>同步平台數據，完成後會自動顯示</small></div>
   <div class="toast-region" id="toasts" aria-live="polite"></div>
   <script src="/portal/app.js" defer></script>
 </body>

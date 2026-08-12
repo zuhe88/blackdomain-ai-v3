@@ -44,6 +44,10 @@ function registerWebPortalRoutes(app) {
     res.setHeader("set-cookie", `blackdomain_web=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
     return res.redirect(302, "/portal/");
   });
+  app.get("/portal/*", (req, res) => {
+    res.setHeader("cache-control", "no-cache");
+    return res.sendFile(path.join(__dirname, "..", "public", "portal", "index.html"));
+  });
   app.get("/api/web/me", (req, res) => {
     const userId = user(req);
     res.json({ authenticated: Boolean(userId), messages: userId ? web.history(userId) : [] });
