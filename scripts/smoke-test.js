@@ -1473,6 +1473,17 @@ async function main() {
     const registered = [...captured.routes.get, ...captured.routes.post].some((entry) => entry.route === route);
     if (!registered) throw new Error(`Web portal route is missing: ${route}`);
   }
+  if (!captured.routes.get.some((entry) => entry.route === "/portal/login")) {
+    throw new Error("Web login must provide a preview-safe GET confirmation page");
+  }
+  if (!captured.routes.post.some((entry) => entry.route === "/portal/login")) {
+    throw new Error("Web login must redeem its one-time code through POST");
+  }
+  const webPortalRouteSource = fs.readFileSync(path.join(root, "routes", "webPortal.js"), "utf8");
+  const getLoginSection = webPortalRouteSource.split('app.get("/portal/login"')[1]?.split('app.post("/portal/login"')[0] || "";
+  if (getLoginSection.includes("web.redeem")) {
+    throw new Error("Web login GET must not consume a code because LINE previews open links");
+  }
   if (!captured.routes.use.some((entry) => entry.route === "/portal")) {
     throw new Error("Web portal static assets are not registered");
   }
