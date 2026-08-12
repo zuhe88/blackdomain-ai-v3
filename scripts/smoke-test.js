@@ -1502,6 +1502,9 @@ async function main() {
   for (const expected of ["accessAllowed", "renderAccessDenied", "LINE：@893jrweh", "https://line.me/ti/p/@893jrweh", "if(!accessAllowed)return renderAccessDenied(categoryKey)", "setAccessIndicator", 'action.text==="綁定"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal card-level access guard is missing: ${expected}`);
   }
+  for (const expected of ["automaticBaccarat", "本局已結算", "下一局分析已自動更新", "automatic-round-update"]) {
+    if (!webPortalAppSource.includes(expected) && !webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat round transition is missing: ${expected}`);
+  }
   for (const expected of ["data-state=access-granted", "data-state=access-denied"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web portal permission indicator styling is missing: ${expected}`);
   }
