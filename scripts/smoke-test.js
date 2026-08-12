@@ -1570,7 +1570,7 @@ async function main() {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
   }
-  for (const expected of ["baccaratResultCard", "本房牌路統計", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/custom", "/analyze"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
   }
   for (const expected of [".road-grid", ".baccarat-decision", ".finance-grid"]) {
@@ -3221,6 +3221,7 @@ async function main() {
   await send("RB01", "user-smoke");
   values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "本房牌路統計", "Baccarat room statistics");
+  assertIncludes(values, "請核對本局莊、閒、和是否與平台一致，下一局會自動分析。", "Baccarat platform verification notice");
   assertIncludes(values, "等待本房下一局開獎", "Baccarat immediate automatic recommendation");
   assertIncludes(values, "玩家自行決定", "Baccarat free-bet direction");
   assertIncludes(values, "有效命中", "Baccarat resolved hit-rate label");

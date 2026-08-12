@@ -402,6 +402,10 @@ function baccaratAnalysisFlex({
         infoLine("目前獲利", String(profit)),
       ] : []),
       roomStatsPanel(tableStats),
+      infoLine(
+        "核對提示",
+        "請核對本局莊、閒、和是否與平台一致，下一局會自動分析。",
+      ),
       performancePanel(results, hitRate),
       ...(notice ? [infoLine("同步狀態", notice)] : []),
       ...(autoResult ? [infoLine(
