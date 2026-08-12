@@ -14,6 +14,7 @@ function registerHealthRoutes(app) {
       lineConfigured: Boolean(lineConfig.channelAccessToken && lineConfig.channelSecret),
       lineWebsiteOnlyMode: isLineWebsiteOnlyMode(),
       websiteCommandsBypassLineRedirect: true,
+      websiteMonitoringLifecycle: "server-session-v2",
     });
   });
 }

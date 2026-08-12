@@ -309,4 +309,5 @@ async function handleEvent(event) {
 module.exports = {
   registerWebhookRoutes,
   handleEvent,
+  clearAllUserSessions,
 };

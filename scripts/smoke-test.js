@@ -1545,6 +1545,18 @@ async function main() {
   for (const expected of ["remember(userId, messages)", "activeBaccaratSession", "resumeBaccaratSession", "[...restoredMessages].reverse().find"]) {
     if (!webChannelSource.includes(expected) && !webPortalRouteSource.includes(expected) && !webPortalAppSource.includes(expected)) throw new Error(`Web session recovery is missing: ${expected}`);
   }
+  for (const expected of ['app.post("/api/web/stop"', "clearAllUserSessions(userId)"]) {
+    if (!webPortalRouteSource.includes(expected)) throw new Error(`Website monitoring stop endpoint is missing: ${expected}`);
+  }
+  for (const expected of ['app.post("/api/web/disconnect"', "scheduleDisconnectStop(userId)", "cancelPendingDisconnectStop(userId)", "DISCONNECT_STOP_GRACE_MS = 30 * 60 * 1000"]) {
+    if (!webPortalRouteSource.includes(expected)) throw new Error(`Website close monitoring grace period is missing: ${expected}`);
+  }
+  for (const expected of ["stopMonitoringAndGoHome", 'fetch("/api/web/stop"', 'normalizePath(route.dataset.go)==="/portal"']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Website home monitoring stop flow is missing: ${expected}`);
+  }
+  if (!webPortalAppSource.includes('navigator.sendBeacon("/api/web/disconnect"')) {
+    throw new Error("Website close must notify the monitoring grace-period endpoint");
+  }
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
