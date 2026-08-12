@@ -41,7 +41,7 @@ function authenticate(token) {
   const session = verify(token);
   return session?.kind === "session" ? session.userId : null;
 }
-function waitReply(token, timeoutMs = 15000) {
+function waitReply(token, timeoutMs = 90000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => { replies.delete(token); reject(new Error("Command timeout")); }, timeoutMs);
     replies.set(token, (messages) => { clearTimeout(timer); replies.delete(token); resolve(messages); });

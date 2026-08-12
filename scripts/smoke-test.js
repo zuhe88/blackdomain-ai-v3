@@ -1498,6 +1498,18 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
+  for (const expected of ["blackdomain-ai-logo.png", "recommendationCard", "genericResultBody", "disabled:true", "initializeGame", 'send("百家樂"', "quickReplyActions", "baccaratForm", "自選房分析"]) {
+    if (!webPortalAppSource.includes(expected) && !webPortalSource.includes(expected)) {
+      throw new Error(`Web portal UI flow is missing: ${expected}`);
+    }
+  }
+  if (!fs.existsSync(path.join(root, "public", "brand", "blackdomain-ai-logo.png"))) {
+    throw new Error("Web portal brand logo asset is missing");
+  }
+  const webChannelSource = fs.readFileSync(path.join(root, "services", "webChannel.js"), "utf8");
+  if (!webChannelSource.includes("timeoutMs = 90000")) {
+    throw new Error("Web commands must allow slow external analysis to return before timing out");
+  }
   if (!captured.routes.use.some((entry) => entry.route === require("../middleware/errorHandler").errorHandler)) {
     throw new Error("Express error middleware must be registered after all routes");
   }
