@@ -1,4 +1,5 @@
 const { pushStrict, reply } = require("../../services/line");
+const webChannel = require("../../services/webChannel");
 const {
   baccaratPromptFlex,
   baccaratPlatformFlex,
@@ -15,6 +16,7 @@ const {
   setCapital,
   setMaxBet,
   setMode,
+  setDeliveryChannel,
   updateAfterRound,
 } = require("./session");
 const {
@@ -349,7 +351,11 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
     notice,
     ...liveResultOptions(),
   });
-  await pushStrict(originalSession.userId, message);
+  if (originalSession.deliveryChannel === "web") {
+    webChannel.publish(originalSession.userId, [message]);
+  } else {
+    await pushStrict(originalSession.userId, message);
+  }
   if (!isSameActiveSession(originalSession)) return false;
   updateAfterRound(originalSession.userId, analysis.session);
   return true;
@@ -381,7 +387,12 @@ async function deliverLiveDecision(originalSession, analysis, event, notice = nu
     return deliverLiveAnalysis(originalSession, analysis, event, notice);
   }
   if (!isSameActiveSession(originalSession)) return false;
-  await pushStrict(originalSession.userId, fundingStopFlex(analysis));
+  const message = fundingStopFlex(analysis);
+  if (originalSession.deliveryChannel === "web") {
+    webChannel.publish(originalSession.userId, [message]);
+  } else {
+    await pushStrict(originalSession.userId, message);
+  }
   if (!isSameActiveSession(originalSession)) return false;
   await resetStoredSession(originalSession.userId);
   return true;
@@ -551,6 +562,7 @@ async function handleBaccaratMessage(event) {
   const userId = event.source.userId;
   const value = event.message.text.trim();
   const token = event.replyToken;
+  const deliveryChannel = String(token || "").startsWith("web:") ? "web" : "line";
 
   if (value === "返回首頁") {
     await resetBaccaratSession(userId);
@@ -572,10 +584,14 @@ async function handleBaccaratMessage(event) {
 
   if (COMMANDS.includes(value)) {
     await resetBaccaratSession(userId);
+    setDeliveryChannel(userId, deliveryChannel);
     return reply(token, baccaratPlatformFlex(platformQuickReply()));
   }
 
-  const session = getSession(userId);
+  let session = getSession(userId);
+  if (session.deliveryChannel !== deliveryChannel) {
+    session = setDeliveryChannel(userId, deliveryChannel);
+  }
 
   if (value === "返回房號" && session.platform) {
     const platform = session.platform;

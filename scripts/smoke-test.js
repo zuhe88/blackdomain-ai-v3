@@ -1529,6 +1529,8 @@ async function main() {
     throw new Error("Web portal brand logo asset is missing");
   }
   const webChannelSource = fs.readFileSync(path.join(root, "services", "webChannel.js"), "utf8");
+  const baccaratSessionSource = fs.readFileSync(path.join(root, "modules", "baccarat", "session.js"), "utf8");
+  const baccaratModuleSource = fs.readFileSync(path.join(root, "modules", "baccarat", "index.js"), "utf8");
   if (!webChannelSource.includes("timeoutMs = 90000")) {
     throw new Error("Web commands must allow slow external analysis to return before timing out");
   }
@@ -1537,6 +1539,9 @@ async function main() {
   }
   for (const expected of ["remember(userId, messages)", "activeBaccaratSession", "resumeBaccaratSession", "[...restoredMessages].reverse().find"]) {
     if (!webChannelSource.includes(expected) && !webPortalRouteSource.includes(expected) && !webPortalAppSource.includes(expected)) throw new Error(`Web session recovery is missing: ${expected}`);
+  }
+  for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
+    if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
   for (const expected of ['req.get("last-event-id")', 'res.write(": keep-alive', "clearInterval(heartbeat)"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Web realtime recovery route is missing: ${expected}`);

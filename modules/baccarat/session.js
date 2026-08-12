@@ -131,6 +131,7 @@ function createSession(userId) {
     lastLiveShoeKey: null,
     lastLiveRoundIndex: null,
     predictionAudit: [],
+    deliveryChannel: "line",
     bankroll: null,
     startBankroll: null,
     tianmenLevel: 1,
@@ -292,6 +293,12 @@ function setMode(userId, mode) {
   });
 }
 
+function setDeliveryChannel(userId, deliveryChannel) {
+  return setSession(userId, {
+    deliveryChannel: deliveryChannel === "web" ? "web" : "line",
+  });
+}
+
 function updateAfterRound(userId, data) {
   return setSession(userId, data);
 }
@@ -311,5 +318,6 @@ module.exports = {
   setCapital,
   setMaxBet,
   setMode,
+  setDeliveryChannel,
   updateAfterRound,
 };
