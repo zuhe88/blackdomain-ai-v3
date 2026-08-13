@@ -1,9 +1,39 @@
 const { lineConfig } = require("../services/line");
 const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
+const path = require("path");
+
+const PUBLIC_SITE_URL = String(
+  process.env.PUBLIC_SITE_URL || "https://blackdomain-ai-v3-production.up.railway.app",
+).replace(/\/$/, "");
 
 function registerHealthRoutes(app) {
   app.get("/", (req, res) => {
-    res.status(200).send("BLACKDOMAIN AI V3 is running.");
+    res.set("Cache-Control", "public, max-age=300, s-maxage=900");
+    res.sendFile(path.join(__dirname, "..", "public", "index.html"));
+  });
+
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain").send([
+      "User-agent: *",
+      "Allow: /",
+      "Disallow: /api/",
+      `Sitemap: ${PUBLIC_SITE_URL}/sitemap.xml`,
+      "",
+    ].join("\n"));
+  });
+
+  app.get("/sitemap.xml", (req, res) => {
+    res.type("application/xml").send([
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      "  <url>",
+      `    <loc>${PUBLIC_SITE_URL}/</loc>`,
+      "    <changefreq>weekly</changefreq>",
+      "    <priority>1.0</priority>",
+      "  </url>",
+      "</urlset>",
+      "",
+    ].join("\n"));
   });
 
   app.get("/health", (req, res) => {
@@ -17,7 +47,7 @@ function registerHealthRoutes(app) {
       websiteMonitoringLifecycle: "server-session-v2",
       portalDirectReplyRendering: "unfiltered-v2",
       lineMemberBindingPreserved: true,
-      portalBuild: "20260813.8",
+      portalBuild: "20260813.9",
     });
   });
 }

@@ -38,6 +38,7 @@ function registerWebPortalRoutes(app) {
     setHeaders(response) {
       response.setHeader("cache-control", "no-store, no-cache, must-revalidate");
       response.setHeader("pragma", "no-cache");
+      response.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
     },
   }));
   app.get("/portal/login", (req, res) => {
@@ -55,6 +56,7 @@ function registerWebPortalRoutes(app) {
   });
   app.get("/portal/*", (req, res) => {
     res.setHeader("cache-control", "no-cache");
+    res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
     return res.sendFile(path.join(__dirname, "..", "public", "portal", "index.html"));
   });
   app.get("/api/web/me", async (req, res, next) => {
@@ -126,7 +128,7 @@ function registerWebPortalRoutes(app) {
         web.cancelReply(replyToken);
         throw error;
       }
-      return res.json({ messages: await pending, portalBuild: "20260813.8" });
+      return res.json({ messages: await pending, portalBuild: "20260813.9" });
     } catch (error) { return next(error); }
   });
 }

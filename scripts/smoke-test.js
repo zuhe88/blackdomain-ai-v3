@@ -1495,12 +1495,22 @@ async function main() {
     throw new Error("Web portal static assets are not registered");
   }
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
+  const publicSiteSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["app.js?v=20260813.8", "styles.css?v=20260813.8"]) {
+  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE"]) {
+    if (!publicSiteSource.includes(expected)) throw new Error(`Public SEO website is missing: ${expected}`);
+  }
+  for (const route of ["/robots.txt", "/sitemap.xml"]) {
+    if (!captured.routes.get.some((entry) => entry.route === route)) throw new Error(`Public SEO route is missing: ${route}`);
+  }
+  if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
+    throw new Error("Private member portal must be excluded from search indexing");
+  }
+  for (const expected of ["app.js?v=20260813.9", "styles.css?v=20260813.9"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.8"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.9"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
