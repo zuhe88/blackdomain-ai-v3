@@ -1,12 +1,18 @@
 const { lineConfig } = require("../services/line");
 const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
 const path = require("path");
+const express = require("express");
 
 const PUBLIC_SITE_URL = String(
   process.env.PUBLIC_SITE_URL || "https://blackdomain-ai-v3-production.up.railway.app",
 ).replace(/\/$/, "");
 
 function registerHealthRoutes(app) {
+  app.use("/videos", express.static(path.join(__dirname, "..", "public", "videos"), {
+    maxAge: "30d",
+    immutable: true,
+  }));
+
   app.get("/", (req, res) => {
     res.set("Cache-Control", "public, max-age=300, s-maxage=900");
     res.sendFile(path.join(__dirname, "..", "public", "index.html"));
@@ -51,7 +57,7 @@ function registerHealthRoutes(app) {
       websiteMonitoringLifecycle: "server-session-v2",
       portalDirectReplyRendering: "unfiltered-v2",
       lineMemberBindingPreserved: true,
-      portalBuild: "20260813.10",
+      portalBuild: "20260813.11",
     });
   });
 }

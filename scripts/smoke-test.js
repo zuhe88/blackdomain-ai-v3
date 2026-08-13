@@ -1494,6 +1494,9 @@ async function main() {
   if (!captured.routes.use.some((entry) => entry.route === "/portal")) {
     throw new Error("Web portal static assets are not registered");
   }
+  if (!captured.routes.use.some((entry) => entry.route === "/videos")) {
+    throw new Error("Public practice video assets are not registered");
+  }
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
   const publicSiteSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
@@ -1507,10 +1510,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260813.10", "styles.css?v=20260813.10"]) {
+  for (const expected of ["app.js?v=20260813.11", "styles.css?v=20260813.11"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.10"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.11"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
