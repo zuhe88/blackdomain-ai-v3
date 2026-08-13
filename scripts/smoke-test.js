@@ -1497,10 +1497,10 @@ async function main() {
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["app.js?v=20260813.7", "styles.css?v=20260813.7"]) {
+  for (const expected of ["app.js?v=20260813.8", "styles.css?v=20260813.8"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.7"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.8"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1523,6 +1523,18 @@ async function main() {
   }
   if (!webPortalRouteSource.includes("vip.checkVipAccess(userId)") || !webPortalRouteSource.includes("accessAllowed:")) {
     throw new Error("Web member endpoint must expose the current AI access state");
+  }
+  for (const expected of ["allElectronicGamesEnabled:", "electronicAvailability.areAllElectronicGamesEnabled()", "applyElectronicAvailability", "applyRuntimeAccess", "refreshRuntimeAccess", "setInterval(refreshRuntimeAccess,5_000)"]) {
+    if (!webPortalRouteSource.includes(expected) && !webPortalAppSource.includes(expected)) throw new Error(`Website live admin access synchronization is missing: ${expected}`);
+  }
+  for (const expected of ['item.id!=="set2"&&!allElectronicGamesEnabled', 'item.disabledLabel=item.disabled?"暫停開放"', 'disabled aria-disabled="true"']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Website disabled electronic card guard is missing: ${expected}`);
+  }
+  for (const expected of ["sportsResultCarousel", "showSportsGame", "data-sports-game", "data-sports-move", "上一場", "下一場", 'message.contents.contents']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Website sports match navigation is missing: ${expected}`);
+  }
+  for (const expected of [".sports-game-tabs", ".sports-pager", ".sports-slide.active"]) {
+    if (!webPortalStylesSource.includes(expected)) throw new Error(`Website sports match navigation styling is missing: ${expected}`);
   }
   for (const expected of ["blackdomain-ai-logo.png", "recommendationCard", "genericResultBody", "disabled:true", "initializeGame", 'send("百家樂"', "quickReplyActions", "baccaratForm"]) {
     if (!webPortalAppSource.includes(expected) && !webPortalSource.includes(expected)) {
@@ -1555,6 +1567,12 @@ async function main() {
   }
   for (const expected of ["analysisFlowSteps", "analysisStepHeader", "setAnalysisFlowStep", "選擇房號", "同步房況", "同步開獎", "同步賽事"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web shared analysis stepper is missing: ${expected}`);
+  }
+  for (const expected of ["baccaratInputCard", "baccarat-input-form", "輸入正整數本金", "輸入單注上限（不可超過本金）", 'event.target.matches(".baccarat-input-form")']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web baccarat funding input is missing: ${expected}`);
+  }
+  for (const expected of [".baccarat-input-card", ".baccarat-input-form"]) {
+    if (!webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat funding input styling is missing: ${expected}`);
   }
   const mbTrackOrder = ["賭城賽車", "雪地賽車", "運動賽車", "海洋賽車"].map(name => webPortalAppSource.indexOf(`name:\"${name}\"`));
   if (mbTrackOrder.some(index => index < 0) || mbTrackOrder.some((index, position) => position > 0 && index <= mbTrackOrder[position - 1])) {

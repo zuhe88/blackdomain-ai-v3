@@ -3,6 +3,7 @@ const express = require("express");
 const web = require("../services/webChannel");
 const vip = require("../modules/vip");
 const baccarat = require("../modules/baccarat");
+const electronicAvailability = require("../modules/electronic/availability");
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
 }
@@ -64,6 +65,7 @@ function registerWebPortalRoutes(app) {
     return res.json({
       authenticated: true,
       accessAllowed: Boolean(access.allowed),
+      allElectronicGamesEnabled: electronicAvailability.areAllElectronicGamesEnabled(),
       activeBaccaratSession: baccarat.hasActiveBaccaratSession(userId),
       activeBaccaratPlatform: baccarat.activeBaccaratPlatform(userId),
       messages: web.history(userId),
@@ -124,7 +126,7 @@ function registerWebPortalRoutes(app) {
         web.cancelReply(replyToken);
         throw error;
       }
-      return res.json({ messages: await pending, portalBuild: "20260813.7" });
+      return res.json({ messages: await pending, portalBuild: "20260813.8" });
     } catch (error) { return next(error); }
   });
 }
