@@ -19,6 +19,25 @@ const states = new Map(TRACKS.map((track) => [
     liveUpdatedAt: null,
   },
 ]));
+const resultListeners = new Set();
+
+function subscribeResults(listener) {
+  if (typeof listener !== "function") return () => {};
+  resultListeners.add(listener);
+  return () => resultListeners.delete(listener);
+}
+
+function publishResult(track, record) {
+  const snapshot = getSnapshot().tracks.find((item) => item.gameName === track.gameName);
+  resultListeners.forEach((listener) => {
+    try {
+      Promise.resolve(listener({ track: snapshot, record: { ...record, result: [...record.result] } }))
+        .catch((error) => console.error("[MB] Automatic analysis listener failed:", error.message));
+    } catch (error) {
+      console.error("[MB] Automatic analysis listener failed:", error.message);
+    }
+  });
+}
 
 function isRank(value) {
   const number = Number(value);
@@ -142,10 +161,12 @@ function ingestSocketEvent(payload = {}) {
   const track = resolveTrack(data);
   const state = track && states.get(track.gameName);
   if (!state) return false;
+  let publishedRecord = null;
 
   if (event === "RESULT_PUBLIC") {
     const record = normalizeLiveResult(data);
     if (!record) return false;
+    publishedRecord = record;
     state.history = mergeHistory(state.history, [record]);
     state.latestPeriodId = record.periodId;
     state.targetPeriodId = data.next_draw_num
@@ -164,6 +185,7 @@ function ingestSocketEvent(payload = {}) {
 
   state.updatedAt = new Date().toISOString();
   state.liveUpdatedAt = state.updatedAt;
+  if (publishedRecord) publishResult(track, publishedRecord);
   return true;
 }
 
@@ -211,4 +233,5 @@ module.exports = {
   isFullResult,
   normalizeRoadmapRecord,
   resetForTest,
+  subscribeResults,
 };

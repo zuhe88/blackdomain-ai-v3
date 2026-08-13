@@ -268,7 +268,7 @@ function syncTime(value) {
   });
 }
 
-function mbAnalysisFlex(analysis, track) {
+function mbAnalysisFlex(analysis, track, { settledPeriodId = null } = {}) {
   if (!analysis.available) {
     return bubble({
       altText: `MB彈珠AI ${track.name} 資料不足`,
@@ -300,11 +300,13 @@ function mbAnalysisFlex(analysis, track) {
     contents: [
       infoLine("預測期號", targetPeriod),
       infoLine("最後同步", syncTime(analysis.updatedAt)),
-      section(recentResultContents(analysis.recentResults)),
+      ...(settledPeriodId ? [infoLine("自動結算", `${settledPeriodId} 期已開獎，下一期推薦已更新`)] : []),
       section([
         text(recommendationTitle, { size: "sm", weight: "bold", color: COLORS.gold }),
         ...analysis.rows.slice(0, 3).map(predictionRow),
       ]),
+      note("請核對預測期號是否與平台相同，下一場會自動分析。"),
+      section(recentResultContents(analysis.recentResults)),
       note("依各賽道近期頻率、名次鄰近度、遺漏與轉移趨勢分析；僅供娛樂參考，不保證中獎。"),
     ],
   });

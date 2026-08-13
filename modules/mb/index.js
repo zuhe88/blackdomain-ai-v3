@@ -1,4 +1,4 @@
-const { reply } = require("../../services/line");
+const { pushStrict, reply } = require("../../services/line");
 const source = require("./source");
 const { buildAnalysis, PICK_COUNTS } = require("./service");
 const { mbAnalysisFlex, mbMenuFlex, mbTrackFlex } = require("./flex");
@@ -16,6 +16,7 @@ const GAME_BY_TRACK_NAME = new Map([...TRACK_COMMANDS].map(([command, gameName])
 ]));
 const sessions = new Map();
 const SESSION_TIMEOUT = 30 * 60 * 1000;
+const automaticDeliveries = new Set();
 
 function normalizeCommand(value) {
   const text = String(value || "").trim().replace(/\s+/g, " ");
@@ -39,9 +40,37 @@ function setSession(userId, gameName = null, pickCount = null) {
   sessions.set(String(userId || "anonymous"), {
     gameName: gameName || existing?.gameName || null,
     pickCount: pickCount || existing?.pickCount || 5,
+    lastSettledPeriodId: existing?.lastSettledPeriodId || null,
     updatedAt: Date.now(),
   });
 }
+
+async function deliverNextAnalysis({ track, record }) {
+  if (!track?.gameName || !record?.periodId) return;
+  const targets = [...sessions.entries()].filter(([, session]) => (
+    session.gameName === track.gameName
+    && Date.now() - session.updatedAt <= SESSION_TIMEOUT
+    && session.lastSettledPeriodId !== record.periodId
+  ));
+  await Promise.all(targets.map(async ([userId, session]) => {
+    const deliveryKey = `${userId}:${track.gameName}:${record.periodId}`;
+    if (automaticDeliveries.has(deliveryKey)) return;
+    automaticDeliveries.add(deliveryKey);
+    try {
+      const analysis = buildAnalysis(track, session.pickCount);
+      if (!analysis.available) return;
+      await pushStrict(userId, mbAnalysisFlex(analysis, track, { settledPeriodId: record.periodId }));
+      const current = sessions.get(userId);
+      if (current?.gameName === track.gameName) {
+        sessions.set(userId, { ...current, lastSettledPeriodId: record.periodId, updatedAt: Date.now() });
+      }
+    } finally {
+      automaticDeliveries.delete(deliveryKey);
+    }
+  }));
+}
+
+source.subscribeResults(deliverNextAnalysis);
 
 function activeSession(userId) {
   const key = String(userId || "anonymous");

@@ -1510,10 +1510,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260813.13", "styles.css?v=20260813.13"]) {
+  for (const expected of ["app.js?v=20260813.14", "styles.css?v=20260813.14"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.13"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.14"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1577,7 +1577,7 @@ async function main() {
   if (!imageRouteSource.includes('app.use("/images/mb", express.static(path.join(publicImagesPath, "mb")))')) {
     throw new Error("Web MB track image route is missing");
   }
-  for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "mbRecentRecords", "mbHistoryMarkup", "最近 3 場開獎", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼"]) {
+  for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "mbRecentRecords", "mbHistoryMarkup", "最近 3 場開獎", "請核對預測期號", "下一場自動分析", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web MB analysis flow is missing: ${expected}`);
   }
   for (const expected of [".mb-track-grid", ".mb-count-grid", ".mb-ranking", ".mb-stepper"]) {
@@ -1711,6 +1711,12 @@ async function main() {
   }
   for (const expected of [".road-grid", ".baccarat-decision", ".finance-grid"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat result styling is missing: ${expected}`);
+  }
+  for (const expected of ["--pointer-x", "repeating-linear-gradient", "ambient-float-a", "prefers-reduced-motion"]) {
+    if (!webPortalStylesSource.includes(expected)) throw new Error(`Interactive portal atmosphere is missing: ${expected}`);
+  }
+  for (const expected of ['addEventListener("pointermove"', 'requestAnimationFrame', '"--pointer-x-back"']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Pointer-reactive portal background is missing: ${expected}`);
   }
   if (!captured.routes.get.some((route) => route.route === "/api/mb/status")) {
     throw new Error("MB status route is not registered");
@@ -3380,8 +3386,12 @@ async function main() {
   assertIncludes(values, "冠軍、亞軍、季軍定位推薦", "MB analysis");
   assertIncludes(values, "最近 3 場開獎", "MB track data");
   assertIncludes(values, "202607240002", "MB track latest result");
+  assertIncludes(values, "請核對預測期號是否與平台相同，下一場會自動分析。", "MB automatic next-draw notice");
   const mbAnalysisMessage = captured.replies[captured.replies.length - 1].messages[0];
   const mbAnalysisJson = JSON.stringify(mbAnalysisMessage);
+  if (mbAnalysisJson.indexOf("期 AI推薦") > mbAnalysisJson.indexOf("最近 3 場開獎")) {
+    throw new Error("MB recommendation must appear before draw history");
+  }
   const regularChipWidths = (mbAnalysisJson.match(/"width":"25px"/g) || []).length;
   if (regularChipWidths !== 15 || mbAnalysisJson.includes('"width":"20px","height":"25px"')) {
     throw new Error("MB recommendation number chips must use a consistent size");
@@ -3402,6 +3412,42 @@ async function main() {
   }(mbSixMessage));
   if (mbSixPickRows.length !== 3) {
     throw new Error("MB six-number recommendation must render all six chips for all three ranks");
+  }
+  const pushesBeforeMbSettlement = captured.pushes.length;
+  mbSource.ingestSocketEvent({
+    event: "RESULT_PUBLIC",
+    data: {
+      dcs_id: 368,
+      game_name: "PK-MBRACE-1",
+      draw_num: "202607240004",
+      next_draw_num: "202607240005",
+      result: [6, 2, 9, 4, 1, 10, 3, 7, 5, 8],
+      result_display: { sum: "8", over_under: "UNDER", odd_even: "EVEN" },
+      result_time: 1784893342,
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  if (captured.pushes.length !== pushesBeforeMbSettlement + 1) {
+    throw new Error("MB live result must automatically deliver the next-period analysis once");
+  }
+  const mbAutomaticTexts = captured.pushes.at(-1).messages.flatMap((message) => collectText(message));
+  assertIncludes(mbAutomaticTexts, "202607240004 期已開獎，下一期推薦已更新", "MB automatic settlement");
+  assertIncludes(mbAutomaticTexts, "202607240005", "MB next-period target");
+  mbSource.ingestSocketEvent({
+    event: "RESULT_PUBLIC",
+    data: {
+      dcs_id: 368,
+      game_name: "PK-MBRACE-1",
+      draw_num: "202607240004",
+      next_draw_num: "202607240005",
+      result: [6, 2, 9, 4, 1, 10, 3, 7, 5, 8],
+      result_display: { sum: "8", over_under: "UNDER", odd_even: "EVEN" },
+      result_time: 1784893342,
+    },
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  if (captured.pushes.length !== pushesBeforeMbSettlement + 1) {
+    throw new Error("MB duplicate live results must not redeliver the same settlement");
   }
 
   mtSource.resetForTest();
