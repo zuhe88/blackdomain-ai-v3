@@ -1497,10 +1497,10 @@ async function main() {
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["app.js?v=20260813.6", "styles.css?v=20260813.6"]) {
+  for (const expected of ["app.js?v=20260813.7", "styles.css?v=20260813.7"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.6"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.7"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1547,11 +1547,14 @@ async function main() {
   if (!imageRouteSource.includes('app.use("/images/mb", express.static(path.join(publicImagesPath, "mb")))')) {
     throw new Error("Web MB track image route is missing");
   }
-  for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼"]) {
+  for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "mbRecentRecords", "mbHistoryMarkup", "最近 3 場開獎", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web MB analysis flow is missing: ${expected}`);
   }
   for (const expected of [".mb-track-grid", ".mb-count-grid", ".mb-ranking", ".mb-stepper"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web MB analysis styling is missing: ${expected}`);
+  }
+  for (const expected of ["analysisFlowSteps", "analysisStepHeader", "setAnalysisFlowStep", "選擇房號", "同步房況", "同步開獎", "同步賽事"]) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web shared analysis stepper is missing: ${expected}`);
   }
   const mbTrackOrder = ["賭城賽車", "雪地賽車", "運動賽車", "海洋賽車"].map(name => webPortalAppSource.indexOf(`name:\"${name}\"`));
   if (mbTrackOrder.some(index => index < 0) || mbTrackOrder.some((index, position) => position > 0 && index <= mbTrackOrder[position - 1])) {
