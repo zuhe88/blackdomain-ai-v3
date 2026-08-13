@@ -1501,7 +1501,7 @@ async function main() {
   for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE"]) {
     if (!publicSiteSource.includes(expected)) throw new Error(`Public SEO website is missing: ${expected}`);
   }
-  for (const route of ["/robots.txt", "/sitemap.xml"]) {
+  for (const route of ["/robots.txt", "/sitemap.xml", "/google9ea0721a8c1ecc83.html"]) {
     if (!captured.routes.get.some((entry) => entry.route === route)) throw new Error(`Public SEO route is missing: ${route}`);
   }
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {

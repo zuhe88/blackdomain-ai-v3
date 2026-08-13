@@ -36,6 +36,10 @@ function registerHealthRoutes(app) {
     ].join("\n"));
   });
 
+  app.get("/google9ea0721a8c1ecc83.html", (req, res) => {
+    res.type("text/plain").send("google-site-verification: google9ea0721a8c1ecc83.html");
+  });
+
   app.get("/health", (req, res) => {
     res.json({
       ok: true,
