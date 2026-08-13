@@ -1501,7 +1501,7 @@ async function main() {
   const publicSiteSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
+  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "button community", "logoGlow", "haloPulse", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
     if (!publicSiteSource.includes(expected)) throw new Error(`Public SEO website is missing: ${expected}`);
   }
   for (const route of ["/robots.txt", "/sitemap.xml", "/google9ea0721a8c1ecc83.html"]) {
@@ -2384,7 +2384,14 @@ async function main() {
   values = await sendAndTexts("綁定", "global-command-user");
   assertIncludes(values, "請輸入", "Global command bind prompt");
   values = await sendAndTexts("黑域官網", "global-command-user");
-  assertIncludes(values, "BLACKDOMAIN AI 官方入口", "Official website command overrides binding session");
+  assertIncludes(values, "BLACKDOMAIN AI 全新官方入口", "Official website command overrides binding session");
+  const officialModuleSource = fs.readFileSync(path.join(root, "modules", "official", "index.js"), "utf8");
+  if (!officialModuleSource.includes("https://blackdomain-ai-v3-production.up.railway.app/")) {
+    throw new Error("Official website must use the new public homepage");
+  }
+  if (officialModuleSource.includes("zuhe88.github.io/blackdomain-ai")) {
+    throw new Error("Legacy GitHub Pages official website entry must be removed");
+  }
 
   values = await sendAndTexts("綁定", "global-ai-entry-user");
   assertIncludes(values, "請輸入", "AI entry bind prompt");

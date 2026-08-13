@@ -2,7 +2,11 @@ const { reply, quickReply } = require("../../services/line");
 const { isAdminLineUserId } = require("../../config/admin");
 const { bubble, button, infoLine, note, uriButton } = require("../../ui/flex/premium");
 
-const OFFICIAL_WEBSITE_URL = "https://zuhe88.github.io/blackdomain-ai/?utm_source=chatgpt.com";
+const OFFICIAL_WEBSITE_URL = String(
+  process.env.PUBLIC_SITE_URL
+    || process.env.PUBLIC_BASE_URL
+    || "https://blackdomain-ai-v3-production.up.railway.app/",
+).replace(/\/?$/, "/");
 const ADMIN_LINE_URL = "https://line.me/ti/p/@893jrweh";
 
 const WEBSITE_COMMANDS = ["官網", "黑域官網", "🌐 黑域官網"];
@@ -37,15 +41,15 @@ function commonQuickReply() {
 
 function websiteFlex() {
   return bubble({
-    altText: "黑域官網",
-    title: "黑域官網",
+    altText: "黑域AI官方網站",
+    title: "黑域AI官方網站",
     subtitle: "BLACKDOMAIN AI",
     quickReply: commonQuickReply(),
     footer: "BLACKDOMAIN AI",
     contents: [
-      infoLine("官方網站", "BLACKDOMAIN AI 官方入口"),
+      infoLine("官方網站", "BLACKDOMAIN AI 全新官方入口"),
       infoLine("系統定位", "AI智能分析平台"),
-      uriButton("開啟黑域官網", OFFICIAL_WEBSITE_URL),
+      uriButton("進入黑域AI官方網站", OFFICIAL_WEBSITE_URL),
       button("返回首頁", "首頁", "secondary"),
       note("BLACKDOMAIN AI 僅提供AI分析、預測、建議與統計。"),
     ],
