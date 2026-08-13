@@ -1213,18 +1213,22 @@ async function performRecommendRoom(event) {
       Date.now() + DETAIL_WAIT_MS,
       Number(event.recommendationDeadline) || Number.POSITIVE_INFINITY,
     );
-    if (!event.waitingAlreadySent) {
+    const selectedHasUsableRtp = session.gameName === electronicSource.GAME_NAMES[1]
+      && scoreSethRoomByRtp(selected) != null;
+    if (!selectedHasUsableRtp && !event.waitingAlreadySent) {
       await pushRoomSyncWaiting(userId, session.gameName);
     }
-    watchRecommendationCandidate(userId, session.gameName, roomNumber);
+    if (!selectedHasUsableRtp) watchRecommendationCandidate(userId, session.gameName, roomNumber);
     const firstWaitMs = detailDeadline - Date.now();
-    let refreshed = firstWaitMs > 0
-      ? await electronicSource.waitForRoomDetail(
-        session.gameName,
-        roomNumber,
-        firstWaitMs,
-      )
-      : null;
+    let refreshed = selectedHasUsableRtp
+      ? selected
+      : firstWaitMs > 0
+        ? await electronicSource.waitForRoomDetail(
+          session.gameName,
+          roomNumber,
+          firstWaitMs,
+        )
+        : null;
     if (await stopIfRecommendationCancelled(event, userId)) return false;
     // ATG does not consistently emit a new detail response for every empty
     // room. A previously captured valid RTP snapshot remains usable, but Seth

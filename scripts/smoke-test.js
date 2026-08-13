@@ -1498,7 +1498,7 @@ async function main() {
   const publicSiteSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE"]) {
+  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
     if (!publicSiteSource.includes(expected)) throw new Error(`Public SEO website is missing: ${expected}`);
   }
   for (const route of ["/robots.txt", "/sitemap.xml", "/google9ea0721a8c1ecc83.html"]) {
@@ -1507,10 +1507,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260813.9", "styles.css?v=20260813.9"]) {
+  for (const expected of ["app.js?v=20260813.10", "styles.css?v=20260813.10"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.9"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.10"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1518,6 +1518,11 @@ async function main() {
   }
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
+  }
+  for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "entry.at", "activeOperation.startedAt"]) {
+    if (!webPortalAppSource.includes(expected) && !fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
+      throw new Error(`Electronic recommendation anti-stall recovery is missing: ${expected}`);
+    }
   }
   for (const expected of ["accessAllowed", "renderAccessDenied", "LINE：@893jrweh", "https://line.me/ti/p/@893jrweh", "if(!accessAllowed)return renderAccessDenied(categoryKey)", "setAccessIndicator", 'action.text==="綁定"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal card-level access guard is missing: ${expected}`);
@@ -2784,7 +2789,7 @@ async function main() {
   const automaticRecommendationTexts = automaticRecommendationPushes
     .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
   assertIncludes(automaticRecommendationTexts, "推薦房號", "Electronic data-ready automatic recommendation");
-  assertIncludes(automaticRecommendationTexts, "99.00%", "Electronic automatic recommendation fresh details");
+  assertIncludes(automaticRecommendationTexts, "98.00%", "Electronic automatic recommendation immediately uses existing fresh RTP details");
   if (automaticRecommendationTexts.some((value) => value === "即時房間數據同步中")) {
     throw new Error("Electronic data-ready flow must not send a second waiting card");
   }

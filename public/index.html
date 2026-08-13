@@ -58,10 +58,11 @@
     section{padding:66px 0}.section-head{margin-bottom:28px}.section-head small{color:#9e90ff;font-weight:900;letter-spacing:.18em}.section-head h2{font-size:clamp(30px,4vw,46px);line-height:1.2;margin:8px 0}.section-head p{color:var(--muted);margin:0}
     .services{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}.service{min-height:260px;border:1px solid var(--line);border-radius:24px;background:linear-gradient(145deg,rgba(20,23,34,.97),rgba(10,12,18,.97));padding:26px;display:flex;flex-direction:column;position:relative;overflow:hidden}.service:after{content:"";position:absolute;inset:auto -40px -80px auto;width:170px;height:170px;border-radius:50%;background:var(--glow);filter:blur(50px);opacity:.16}.service-icon{width:52px;height:52px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);font-size:25px}.service h3{font-size:23px;margin:38px 0 5px}.service p{color:var(--muted);margin:0}.service span{margin-top:auto;color:#bdb5ff;font-size:13px;font-weight:800}.service:nth-child(1){--glow:#ee4f71}.service:nth-child(2){--glow:#7b63ff}.service:nth-child(3){--glow:#f6cc4d}.service:nth-child(4){--glow:#45d7b0}
     .process{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.step{padding:26px;border-top:1px solid var(--line)}.step b{color:#9b8eff;font-size:12px;letter-spacing:.16em}.step h3{margin:7px 0;font-size:20px}.step p{color:var(--muted);margin:0}
+    .video-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.video-card{overflow:hidden;border:1px solid var(--line);border-radius:24px;background:linear-gradient(145deg,#131722,#0b0d14)}.video-frame{position:relative;aspect-ratio:16/9;background:#05060a}.video-frame video{display:block;width:100%;height:100%;object-fit:contain;background:#05060a}.video-copy{padding:20px}.video-copy span{color:#9d8fff;font-size:11px;font-weight:900;letter-spacing:.14em}.video-copy h3{margin:4px 0 3px;font-size:21px}.video-copy p{margin:0;color:var(--muted);font-size:14px}
     .contact{border:1px solid #313748;border-radius:30px;background:linear-gradient(135deg,#151525,#0e1319);padding:clamp(28px,5vw,54px);display:flex;align-items:center;justify-content:space-between;gap:30px}.contact h2{font-size:clamp(28px,4vw,45px);line-height:1.22;margin:0 0 9px}.contact p{color:var(--muted);margin:0}.contact-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}
     .faq{display:grid;grid-template-columns:1fr 1fr;gap:15px}.faq article{border:1px solid var(--line);border-radius:18px;padding:22px;background:#0d1017}.faq h3{font-size:17px;margin:0 0 6px}.faq p{color:var(--muted);margin:0;font-size:14px}
     footer{padding:42px 0 54px;border-top:1px solid rgba(255,255,255,.07);color:var(--muted);font-size:13px}.footer-row{display:flex;justify-content:space-between;gap:22px;align-items:flex-start}.footer-row strong{color:#fff;display:block;margin-bottom:5px}.legal{max-width:620px;text-align:right}
-    @media(max-width:850px){.hero{grid-template-columns:1fr;padding-top:58px;gap:26px}.hero-art{min-height:310px}.hero-art img{width:300px}.services{grid-template-columns:1fr 1fr}.process{grid-template-columns:1fr}.contact{align-items:flex-start;flex-direction:column}.contact-actions{justify-content:flex-start}.faq{grid-template-columns:1fr}}
+    @media(max-width:850px){.hero{grid-template-columns:1fr;padding-top:58px;gap:26px}.hero-art{min-height:310px}.hero-art img{width:300px}.services{grid-template-columns:1fr 1fr}.process,.video-grid{grid-template-columns:1fr}.contact{align-items:flex-start;flex-direction:column}.contact-actions{justify-content:flex-start}.faq{grid-template-columns:1fr}}
     @media(max-width:560px){.wrap{width:min(100% - 28px,1160px)}nav{min-height:68px}.brand img{width:41px;height:41px}.brand b{font-size:17px}.nav-actions .button:first-child{display:none}.nav-actions .button{min-height:42px;padding:0 14px;font-size:13px}.hero{padding:44px 0 36px}.hero h1{font-size:44px}.hero p{font-size:16px}.hero-actions{display:grid}.hero-actions .button{width:100%}.hero-art{min-height:285px}.services{grid-template-columns:1fr}.service{min-height:220px}.contact-actions{display:grid;width:100%}.contact-actions .button{width:100%}.footer-row{flex-direction:column}.legal{text-align:left}}
   </style>
 </head>
@@ -78,7 +79,7 @@
         <div class="eyebrow">BLACKDOMAIN INTELLIGENCE</div>
         <h1><span>即時數據</span><br>更直覺的 AI 分析</h1>
         <p>整合百家樂、ATG、彩票與體育賽事資料，以清楚的步驟與專業介面，協助會員快速掌握目前分析資訊。</p>
-        <div class="hero-actions"><a class="button primary" href="/portal/">進入會員分析中心</a><a class="button line" href="https://line.me/ti/p/@893jrweh" target="_blank" rel="noopener noreferrer">聯絡管理員 LINE</a></div>
+        <div class="hero-actions"><a class="button primary" href="/portal/">進入會員分析中心</a><a class="button line" href="https://line.me/ti/p/@893jrweh" target="_blank" rel="noopener noreferrer">聯絡管理員 LINE</a><a class="button" href="https://line.me/ti/g2/2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ?utm_source=invitation&amp;utm_medium=link_copy&amp;utm_campaign=default" target="_blank" rel="noopener noreferrer">加入免費討論群</a></div>
       </div>
       <div class="hero-art"><img src="/brand/blackdomain-ai-logo.png" alt="黑域AI智能分析品牌標誌" width="600" height="600"><div class="signal"><i></i>系統即時連線</div></div>
     </div>
@@ -99,10 +100,20 @@
         <div class="process"><article class="step"><b>STEP 01</b><h3>取得會員登入</h3><p>透過黑域AI官方 LINE 聯絡管理員並取得安全登入連結。</p></article><article class="step"><b>STEP 02</b><h3>選擇分析項目</h3><p>從百家樂、ATG、彩票或體育中選擇需要的服務。</p></article><article class="step"><b>STEP 03</b><h3>查看即時結果</h3><p>依畫面步驟完成設定，接收最新同步的分析資訊。</p></article></div>
       </div>
     </section>
+    <section id="videos">
+      <div class="wrap">
+        <div class="section-head"><small>AI PRACTICE VIDEOS</small><h2>AI 實戰影片</h2><p>觀看黑域AI實際操作流程與分析畫面。</p></div>
+        <div class="video-grid">
+          <article class="video-card"><div class="video-frame"><video controls playsinline preload="none" poster="/videos/baccarat-practice.jpg" aria-label="百家樂 AI 實戰影片"><source src="/videos/baccarat-practice.mp4" type="video/mp4">你的瀏覽器不支援影片播放。</video></div><div class="video-copy"><span>VIDEO 01</span><h3>百家樂 AI</h3><p>即時牌路與分析流程實戰。</p></div></article>
+          <article class="video-card"><div class="video-frame"><video controls playsinline preload="none" poster="/videos/seth2-practice.jpg" aria-label="戰神賽特2 AI 實戰影片"><source src="/videos/seth2-practice.mp4" type="video/mp4">你的瀏覽器不支援影片播放。</video></div><div class="video-copy"><span>VIDEO 02</span><h3>戰神賽特2</h3><p>AI 智能選房與即時數據實戰。</p></div></article>
+          <article class="video-card"><div class="video-frame"><video controls playsinline preload="none" poster="/videos/mb-practice.jpg" aria-label="MB彈珠 AI 實戰影片"><source src="/videos/mb-practice.mp4" type="video/mp4">你的瀏覽器不支援影片播放。</video></div><div class="video-copy"><span>VIDEO 03</span><h3>MB彈珠</h3><p>賽道選擇與號碼分析流程實戰。</p></div></article>
+        </div>
+      </div>
+    </section>
     <section>
       <div class="wrap contact">
-        <div><h2>需要開通或協助？</h2><p>點擊按鈕直接加入黑域AI管理員 LINE：@893jrweh</p></div>
-        <div class="contact-actions"><a class="button line" href="https://line.me/ti/p/@893jrweh" target="_blank" rel="noopener noreferrer">聯絡管理員 LINE</a><a class="button primary" href="/portal/">會員分析中心</a></div>
+        <div><h2>需要開通或交流？</h2><p>聯絡黑域AI管理員，或加入免費討論群掌握最新資訊。</p></div>
+        <div class="contact-actions"><a class="button line" href="https://line.me/ti/p/@893jrweh" target="_blank" rel="noopener noreferrer">聯絡管理員 LINE</a><a class="button" href="https://line.me/ti/g2/2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ?utm_source=invitation&amp;utm_medium=link_copy&amp;utm_campaign=default" target="_blank" rel="noopener noreferrer">加入免費討論群</a><a class="button primary" href="/portal/">會員分析中心</a></div>
       </div>
     </section>
     <section>
