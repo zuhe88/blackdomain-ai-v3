@@ -2,7 +2,7 @@ const view=document.querySelector("#view");
 const connection=document.querySelector("#connection");
 const loading=document.querySelector("#loading");
 const toasts=document.querySelector("#toasts");
-const PORTAL_BUILD="20260813.1";
+const PORTAL_BUILD="20260813.2";
 
 const categories={
   baccarat:{name:"百家樂",subtitle:"AI 牌路分析",image:"/images/electronic/dg.png",items:[
@@ -88,5 +88,8 @@ async function send(text,{showBusy=true,silent=false}={}){if(!text)return;const 
 document.addEventListener("click",event=>{const route=event.target.closest("[data-go]");if(route){event.preventDefault();if(normalizePath(route.dataset.go)==="/portal")stopMonitoringAndGoHome();else navigate(route.dataset.go);return;}const command=event.target.closest("[data-command]");if(command){event.preventDefault();send(command.dataset.command);}});
 document.addEventListener("submit",event=>{if(event.target.id!=="baccaratForm")return;event.preventDefault();const input=event.target.querySelector("input");const value=input.value.trim();if(!/^\d+$/.test(value)){toast("輸入格式錯誤","房號與本金請輸入數字");return;}send(value);input.value="";});
 addEventListener("popstate",()=>{currentPath=normalizePath(location.pathname);activeOperation=null;routeRevision+=1;renderRoute();});
-addEventListener("pagehide",()=>{if(authenticated)navigator.sendBeacon("/api/web/disconnect","");});
-fetch("/api/web/me").then(response=>response.json()).then(value=>{authenticated=Boolean(value.authenticated);accessAllowed=Boolean(value.accessAllowed);resumeBaccaratSession=Boolean(value.activeBaccaratSession);resumeBaccaratPlatform=value.activeBaccaratPlatform||null;restoredMessages=Array.isArray(value.messages)?value.messages:[];currentPath=normalizePath(location.pathname);renderRoute();if(!authenticated)return;setAccessIndicator();const events=new EventSource("/api/web/events");events.addEventListener("ready",setAccessIndicator);events.addEventListener("message",event=>{try{if(activeOperation)renderResults(JSON.parse(event.data),{enforceScope:true,automatic:true});}catch(error){console.error("Portal event parse failed",error);}});events.onerror=()=>setConnection("connecting","重新連線");}).catch(error=>{console.error("Portal initialization failed",error);authenticated=false;accessAllowed=false;renderLogin();});
+let baccaratSyncInFlight=false;
+async function syncActiveBaccarat(){if(!authenticated||activeOperation?.categoryKey!=="baccarat"||baccaratSyncInFlight)return;baccaratSyncInFlight=true;try{await fetch("/api/web/sync",{method:"POST",cache:"no-store"});}catch(error){console.error("Baccarat synchronization failed",error);}finally{baccaratSyncInFlight=false;}}
+setInterval(syncActiveBaccarat,15_000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)syncActiveBaccarat();});
+fetch("/api/web/me").then(response=>response.json()).then(value=>{authenticated=Boolean(value.authenticated);accessAllowed=Boolean(value.accessAllowed);resumeBaccaratSession=Boolean(value.activeBaccaratSession);resumeBaccaratPlatform=value.activeBaccaratPlatform||null;restoredMessages=Array.isArray(value.messages)?value.messages:[];currentPath=normalizePath(location.pathname);renderRoute();if(!authenticated)return;setAccessIndicator();const events=new EventSource("/api/web/events");events.addEventListener("ready",()=>{setAccessIndicator();syncActiveBaccarat();});events.addEventListener("message",event=>{try{if(activeOperation)renderResults(JSON.parse(event.data),{enforceScope:true,automatic:true});}catch(error){console.error("Portal event parse failed",error);}});events.onerror=()=>setConnection("connecting","重新連線");}).catch(error=>{console.error("Portal initialization failed",error);authenticated=false;accessAllowed=false;renderLogin();});

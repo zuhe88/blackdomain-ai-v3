@@ -3,32 +3,6 @@ const express = require("express");
 const web = require("../services/webChannel");
 const vip = require("../modules/vip");
 const baccarat = require("../modules/baccarat");
-const pendingDisconnectStops = new Map();
-const DISCONNECT_STOP_GRACE_MS = 30 * 60 * 1000;
-
-function cancelPendingDisconnectStop(userId) {
-  const timer = pendingDisconnectStops.get(userId);
-  if (!timer) return false;
-  clearTimeout(timer);
-  pendingDisconnectStops.delete(userId);
-  return true;
-}
-
-function scheduleDisconnectStop(userId) {
-  cancelPendingDisconnectStop(userId);
-  const timer = setTimeout(async () => {
-    pendingDisconnectStops.delete(userId);
-    try {
-      const { clearAllUserSessions } = require("./webhook");
-      await clearAllUserSessions(userId);
-    } catch (error) {
-      console.error("[Web] Disconnect monitoring stop failed:", error.message);
-    }
-  }, DISCONNECT_STOP_GRACE_MS);
-  timer.unref?.();
-  pendingDisconnectStops.set(userId, timer);
-}
-
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
 }
@@ -86,7 +60,6 @@ function registerWebPortalRoutes(app) {
     try {
     const userId = user(req);
     if (!userId) return res.json({ authenticated: false, accessAllowed: false, messages: [] });
-    cancelPendingDisconnectStop(userId);
     const access = await vip.checkVipAccess(userId);
     return res.json({
       authenticated: true,
@@ -99,29 +72,36 @@ function registerWebPortalRoutes(app) {
   });
   app.get("/api/web/events", (req, res) => {
     const userId = user(req); if (!userId) return res.status(401).end();
-    cancelPendingDisconnectStop(userId);
     res.setHeader("content-type", "text/event-stream; charset=utf-8");
     res.setHeader("cache-control", "no-cache, no-transform");
     res.setHeader("connection", "keep-alive");
     res.write("retry: 2000\nevent: ready\ndata: {}\n\n");
     const unsubscribe = web.subscribe(userId, res, req.get("last-event-id") || "");
+    setImmediate(() => {
+      baccarat.reconcileActiveBaccaratSession(userId).catch((error) => {
+        console.error("[Web] Baccarat reconnect reconciliation failed:", error.message);
+      });
+    });
     const heartbeat = setInterval(() => res.write(": keep-alive\n\n"), 15000);
     req.on("close", () => {
       clearInterval(heartbeat);
       unsubscribe();
     });
   });
-  app.post("/api/web/disconnect", (req, res) => {
-    const userId = user(req);
-    if (!userId) return res.status(401).end();
-    scheduleDisconnectStop(userId);
-    return res.status(202).end();
+  app.post("/api/web/sync", async (req, res, next) => {
+    try {
+      const userId = user(req);
+      if (!userId) return res.status(401).json({ error: "請重新登入。" });
+      const result = await baccarat.reconcileActiveBaccaratSession(userId);
+      return res.json({ ok: true, ...result });
+    } catch (error) {
+      return next(error);
+    }
   });
   app.post("/api/web/stop", async (req, res, next) => {
     try {
       const userId = user(req);
       if (!userId) return res.status(401).json({ error: "請重新登入。" });
-      cancelPendingDisconnectStop(userId);
       const { clearAllUserSessions } = require("./webhook");
       await clearAllUserSessions(userId);
       return res.json({ ok: true });
@@ -144,7 +124,7 @@ function registerWebPortalRoutes(app) {
         web.cancelReply(replyToken);
         throw error;
       }
-      return res.json({ messages: await pending, portalBuild: "20260813.1" });
+      return res.json({ messages: await pending, portalBuild: "20260813.2" });
     } catch (error) { return next(error); }
   });
 }

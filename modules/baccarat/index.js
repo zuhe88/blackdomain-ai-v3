@@ -480,6 +480,70 @@ function queueLiveResult(platform, event) {
   return Promise.allSettled(queuedDeliveries);
 }
 
+function reconciliationEventFor(session) {
+  const source = session.platform === "DG" ? dgSource : mtSource;
+  if (!source.isRoomFresh(session.room)) return null;
+  const table = source.getTableByRoom(session.room);
+  const history = Array.isArray(table?.history) ? table.history : [];
+  const latest = history[history.length - 1];
+  if (!latest?.eventKey || latest.eventKey === session.lastLiveEventKey) return null;
+
+  let cursorIndex = history.findIndex((record) => (
+    session.lastLiveEventKey && record.eventKey === session.lastLiveEventKey
+  ));
+  if (cursorIndex < 0 && session.lastLiveGameNo) {
+    cursorIndex = history.findIndex((record) => (
+      record.gameNo === session.lastLiveGameNo
+      && (!session.lastLiveShoeKey || record.shoeKey === session.lastLiveShoeKey)
+    ));
+  }
+  const previous = history[history.length - 2] || null;
+  const isContinuous = cursorIndex === history.length - 2;
+  return {
+    room: table.room || session.room,
+    tableId: table.tableId,
+    gameNo: latest.gameNo,
+    result: latest.result,
+    updatedAt: table.updatedAt || latest.updatedAt || new Date().toISOString(),
+    eventKey: latest.eventKey,
+    shoeKey: latest.shoeKey,
+    roundIndex: latest.roundIndex,
+    previousGameNo: previous?.gameNo || null,
+    previousEventKey: previous?.eventKey || null,
+    isContinuous,
+    resyncReason: isContinuous ? null : "round_gap",
+    history: history.map((record) => ({ ...record })),
+  };
+}
+
+function queueTargetLiveResult(session, event) {
+  const targetIdentity = { userId: session.userId, sessionEpoch: session.sessionEpoch };
+  const key = `${session.platform}:${event.room || event.tableId || "unknown"}:${session.userId}:${session.sessionEpoch}`;
+  const previous = liveSettlementQueues.get(key) || Promise.resolve();
+  const queued = previous
+    .catch(() => {})
+    .then(() => settleLiveResult(session.platform, event, targetIdentity));
+  liveSettlementQueues.set(key, queued);
+  const clear = () => {
+    if (liveSettlementQueues.get(key) === queued) liveSettlementQueues.delete(key);
+  };
+  queued.then(clear, clear);
+  return queued;
+}
+
+async function reconcileActiveBaccaratSession(userId) {
+  const session = listActiveSessions().find((candidate) => (
+    candidate.userId === userId
+    && candidate.step === "playing"
+    && (candidate.lastPrediction || candidate.waitingForFreshData)
+  ));
+  if (!session) return { active: false, advanced: false };
+  const event = reconciliationEventFor(session);
+  if (!event) return { active: true, advanced: false };
+  const delivered = await queueTargetLiveResult(session, event);
+  return { active: true, advanced: Number(delivered) > 0 };
+}
+
 async function resetBaccaratSession(userId) {
   const active = listActiveSessions().find((session) => session.userId === userId);
   const epoch = active?.sessionEpoch || null;
@@ -801,5 +865,6 @@ module.exports = {
   isBaccaratCommand,
   hasActiveBaccaratSession: hasActiveSession,
   activeBaccaratPlatform,
+  reconcileActiveBaccaratSession,
   resetBaccaratSession,
 };

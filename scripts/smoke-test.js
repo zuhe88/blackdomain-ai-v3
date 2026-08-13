@@ -290,6 +290,7 @@ const dgSource = require("../modules/baccarat/dgSource");
 const dgLive = require("../modules/baccarat/dgLive");
 const mtSource = require("../modules/baccarat/mtSource");
 const mtLive = require("../modules/baccarat/mtLive");
+const baccaratModule = require("../modules/baccarat");
 const {
   getSession: getBaccaratSession,
   hasActiveSession: hasActiveBaccaratSession,
@@ -1496,10 +1497,10 @@ async function main() {
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["app.js?v=20260813.1", "styles.css?v=20260813.1"]) {
+  for (const expected of ["app.js?v=20260813.2", "styles.css?v=20260813.2"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.1"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.2"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1554,8 +1555,8 @@ async function main() {
   for (const expected of ['app.post("/api/web/stop"', "clearAllUserSessions(userId)"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website monitoring stop endpoint is missing: ${expected}`);
   }
-  for (const expected of ['app.post("/api/web/disconnect"', "scheduleDisconnectStop(userId)", "cancelPendingDisconnectStop(userId)", "DISCONNECT_STOP_GRACE_MS = 30 * 60 * 1000"]) {
-    if (!webPortalRouteSource.includes(expected)) throw new Error(`Website close monitoring grace period is missing: ${expected}`);
+  for (const expected of ['app.post("/api/web/sync"', "reconcileActiveBaccaratSession(userId)", "setImmediate"]) {
+    if (!webPortalRouteSource.includes(expected)) throw new Error(`Website baccarat reconciliation is missing: ${expected}`);
   }
   for (const expected of ["stopMonitoringAndGoHome", 'fetch("/api/web/stop"', 'normalizePath(route.dataset.go)==="/portal"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Website home monitoring stop flow is missing: ${expected}`);
@@ -1566,8 +1567,8 @@ async function main() {
   if (webPortalAppSource.includes("renderResults(data.messages,{enforceScope:Boolean(activeOperation)})")) {
     throw new Error("Direct website command replies must not be discarded by background-event filtering");
   }
-  if (!webPortalAppSource.includes('navigator.sendBeacon("/api/web/disconnect"')) {
-    throw new Error("Website close must notify the monitoring grace-period endpoint");
+  for (const expected of ['fetch("/api/web/sync"', "setInterval(syncActiveBaccarat,15_000)", 'document.addEventListener("visibilitychange"']) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Website baccarat catch-up trigger is missing: ${expected}`);
   }
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
@@ -3543,6 +3544,35 @@ async function main() {
   if (correctedAudit?.actual !== "閒" || correctedAudit?.verdict !== "過") {
     throw new Error("Baccarat correction must reconcile the original audit and verdict");
   }
+
+  const catchUpUser = "baccarat-catch-up-user";
+  const catchUpTable = dgSource.getTableByRoom("RB01");
+  const catchUpPrevious = catchUpTable.history.at(-2);
+  setBaccaratSession(catchUpUser, {
+    platform: "DG",
+    room: "RB01",
+    mode: "自由配注",
+    step: "playing",
+    history: catchUpTable.history.slice(0, -1).map((record) => record.result),
+    results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+    lastPrediction: "莊",
+    lastBet: null,
+    lastPredictionMeta: { modelVersion: "baccarat-recent-road-v4" },
+    lastLiveEventKey: catchUpPrevious.eventKey,
+    lastLiveGameNo: catchUpPrevious.gameNo,
+    lastLiveShoeKey: catchUpPrevious.shoeKey,
+    lastLiveRoundIndex: catchUpPrevious.roundIndex,
+  });
+  const pushesBeforeCatchUp = captured.pushes.length;
+  const firstCatchUp = await baccaratModule.reconcileActiveBaccaratSession(catchUpUser);
+  if (!firstCatchUp.advanced || captured.pushes.length !== pushesBeforeCatchUp + 1) {
+    throw new Error("Baccarat missed-round reconciliation must advance exactly once");
+  }
+  const secondCatchUp = await baccaratModule.reconcileActiveBaccaratSession(catchUpUser);
+  if (secondCatchUp.advanced || captured.pushes.length !== pushesBeforeCatchUp + 1) {
+    throw new Error("Baccarat missed-round reconciliation must not duplicate a settled round");
+  }
+  await resetBaccaratSession(catchUpUser);
 
   const fundingStopUser = "funding-stop-user";
   const fundingStopRoad = ["莊", "閒"];
