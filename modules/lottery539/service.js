@@ -209,6 +209,10 @@ function cloneAnalysis(analysis) {
     prediction: [...analysis.prediction],
     hot: [...analysis.hot],
     cold: [...analysis.cold],
+    recentHistory: (analysis.recentHistory || []).map((record) => ({
+      ...record,
+      numbers: [...record.numbers],
+    })),
   };
 }
 
@@ -220,6 +224,7 @@ async function computeAnalysis(cacheKey, offset) {
       prediction: [],
       hot: [],
       cold: [],
+      recentHistory: [],
       summary: "目前尚未匯入可分析的歷史開獎資料。",
       source: "missing-history",
       updatedAt: taiwanNowText(),
@@ -241,6 +246,10 @@ async function computeAnalysis(cacheKey, offset) {
   const analysis = {
     date: formatDate(targetDate()),
     ...result,
+    recentHistory: history.slice(0, 3).map((record) => ({
+      date: record.date,
+      numbers: [...record.numbers],
+    })),
     updatedAt: taiwanNowText(),
   };
   analysisCache.clear();
