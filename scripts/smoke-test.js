@@ -1497,10 +1497,10 @@ async function main() {
   const webPortalSource = fs.readFileSync(path.join(root, "public", "portal", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["app.js?v=20260813.5", "styles.css?v=20260813.5"]) {
+  for (const expected of ["app.js?v=20260813.6", "styles.css?v=20260813.6"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.5"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.6"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1537,6 +1537,24 @@ async function main() {
   }
   if (!fs.existsSync(path.join(root, "public", "brand", "blackdomain-ai-logo.png"))) {
     throw new Error("Web portal brand logo asset is missing");
+  }
+  for (const asset of ["casino-track.webp", "snow-track.webp", "sports-track.webp", "ocean-track.webp"]) {
+    if (!fs.existsSync(path.join(root, "public", "images", "mb", asset))) {
+      throw new Error(`Web MB track image is missing: ${asset}`);
+    }
+  }
+  for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼"]) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web MB analysis flow is missing: ${expected}`);
+  }
+  for (const expected of [".mb-track-grid", ".mb-count-grid", ".mb-ranking", ".mb-stepper"]) {
+    if (!webPortalStylesSource.includes(expected)) throw new Error(`Web MB analysis styling is missing: ${expected}`);
+  }
+  const mbTrackOrder = ["賭城賽車", "雪地賽車", "運動賽車", "海洋賽車"].map(name => webPortalAppSource.indexOf(`name:\"${name}\"`));
+  if (mbTrackOrder.some(index => index < 0) || mbTrackOrder.some((index, position) => position > 0 && index <= mbTrackOrder[position - 1])) {
+    throw new Error("Web MB tracks must follow the platform order");
+  }
+  if (webPortalAppSource.includes('item.id==="mb"?"MB 賭城賽車 5碼"')) {
+    throw new Error("Web MB entry must not skip track and count selection");
   }
   const webChannelSource = fs.readFileSync(path.join(root, "services", "webChannel.js"), "utf8");
   const webhookSource = fs.readFileSync(path.join(root, "routes", "webhook.js"), "utf8");
@@ -1641,7 +1659,7 @@ async function main() {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
   }
-  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "valueBefore(section,\"命中\")", "valueBefore(section,\"觀望\")", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "MB 賭城賽車 5碼", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/analyze"]) {
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "valueBefore(section,\"命中\")", "valueBefore(section,\"觀望\")", "vipResultCard", "VIP會員中心", "剩餘時間", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "mbResultCard", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/analyze"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
   }
   const lottery539ServiceSource = fs.readFileSync(path.join(__dirname, "..", "modules", "lottery539", "service.js"), "utf8");
