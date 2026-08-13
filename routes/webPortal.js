@@ -57,7 +57,14 @@ function invalidLoginPage() {
 }
 
 function registerWebPortalRoutes(app) {
-  app.use("/portal", express.static(path.join(__dirname, "..", "public", "portal")));
+  app.use("/portal", express.static(path.join(__dirname, "..", "public", "portal"), {
+    etag: false,
+    lastModified: false,
+    setHeaders(response) {
+      response.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+      response.setHeader("pragma", "no-cache");
+    },
+  }));
   app.get("/portal/login", (req, res) => {
     res.setHeader("cache-control", "no-store");
     res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
@@ -125,10 +132,11 @@ function registerWebPortalRoutes(app) {
   app.post("/api/web/command", express.json({ limit: "16kb" }), async (req, res, next) => {
     try {
       const userId = user(req); if (!userId) return res.status(401).json({ error: "請重新登入" });
+      res.setHeader("cache-control", "no-store");
       const text = String(req.body?.text || "").trim().slice(0, 300);
       if (!text) return res.status(400).json({ error: "請輸入指令" });
       const replyToken = `web:${userId}:${require("crypto").randomUUID()}`;
-      const pending = web.waitReply(replyToken);
+      const pending = web.waitReply(replyToken, 20_000);
       const { handleEvent } = require("./webhook");
       try {
         await handleEvent({ type: "message", replyToken, source: { userId }, message: { type: "text", text } });
@@ -136,7 +144,7 @@ function registerWebPortalRoutes(app) {
         web.cancelReply(replyToken);
         throw error;
       }
-      return res.json({ messages: await pending });
+      return res.json({ messages: await pending, portalBuild: "20260813.1" });
     } catch (error) { return next(error); }
   });
 }
