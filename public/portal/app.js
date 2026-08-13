@@ -2,7 +2,7 @@ const view=document.querySelector("#view");
 const connection=document.querySelector("#connection");
 const loading=document.querySelector("#loading");
 const toasts=document.querySelector("#toasts");
-const PORTAL_BUILD="20260813.4";
+const PORTAL_BUILD="20260813.5";
 
 const categories={
   baccarat:{name:"百家樂",subtitle:"AI 牌路分析",image:"/images/electronic/dg.png",items:[
