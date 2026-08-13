@@ -131,7 +131,7 @@ function timingFrom(data = {}) {
     ?? current.remaining_seconds ?? current.bet_remaining_seconds;
   const countDown = Number(raw);
   return {
-    countDown: Number.isFinite(countDown) && countDown >= 0 ? Math.floor(countDown) : null,
+    countDown: Number.isFinite(countDown) && countDown > 0 ? Math.floor(countDown) : null,
     closeAt: data.close_at ?? data.bet_close_at ?? data.end_at
       ?? current.close_at ?? current.bet_close_at ?? current.end_at ?? null,
   };
@@ -190,12 +190,12 @@ function ingestSocketEvent(payload = {}) {
       ? String(data.next_draw_num)
       : nextPeriodId(record.periodId) || state.targetPeriodId;
     state.state = "Settlement";
-    state.countDown = 0;
+    state.countDown = null;
   } else if (event === "OPEN" || event === "CLOSE") {
     const current = data.current || data;
     if (current.draw_num) state.targetPeriodId = String(current.draw_num);
     state.state = event === "OPEN" ? "Ready" : "Closed";
-    state.countDown = event === "CLOSE" ? 0 : timing.countDown;
+    state.countDown = timing.countDown;
   } else if (event === "TABLE_STATE_CHANGED") {
     state.state = String(data.state_string || data.state || "Unknown");
     state.countDown = timing.countDown;

@@ -82,11 +82,22 @@ function liveTimingFor(session) {
   const rawValue = table?.countDown ?? table?.count_down;
   const raw = rawValue === null || rawValue === undefined || rawValue === "" ? NaN : Number(rawValue);
   const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(table?.updatedAt || "")) / 1000));
-  const countDown = Number.isFinite(raw) ? Math.max(0, Math.floor(raw) - elapsed) : null;
+  const remaining = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) - elapsed : null;
+  const countDown = remaining !== null && remaining > 0 ? remaining : null;
   const state = table?.state ?? table?.game_state ?? table?.gameState ?? null;
+  const normalizedState = String(state || "").toLowerCase();
+  const stateText = countDown !== null
+    ? "可下注"
+    : /ready|open|bet|start/.test(normalizedState)
+      ? "可下注"
+      : /playing|result|settlement/.test(normalizedState)
+        ? "開獎中"
+        : /close|closed/.test(normalizedState)
+          ? "已封盤"
+          : "平台狀態同步中";
   return {
     countDown,
-    state: countDown !== null ? (countDown > 0 ? "可下注" : "已封盤") : String(state || "同步中"),
+    state: stateText,
   };
 }
 
