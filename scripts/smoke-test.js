@@ -1543,6 +1543,10 @@ async function main() {
       throw new Error(`Web MB track image is missing: ${asset}`);
     }
   }
+  const imageRouteSource = fs.readFileSync(path.join(root, "routes", "images.js"), "utf8");
+  if (!imageRouteSource.includes('app.use("/images/mb", express.static(path.join(publicImagesPath, "mb")))')) {
+    throw new Error("Web MB track image route is missing");
+  }
   for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web MB analysis flow is missing: ${expected}`);
   }

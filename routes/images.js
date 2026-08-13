@@ -13,6 +13,7 @@ function registerImageRoutes(app) {
   app.use("/images/home", express.static(path.join(publicImagesPath, "home")));
   app.use("/images/baccarat", express.static(path.join(publicImagesPath, "baccarat")));
   app.use("/images/electronic", express.static(path.join(publicImagesPath, "electronic")));
+  app.use("/images/mb", express.static(path.join(publicImagesPath, "mb")));
   app.use("/images/sport", express.static(path.join(publicImagesPath, "sport")));
   app.use("/images/539", express.static(path.join(publicImagesPath, "lottery539")));
   app.use("/images/vip", express.static(path.join(publicImagesPath, "vip")));
