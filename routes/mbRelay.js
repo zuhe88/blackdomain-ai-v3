@@ -184,8 +184,6 @@ function userscript(baseUrl) {
         current: data.current,
         state: data.state,
         state_string: data.state_string,
-        count_down: data.count_down ?? data.countDown ?? data.countdown ?? data.remaining_seconds,
-        close_at: data.close_at ?? data.bet_close_at ?? data.end_at,
         result: data.result,
         result_display: data.result_display,
         result_time: data.result_time,

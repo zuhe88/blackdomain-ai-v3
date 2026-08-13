@@ -17,8 +17,6 @@ const states = new Map(TRACKS.map((track) => [
     history: [],
     updatedAt: null,
     liveUpdatedAt: null,
-    countDown: null,
-    closeAt: null,
   },
 ]));
 const resultListeners = new Set();
@@ -123,20 +121,6 @@ function resolveTrack(data = {}) {
     || null;
 }
 
-function timingFrom(data = {}) {
-  const current = data.current || {};
-  const raw = data.count_down ?? data.countDown ?? data.countdown
-    ?? data.remaining_seconds ?? data.bet_remaining_seconds
-    ?? current.count_down ?? current.countDown ?? current.countdown
-    ?? current.remaining_seconds ?? current.bet_remaining_seconds;
-  const countDown = Number(raw);
-  return {
-    countDown: Number.isFinite(countDown) && countDown > 0 ? Math.floor(countDown) : null,
-    closeAt: data.close_at ?? data.bet_close_at ?? data.end_at
-      ?? current.close_at ?? current.bet_close_at ?? current.end_at ?? null,
-  };
-}
-
 function ingestRoadmap(payload = {}) {
   const items = Array.isArray(payload.items) ? payload.items : [];
   let accepted = 0;
@@ -178,7 +162,6 @@ function ingestSocketEvent(payload = {}) {
   const state = track && states.get(track.gameName);
   if (!state) return false;
   let publishedRecord = null;
-  const timing = timingFrom(data);
 
   if (event === "RESULT_PUBLIC") {
     const record = normalizeLiveResult(data);
@@ -190,22 +173,18 @@ function ingestSocketEvent(payload = {}) {
       ? String(data.next_draw_num)
       : nextPeriodId(record.periodId) || state.targetPeriodId;
     state.state = "Settlement";
-    state.countDown = null;
   } else if (event === "OPEN" || event === "CLOSE") {
     const current = data.current || data;
     if (current.draw_num) state.targetPeriodId = String(current.draw_num);
     state.state = event === "OPEN" ? "Ready" : "Closed";
-    state.countDown = timing.countDown;
   } else if (event === "TABLE_STATE_CHANGED") {
     state.state = String(data.state_string || data.state || "Unknown");
-    state.countDown = timing.countDown;
   } else {
     return false;
   }
 
   state.updatedAt = new Date().toISOString();
   state.liveUpdatedAt = state.updatedAt;
-  state.closeAt = timing.closeAt;
   if (publishedRecord) publishResult(track, publishedRecord);
   return true;
 }
@@ -225,8 +204,6 @@ function getSnapshot() {
         historyCount: state.history.length,
         updatedAt: state.updatedAt,
         liveUpdatedAt: state.liveUpdatedAt,
-        countDown: state.countDown,
-        closeAt: state.closeAt,
         history: state.history.map((record) => ({
           ...record,
           result: [...record.result],
@@ -244,8 +221,6 @@ function resetForTest() {
     state.history = [];
     state.updatedAt = null;
     state.liveUpdatedAt = null;
-    state.countDown = null;
-    state.closeAt = null;
   });
 }
 

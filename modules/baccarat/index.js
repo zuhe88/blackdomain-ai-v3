@@ -76,31 +76,6 @@ function roomStatsFor(session) {
   return source.getRoomStats(session.room);
 }
 
-function liveTimingFor(session) {
-  const source = session.platform === "DG" ? dgSource : mtSource;
-  const table = source.getTableByRoom(session.room);
-  const rawValue = table?.countDown ?? table?.count_down;
-  const raw = rawValue === null || rawValue === undefined || rawValue === "" ? NaN : Number(rawValue);
-  const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(table?.updatedAt || "")) / 1000));
-  const remaining = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) - elapsed : null;
-  const countDown = remaining !== null && remaining > 0 ? remaining : null;
-  const state = table?.state ?? table?.game_state ?? table?.gameState ?? null;
-  const normalizedState = String(state || "").toLowerCase();
-  const stateText = countDown !== null
-    ? "可下注"
-    : /ready|open|bet|start/.test(normalizedState)
-      ? "可下注"
-      : /playing|result|settlement/.test(normalizedState)
-        ? "開獎中"
-        : /close|closed/.test(normalizedState)
-          ? "已封盤"
-          : "平台狀態同步中";
-  return {
-    countDown,
-    state: stateText,
-  };
-}
-
 function liveDataIsFresh(session) {
   const source = session.platform === "DG" ? dgSource : mtSource;
   return source.isRoomFresh(session.room);
@@ -373,7 +348,6 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
     bet: analysis.bet,
     reason: getReason(analysis.session),
     roomStats: roomStatsFromEvent(event, analysis.session),
-    timing: liveTimingFor(analysis.session),
     notice,
     ...liveResultOptions(),
   });
@@ -790,7 +764,6 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
-      timing: liveTimingFor(first.session),
       ...liveResultOptions(),
     }));
   }
@@ -820,7 +793,6 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
-      timing: liveTimingFor(first.session),
       ...liveResultOptions(),
     }));
   }
@@ -860,7 +832,6 @@ async function handleBaccaratMessage(event) {
       bet: result.bet,
       reason: getReason(result.session),
       roomStats: roomStatsFor(result.session),
-      timing: liveTimingFor(result.session),
       ...liveResultOptions(),
     }));
   }

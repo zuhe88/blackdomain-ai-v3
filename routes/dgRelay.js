@@ -167,8 +167,6 @@ function userscript(baseUrl) {
         table_type: table.table_type,
         game_sn: table.game_sn,
         game_state: table.game_state,
-        count_down: table.count_down ?? table.countDown ?? table.countdown ?? table.remaining_seconds,
-        close_at: table.close_at ?? table.bet_close_at ?? table.end_at,
         shoe: table.shoe,
         round: table.round,
         trend: {

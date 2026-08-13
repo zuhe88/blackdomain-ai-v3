@@ -359,7 +359,6 @@ function baccaratAnalysisFlex({
   bet,
   reason = "BLACKDOMAIN AI 已完成分析",
   roomStats = {},
-  timing = {},
   autoResult = false,
   notice = null,
   quickReply,
@@ -403,8 +402,6 @@ function baccaratAnalysisFlex({
         infoLine("目前獲利", String(profit)),
       ] : []),
       roomStatsPanel(tableStats),
-      infoLine("下注狀態", timing.state || "同步中"),
-      ...(Number.isFinite(Number(timing.countDown)) ? [infoLine("下注倒數", `${Math.max(0, Math.floor(Number(timing.countDown)))} 秒`)] : []),
       infoLine(
         "核對提示",
         "請核對本局莊、閒、和是否與平台一致，下一局會自動分析。",
