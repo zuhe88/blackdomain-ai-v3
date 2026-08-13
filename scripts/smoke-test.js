@@ -1397,8 +1397,8 @@ async function main() {
   }
   for (const count of [3, 4, 5, 6]) {
     const analysis = buildMbAnalysis(mbTrack, count);
-    if (analysis.rows.some((row) => row.picks.length !== count)) {
-      throw new Error(`MB analysis must return ${count} picks per rank`);
+    if (analysis.rows.some((row) => row.picks.length !== count || new Set(row.picks).size !== count)) {
+      throw new Error(`MB analysis must return exactly ${count} unique picks per rank`);
     }
   }
   const staleMbAnalysis = buildMbAnalysis({
@@ -1510,10 +1510,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260813.14", "styles.css?v=20260813.14"]) {
+  for (const expected of ["app.js?v=20260813.15", "styles.css?v=20260813.15"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.14"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.15"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1577,8 +1577,11 @@ async function main() {
   if (!imageRouteSource.includes('app.use("/images/mb", express.static(path.join(publicImagesPath, "mb")))')) {
     throw new Error("Web MB track image route is missing");
   }
-  for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "mbRecentRecords", "mbHistoryMarkup", "最近 3 場開獎", "請核對預測期號", "下一場自動分析", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼"]) {
+  for (const expected of ["renderMbTrackPicker", "renderMbCountPicker", "renderMbConfirmation", "startMbAnalysis", "mbResultCard", "mbRecentRecords", "mbHistoryMarkup", "最近 3 場開獎", "請核對預測期號", "下一場自動分析", "data-mb-track", "data-mb-count", "data-mb-start", "MB ${track.name} ${count}碼", "new Set(texts.slice", "mbRankPicks(texts,rank.label,count)"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web MB analysis flow is missing: ${expected}`);
+  }
+  for (const expected of ["bettingTimingMarkup", "data-bet-countdown", "tickBettingTimers", "下注狀態", "下注倒數"]) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web betting countdown missing ${expected}`);
   }
   for (const expected of [".mb-track-grid", ".mb-count-grid", ".mb-ranking", ".mb-stepper"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web MB analysis styling is missing: ${expected}`);
@@ -1712,10 +1715,10 @@ async function main() {
   for (const expected of [".road-grid", ".baccarat-decision", ".finance-grid"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat result styling is missing: ${expected}`);
   }
-  for (const expected of ["--pointer-x", "repeating-linear-gradient", "ambient-float-a", "prefers-reduced-motion"]) {
+  for (const expected of ["--cursor-x", "repeating-linear-gradient", "tech-field-scan", "tech-trace-drift", "prefers-reduced-motion"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Interactive portal atmosphere is missing: ${expected}`);
   }
-  for (const expected of ['addEventListener("pointermove"', 'requestAnimationFrame', '"--pointer-x-back"']) {
+  for (const expected of ['addEventListener("pointermove"', 'requestAnimationFrame', '"--cursor-x"', '"--cursor-y"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Pointer-reactive portal background is missing: ${expected}`);
   }
   if (!captured.routes.get.some((route) => route.route === "/api/mb/status")) {

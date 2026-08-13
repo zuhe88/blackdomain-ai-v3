@@ -27,7 +27,7 @@ function userscript(baseUrl) {
   return `// ==UserScript==
 // @name         BLACKDOMAIN MB 彈珠即時轉送器
 // @namespace    blackdomain-ai
-// @version      1.1.1
+// @version      1.1.2
 // @description  將 MB RACING 四賽道歷史與即時開獎同步至 BLACKDOMAIN AI
 // @match        https://mbracing.cc/*
 // @match        https://mbracing.dev/*
@@ -184,6 +184,8 @@ function userscript(baseUrl) {
         current: data.current,
         state: data.state,
         state_string: data.state_string,
+        count_down: data.count_down ?? data.countDown ?? data.countdown ?? data.remaining_seconds,
+        close_at: data.close_at ?? data.bet_close_at ?? data.end_at,
         result: data.result,
         result_display: data.result_display,
         result_time: data.result_time,

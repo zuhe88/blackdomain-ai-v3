@@ -76,6 +76,20 @@ function roomStatsFor(session) {
   return source.getRoomStats(session.room);
 }
 
+function liveTimingFor(session) {
+  const source = session.platform === "DG" ? dgSource : mtSource;
+  const table = source.getTableByRoom(session.room);
+  const rawValue = table?.countDown ?? table?.count_down;
+  const raw = rawValue === null || rawValue === undefined || rawValue === "" ? NaN : Number(rawValue);
+  const elapsed = Math.max(0, Math.floor((Date.now() - Date.parse(table?.updatedAt || "")) / 1000));
+  const countDown = Number.isFinite(raw) ? Math.max(0, Math.floor(raw) - elapsed) : null;
+  const state = table?.state ?? table?.game_state ?? table?.gameState ?? null;
+  return {
+    countDown,
+    state: countDown !== null ? (countDown > 0 ? "可下注" : "已封盤") : String(state || "同步中"),
+  };
+}
+
 function liveDataIsFresh(session) {
   const source = session.platform === "DG" ? dgSource : mtSource;
   return source.isRoomFresh(session.room);
@@ -348,6 +362,7 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
     bet: analysis.bet,
     reason: getReason(analysis.session),
     roomStats: roomStatsFromEvent(event, analysis.session),
+    timing: liveTimingFor(analysis.session),
     notice,
     ...liveResultOptions(),
   });
@@ -764,6 +779,7 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
+      timing: liveTimingFor(first.session),
       ...liveResultOptions(),
     }));
   }
@@ -793,6 +809,7 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
+      timing: liveTimingFor(first.session),
       ...liveResultOptions(),
     }));
   }
@@ -832,6 +849,7 @@ async function handleBaccaratMessage(event) {
       bet: result.bet,
       reason: getReason(result.session),
       roomStats: roomStatsFor(result.session),
+      timing: liveTimingFor(result.session),
       ...liveResultOptions(),
     }));
   }

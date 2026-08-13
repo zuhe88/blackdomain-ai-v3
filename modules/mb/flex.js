@@ -300,6 +300,8 @@ function mbAnalysisFlex(analysis, track, { settledPeriodId = null } = {}) {
     contents: [
       infoLine("預測期號", targetPeriod),
       infoLine("最後同步", syncTime(analysis.updatedAt)),
+      infoLine("下注狀態", analysis.countDown !== null ? (analysis.countDown > 0 ? "可下注" : "已封盤") : String(analysis.state || "同步中")),
+      ...(analysis.countDown !== null ? [infoLine("下注倒數", `${analysis.countDown} 秒`)] : []),
       ...(settledPeriodId ? [infoLine("自動結算", `${settledPeriodId} 期已開獎，下一期推薦已更新`)] : []),
       section([
         text(recommendationTitle, { size: "sm", weight: "bold", color: COLORS.gold }),

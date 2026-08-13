@@ -672,6 +672,8 @@ function getSnapshot() {
         shoe: table.shoe,
         gameSn: table.game_sn || null,
         gameState: table.game_state || null,
+        countDown: table.count_down ?? table.countDown ?? table.countdown ?? null,
+        closeAt: table.close_at ?? table.bet_close_at ?? table.end_at ?? null,
         historyCount: table.history.length,
         latest: table.history[table.history.length - 1] || null,
         latestEventKey: table.history[table.history.length - 1]?.eventKey || null,

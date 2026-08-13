@@ -92,6 +92,11 @@ function buildAnalysis(track, pickCount) {
     targetPeriodId: track?.targetPeriodId || null,
     latestPeriodId: history[0]?.periodId || null,
     updatedAt,
+    countDown: track?.countDown !== null && track?.countDown !== undefined && track?.countDown !== ""
+      && Number.isFinite(Number(track.countDown))
+      ? Math.max(0, Math.floor(Number(track.countDown)))
+      : null,
+    closeAt: track?.closeAt || null,
     recentResults: history.slice(0, 3),
     rows: [],
   };
