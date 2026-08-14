@@ -2,7 +2,8 @@ const fs = require("fs");
 const path = require("path");
 
 const PILIO_HISTORY_URL = "https://www.pilio.idv.tw/lto539/list539BIG.asp";
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+// Refresh often enough to include the result published after the nightly draw.
+const CACHE_TTL_MS = 10 * 60 * 1000;
 let historyCache = { expiresAt: 0, data: [] };
 
 function normalizeNumbers(value) {

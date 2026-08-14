@@ -1,8 +1,10 @@
 const { askLottery539AI } = require("../../services/openai");
 const { loadHistory } = require("./repository");
+const supabase = require("../../services/supabase");
 
 const analysisCache = new Map();
 const analysisInFlight = new Map();
+const ANALYSIS_KEY_PREFIX = "lottery539:analysis:";
 
 function taiwanParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("zh-TW", {
@@ -216,6 +218,43 @@ function cloneAnalysis(analysis) {
   };
 }
 
+function isCompleteAnalysis(value) {
+  return value
+    && Array.isArray(value.prediction)
+    && value.prediction.length === 5
+    && Array.isArray(value.hot)
+    && value.hot.length === 5
+    && Array.isArray(value.cold)
+    && value.cold.length === 5;
+}
+
+async function loadPersistedAnalysis(cacheKey) {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("lottery_settings")
+    .select("value")
+    .eq("key", `${ANALYSIS_KEY_PREFIX}${cacheKey}`)
+    .maybeSingle();
+  if (error) {
+    console.error("[539 AI] persisted analysis read failed:", error.message);
+    return null;
+  }
+  return isCompleteAnalysis(data?.value) ? data.value : null;
+}
+
+async function persistAnalysis(cacheKey, analysis) {
+  if (!supabase || !isCompleteAnalysis(analysis)) return;
+  const { error } = await supabase
+    .from("lottery_settings")
+    .upsert({
+      key: `${ANALYSIS_KEY_PREFIX}${cacheKey}`,
+      value: analysis,
+      updated_at: new Date().toISOString(),
+      updated_by: "lottery539-ai",
+    }, { onConflict: "key" });
+  if (error) console.error("[539 AI] persisted analysis write failed:", error.message);
+}
+
 async function computeAnalysis(cacheKey, offset) {
   const history = await loadHistory();
   if (!history.length) {
@@ -233,10 +272,10 @@ async function computeAnalysis(cacheKey, offset) {
 
   let result;
   try {
-    result = await gptAnalysis(history, offset);
+    result = await gptAnalysis(history, cacheKey);
   } catch (error) {
     console.error("[539 AI] GPT analysis fallback:", error.message);
-    result = statisticalAnalysis(history, offset);
+    result = statisticalAnalysis(history, cacheKey);
   }
 
   if (sameSet(result.prediction, result.hot) || sameSet(result.prediction, result.cold)) {
@@ -252,8 +291,8 @@ async function computeAnalysis(cacheKey, offset) {
     })),
     updatedAt: taiwanNowText(),
   };
-  analysisCache.clear();
   analysisCache.set(cacheKey, analysis);
+  await persistAnalysis(cacheKey, analysis);
   return analysis;
 }
 
@@ -261,6 +300,12 @@ async function buildAnalysis(offset) {
   const cacheKey = dateKey(targetDate());
   const cached = analysisCache.get(cacheKey);
   if (cached) return cloneAnalysis(cached);
+
+  const persisted = await loadPersistedAnalysis(cacheKey);
+  if (persisted) {
+    analysisCache.set(cacheKey, persisted);
+    return cloneAnalysis(persisted);
+  }
 
   let pending = analysisInFlight.get(cacheKey);
   if (!pending) {
