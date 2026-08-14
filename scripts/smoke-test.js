@@ -1501,7 +1501,7 @@ async function main() {
   const publicSiteSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', 'name="application-name" content="黑域AI"', 'rel="icon" type="image/png" sizes="384x384" href="/favicon.png"', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "button community", "#ffdc78", "service-icon", '<svg viewBox="0 0 24 24">', "logoGlow", "haloPulse", ".hero-art img{position:relative;width:min(390px,100%);height:auto", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
+  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', 'name="application-name" content="黑域AI"', 'rel="icon" type="image/png" sizes="384x384" href="/favicon.png"', "進入AI預測系統", "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "button community", "#ffdc78", "service-icon", '<svg viewBox="0 0 24 24">', "logoGlow", "haloPulse", ".hero-art img{position:relative;width:min(390px,100%);height:auto", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
     if (!publicSiteSource.includes(expected)) throw new Error(`Public SEO website is missing: ${expected}`);
   }
   for (const route of ["/robots.txt", "/sitemap.xml", "/google9ea0721a8c1ecc83.html"]) {
@@ -1510,10 +1510,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260814.01", "styles.css?v=20260814.01"]) {
+  for (const expected of ["app.js?v=20260814.02", "styles.css?v=20260814.02"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260814.01"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260814.02"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1529,6 +1529,9 @@ async function main() {
   }
   for (const expected of ["accessAllowed", "renderAccessDenied", "LINE：@893jrweh", "https://line.me/ti/p/@893jrweh", "if(!accessAllowed)return renderAccessDenied(categoryKey)", "setAccessIndicator", 'action.text==="綁定"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal card-level access guard is missing: ${expected}`);
+  }
+  for (const expected of ["前往官方帳號登入", "開通權限・聯絡管理員", "https://line.me/ti/p/@391wiftp", "https://line.me/ti/p/@893jrweh", "login-panel", "login-official", "login-manager"]) {
+    if (!webPortalAppSource.includes(expected) && !webPortalStylesSource.includes(expected)) throw new Error(`Web login guidance is missing: ${expected}`);
   }
   for (const expected of ["automaticBaccarat", "本局已結算", "下一局分析已自動更新", "automatic-round-update"]) {
     if (!webPortalAppSource.includes(expected) && !webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat round transition is missing: ${expected}`);
