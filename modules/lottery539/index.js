@@ -53,7 +53,7 @@ function analysisFlex(title, analysis) {
             infoLine("熱號", analysis.hot.join("、")),
             infoLine("冷號", analysis.cold.join("、")),
             ...analysis.recentHistory.map((record, index) => (
-              infoLine(`近期开奖 ${index + 1}`, `${record.date}｜${record.numbers.join("、")}`)
+              infoLine(`近期開獎 ${index + 1}`, `${record.date}｜${record.numbers.join("、")}`)
             )),
           ]
         : [infoLine("資料狀態", analysis.summary)]),

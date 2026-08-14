@@ -1510,10 +1510,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260813.17", "styles.css?v=20260813.17"]) {
+  for (const expected of ["app.js?v=20260814.01", "styles.css?v=20260814.01"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260813.17"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260814.01"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1702,7 +1702,7 @@ async function main() {
       throw new Error(`MB relay userscript is missing supported host: ${expected}`);
     }
   }
-  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "valueBefore(section,\"命中\")", "valueBefore(section,\"觀望\")", "vipResultCard", "VIP會員權限", "會員權限總覽", "剩餘時間", "lottery539ResultCard", "近期开奖紀錄", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "mbResultCard", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/analyze"]) {
+  for (const expected of ["baccaratResultCard", "本房牌路統計", "baccaratPerformance", "有效命中率", "valueBefore(section,\"命中\")", "valueBefore(section,\"觀望\")", "vipResultCard", "VIP會員權限", "會員權限總覽", "剩餘時間", "lottery539ResultCard", "近期開獎紀錄", "AI抓牌", "roomStatsFromTexts", "texts.slice(sectionIndex+1)", "texts:rawTexts", "routeForCommand", "首頁:\"/portal/\"", "返回首頁:\"/portal/\"", "mbResultCard", "messageBelongsToActiveOperation", "enforceScope:true", "renderAnalysis", "routeRevision", "/recommend", "/analyze"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal state isolation is missing: ${expected}`);
   }
   const lottery539ServiceSource = fs.readFileSync(path.join(__dirname, "..", "modules", "lottery539", "service.js"), "utf8");
