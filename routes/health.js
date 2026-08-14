@@ -18,6 +18,12 @@ function registerHealthRoutes(app) {
     res.sendFile(path.join(__dirname, "..", "public", "index.html"));
   });
 
+  app.get(["/favicon.png", "/favicon.ico"], (req, res) => {
+    res.type("image/png");
+    res.set("Cache-Control", "public, max-age=604800, immutable");
+    res.sendFile(path.join(__dirname, "..", "public", "brand", "blackdomain-ai-logo.png"));
+  });
+
   app.get("/robots.txt", (req, res) => {
     res.type("text/plain").send([
       "User-agent: *",

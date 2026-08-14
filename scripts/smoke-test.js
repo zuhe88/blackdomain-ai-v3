@@ -1501,7 +1501,7 @@ async function main() {
   const publicSiteSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
-  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "button community", "#ffdc78", "service-icon", '<svg viewBox="0 0 24 24">', "logoGlow", "haloPulse", ".hero-art img{position:relative;width:min(390px,100%);height:auto", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
+  for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', 'name="application-name" content="黑域AI"', 'rel="icon" type="image/png" sizes="384x384" href="/favicon.png"', "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "button community", "#ffdc78", "service-icon", '<svg viewBox="0 0 24 24">', "logoGlow", "haloPulse", ".hero-art img{position:relative;width:min(390px,100%);height:auto", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
     if (!publicSiteSource.includes(expected)) throw new Error(`Public SEO website is missing: ${expected}`);
   }
   for (const route of ["/robots.txt", "/sitemap.xml", "/google9ea0721a8c1ecc83.html"]) {
