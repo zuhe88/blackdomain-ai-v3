@@ -205,7 +205,6 @@ async function pingRelayTab(tabId, kind) {
 
 async function inspectRelayTab(tab, kind) {
   if (!Number.isInteger(tab?.id)) return;
-  if (kind === "electronic" && isAtgLobby(tab.url)) return;
   const key = healthKey(tab.id);
   const saved = await chrome.storage.local.get(key);
   let health = saved[key] || {};

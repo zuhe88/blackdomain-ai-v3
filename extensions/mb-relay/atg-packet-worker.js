@@ -502,6 +502,11 @@
       }
     })().catch((error) => {
       console.warn("[BLACKDOMAIN Packet] bootstrap failed", error?.message || error);
+      const message = error?.message || "封包主機啟動失敗";
+      GAME_TARGETS.forEach((target) => setHostStatus(target, `啟動失敗：${message}`, "error"));
+      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", {
+        detail: { reason: "packet-bootstrap-failed" },
+      }));
       gameStates.forEach((state) => state.socket?.close());
       gameStates.clear();
       lobbySocket?.close();
