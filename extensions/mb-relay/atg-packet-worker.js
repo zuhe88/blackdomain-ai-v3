@@ -6,9 +6,8 @@
 
   const SOCKET_ORIGIN = "https://socket.godeebxp.com";
   const CLIENT_TYPE = "web";
-  const SCAN_INTERVAL_MS = 60 * 1000;
-  const DETAIL_INTERVAL_MS = 2500;
-  const RECONNECT_INTERVAL_MS = 15 * 1000;
+  const CYCLE_PAUSE_MS = 10 * 1000;
+  const GAME_SWITCH_GAP_MS = 800;
   const REQUEST_TIMEOUT_MS = 15000;
   const REQUEST_GAP_MS = 120;
   const MAX_SOURCE_PAGES = 20;
@@ -26,8 +25,10 @@
   const watchedRooms = new Map();
   let lobbySocket = null;
   let activeLobbyToken = "";
+  let lobbyGames = [];
   let bootstrapPromise = null;
   let stopping = false;
+  let forceScanRequested = false;
 
   const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -40,7 +41,11 @@
   function parsePageContext() {
     try {
       const current = new URL(window.location.href);
-      const lobby = new URL(current.searchParams.get("goback_url"));
+      const rawLobbyUrl = current.searchParams.get("goback_url");
+      const lobby = rawLobbyUrl
+        ? new URL(rawLobbyUrl)
+        : current.pathname.includes("/egames/lobby/game/") ? current : null;
+      if (!lobby) return null;
       const token = String(lobby.searchParams.get("t") || "").trim();
       if (!token || lobby.hostname !== current.hostname) return null;
       return {
@@ -267,6 +272,7 @@
         engine: { name: "blackdomain-packet-worker" },
       },
     });
+    gameStates.clear();
     gameStates.set(state.target.name, state);
     return state;
   }
@@ -335,38 +341,61 @@
     ));
   }
 
-  async function createLaunches(context) {
+  async function initializeLobby(context) {
+    lobbySocket?.close();
     lobbySocket = await connectSocket();
-    let lobbyToken = context.token;
+    let lobbyToken = activeLobbyToken || context.token;
     const initial = parsePlainResponse(await emitAck(lobbySocket, "lobbyInitial", {
       token: lobbyToken,
       clientType: CLIENT_TYPE,
     }));
-    if (!initial || initial.status === false) throw new Error("lobbyInitial rejected");
+    if (!initial || Number(initial.status) !== 200) throw new Error("lobbyInitial rejected");
     if (initial.token) lobbyToken = String(initial.token);
     activeLobbyToken = lobbyToken;
-    const games = initial.content?.games ?? initial.games ?? initial.content;
-    const launches = [];
-    for (const target of GAME_TARGETS) {
-      const game = findLobbyGame(games, target);
-      const code = String(game?.code ?? game?.gameCode ?? target.code);
-      const played = parsePlainResponse(await emitAck(lobbySocket, "lobbyPlay", {
-        token: lobbyToken,
-        clientType: CLIENT_TYPE,
-        code,
-      }));
-      if (!played || played.status === false || !played.redirectUrl) {
-        throw new Error(`${target.name} launch rejected`);
-      }
-      if (played.token) lobbyToken = String(played.token);
-      activeLobbyToken = lobbyToken;
-      const redirect = new URL(played.redirectUrl, window.location.href);
-      const token = String(redirect.searchParams.get("t") || "").trim();
-      if (!token) throw new Error(`${target.name} launch token missing`);
-      launches.push({ target, token });
-      await delay(REQUEST_GAP_MS);
+    lobbyGames = initial.content?.games ?? initial.games ?? initial.content ?? [];
+  }
+
+  async function createLaunch(target, context) {
+    if (!lobbySocket?.connected) await initializeLobby(context);
+    const game = findLobbyGame(lobbyGames, target);
+    const code = String(game?.code ?? game?.gameCode ?? target.code);
+    const played = parsePlainResponse(await emitAck(lobbySocket, "lobbyPlay", {
+      token: activeLobbyToken,
+      clientType: CLIENT_TYPE,
+      code,
+    }));
+    if (!played || Number(played.status) !== 200 || !played.redirectUrl) {
+      throw new Error(`${target.name} launch rejected`);
     }
-    return launches;
+    if (played.token) activeLobbyToken = String(played.token);
+    const redirect = new URL(played.redirectUrl, window.location.href);
+    const token = String(redirect.searchParams.get("t") || "").trim();
+    if (!token) throw new Error(`${target.name} launch token missing`);
+    return { target, token };
+  }
+
+  async function scanTarget(target, context) {
+    let state = null;
+    try {
+      const launch = await createLaunch(target, context);
+      state = await connectGame(launch, context);
+      await scanGame(state);
+      const detailCount = Math.min(12, (watchedRooms.get(target.name) || []).length);
+      for (let index = 0; index < detailCount; index += 1) {
+        await pollDetail(state);
+        if (index + 1 < detailCount) await delay(REQUEST_GAP_MS);
+      }
+      console.info(`[BLACKDOMAIN Packet] ${target.name} packet scan complete`);
+    } catch (error) {
+      console.warn(`[BLACKDOMAIN Packet] ${target.name} packet scan failed`, error?.message || error);
+      if (!state) {
+        lobbySocket?.close();
+        lobbySocket = null;
+      }
+    } finally {
+      state?.socket?.close();
+      gameStates.delete(target.name);
+    }
   }
 
   async function bootstrap() {
@@ -374,18 +403,26 @@
     bootstrapPromise = (async () => {
       const context = parsePageContext();
       if (!context) throw new Error("ATG lobby token unavailable");
-      const launches = await createLaunches(context);
-      const results = await Promise.allSettled(launches.map((launch) => connectGame(launch, context)));
-      const connected = results.filter((result) => result.status === "fulfilled").length;
-      if (!connected) throw new Error("all game sockets failed");
-      console.info(`[BLACKDOMAIN Packet] ${connected}/${GAME_TARGETS.length} game sockets active`);
-      await Promise.all([...gameStates.values()].map(scanGame));
+      await initializeLobby(context);
+      console.info("[BLACKDOMAIN Packet] sequential five-game packet scan active");
+      while (!stopping) {
+        for (const target of GAME_TARGETS) {
+          if (stopping) break;
+          await scanTarget(target, context);
+          if (!stopping) await delay(GAME_SWITCH_GAP_MS);
+        }
+        if (stopping) break;
+        if (forceScanRequested) forceScanRequested = false;
+        else await delay(CYCLE_PAUSE_MS);
+        if (!lobbySocket?.connected) await initializeLobby(context);
+      }
     })().catch((error) => {
       console.warn("[BLACKDOMAIN Packet] bootstrap failed", error?.message || error);
       gameStates.forEach((state) => state.socket?.close());
       gameStates.clear();
       lobbySocket?.close();
       lobbySocket = null;
+      if (!stopping) setTimeout(bootstrap, 3000);
     }).finally(() => {
       bootstrapPromise = null;
     });
@@ -403,7 +440,7 @@
   });
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", () => {
-    gameStates.forEach((state) => scanGame(state));
+    forceScanRequested = true;
   });
 
   window.addEventListener("beforeunload", () => {
@@ -413,18 +450,6 @@
   });
 
   bootstrap();
-  setInterval(() => gameStates.forEach((state) => scanGame(state)), SCAN_INTERVAL_MS);
-  setInterval(() => gameStates.forEach((state) => pollDetail(state)), DETAIL_INTERVAL_MS);
-  setInterval(() => {
-    if (!bootstrapPromise && (gameStates.size < GAME_TARGETS.length
-      || [...gameStates.values()].some((state) => !state.socket?.connected))) {
-      gameStates.forEach((state) => state.socket?.close());
-      gameStates.clear();
-      lobbySocket?.close();
-      lobbySocket = null;
-      bootstrap();
-    }
-  }, RECONNECT_INTERVAL_MS);
 
-  console.info("[BLACKDOMAIN Packet] five-game packet worker installed");
+  console.info("[BLACKDOMAIN Packet] sequential five-game packet worker installed");
 }());

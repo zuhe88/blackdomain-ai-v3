@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.0.0") {
-    throw new Error("Electronic relay extension version must be 2.0.0");
+  if (electronicRelayManifest.version !== "2.1.0") {
+    throw new Error("Electronic relay extension version must be 2.1.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1807,7 +1807,8 @@ async function main() {
     'crypto.subtle.decrypt(',
     'new DecompressionStream("deflate")',
     'relayMode: "packet-worker"',
-    "Promise.allSettled",
+    "sequential five-game packet scan active",
+    "await scanTarget(target, context)",
     "戰神賽特1",
     "戰神賽特2",
     "古神巴風特",
