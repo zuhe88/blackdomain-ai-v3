@@ -1743,8 +1743,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.10.1") {
-    throw new Error("Electronic relay extension version must be 2.10.1");
+  if (electronicRelayManifest.version !== "2.10.2") {
+    throw new Error("Electronic relay extension version must be 2.10.2");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1904,6 +1904,8 @@ async function main() {
     "BACKGROUND_PROBE_OWNER",
     "BACKGROUND_PROBE_ROTATE_MS",
     "refreshBackgroundRecommendationProbes(now)",
+    "bucketCount = Math.min(batchSize, RECOMMEND_PROBE_BATCH_SIZE)",
+    "spreadRtpQualityPool(pool, gameName)",
   ]) {
     if (!electronicRecommendationModuleSource.includes(expected)) {
       throw new Error(`Electronic recommendation must keep expanding its RTP pool: ${expected}`);

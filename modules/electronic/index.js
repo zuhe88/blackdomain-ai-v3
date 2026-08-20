@@ -201,18 +201,43 @@ function seedRecommendationProbes(userId, gameName, limit = RECOMMEND_PROBE_BATC
   clearRecommendationProbes(owner);
   const rooms = electronicSource.getEmptyRooms(gameName)
     .filter((room) => scoreSethRoomByRtp(room) == null)
-    .sort((left, right) => (
-      hashScore(`${owner}:${left.number}`) - hashScore(`${owner}:${right.number}`)
-    ));
+    .sort((left, right) => left.number - right.number);
   if (!rooms.length) return 0;
   const cursorKey = `${owner}:${gameName}:probe-cursor`;
-  const cursor = Number(recommendCursorStore.get(cursorKey)?.cursor) || 0;
   const batchSize = Math.min(Math.max(1, Number(limit) || 1), rooms.length);
-  const selectedRooms = Array.from({ length: batchSize }, (_, index) => (
-    rooms[(cursor + index) % rooms.length]
-  ));
+  const config = GAME_CONFIG[gameName] || { min: rooms[0].number, max: rooms.at(-1).number };
+  const range = Math.max(1, config.max - config.min + 1);
+  const bucketCount = Math.min(batchSize, RECOMMEND_PROBE_BATCH_SIZE);
+  const buckets = Array.from({ length: bucketCount }, () => []);
+  rooms.forEach((room) => {
+    const bucketIndex = Math.min(
+      bucketCount - 1,
+      Math.floor(((room.number - config.min) / range) * bucketCount),
+    );
+    buckets[bucketIndex].push(room);
+  });
+  const round = Number(recommendCursorStore.get(cursorKey)?.cursor) || 0;
+  const selectedRooms = [];
+  buckets.forEach((bucket, bucketIndex) => {
+    if (!bucket.length || selectedRooms.length >= batchSize) return;
+    const ordered = bucket.sort((left, right) => (
+      hashScore(`${owner}:${gameName}:${bucketIndex}:${left.number}`)
+      - hashScore(`${owner}:${gameName}:${bucketIndex}:${right.number}`)
+    ));
+    selectedRooms.push(ordered[round % ordered.length]);
+  });
+  if (selectedRooms.length < batchSize) {
+    const selectedNumbers = new Set(selectedRooms.map((room) => room.number));
+    const remaining = rooms
+      .filter((room) => !selectedNumbers.has(room.number))
+      .sort((left, right) => (
+        hashScore(`${owner}:${gameName}:fill:${round}:${left.number}`)
+        - hashScore(`${owner}:${gameName}:fill:${round}:${right.number}`)
+      ));
+    selectedRooms.push(...remaining.slice(0, batchSize - selectedRooms.length));
+  }
   recommendCursorStore.set(cursorKey, {
-    cursor: (cursor + batchSize) % rooms.length,
+    cursor: round + 1,
     updatedAt: Date.now(),
   });
   const updatedAt = Date.now();
@@ -551,9 +576,9 @@ async function getLiveWatchers(gameName, roomNumber) {
 async function getActiveWatchRooms() {
   const watches = new Map();
   const now = Date.now();
-  // Keep expanding the Seth 2 RTP candidate pool even after the first usable
-  // room is found. Previously the probe queue stopped as soon as room 2001
-  // produced RTP, leaving every recommendation with the same sole candidate.
+  // Keep expanding every game's RTP candidate pool across the whole room-number
+  // range. A probe batch is stratified by range, so it cannot get trapped on
+  // one source page and return a cluster of nearly identical room numbers.
   refreshBackgroundRecommendationProbes(now);
   for (const watch of liveWatches.values()) {
     if (watch?.userId && !watch.stoppedAt && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT) {
@@ -872,6 +897,37 @@ function requiresLiveRtp(gameName) {
   return electronicSource.SUPPORTED_GAMES.has(gameName);
 }
 
+function spreadRtpQualityPool(rankedRooms, gameName) {
+  if (!rankedRooms.length) return [];
+  const qualityCount = Math.min(
+    rankedRooms.length,
+    Math.max(12, Math.ceil(rankedRooms.length * 0.6)),
+  );
+  const qualityRooms = rankedRooms.slice(0, qualityCount);
+  const config = GAME_CONFIG[gameName] || {
+    min: Math.min(...qualityRooms.map((room) => room.number)),
+    max: Math.max(...qualityRooms.map((room) => room.number)),
+  };
+  const range = Math.max(1, config.max - config.min + 1);
+  const bucketCount = Math.min(8, qualityRooms.length, Math.max(1, Math.ceil(range / 500)));
+  const buckets = Array.from({ length: bucketCount }, () => []);
+  qualityRooms.forEach((room) => {
+    const bucketIndex = Math.min(
+      bucketCount - 1,
+      Math.floor(((room.number - config.min) / range) * bucketCount),
+    );
+    buckets[bucketIndex].push(room);
+  });
+  const spread = [];
+  const maxDepth = Math.max(...buckets.map((bucket) => bucket.length));
+  for (let depth = 0; depth < maxDepth; depth += 1) {
+    buckets.forEach((bucket) => {
+      if (bucket[depth]) spread.push(bucket[depth]);
+    });
+  }
+  return spread;
+}
+
 function hasRecommendableRoomData(gameName) {
   if (!electronicSource.hasReadyData(gameName)) return false;
   if (!requiresLiveRtp(gameName)) return true;
@@ -970,10 +1026,9 @@ function getNextRecommendRoom(userId, gameName) {
     if (!unleasedCandidates.length) return null;
     const freshCandidates = unleasedCandidates.filter((room) => !recentRooms.includes(room.number));
     const pool = freshCandidates.length ? freshCandidates : unleasedCandidates;
-    const qualityPoolSize = rtpRankedRooms.length
-      ? Math.min(pool.length, Math.max(10, Math.ceil(pool.length * 0.5)))
-      : pool.length;
-    const qualityPool = pool.slice(0, qualityPoolSize);
+    const qualityPool = rtpRankedRooms.length
+      ? spreadRtpQualityPool(pool, gameName)
+      : pool;
     const selected = qualityPool[crypto.randomInt(qualityPool.length)];
     const recentLimit = Math.min(RECOMMEND_HISTORY_LIMIT, candidates.length);
     recommendCursorStore.set(key, {
