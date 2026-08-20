@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.2.0") {
-    throw new Error("Electronic relay extension version must be 2.2.0");
+  if (electronicRelayManifest.version !== "2.3.0") {
+    throw new Error("Electronic relay extension version must be 2.3.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1812,6 +1812,9 @@ async function main() {
     "installExclusiveRelayHost",
     "ATG 五款封包主機運作中",
     "window.stop()",
+    "cocos creator 3.7.2",
+    "platform: { type: 101 }",
+    "state.initialResponse",
     "戰神賽特1",
     "戰神賽特2",
     "古神巴風特",

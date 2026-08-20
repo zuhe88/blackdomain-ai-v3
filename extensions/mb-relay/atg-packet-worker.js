@@ -194,6 +194,16 @@
     return result;
   }
 
+  function atgDeviceInfo() {
+    const chromeVersion = navigator.userAgent.match(/(?:Chrome|Chromium)\/([\d.]+)/)?.[1] || "";
+    return {
+      browser: { name: "chrome", version: chromeVersion },
+      os: { name: "Windows", version: "10", versionName: "10" },
+      platform: { type: 101 },
+      engine: { name: "cocos creator 3.7.2" },
+    };
+  }
+
   function objectCandidates(root, maximumDepth = 5) {
     const results = [];
     const visited = new Set();
@@ -286,15 +296,14 @@
     };
     state.socket = await connectSocket();
     state.socket.on("disconnect", () => { state.socket = null; });
-    await gameRequestNow(state, "initial", {
+    const initialResponse = await gameRequestNow(state, "initial", {
       clientType: CLIENT_TYPE,
-      deviceInfo: {
-        browser: { name: "Chrome", version: navigator.userAgent },
-        os: { name: "Windows" },
-        platform: { type: "DESKTOP_BROWSER" },
-        engine: { name: "blackdomain-packet-worker" },
-      },
+      deviceInfo: atgDeviceInfo(),
     });
+    if (Number(initialResponse?.status) !== 200) {
+      throw new Error(`${state.target.name} initial rejected (${initialResponse?.status ?? "unknown"})`);
+    }
+    state.initialResponse = initialResponse;
     gameStates.clear();
     gameStates.set(state.target.name, state);
     return state;
@@ -309,8 +318,13 @@
         const emptyTables = new Map();
         let totalPages = 1;
         for (let page = 1; page <= totalPages; page += 1) {
-          const response = await gameRequestNow(state, "getSlotTables", { page });
-          const data = tablePage(response);
+          let response = null;
+          try {
+            response = await gameRequestNow(state, "getSlotTables", { page });
+          } catch (error) {
+            if (page !== 1 || !tablePage(state.initialResponse)) throw error;
+          }
+          const data = tablePage(response) || (page === 1 ? tablePage(state.initialResponse) : null);
           if (!data) throw new Error(`${state.target.name} returned no table page`);
           totalPages = Math.max(totalPages, data.totalPages);
           data.tables.forEach((table) => {
