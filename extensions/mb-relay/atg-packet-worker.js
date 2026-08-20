@@ -308,7 +308,7 @@
     };
     state.socket = await connectSocket();
     state.socket.on("disconnect", () => { state.socket = null; });
-    await gameRequestNow(state, "initial", {
+    state.initialResponse = await gameRequestNow(state, "initial", {
       clientType: CLIENT_TYPE,
       deviceInfo: {
         browser: { name: "Chrome", version: navigator.userAgent },
@@ -332,7 +332,7 @@
         let totalPages = 1;
         for (let page = 1; page <= totalPages; page += 1) {
           const response = await gameRequestNow(state, "getSlotTables", { page });
-          const data = tablePage(response);
+          const data = tablePage(response) || (page === 1 ? tablePage(state.initialResponse) : null);
           if (!data) throw new Error(`${state.target.name} returned no table page`);
           totalPages = Math.max(totalPages, data.totalPages);
           data.tables.forEach((table) => {
