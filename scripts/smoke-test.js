@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.4.1") {
-    throw new Error("Electronic relay extension version must be 1.4.1");
+  if (electronicRelayManifest.version !== "1.4.2") {
+    throw new Error("Electronic relay extension version must be 1.4.2");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -2174,6 +2174,8 @@ async function main() {
     "now - lastClickAt < 8000",
     "BLACKDOMAIN_ATG_SCAN_COMPLETE",
     "ROTATION_DETAIL_GRACE_MS = 8000",
+    "nextRotationLobbyUrl",
+    "window.location.assign(fallbackLobbyUrl)",
     'img[alt*="戰神賽特2"]',
     "blackdomainAtgRecoveryLobbyUrl",
     "button.click()",

@@ -11,6 +11,32 @@
   let lastCompletedScanId = "";
   const AUTO_REOPEN_PARAM = "blackdomain_reopen";
   const ROTATION_DETAIL_GRACE_MS = 8000;
+  const ROTATION_GAME_IDS = [
+    "361d567d94ac569664c82068a30b762e8d8438b8",
+    "2b4c37c532b5e60f542a29c23e602748c06fd426",
+    "9c0ec83253193a1c672c2906b83e88e29a61a826",
+    "e19fdb8f5121a0abeecca7638e92d010dbe496c1",
+    "88d5a6c6b3ebe4c6410b52b1c1aba71f2fad6de0",
+  ];
+
+  function nextRotationLobbyUrl() {
+    try {
+      const current = new URL(window.location.href);
+      const currentGameId = current.pathname.match(/\/egames\/([^/]+)\/game\//i)?.[1] || "";
+      const currentIndex = ROTATION_GAME_IDS.indexOf(currentGameId);
+      const nextGameId = ROTATION_GAME_IDS[(currentIndex + 1) % ROTATION_GAME_IDS.length];
+      const lobby = new URL(current.searchParams.get("goback_url"));
+      if (lobby.hostname !== current.hostname || !lobby.pathname.includes("/egames/lobby/game/")) {
+        return "";
+      }
+      lobby.searchParams.set(AUTO_REOPEN_PARAM, nextGameId);
+      lobby.searchParams.set("blackdomain_rotation", "1");
+      lobby.searchParams.set("blackdomain_recovered_at", String(Date.now()));
+      return lobby.href;
+    } catch {
+      return "";
+    }
+  }
 
   function stopAutoEnter() {
     if (autoEnterTimer) window.clearInterval(autoEnterTimer);
@@ -170,11 +196,18 @@
       if (rotationTimer) clearTimeout(rotationTimer);
       rotationTimer = setTimeout(() => {
         rotationTimer = null;
+        const currentHref = window.location.href;
+        const fallbackLobbyUrl = nextRotationLobbyUrl();
         chrome.runtime.sendMessage({
           type: "BLACKDOMAIN_ATG_SCAN_COMPLETE",
           gameName: body.gameName,
           scanId: completedScanId,
         }).catch(() => {});
+        if (fallbackLobbyUrl) {
+          setTimeout(() => {
+            if (window.location.href === currentHref) window.location.assign(fallbackLobbyUrl);
+          }, 2000);
+        }
       }, ROTATION_DETAIL_GRACE_MS);
     }
   });
