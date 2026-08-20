@@ -8,9 +8,12 @@
   let lastGameDataAt = 0;
   let autoEnterTimer = null;
   let rotationTimer = null;
+  let maxDwellRotationTimer = null;
+  let rotationStarted = false;
   let lastCompletedScanId = "";
   const AUTO_REOPEN_PARAM = "blackdomain_reopen";
   const ROTATION_DETAIL_GRACE_MS = 8000;
+  const ROTATION_MAX_DWELL_MS = 45000;
   const ROTATION_GAME_IDS = [
     "361d567d94ac569664c82068a30b762e8d8438b8",
     "2b4c37c532b5e60f542a29c23e602748c06fd426",
@@ -42,6 +45,15 @@
     const currentGameId = window.location.pathname.match(/\/egames\/([^/]+)\/game\//i)?.[1] || "";
     const currentIndex = ROTATION_GAME_IDS.indexOf(currentGameId);
     return ROTATION_GAME_IDS[(currentIndex + 1) % ROTATION_GAME_IDS.length];
+  }
+
+  function navigateToNextRotationGame() {
+    if (rotationStarted || !window.location.pathname.match(/\/egames\/[^/]+\/game\//i)) return;
+    rotationStarted = true;
+    chrome.storage.local.set({ blackdomainAtgNextGameId: nextRotationGameId() });
+    const fallbackLobbyUrl = nextRotationLobbyUrl();
+    if (fallbackLobbyUrl) window.location.assign(fallbackLobbyUrl);
+    else window.history.back();
   }
 
   function stopAutoEnter() {
@@ -193,6 +205,7 @@
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_RELAY", async (event) => {
     const body = event.detail;
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
+    body.relayVersion = chrome.runtime.getManifest().version;
     lastGameDataAt = Date.now();
     const completedScanId = String(body.scanId || "");
     if (
@@ -215,11 +228,11 @@
         }).catch(() => {});
         if (fallbackLobbyUrl) {
           setTimeout(() => {
-            if (window.location.pathname === currentGamePath) window.location.assign(fallbackLobbyUrl);
+            if (window.location.pathname === currentGamePath) navigateToNextRotationGame();
           }, 2000);
         } else {
           setTimeout(() => {
-            if (window.location.pathname === currentGamePath) window.history.back();
+            if (window.location.pathname === currentGamePath) navigateToNextRotationGame();
           }, 2000);
         }
       }, ROTATION_DETAIL_GRACE_MS);
@@ -275,8 +288,12 @@
   rememberRecoveryLobby();
   autoReopenSeth2();
   autoEnterAtgGame();
+  if (window.location.pathname.match(/\/egames\/[^/]+\/game\//i)) {
+    maxDwellRotationTimer = setTimeout(navigateToNextRotationGame, ROTATION_MAX_DWELL_MS);
+  }
   window.addEventListener("beforeunload", () => {
     if (rotationTimer) clearTimeout(rotationTimer);
+    if (maxDwellRotationTimer) clearTimeout(maxDwellRotationTimer);
   });
   setInterval(syncWatchRooms, 2000);
   sendHeartbeat();

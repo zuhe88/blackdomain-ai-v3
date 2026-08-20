@@ -17,6 +17,7 @@ function registerElectronicRelayRoutes(app) {
   app.get("/api/electronic/status", (_req, res) => res.json({
     games: electronicSource.getSnapshot().map((game) => ({
       gameName: game.gameName,
+      relayVersion: game.relayVersion,
       updatedAt: game.updatedAt,
       fullScanAt: game.fullScanAt,
       dataMode: game.dataMode,

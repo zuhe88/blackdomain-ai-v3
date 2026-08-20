@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.4.4") {
-    throw new Error("Electronic relay extension version must be 1.4.4");
+  if (electronicRelayManifest.version !== "1.5.0") {
+    throw new Error("Electronic relay extension version must be 1.5.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -2179,6 +2179,9 @@ async function main() {
     "window.location.pathname === currentGamePath",
     "blackdomainAtgNextGameId",
     "window.history.back()",
+    "ROTATION_MAX_DWELL_MS = 45000",
+    "navigateToNextRotationGame",
+    "chrome.runtime.getManifest().version",
     'img[alt*="戰神賽特2"]',
     "blackdomainAtgRecoveryLobbyUrl",
     "button.click()",

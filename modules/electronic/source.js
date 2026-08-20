@@ -14,6 +14,7 @@ let refreshRequest = null;
 const detailWaiters = new Map();
 const games = new Map(GAME_NAMES.map((gameName) => [gameName, {
   gameName,
+  relayVersion: null,
   tables: new Map(),
   pendingScan: null,
   updatedAt: null,
@@ -81,6 +82,7 @@ function ingestTables(payload = {}) {
   const gameName = String(payload.gameName || "").trim();
   const state = games.get(gameName);
   if (!state || !Array.isArray(payload.tables)) return false;
+  if (payload.relayVersion) state.relayVersion = String(payload.relayVersion);
   const sourcePagesCovered = Number(payload.sourcePagesCovered);
   const sourcePageCount = Number(payload.sourcePageCount);
   if (Number.isInteger(sourcePagesCovered) && sourcePagesCovered >= 0) {
@@ -290,6 +292,7 @@ function ingestSpin(payload = {}) {
   if (!state || !payload.spinId) return false;
   state.spins.set(String(payload.spinId), {
     gameName: state.gameName,
+    relayVersion: state.relayVersion,
     roomId: payload.roomId ? String(payload.roomId) : null,
     roomNumber: Number(payload.roomNumber) || null,
     totalWinnings: Number(payload.totalWinnings) || 0,
@@ -466,6 +469,7 @@ function resetForTest() {
     state.updatedAt = null;
     state.fullScanAt = null;
     state.dataMode = null;
+    state.relayVersion = null;
     state.sourcePagesCovered = 0;
     state.sourcePageCount = 0;
   });
