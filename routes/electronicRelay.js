@@ -33,6 +33,17 @@ function registerElectronicRelayRoutes(app) {
     const key = String(process.env.ATG_RELAY_KEY || "").trim();
     if (!key) return res.status(503).json({ ok: false, error: "Electronic relay is not configured." });
     if (!secureEqual(key, req.get("x-atg-relay-key") || req.get("x-electronic-relay-key"))) return res.status(401).json({ ok: false, error: "Unauthorized." });
+    const games = electronicSource.getSnapshot();
+    const currentRefresh = electronicSource.getRefreshRequest();
+    const refreshIsStale = currentRefresh
+      && !currentRefresh.completedAt
+      && Date.now() - Date.parse(currentRefresh.requestedAt) > 2 * 60 * 1000;
+    if (
+      games.some((game) => !electronicSource.hasReadyData(game.gameName))
+      && (!currentRefresh || currentRefresh.completedAt || refreshIsStale)
+    ) {
+      electronicSource.requestFullRefresh("relay-health");
+    }
     return res.json({
       ok: true,
       rooms: await electronic.getActiveWatchRooms(),

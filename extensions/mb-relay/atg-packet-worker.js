@@ -31,7 +31,7 @@
   let lobbyGames = [];
   let bootstrapPromise = null;
   let stopping = false;
-  let forceScanRequested = false;
+  const forcedFullScans = new Set();
 
   const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -452,12 +452,13 @@
       const launch = await createLaunch(target, context);
       state = await connectGame(launch, context);
       const lastFullScanAt = Number(lastFullScans.get(target.name)) || 0;
-      const fullScanDue = forceScanRequested
+      const fullScanDue = forcedFullScans.has(target.name)
         || !state.tablesByNumber.size
         || Date.now() - lastFullScanAt >= FULL_SCAN_INTERVAL_MS;
       if (fullScanDue) {
         setHostStatus(target, "正在讀取房間…");
         await scanGame(state);
+        forcedFullScans.delete(target.name);
       } else if ((watchedRooms.get(target.name) || []).length) {
         setHostStatus(target, "正在更新推薦 RTP…");
       }
@@ -495,7 +496,7 @@
           if (!stopping) await delay(GAME_SWITCH_GAP_MS);
         }
         if (stopping) break;
-        if (forceScanRequested) forceScanRequested = false;
+        if (forcedFullScans.size) continue;
         else await delay(CYCLE_PAUSE_MS);
         if (!lobbySocket?.connected) await initializeLobby(context);
       }
@@ -523,7 +524,7 @@
   });
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", () => {
-    forceScanRequested = true;
+    GAME_TARGETS.forEach((target) => forcedFullScans.add(target.name));
   });
 
   window.addEventListener("beforeunload", () => {
