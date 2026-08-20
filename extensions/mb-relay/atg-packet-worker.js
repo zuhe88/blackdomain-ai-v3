@@ -32,6 +32,29 @@
 
   const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+  function installExclusiveRelayHost() {
+    setTimeout(() => {
+      window.stop();
+      const render = () => {
+        if (!document.body) {
+          setTimeout(render, 25);
+          return;
+        }
+        document.title = "BLACKDOMAIN ATG 五款封包主機";
+        document.body.innerHTML = `
+          <main style="min-height:100vh;display:grid;place-items:center;background:#070b12;color:#e8f3ff;font-family:system-ui,sans-serif">
+            <section style="max-width:620px;padding:40px;text-align:center;border:1px solid #1f4568;border-radius:18px;background:#0b1420;box-shadow:0 0 60px #0a78c522">
+              <div style="font-size:13px;letter-spacing:.28em;color:#56b8ff">BLACKDOMAIN RELAY</div>
+              <h1 style="margin:16px 0 8px;font-size:30px">ATG 五款封包主機運作中</h1>
+              <p style="margin:0;color:#9cb4c9;line-height:1.8">戰神賽特1・戰神賽特2・古神巴風特・虎小妹・赤三國</p>
+              <p style="margin:22px 0 0;color:#5fd59b">此分頁請保持開啟，不需要切換遊戲。</p>
+            </section>
+          </main>`;
+      };
+      render();
+    }, 75);
+  }
+
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", {
       detail: { ...body, relayMode: "packet-worker" },
@@ -449,7 +472,12 @@
     lobbySocket?.close();
   });
 
-  bootstrap();
+  if (parsePageContext()) {
+    installExclusiveRelayHost();
+    bootstrap();
+  } else {
+    console.warn("[BLACKDOMAIN Packet] no ATG launch context; packet host not started");
+  }
 
   console.info("[BLACKDOMAIN Packet] sequential five-game packet worker installed");
 }());
