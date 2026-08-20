@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.5.0") {
-    throw new Error("Electronic relay extension version must be 1.5.0");
+  if (electronicRelayManifest.version !== "2.0.0") {
+    throw new Error("Electronic relay extension version must be 2.0.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1767,10 +1767,6 @@ async function main() {
     "refreshRecoveryLobbyUrl",
     "blackdomain_reopen",
     "TOKEN_ERROR_RECOVERY_COOLDOWN_MS",
-    "ATG_ROTATION_GAME_IDS",
-    "rotateAtgGame",
-    'message?.type === "BLACKDOMAIN_ATG_SCAN_COMPLETE"',
-    'lobby.searchParams.set("blackdomain_rotation", "1")',
   ]) {
     if (!relayBackgroundSource.includes(expected)) {
       throw new Error(`Relay background watchdog is missing: ${expected}`);
@@ -1791,6 +1787,46 @@ async function main() {
     path.join(root, "extensions", "mb-relay", "atg-bridge.js"),
     "utf8",
   );
+  const packetWorkerSource = fs.readFileSync(
+    path.join(root, "extensions", "mb-relay", "atg-packet-worker.js"),
+    "utf8",
+  );
+  const atgMainScripts = electronicRelayManifest.content_scripts.find((entry) => (
+    entry.world === "MAIN" && entry.matches.includes("https://play.godeebxp.com/egames/*")
+  ))?.js || [];
+  for (const requiredScript of ["vendor/socket.io.js", "atg-packet-worker.js", "atg-bridge.js"]) {
+    if (!atgMainScripts.includes(requiredScript)) {
+      throw new Error(`ATG main-world packet stack is missing: ${requiredScript}`);
+    }
+  }
+  for (const expected of [
+    "lobbyInitial",
+    "lobbyPlay",
+    "getSlotTables",
+    "getSlotTableDetail",
+    'crypto.subtle.decrypt(',
+    'new DecompressionStream("deflate")',
+    'relayMode: "packet-worker"',
+    "Promise.allSettled",
+    "戰神賽特1",
+    "戰神賽特2",
+    "古神巴風特",
+    "虎小妹",
+    "赤三國",
+  ]) {
+    if (!packetWorkerSource.includes(expected)) {
+      throw new Error(`ATG five-game packet worker is missing: ${expected}`);
+    }
+  }
+  for (const removedRotation of [
+    "BLACKDOMAIN_ATG_SCAN_COMPLETE",
+    "blackdomain_rotation",
+    "rotateAtgGame",
+  ]) {
+    if (relayBackgroundSource.includes(removedRotation)) {
+      throw new Error(`ATG background must not retain UI rotation: ${removedRotation}`);
+    }
+  }
   if (atgBridgeSource.includes("detailQueueTimer")) {
     throw new Error("ATG bridge must not reference the removed detail queue timer");
   }
@@ -2172,15 +2208,6 @@ async function main() {
     "elapsed < 5000",
     "rect.height * 0.92",
     "now - lastClickAt < 8000",
-    "BLACKDOMAIN_ATG_SCAN_COMPLETE",
-    "ROTATION_DETAIL_GRACE_MS = 8000",
-    "nextRotationLobbyUrl",
-    "window.location.assign(fallbackLobbyUrl)",
-    "window.location.pathname === currentGamePath",
-    "blackdomainAtgNextGameId",
-    "window.history.back()",
-    "ROTATION_MAX_DWELL_MS = 45000",
-    "navigateToNextRotationGame",
     "chrome.runtime.getManifest().version",
     'img[alt*="戰神賽特2"]',
     "blackdomainAtgRecoveryLobbyUrl",

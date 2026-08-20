@@ -7,54 +7,7 @@
   let watchSyncInFlight = false;
   let lastGameDataAt = 0;
   let autoEnterTimer = null;
-  let rotationTimer = null;
-  let maxDwellRotationTimer = null;
-  let rotationStarted = false;
-  let lastCompletedScanId = "";
   const AUTO_REOPEN_PARAM = "blackdomain_reopen";
-  const ROTATION_DETAIL_GRACE_MS = 8000;
-  const ROTATION_MAX_DWELL_MS = 45000;
-  const ROTATION_GAME_IDS = [
-    "361d567d94ac569664c82068a30b762e8d8438b8",
-    "2b4c37c532b5e60f542a29c23e602748c06fd426",
-    "9c0ec83253193a1c672c2906b83e88e29a61a826",
-    "e19fdb8f5121a0abeecca7638e92d010dbe496c1",
-    "88d5a6c6b3ebe4c6410b52b1c1aba71f2fad6de0",
-  ];
-
-  function nextRotationLobbyUrl() {
-    try {
-      const current = new URL(window.location.href);
-      const currentGameId = current.pathname.match(/\/egames\/([^/]+)\/game\//i)?.[1] || "";
-      const currentIndex = ROTATION_GAME_IDS.indexOf(currentGameId);
-      const nextGameId = ROTATION_GAME_IDS[(currentIndex + 1) % ROTATION_GAME_IDS.length];
-      const lobby = new URL(current.searchParams.get("goback_url"));
-      if (lobby.hostname !== current.hostname || !lobby.pathname.includes("/egames/lobby/game/")) {
-        return "";
-      }
-      lobby.searchParams.set(AUTO_REOPEN_PARAM, nextGameId);
-      lobby.searchParams.set("blackdomain_rotation", "1");
-      lobby.searchParams.set("blackdomain_recovered_at", String(Date.now()));
-      return lobby.href;
-    } catch {
-      return "";
-    }
-  }
-
-  function nextRotationGameId() {
-    const currentGameId = window.location.pathname.match(/\/egames\/([^/]+)\/game\//i)?.[1] || "";
-    const currentIndex = ROTATION_GAME_IDS.indexOf(currentGameId);
-    return ROTATION_GAME_IDS[(currentIndex + 1) % ROTATION_GAME_IDS.length];
-  }
-
-  function navigateToNextRotationGame() {
-    if (rotationStarted || !window.location.pathname.match(/\/egames\/[^/]+\/game\//i)) return;
-    rotationStarted = true;
-    chrome.storage.local.set({ blackdomainAtgNextGameId: nextRotationGameId() });
-    const fallbackLobbyUrl = nextRotationLobbyUrl();
-    if (fallbackLobbyUrl) window.location.assign(fallbackLobbyUrl);
-    else window.history.back();
-  }
 
   function stopAutoEnter() {
     if (autoEnterTimer) window.clearInterval(autoEnterTimer);
@@ -207,36 +160,6 @@
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
     body.relayVersion = chrome.runtime.getManifest().version;
     lastGameDataAt = Date.now();
-    const completedScanId = String(body.scanId || "");
-    if (
-      body.type === "tables"
-      && body.scanComplete === true
-      && completedScanId
-      && completedScanId !== lastCompletedScanId
-    ) {
-      lastCompletedScanId = completedScanId;
-      if (rotationTimer) clearTimeout(rotationTimer);
-      rotationTimer = setTimeout(() => {
-        rotationTimer = null;
-        const currentGamePath = window.location.pathname;
-        const fallbackLobbyUrl = nextRotationLobbyUrl();
-        chrome.storage.local.set({ blackdomainAtgNextGameId: nextRotationGameId() });
-        chrome.runtime.sendMessage({
-          type: "BLACKDOMAIN_ATG_SCAN_COMPLETE",
-          gameName: body.gameName,
-          scanId: completedScanId,
-        }).catch(() => {});
-        if (fallbackLobbyUrl) {
-          setTimeout(() => {
-            if (window.location.pathname === currentGamePath) navigateToNextRotationGame();
-          }, 2000);
-        } else {
-          setTimeout(() => {
-            if (window.location.pathname === currentGamePath) navigateToNextRotationGame();
-          }, 2000);
-        }
-      }, ROTATION_DETAIL_GRACE_MS);
-    }
     await send(body);
   });
 
@@ -288,13 +211,6 @@
   rememberRecoveryLobby();
   autoReopenSeth2();
   autoEnterAtgGame();
-  if (window.location.pathname.match(/\/egames\/[^/]+\/game\//i)) {
-    maxDwellRotationTimer = setTimeout(navigateToNextRotationGame, ROTATION_MAX_DWELL_MS);
-  }
-  window.addEventListener("beforeunload", () => {
-    if (rotationTimer) clearTimeout(rotationTimer);
-    if (maxDwellRotationTimer) clearTimeout(maxDwellRotationTimer);
-  });
   setInterval(syncWatchRooms, 2000);
   sendHeartbeat();
   setInterval(sendHeartbeat, 30000);

@@ -92,6 +92,7 @@
     : null;
 
   function reportSessionStale(reason) {
+    if (window.__blackdomainAtgPacketWorkerInstalled) return;
     const now = Date.now();
     if (now - lastSessionStaleAt < SESSION_STALE_COOLDOWN_MS) return;
     lastSessionStaleAt = now;
@@ -126,7 +127,7 @@
       constructor(url, protocols) {
         if (protocols === undefined) super(url);
         else super(url, protocols);
-        monitorGameSocket(this, url);
+        if (!window.__blackdomainAtgPacketSocketCreating) monitorGameSocket(this, url);
       }
     }
     Object.defineProperty(BlackdomainObservedWebSocket, "__blackdomainObserved", { value: true });

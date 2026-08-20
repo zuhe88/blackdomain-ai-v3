@@ -12,14 +12,6 @@ const TOKEN_RECOVERY_DELAY_MS = 90 * 1000;
 const TOKEN_RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
 const TOKEN_ERROR_RECOVERY_COOLDOWN_MS = 30 * 1000;
 const SESSION_NOTICE_COOLDOWN_MS = 60 * 1000;
-const ATG_ROTATION_COOLDOWN_MS = 10 * 1000;
-const ATG_ROTATION_GAME_IDS = [
-  "361d567d94ac569664c82068a30b762e8d8438b8",
-  "2b4c37c532b5e60f542a29c23e602748c06fd426",
-  "9c0ec83253193a1c672c2906b83e88e29a61a826",
-  "e19fdb8f5121a0abeecca7638e92d010dbe496c1",
-  "88d5a6c6b3ebe4c6410b52b1c1aba71f2fad6de0",
-];
 const RELAY_TABS = [
   { kind: "mb", url: "https://mbracing.cc/*" },
   { kind: "electronic", url: "https://play.godeebxp.com/egames/*" },
@@ -120,8 +112,6 @@ async function rememberHeartbeat(kind, tabId, dataAt = 0) {
       reloadAttempts: Number(previous.reloadAttempts) || 0,
       lastTokenRecoveryAt: Number(previous.lastTokenRecoveryAt) || 0,
       recoveryLobbyUrl: String(previous.recoveryLobbyUrl || ""),
-      rotationEnabled: previous.rotationEnabled === true,
-      lastRotationAt: Number(previous.lastRotationAt) || 0,
       firstSeenAt: Number(previous.firstSeenAt) || Date.now(),
     },
   });
@@ -142,11 +132,6 @@ function atgGameId(url) {
   } catch {
     return "";
   }
-}
-
-function nextAtgGameId(url) {
-  const currentIndex = ATG_ROTATION_GAME_IDS.indexOf(atgGameId(url));
-  return ATG_ROTATION_GAME_IDS[(currentIndex + 1) % ATG_ROTATION_GAME_IDS.length];
 }
 
 function buildFreshTokenLobbyUrl(gameUrl, now) {
@@ -197,36 +182,6 @@ async function recoverAtgToken(tab, health, key, now) {
       lastTokenRecoveryAt: now,
       reloadAttempts: 0,
       recoveryLobbyUrl: lobbyUrl,
-    },
-  });
-  try {
-    await chrome.tabs.update(tab.id, { url: lobbyUrl });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function rotateAtgGame(tab, health, key, now) {
-  if (!Number.isInteger(tab?.id)) return false;
-  if (now - Number(health.lastRotationAt || 0) < ATG_ROTATION_COOLDOWN_MS) return false;
-  const lobbyValue = buildFreshTokenLobbyUrl(tab.url, now);
-  if (!lobbyValue) return false;
-  const lobby = new URL(lobbyValue);
-  lobby.searchParams.set("blackdomain_reopen", nextAtgGameId(tab.url));
-  lobby.searchParams.set("blackdomain_rotation", "1");
-  lobby.searchParams.set("blackdomain_recovered_at", String(now));
-  const lobbyUrl = lobby.href;
-  await chrome.storage.local.set({
-    blackdomainAtgRecoveryLobbyUrl: lobbyUrl,
-    [key]: {
-      ...health,
-      kind: "electronic",
-      recoveryLobbyUrl: lobbyUrl,
-      rotationEnabled: true,
-      lastRotationAt: now,
-      lastTokenRecoveryAt: now,
-      reloadAttempts: 0,
     },
   });
   try {
@@ -393,15 +348,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(() => sendResponse({ ok: false }));
     return true;
   }
-  if (message?.type === "BLACKDOMAIN_ATG_SCAN_COMPLETE") {
-    const tab = sender.tab;
-    const key = healthKey(tab?.id);
-    chrome.storage.local.get(key)
-      .then((saved) => rotateAtgGame(tab, saved[key] || {}, key, Date.now()))
-      .then((rotated) => sendResponse({ ok: Boolean(rotated) }))
-      .catch(() => sendResponse({ ok: false }));
-    return true;
-  }
   if (message?.type === "BLACKDOMAIN_ATG_SESSION_STALE") {
     const tab = sender.tab;
     const key = healthKey(tab?.id);
@@ -412,7 +358,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (now - Number(health.lastTokenRecoveryAt || 0) < TOKEN_ERROR_RECOVERY_COOLDOWN_MS) {
           return false;
         }
-        if (health.rotationEnabled) return rotateAtgGame(tab, health, key, now);
         return recoverAtgToken(tab, health, key, now);
       })
       .then((recovered) => sendResponse({ ok: Boolean(recovered) }))

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BLACKDOMAIN 3A Game Relay",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "description": "Synchronizes approved 3A game data with BLACKDOMAIN AI.",
   "permissions": [
     "storage",
@@ -54,6 +54,8 @@
         "https://play.godeebxp.com/egames/*"
       ],
       "js": [
+        "vendor/socket.io.js",
+        "atg-packet-worker.js",
         "atg-bridge.js"
       ],
       "run_at": "document_start",

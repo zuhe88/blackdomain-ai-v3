@@ -1,0 +1,430 @@
+(function () {
+  "use strict";
+
+  if (window.__blackdomainAtgPacketWorkerInstalled) return;
+  window.__blackdomainAtgPacketWorkerInstalled = true;
+
+  const SOCKET_ORIGIN = "https://socket.godeebxp.com";
+  const CLIENT_TYPE = "web";
+  const SCAN_INTERVAL_MS = 60 * 1000;
+  const DETAIL_INTERVAL_MS = 2500;
+  const RECONNECT_INTERVAL_MS = 15 * 1000;
+  const REQUEST_TIMEOUT_MS = 15000;
+  const REQUEST_GAP_MS = 120;
+  const MAX_SOURCE_PAGES = 20;
+  const GAME_TARGETS = [
+    { name: "戰神賽特1", checksum: "88d5a6c6b3ebe4c6410b52b1c1aba71f2fad6de0", code: "g1001" },
+    { name: "戰神賽特2", checksum: "361d567d94ac569664c82068a30b762e8d8438b8", code: "g1005" },
+    { name: "古神巴風特", checksum: "2b4c37c532b5e60f542a29c23e602748c06fd426", code: "g1007" },
+    { name: "虎小妹", checksum: "9c0ec83253193a1c672c2906b83e88e29a61a826", code: "g1009" },
+    { name: "赤三國", checksum: "e19fdb8f5121a0abeecca7638e92d010dbe496c1", code: "g1008" },
+  ];
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const gameStates = new Map();
+  const watchedRooms = new Map();
+  let lobbySocket = null;
+  let activeLobbyToken = "";
+  let bootstrapPromise = null;
+  let stopping = false;
+
+  const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+  function emit(body) {
+    window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", {
+      detail: { ...body, relayMode: "packet-worker" },
+    }));
+  }
+
+  function parsePageContext() {
+    try {
+      const current = new URL(window.location.href);
+      const lobby = new URL(current.searchParams.get("goback_url"));
+      const token = String(lobby.searchParams.get("t") || "").trim();
+      if (!token || lobby.hostname !== current.hostname) return null;
+      return {
+        token: activeLobbyToken || token,
+        locale: String(lobby.searchParams.get("locale") || current.searchParams.get("locale") || "zh-TW"),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function connectSocket() {
+    return new Promise((resolve, reject) => {
+      if (typeof window.io !== "function") {
+        reject(new Error("socket.io client unavailable"));
+        return;
+      }
+      window.__blackdomainAtgPacketSocketCreating = true;
+      let socket;
+      try {
+        socket = window.io(SOCKET_ORIGIN, {
+          transports: ["websocket", "polling"],
+          upgrade: true,
+          forceNew: true,
+          reconnection: false,
+          timeout: REQUEST_TIMEOUT_MS,
+        });
+      } finally {
+        window.__blackdomainAtgPacketSocketCreating = false;
+      }
+      const timer = setTimeout(() => {
+        socket.close();
+        reject(new Error("socket connection timeout"));
+      }, REQUEST_TIMEOUT_MS);
+      socket.once("connect", () => {
+        clearTimeout(timer);
+        resolve(socket);
+      });
+      socket.once("connect_error", (error) => {
+        clearTimeout(timer);
+        socket.close();
+        reject(error instanceof Error ? error : new Error("socket connection failed"));
+      });
+    });
+  }
+
+  function emitAck(socket, eventName, payload) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${eventName} timeout`)), REQUEST_TIMEOUT_MS);
+      socket.emit(eventName, payload, (response) => {
+        clearTimeout(timer);
+        resolve(response);
+      });
+    });
+  }
+
+  function parsePlainResponse(value) {
+    if (typeof value === "string") {
+      try { return JSON.parse(value); } catch { return null; }
+    }
+    return value && typeof value === "object" ? value : null;
+  }
+
+  async function bytesFrom(value) {
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    if (ArrayBuffer.isView(value)) {
+      return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    }
+    if (value instanceof Blob) return new Uint8Array(await value.arrayBuffer());
+    if (value?.type === "Buffer" && Array.isArray(value.data)) return new Uint8Array(value.data);
+    throw new Error("unexpected encrypted response type");
+  }
+
+  async function inflate(bytes) {
+    if (typeof DecompressionStream !== "function") {
+      throw new Error("deflate decompression unavailable");
+    }
+    const stream = new DecompressionStream("deflate");
+    const writer = stream.writable.getWriter();
+    const completed = new Response(stream.readable).arrayBuffer();
+    await writer.write(bytes);
+    await writer.close();
+    return new Uint8Array(await completed);
+  }
+
+  async function decryptResponse(value, requestToken) {
+    const encrypted = await bytesFrom(value);
+    if (encrypted.length < 29) throw new Error("encrypted response is too short");
+    const iv = encrypted.slice(0, 12);
+    const tag = encrypted.slice(12, 28);
+    const ciphertext = encrypted.slice(28);
+    const ciphertextAndTag = new Uint8Array(ciphertext.length + tag.length);
+    ciphertextAndTag.set(ciphertext);
+    ciphertextAndTag.set(tag, ciphertext.length);
+    const digest = await crypto.subtle.digest("SHA-256", encoder.encode(requestToken));
+    const key = await crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["decrypt"]);
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv, tagLength: 128 },
+      key,
+      ciphertextAndTag,
+    );
+    const uncompressed = await inflate(new Uint8Array(plaintext));
+    return JSON.parse(decoder.decode(uncompressed));
+  }
+
+  async function gameRequestNow(state, eventName, payload = {}) {
+    if (!state.socket?.connected) throw new Error(`${state.target.name} socket unavailable`);
+    const requestToken = state.token;
+    const encrypted = await emitAck(state.socket, eventName, {
+      ...(eventName === "initial" ? {} : { request: eventName }),
+      ...payload,
+      token: requestToken,
+      locale: state.locale,
+    });
+    const response = await decryptResponse(encrypted, requestToken);
+    if (response?.token) state.token = String(response.token);
+    return response;
+  }
+
+  function enqueue(state, operation) {
+    const result = state.queue.then(operation, operation);
+    state.queue = result.catch(() => {});
+    return result;
+  }
+
+  function objectCandidates(root, maximumDepth = 5) {
+    const results = [];
+    const visited = new Set();
+    function visit(value, depth) {
+      if (!value || typeof value !== "object" || visited.has(value) || depth > maximumDepth) return;
+      visited.add(value);
+      results.push(value);
+      Object.values(value).forEach((child) => visit(child, depth + 1));
+    }
+    visit(root, 0);
+    return results;
+  }
+
+  function tablePage(response) {
+    for (const candidate of objectCandidates(response)) {
+      if (!Array.isArray(candidate.tables)) continue;
+      const tables = candidate.tables.map(normalizeTable).filter(Boolean);
+      if (candidate.tables.length && !tables.length) continue;
+      return {
+        tables,
+        page: Number(candidate.currentPage ?? candidate.page) || 1,
+        totalPages: Math.min(
+          MAX_SOURCE_PAGES,
+          Math.max(1, Number(candidate.totalPages ?? response?.totalPages) || 1),
+        ),
+      };
+    }
+    return null;
+  }
+
+  function normalizeTable(table) {
+    const number = Number(table?.number ?? table?.roomNumber ?? table?.tableNumber);
+    const roomId = table?.roomId ?? table?.id;
+    const status = String(table?.status || "");
+    if (!Number.isInteger(number) || number <= 0 || roomId == null || !status) return null;
+    return {
+      roomId: String(roomId),
+      number,
+      status,
+      occupied: status !== "Empty",
+      dayWin: table.dayWin,
+      dayBet: table.dayBet,
+      hourWin: table.hourWin,
+      hourBet: table.hourBet,
+      todayWin: table.todayWin,
+      todayBet: table.todayBet,
+      todayRtp: table.todayRtp ?? table.todayRate ?? table.todayScoreRate ?? table.hourRtp ?? table.hourRate,
+      dayRtp: table.dayRtp ?? table.dayRate ?? table.dayScoreRate ?? table.rtp ?? table.scoreRate,
+      mgCounts: Array.isArray(table.mgCounts) ? table.mgCounts.slice(0, 3) : undefined,
+    };
+  }
+
+  function normalizeDetail(response, table) {
+    const detail = objectCandidates(response).find((candidate) => (
+      candidate.dayBet != null
+      || candidate.hourBet != null
+      || candidate.todayBet != null
+      || candidate.todayRtp != null
+      || candidate.dayRtp != null
+      || candidate.mgCounts != null
+    ));
+    if (!detail) return null;
+    return {
+      roomId: String(detail.roomId ?? table?.roomId ?? ""),
+      number: Number(detail.number ?? detail.roomNumber ?? table?.number) || undefined,
+      status: detail.status ?? table?.status,
+      dayWin: detail.dayWin,
+      dayBet: detail.dayBet,
+      hourWin: detail.hourWin,
+      hourBet: detail.hourBet,
+      todayWin: detail.todayWin,
+      todayBet: detail.todayBet,
+      todayRtp: detail.todayRtp ?? detail.todayRate ?? detail.todayScoreRate ?? detail.hourRtp ?? detail.hourRate,
+      dayRtp: detail.dayRtp ?? detail.dayRate ?? detail.dayScoreRate ?? detail.rtp ?? detail.scoreRate,
+      mgCounts: Array.isArray(detail.mgCounts) ? detail.mgCounts.slice(0, 3) : undefined,
+      capturedAt: Date.now(),
+    };
+  }
+
+  async function connectGame(launch, context) {
+    const state = {
+      target: launch.target,
+      token: launch.token,
+      locale: context.locale,
+      socket: null,
+      queue: Promise.resolve(),
+      tablesByNumber: new Map(),
+      scanInFlight: false,
+      detailCursor: 0,
+    };
+    state.socket = await connectSocket();
+    state.socket.on("disconnect", () => { state.socket = null; });
+    await gameRequestNow(state, "initial", {
+      clientType: CLIENT_TYPE,
+      deviceInfo: {
+        browser: { name: "Chrome", version: navigator.userAgent },
+        os: { name: "Windows" },
+        platform: { type: "DESKTOP_BROWSER" },
+        engine: { name: "blackdomain-packet-worker" },
+      },
+    });
+    gameStates.set(state.target.name, state);
+    return state;
+  }
+
+  async function scanGame(state) {
+    if (state.scanInFlight || !state.socket?.connected) return;
+    state.scanInFlight = true;
+    try {
+      await enqueue(state, async () => {
+        const scanId = `packet-${Date.now()}-${state.target.code}`;
+        const emptyTables = new Map();
+        let totalPages = 1;
+        for (let page = 1; page <= totalPages; page += 1) {
+          const response = await gameRequestNow(state, "getSlotTables", { page });
+          const data = tablePage(response);
+          if (!data) throw new Error(`${state.target.name} returned no table page`);
+          totalPages = Math.max(totalPages, data.totalPages);
+          data.tables.forEach((table) => {
+            state.tablesByNumber.set(table.number, table);
+            if (table.status === "Empty") emptyTables.set(table.roomId, table);
+          });
+          emit({
+            type: "tables",
+            gameName: state.target.name,
+            scanId,
+            page,
+            totalPages,
+            scanComplete: page >= totalPages,
+            emptyOnly: true,
+            sourcePagesCovered: page,
+            sourcePageCount: totalPages,
+            tables: page >= totalPages ? [...emptyTables.values()] : data.tables.filter((table) => table.status === "Empty"),
+          });
+          if (page < totalPages) await delay(REQUEST_GAP_MS);
+        }
+      });
+    } catch (error) {
+      console.warn(`[BLACKDOMAIN Packet] ${state.target.name} scan failed`, error?.message || error);
+    } finally {
+      state.scanInFlight = false;
+    }
+  }
+
+  async function pollDetail(state) {
+    const roomNumbers = watchedRooms.get(state.target.name) || [];
+    if (!roomNumbers.length || !state.socket?.connected) return;
+    const roomNumber = roomNumbers[state.detailCursor % roomNumbers.length];
+    state.detailCursor = (state.detailCursor + 1) % roomNumbers.length;
+    const table = state.tablesByNumber.get(roomNumber);
+    if (!table) return;
+    try {
+      await enqueue(state, async () => {
+        const response = await gameRequestNow(state, "getSlotTableDetail", { roomId: table.roomId });
+        const detail = normalizeDetail(response, table);
+        if (detail) emit({ type: "detail", gameName: state.target.name, detail });
+      });
+    } catch (error) {
+      console.warn(`[BLACKDOMAIN Packet] ${state.target.name} detail failed`, error?.message || error);
+    }
+  }
+
+  function findLobbyGame(games, target) {
+    return objectCandidates(games, 4).find((candidate) => (
+      String(candidate.checksum || candidate.gameId || candidate.id || "") === target.checksum
+      || String(candidate.code || candidate.gameCode || "").toLowerCase() === target.code
+    ));
+  }
+
+  async function createLaunches(context) {
+    lobbySocket = await connectSocket();
+    let lobbyToken = context.token;
+    const initial = parsePlainResponse(await emitAck(lobbySocket, "lobbyInitial", {
+      token: lobbyToken,
+      clientType: CLIENT_TYPE,
+    }));
+    if (!initial || initial.status === false) throw new Error("lobbyInitial rejected");
+    if (initial.token) lobbyToken = String(initial.token);
+    activeLobbyToken = lobbyToken;
+    const games = initial.content?.games ?? initial.games ?? initial.content;
+    const launches = [];
+    for (const target of GAME_TARGETS) {
+      const game = findLobbyGame(games, target);
+      const code = String(game?.code ?? game?.gameCode ?? target.code);
+      const played = parsePlainResponse(await emitAck(lobbySocket, "lobbyPlay", {
+        token: lobbyToken,
+        clientType: CLIENT_TYPE,
+        code,
+      }));
+      if (!played || played.status === false || !played.redirectUrl) {
+        throw new Error(`${target.name} launch rejected`);
+      }
+      if (played.token) lobbyToken = String(played.token);
+      activeLobbyToken = lobbyToken;
+      const redirect = new URL(played.redirectUrl, window.location.href);
+      const token = String(redirect.searchParams.get("t") || "").trim();
+      if (!token) throw new Error(`${target.name} launch token missing`);
+      launches.push({ target, token });
+      await delay(REQUEST_GAP_MS);
+    }
+    return launches;
+  }
+
+  async function bootstrap() {
+    if (bootstrapPromise || stopping) return bootstrapPromise;
+    bootstrapPromise = (async () => {
+      const context = parsePageContext();
+      if (!context) throw new Error("ATG lobby token unavailable");
+      const launches = await createLaunches(context);
+      const results = await Promise.allSettled(launches.map((launch) => connectGame(launch, context)));
+      const connected = results.filter((result) => result.status === "fulfilled").length;
+      if (!connected) throw new Error("all game sockets failed");
+      console.info(`[BLACKDOMAIN Packet] ${connected}/${GAME_TARGETS.length} game sockets active`);
+      await Promise.all([...gameStates.values()].map(scanGame));
+    })().catch((error) => {
+      console.warn("[BLACKDOMAIN Packet] bootstrap failed", error?.message || error);
+      gameStates.forEach((state) => state.socket?.close());
+      gameStates.clear();
+      lobbySocket?.close();
+      lobbySocket = null;
+    }).finally(() => {
+      bootstrapPromise = null;
+    });
+    return bootstrapPromise;
+  }
+
+  window.addEventListener("BLACKDOMAIN_ELECTRONIC_WATCH_ROOMS", (event) => {
+    const grouped = new Map(GAME_TARGETS.map((target) => [target.name, []]));
+    const rooms = Array.isArray(event.detail?.rooms) ? event.detail.rooms : [];
+    rooms.forEach((room) => {
+      const number = Number(room?.roomNumber);
+      if (grouped.has(room?.gameName) && Number.isInteger(number)) grouped.get(room.gameName).push(number);
+    });
+    grouped.forEach((numbers, gameName) => watchedRooms.set(gameName, [...new Set(numbers)]));
+  });
+
+  window.addEventListener("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", () => {
+    gameStates.forEach((state) => scanGame(state));
+  });
+
+  window.addEventListener("beforeunload", () => {
+    stopping = true;
+    gameStates.forEach((state) => state.socket?.close());
+    lobbySocket?.close();
+  });
+
+  bootstrap();
+  setInterval(() => gameStates.forEach((state) => scanGame(state)), SCAN_INTERVAL_MS);
+  setInterval(() => gameStates.forEach((state) => pollDetail(state)), DETAIL_INTERVAL_MS);
+  setInterval(() => {
+    if (!bootstrapPromise && (gameStates.size < GAME_TARGETS.length
+      || [...gameStates.values()].some((state) => !state.socket?.connected))) {
+      gameStates.forEach((state) => state.socket?.close());
+      gameStates.clear();
+      lobbySocket?.close();
+      lobbySocket = null;
+      bootstrap();
+    }
+  }, RECONNECT_INTERVAL_MS);
+
+  console.info("[BLACKDOMAIN Packet] five-game packet worker installed");
+}());
