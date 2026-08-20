@@ -213,10 +213,11 @@
     if (!state.socket?.connected) throw new Error(`${state.target.name} socket unavailable`);
     const requestToken = state.token;
     const packet = await emitAck(state.socket, eventName, {
-      ...(eventName === "initial" ? {} : { request: eventName }),
       ...payload,
       token: requestToken,
-      locale: state.locale,
+      // Match ATG's official sender byte-for-byte. Legacy games reject the
+      // redundant `request` field and require the normalized locale casing.
+      locale: String(state.locale || "zh-tw").toLowerCase(),
     });
     const response = await decodeGameResponse(packet, requestToken);
     if (response?.token) state.token = String(response.token);
