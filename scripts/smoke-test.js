@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.6.0") {
-    throw new Error("Electronic relay extension version must be 2.6.0");
+  if (electronicRelayManifest.version !== "2.7.0") {
+    throw new Error("Electronic relay extension version must be 2.7.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1808,6 +1808,8 @@ async function main() {
     "decodeGameResponse",
     "if (binary) return decryptResponse",
     "tablePage(state.initialResponse)",
+    "manualGameCaptureRequested",
+    'searchParams.get("blackdomain_manual") === "1"',
     'new DecompressionStream("deflate")',
     'relayMode: "packet-worker"',
     "sequential five-game packet scan active",

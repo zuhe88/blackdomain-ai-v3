@@ -91,6 +91,19 @@
     }
   }
 
+  function manualGameCaptureRequested() {
+    try {
+      const current = new URL(window.location.href);
+      if (current.searchParams.get("blackdomain_manual") === "1") return true;
+      const rawLobbyUrl = current.searchParams.get("goback_url");
+      return rawLobbyUrl
+        ? new URL(rawLobbyUrl).searchParams.get("blackdomain_manual") === "1"
+        : false;
+    } catch {
+      return false;
+    }
+  }
+
   function connectSocket() {
     return new Promise((resolve, reject) => {
       if (typeof window.io !== "function") {
@@ -500,9 +513,11 @@
     lobbySocket?.close();
   });
 
-  if (parsePageContext()) {
+  if (parsePageContext() && !manualGameCaptureRequested()) {
     installExclusiveRelayHost();
     bootstrap();
+  } else if (manualGameCaptureRequested()) {
+    console.info("[BLACKDOMAIN Packet] manual game capture mode active");
   } else {
     console.warn("[BLACKDOMAIN Packet] no ATG launch context; packet host not started");
   }
