@@ -1515,10 +1515,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260820.03", "styles.css?v=20260820.03"]) {
+  for (const expected of ["app.js?v=20260820.04", "styles.css?v=20260820.04"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.03"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.04"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1527,7 +1527,7 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
-  for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
+  for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "restartElectronicRecommendation", 'command.dataset.command==="重新推薦"', "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
     if (!webPortalAppSource.includes(expected) && !fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
       throw new Error(`Electronic recommendation anti-stall recovery is missing: ${expected}`);
     }
