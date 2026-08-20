@@ -128,7 +128,17 @@ function registerWebPortalRoutes(app) {
         web.cancelReply(replyToken);
         throw error;
       }
-      return res.json({ messages: await pending, portalBuild: "20260820.01" });
+      let messages = [];
+      try {
+        messages = await pending;
+      } catch (error) {
+        console.warn("[WebPortal] Command reply deferred:", error.message);
+      }
+      return res.status(messages.length ? 200 : 202).json({
+        messages,
+        pending: messages.length === 0,
+        portalBuild: "20260820.02",
+      });
     } catch (error) { return next(error); }
   });
 }

@@ -1515,10 +1515,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260820.01", "styles.css?v=20260820.01"]) {
+  for (const expected of ["app.js?v=20260820.02", "styles.css?v=20260820.02"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.01"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.02"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1530,6 +1530,11 @@ async function main() {
   for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
     if (!webPortalAppSource.includes(expected) && !fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
       throw new Error(`Electronic recommendation anti-stall recovery is missing: ${expected}`);
+    }
+  }
+  for (const expected of ["recommendationDeliveryChannel", 'event.deliveryChannel === "web"', "webChannel.publish(userId, [message])", "deliveryChannel: pending.deliveryChannel"]) {
+    if (!fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
+      throw new Error(`Electronic web delivery recovery is missing: ${expected}`);
     }
   }
   for (const expected of ["accessAllowed", "renderAccessDenied", "LINE：@893jrweh", "https://line.me/ti/p/@893jrweh", "if(!accessAllowed)return renderAccessDenied(categoryKey)", "setAccessIndicator", 'action.text==="綁定"']) {
@@ -2798,7 +2803,7 @@ async function main() {
     "const RECOMMEND_HISTORY_LIMIT = 500",
     "const FALLBACK_ROOM_HISTORY_LIMIT = 100",
     "probe-cursor",
-    "await pushStrict(event.source.userId, message)",
+    "await pushRecommendation(",
     "handleElectronicDataReady(gameName)",
     "clearInterval(pending.retryTimer)",
     "if (requiresLiveRtp(gameName) && !rtpRankedRooms.length) return null",

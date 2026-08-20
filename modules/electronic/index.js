@@ -13,6 +13,7 @@ const supabase = require("../../services/supabase");
 const electronicSource = require("./source");
 const electronicAvailability = require("./availability");
 const { isAdminLineUserId } = require("../../config/admin");
+const webChannel = require("../../services/webChannel");
 
 const electronicSessions = new Map();
 const cycleCache = new Map();
@@ -303,6 +304,19 @@ function recommendationTimeoutFlex(gameName) {
   ], electronicModeQuickReply());
 }
 
+function recommendationDeliveryChannel(event = {}) {
+  if (event.deliveryChannel === "web") return "web";
+  return String(event.replyToken || "").startsWith("web:") ? "web" : "line";
+}
+
+async function pushRecommendation(userId, message, deliveryChannel = "line") {
+  if (deliveryChannel === "web") {
+    webChannel.publish(userId, [message]);
+    return;
+  }
+  await pushStrict(userId, message);
+}
+
 function persistPendingRecommendation(pending) {
   if (!supabase || !pending?.userId) return;
   supabase
@@ -314,6 +328,7 @@ function persistPendingRecommendation(pending) {
         gameName: pending.gameName,
         requestedAt: pending.requestedAt,
         deadlineAt: pending.deadlineAt,
+        deliveryChannel: pending.deliveryChannel,
       },
       updated_at: new Date(pending.requestedAt).toISOString(),
       updated_by: pending.userId,
@@ -334,6 +349,7 @@ function queuePendingRecommendation(userId, gameName, options = {}) {
     gameName,
     requestedAt,
     deadlineAt,
+    deliveryChannel: options.deliveryChannel === "web" ? "web" : "line",
     timer: null,
     retryTimer: null,
   };
@@ -353,7 +369,11 @@ function queuePendingRecommendation(userId, gameName, options = {}) {
   pending.timer = setTimeout(async () => {
     if (pendingRecommendations.get(userId) !== pending) return;
     try {
-      await pushStrict(userId, recommendationTimeoutFlex(gameName));
+      await pushRecommendation(
+        userId,
+        recommendationTimeoutFlex(gameName),
+        pending.deliveryChannel,
+      );
     } catch (error) {
       console.error("[Electronic] Recommendation timeout notice failed:", error.message);
     } finally {
@@ -1165,7 +1185,11 @@ async function showGameMenu(event) {
 async function deliverRecommendation(event, message) {
   if (event.recommendationRequest?.cancelled) return false;
   if (event.autoPush) {
-    await pushStrict(event.source.userId, message);
+    await pushRecommendation(
+      event.source.userId,
+      message,
+      recommendationDeliveryChannel(event),
+    );
     return true;
   }
   await reply(event.replyToken, message);
@@ -1199,7 +1223,9 @@ async function performRecommendRoom(event) {
       electronicSource.SUPPORTED_GAMES.has(session.gameName)
       && !hasRecommendableRoomData(session.gameName)
     ) {
-      queuePendingRecommendation(userId, session.gameName);
+      queuePendingRecommendation(userId, session.gameName, {
+        deliveryChannel: recommendationDeliveryChannel(event),
+      });
       if (event.waitingAlreadySent) return false;
       return deliverRecommendation(event, recommendationWaitingFlex(
         "房間數據整理中",
@@ -1272,7 +1298,9 @@ async function performRecommendRoom(event) {
     ))) {
       clearRecommendationProbes(userId);
       if (electronicSource.SUPPORTED_GAMES.has(session.gameName)) {
-        queuePendingRecommendation(userId, session.gameName);
+        queuePendingRecommendation(userId, session.gameName, {
+          deliveryChannel: recommendationDeliveryChannel(event),
+        });
         if (event.waitingAlreadySent) return false;
         return deliverRecommendation(event, recommendationWaitingFlex(
           "房間數據整理中",
@@ -1349,7 +1377,11 @@ async function recommendRoom(event) {
       }).catch((error) => {
         console.error("[Electronic] Background recommendation failed:", error.message);
         if (!request.cancelled) {
-          pushStrict(userId, recommendationTimeoutFlex(currentGame)).catch((pushError) => {
+          pushRecommendation(
+            userId,
+            recommendationTimeoutFlex(currentGame),
+            recommendationDeliveryChannel(event),
+          ).catch((pushError) => {
             console.error("[Electronic] Background failure notice failed:", pushError.message);
           });
         }
@@ -1384,6 +1416,7 @@ async function handleElectronicDataReady(gameName) {
       message: { type: "text", text: "自動推薦" },
       autoPush: true,
       waitingAlreadySent: true,
+      deliveryChannel: item.deliveryChannel,
     });
     if (delivered && pendingRecommendations.get(item.userId) === item) {
       cancelPendingRecommendation(item.userId);
