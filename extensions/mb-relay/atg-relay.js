@@ -196,7 +196,7 @@
       if (rotationTimer) clearTimeout(rotationTimer);
       rotationTimer = setTimeout(() => {
         rotationTimer = null;
-        const currentHref = window.location.href;
+        const currentGamePath = window.location.pathname;
         const fallbackLobbyUrl = nextRotationLobbyUrl();
         chrome.runtime.sendMessage({
           type: "BLACKDOMAIN_ATG_SCAN_COMPLETE",
@@ -205,7 +205,7 @@
         }).catch(() => {});
         if (fallbackLobbyUrl) {
           setTimeout(() => {
-            if (window.location.href === currentHref) window.location.assign(fallbackLobbyUrl);
+            if (window.location.pathname === currentGamePath) window.location.assign(fallbackLobbyUrl);
           }, 2000);
         }
       }, ROTATION_DETAIL_GRACE_MS);
