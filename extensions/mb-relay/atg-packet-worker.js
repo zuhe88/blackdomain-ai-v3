@@ -185,16 +185,27 @@
     return JSON.parse(decoder.decode(uncompressed));
   }
 
+  async function decodeGameResponse(value, requestToken) {
+    const binary = value instanceof ArrayBuffer
+      || ArrayBuffer.isView(value)
+      || value instanceof Blob
+      || (value?.type === "Buffer" && Array.isArray(value.data));
+    if (binary) return decryptResponse(value, requestToken);
+    const plain = parsePlainResponse(value);
+    if (plain) return plain;
+    throw new Error("unexpected game response type");
+  }
+
   async function gameRequestNow(state, eventName, payload = {}) {
     if (!state.socket?.connected) throw new Error(`${state.target.name} socket unavailable`);
     const requestToken = state.token;
-    const encrypted = await emitAck(state.socket, eventName, {
+    const packet = await emitAck(state.socket, eventName, {
       ...(eventName === "initial" ? {} : { request: eventName }),
       ...payload,
       token: requestToken,
       locale: state.locale,
     });
-    const response = await decryptResponse(encrypted, requestToken);
+    const response = await decodeGameResponse(packet, requestToken);
     if (response?.token) state.token = String(response.token);
     return response;
   }
