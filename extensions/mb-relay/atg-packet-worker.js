@@ -256,12 +256,32 @@
       if (!Array.isArray(candidate.tables)) continue;
       const tables = candidate.tables.map(normalizeTable).filter(Boolean);
       if (candidate.tables.length && !tables.length) continue;
+      const metadata = [
+        candidate.tableMeta,
+        candidate.meta,
+        candidate.pagination,
+        ...objectCandidates(response).filter((value) => (
+          value !== candidate
+          && value
+          && (value.totalPages != null || value.totalTableCount != null)
+        )),
+      ].find((value) => value && value.totalPages != null) || {};
       return {
         tables,
-        page: Number(candidate.currentPage ?? candidate.page) || 1,
+        page: Number(
+          candidate.currentPage
+          ?? candidate.page
+          ?? candidate.tableMeta?.currentPage
+          ?? metadata.currentPage,
+        ) || 1,
         totalPages: Math.min(
           MAX_SOURCE_PAGES,
-          Math.max(1, Number(candidate.totalPages ?? response?.totalPages) || 1),
+          Math.max(1, Number(
+            candidate.totalPages
+            ?? candidate.tableMeta?.totalPages
+            ?? metadata.totalPages
+            ?? response?.totalPages,
+          ) || 1),
         ),
       };
     }
