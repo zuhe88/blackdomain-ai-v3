@@ -7,7 +7,10 @@
   let watchSyncInFlight = false;
   let lastGameDataAt = 0;
   let autoEnterTimer = null;
+  let rotationTimer = null;
+  let lastCompletedScanId = "";
   const AUTO_REOPEN_PARAM = "blackdomain_reopen";
+  const ROTATION_DETAIL_GRACE_MS = 8000;
 
   function stopAutoEnter() {
     if (autoEnterTimer) window.clearInterval(autoEnterTimer);
@@ -39,7 +42,7 @@
         stopAutoEnter();
         return;
       }
-      if (elapsed < 12000 || clickInFlight || now - lastClickAt < 12000) return;
+      if (elapsed < 5000 || clickInFlight || now - lastClickAt < 8000) return;
       const canvas = [...document.querySelectorAll("canvas")]
         .filter((item) => {
           const rect = item.getBoundingClientRect();
@@ -84,10 +87,6 @@
       if (!button && attempts < 60) return;
       window.clearInterval(timer);
       if (!button) return;
-      params.delete(AUTO_REOPEN_PARAM);
-      params.delete("blackdomain_recovered_at");
-      const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
-      window.history.replaceState(null, "", cleanUrl);
       button.click();
     }, 500);
   }
@@ -137,24 +136,47 @@
         key,
         body,
       });
-      if (response?.ok) return;
+      if (response?.ok) return true;
       if (response?.status === 401) {
         console.warn("[BLACKDOMAIN Electronic] relay key rejected");
-        return;
+        return false;
       }
     } catch {
       // Retry transient extension/background failures below.
     }
     if (attempt < 5) {
-      setTimeout(() => send(body, attempt + 1), Math.min(30000, 1000 * (2 ** attempt)));
+      await new Promise((resolve) => {
+        setTimeout(resolve, Math.min(30000, 1000 * (2 ** attempt)));
+      });
+      return send(body, attempt + 1);
     }
+    return false;
   }
 
-  window.addEventListener("BLACKDOMAIN_ELECTRONIC_RELAY", (event) => {
+  window.addEventListener("BLACKDOMAIN_ELECTRONIC_RELAY", async (event) => {
     const body = event.detail;
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
     lastGameDataAt = Date.now();
-    send(body);
+    const delivered = await send(body);
+    const completedScanId = String(body.scanId || "");
+    if (
+      delivered
+      && body.type === "tables"
+      && body.scanComplete === true
+      && completedScanId
+      && completedScanId !== lastCompletedScanId
+    ) {
+      lastCompletedScanId = completedScanId;
+      if (rotationTimer) clearTimeout(rotationTimer);
+      rotationTimer = setTimeout(() => {
+        rotationTimer = null;
+        chrome.runtime.sendMessage({
+          type: "BLACKDOMAIN_ATG_SCAN_COMPLETE",
+          gameName: body.gameName,
+          scanId: completedScanId,
+        }).catch(() => {});
+      }, ROTATION_DETAIL_GRACE_MS);
+    }
   });
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", (event) => {
@@ -205,6 +227,9 @@
   rememberRecoveryLobby();
   autoReopenSeth2();
   autoEnterAtgGame();
+  window.addEventListener("beforeunload", () => {
+    if (rotationTimer) clearTimeout(rotationTimer);
+  });
   setInterval(syncWatchRooms, 2000);
   sendHeartbeat();
   setInterval(sendHeartbeat, 30000);

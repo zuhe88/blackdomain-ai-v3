@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.4.0") {
-    throw new Error("Electronic relay extension version must be 1.4.0");
+  if (electronicRelayManifest.version !== "1.4.1") {
+    throw new Error("Electronic relay extension version must be 1.4.1");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1767,6 +1767,10 @@ async function main() {
     "refreshRecoveryLobbyUrl",
     "blackdomain_reopen",
     "TOKEN_ERROR_RECOVERY_COOLDOWN_MS",
+    "ATG_ROTATION_GAME_IDS",
+    "rotateAtgGame",
+    'message?.type === "BLACKDOMAIN_ATG_SCAN_COMPLETE"',
+    'lobby.searchParams.set("blackdomain_rotation", "1")',
   ]) {
     if (!relayBackgroundSource.includes(expected)) {
       throw new Error(`Relay background watchdog is missing: ${expected}`);
@@ -1903,7 +1907,7 @@ async function main() {
   }
   for (const expected of [
     "const SCAN_PAGE_TIMEOUT_MS = 30000",
-    "const SCAN_STARTUP_GRACE_MS = 8000",
+    "const SCAN_STARTUP_GRACE_MS = 2000",
     "const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000]",
     "let activeSourcePageCount = SOURCE_PAGE_COUNT",
     "reportedSourcePageCount",
@@ -2165,9 +2169,11 @@ async function main() {
     'type: "BLACKDOMAIN_ATG_ENTRY_CLICK"',
     "isRecoveredSethLaunch",
     "elapsed > 120000",
-    "elapsed < 12000",
+    "elapsed < 5000",
     "rect.height * 0.92",
-    "now - lastClickAt < 12000",
+    "now - lastClickAt < 8000",
+    "BLACKDOMAIN_ATG_SCAN_COMPLETE",
+    "ROTATION_DETAIL_GRACE_MS = 8000",
     'img[alt*="戰神賽特2"]',
     "blackdomainAtgRecoveryLobbyUrl",
     "button.click()",

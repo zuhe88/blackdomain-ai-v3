@@ -66,7 +66,7 @@
   // watchdog restarted a healthy scan between pages 1 and 2 forever.
   const SCAN_PAGE_INTERVAL_MS = 1000;
   const SCAN_PAGE_TIMEOUT_MS = 30000;
-  const SCAN_STARTUP_GRACE_MS = 8000;
+  const SCAN_STARTUP_GRACE_MS = 2000;
   const ROTATING_PAGE_REFRESH_MS = 60000;
   const SCAN_RESTART_BACKOFF_STEPS_MS = [3000, 8000, 15000];
   const MAX_SCAN_PAGE_RETRIES = 3;
