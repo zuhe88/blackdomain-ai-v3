@@ -38,6 +38,12 @@
     }
   }
 
+  function nextRotationGameId() {
+    const currentGameId = window.location.pathname.match(/\/egames\/([^/]+)\/game\//i)?.[1] || "";
+    const currentIndex = ROTATION_GAME_IDS.indexOf(currentGameId);
+    return ROTATION_GAME_IDS[(currentIndex + 1) % ROTATION_GAME_IDS.length];
+  }
+
   function stopAutoEnter() {
     if (autoEnterTimer) window.clearInterval(autoEnterTimer);
     autoEnterTimer = null;
@@ -96,9 +102,14 @@
     }, 2500);
   }
 
-  function autoReopenSeth2() {
+  async function autoReopenSeth2() {
     const params = new URLSearchParams(window.location.search);
-    const gameId = String(params.get(AUTO_REOPEN_PARAM) || "").trim();
+    let gameId = String(params.get(AUTO_REOPEN_PARAM) || "").trim();
+    if (!gameId) {
+      const saved = await chrome.storage.local.get("blackdomainAtgNextGameId");
+      gameId = String(saved.blackdomainAtgNextGameId || "").trim();
+      if (gameId) await chrome.storage.local.remove("blackdomainAtgNextGameId");
+    }
     if (!gameId) return;
     let attempts = 0;
     const timer = window.setInterval(() => {
@@ -183,11 +194,9 @@
     const body = event.detail;
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
     lastGameDataAt = Date.now();
-    const delivered = await send(body);
     const completedScanId = String(body.scanId || "");
     if (
-      delivered
-      && body.type === "tables"
+      body.type === "tables"
       && body.scanComplete === true
       && completedScanId
       && completedScanId !== lastCompletedScanId
@@ -198,6 +207,7 @@
         rotationTimer = null;
         const currentGamePath = window.location.pathname;
         const fallbackLobbyUrl = nextRotationLobbyUrl();
+        chrome.storage.local.set({ blackdomainAtgNextGameId: nextRotationGameId() });
         chrome.runtime.sendMessage({
           type: "BLACKDOMAIN_ATG_SCAN_COMPLETE",
           gameName: body.gameName,
@@ -207,9 +217,14 @@
           setTimeout(() => {
             if (window.location.pathname === currentGamePath) window.location.assign(fallbackLobbyUrl);
           }, 2000);
+        } else {
+          setTimeout(() => {
+            if (window.location.pathname === currentGamePath) window.history.back();
+          }, 2000);
         }
       }, ROTATION_DETAIL_GRACE_MS);
     }
+    await send(body);
   });
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", (event) => {
