@@ -199,6 +199,11 @@
   }
 
   async function decodeGameResponse(value, requestToken) {
+    const zippedPayload = value?.zip === 1 ? value.data : null;
+    if (zippedPayload) {
+      const uncompressed = await inflate(await bytesFrom(zippedPayload));
+      return JSON.parse(decoder.decode(uncompressed));
+    }
     const binary = value instanceof ArrayBuffer
       || ArrayBuffer.isView(value)
       || value instanceof Blob
