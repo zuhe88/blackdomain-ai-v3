@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BLACKDOMAIN 3A Game Relay",
-  "version": "2.9.0",
+  "version": "2.10.0",
   "description": "Synchronizes approved 3A game data with BLACKDOMAIN AI.",
   "permissions": [
     "storage",

@@ -1,6 +1,7 @@
 const GAME_NAMES = ["戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"];
-const LIVE_TTL_MS = 2 * 60 * 1000;
-const FULL_SCAN_TTL_MS = 15 * 60 * 1000;
+const LIVE_TTL_MS = 16 * 60 * 1000;
+const FULL_SCAN_TTL_MS = 20 * 60 * 1000;
+const ROOM_DETAIL_TTL_MS = 2 * 60 * 1000;
 const REFRESH_COOLDOWN_MS = 30 * 1000;
 const MIN_READY_TABLES = new Map([
   [GAME_NAMES[0], 1200],
@@ -337,7 +338,7 @@ function hasFreshData(gameName) {
   );
 }
 
-function hasFreshRoomDetail(room, now = Date.now(), maxAgeMs = LIVE_TTL_MS) {
+function hasFreshRoomDetail(room, now = Date.now(), maxAgeMs = ROOM_DETAIL_TTL_MS) {
   const timestamp = Date.parse(room?.detailUpdatedAt || "");
   return Boolean(
     room?.detail

@@ -340,7 +340,7 @@ function persistPendingRecommendation(pending) {
 
 function queuePendingRecommendation(userId, gameName, options = {}) {
   cancelPendingRecommendation(userId, { removePersistent: false });
-  electronicSource.requestFullRefresh();
+  if (!electronicSource.hasReadyData(gameName)) electronicSource.requestFullRefresh();
   const requestedAt = Number(options.requestedAt) || Date.now();
   const deadlineAt = Number(options.deadlineAt) || requestedAt + PENDING_RECOMMEND_TIMEOUT_MS;
   if (deadlineAt <= Date.now()) return null;
@@ -363,7 +363,7 @@ function queuePendingRecommendation(userId, gameName, options = {}) {
       return;
     }
     seedRecommendationProbes(userId, gameName);
-    electronicSource.requestFullRefresh();
+    if (!electronicSource.hasReadyData(gameName)) electronicSource.requestFullRefresh();
   }, PENDING_RECOMMEND_RETRY_MS);
   pending.retryTimer.unref?.();
   pending.timer = setTimeout(async () => {
@@ -869,8 +869,7 @@ function scoreSethRoomByRtp(room) {
 }
 
 function requiresLiveRtp(gameName) {
-  return electronicSource.SUPPORTED_GAMES.has(gameName)
-    && gameName !== electronicSource.GAME_NAMES[0];
+  return electronicSource.SUPPORTED_GAMES.has(gameName);
 }
 
 function hasRecommendableRoomData(gameName) {

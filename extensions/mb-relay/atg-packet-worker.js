@@ -7,6 +7,7 @@
   const SOCKET_ORIGIN = "https://socket.godeebxp.com";
   const CLIENT_TYPE = "web";
   const CYCLE_PAUSE_MS = 10 * 1000;
+  const FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000;
   const GAME_SWITCH_GAP_MS = 800;
   const REQUEST_TIMEOUT_MS = 15000;
   const REQUEST_GAP_MS = 120;
@@ -23,6 +24,8 @@
   const decoder = new TextDecoder();
   const gameStates = new Map();
   const watchedRooms = new Map();
+  const tableCatalogs = new Map();
+  const lastFullScans = new Map();
   let lobbySocket = null;
   let activeLobbyToken = "";
   let lobbyGames = [];
@@ -321,7 +324,7 @@
       locale: context.locale,
       socket: null,
       queue: Promise.resolve(),
-      tablesByNumber: new Map(),
+      tablesByNumber: new Map(tableCatalogs.get(launch.target.name) || []),
       scanInFlight: false,
       detailCursor: 0,
     };
@@ -372,6 +375,8 @@
           });
           if (page < totalPages) await delay(REQUEST_GAP_MS);
         }
+        tableCatalogs.set(state.target.name, new Map(state.tablesByNumber));
+        lastFullScans.set(state.target.name, Date.now());
       });
       return true;
     } catch (error) {
@@ -446,15 +451,23 @@
       setHostStatus(target, "正在連線…");
       const launch = await createLaunch(target, context);
       state = await connectGame(launch, context);
-      setHostStatus(target, "正在讀取房間…");
-      await scanGame(state);
+      const lastFullScanAt = Number(lastFullScans.get(target.name)) || 0;
+      const fullScanDue = forceScanRequested
+        || !state.tablesByNumber.size
+        || Date.now() - lastFullScanAt >= FULL_SCAN_INTERVAL_MS;
+      if (fullScanDue) {
+        setHostStatus(target, "正在讀取房間…");
+        await scanGame(state);
+      } else if ((watchedRooms.get(target.name) || []).length) {
+        setHostStatus(target, "正在更新推薦 RTP…");
+      }
       const detailCount = Math.min(12, (watchedRooms.get(target.name) || []).length);
       for (let index = 0; index < detailCount; index += 1) {
         await pollDetail(state);
         if (index + 1 < detailCount) await delay(REQUEST_GAP_MS);
       }
       setHostStatus(target, `已同步 ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`, "ok");
-      console.info(`[BLACKDOMAIN Packet] ${target.name} packet scan complete`);
+      console.info(`[BLACKDOMAIN Packet] ${target.name} packet ${fullScanDue ? "full scan" : "RTP refresh"} complete`);
     } catch (error) {
       setHostStatus(target, `失敗：${error?.message || "未知錯誤"}`, "error");
       console.warn(`[BLACKDOMAIN Packet] ${target.name} packet scan failed`, error?.message || error);

@@ -1515,10 +1515,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260820.02", "styles.css?v=20260820.02"]) {
+  for (const expected of ["app.js?v=20260820.03", "styles.css?v=20260820.03"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.02"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.03"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1743,8 +1743,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.9.0") {
-    throw new Error("Electronic relay extension version must be 2.9.0");
+  if (electronicRelayManifest.version !== "2.10.0") {
+    throw new Error("Electronic relay extension version must be 2.10.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1825,6 +1825,9 @@ async function main() {
     'platform: { type: "DESKTOP_BROWSER" }',
     "blackdomain-packet-status",
     "setHostStatus",
+    "FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000",
+    "tableCatalogs",
+    'fullScanDue ? "full scan" : "RTP refresh"',
     "戰神賽特1",
     "戰神賽特2",
     "古神巴風特",
@@ -2776,12 +2779,9 @@ async function main() {
   }
   electronicSource.resetForTest();
   values = await sendAndTexts("AI推薦房", "user-smoke");
-  assertIncludes(values, "推薦房號", "Seth 1 room-pool recommendation");
-  assertIncludes(values, "房況請確認", "Seth 1 room confirmation guard");
-  assertIncludes(values, "請進房確認", "Seth 1 entry confirmation guard");
-  if (values.some((value) => String(value).includes("隨機房號"))) {
-    throw new Error("Seth 1 recommendation must not display a random-room label");
-  }
+  assertIncludes(values, "房間數據整理中", "Seth 1 must wait for live RTP data");
+  assertIncludes(values, "正在掃描房間中並計算 RTP", "Seth 1 RTP requirement");
+  await new Promise((resolve) => setImmediate(resolve));
   await send("戰神賽特2", "user-smoke");
   values = await sendAndTexts("AI推薦房", "user-smoke");
   await new Promise((resolve) => setImmediate(resolve));
@@ -2963,7 +2963,7 @@ async function main() {
   })) {
     throw new Error("Electronic empty-room fixture was rejected");
   }
-  setTimeout(() => {
+  setTimeout(async () => {
     [1, 2].forEach((number) => electronicSource.ingestDetail({
       gameName: "戰神賽特1",
       detail: {
@@ -2976,12 +2976,15 @@ async function main() {
         dayBet: 1000,
       },
     }));
+    await electronic.handleElectronicDataReady("戰神賽特1");
   }, 10);
   values = await sendAndTexts("AI推薦房", "user-smoke");
-  assertIncludes(values, "推薦房號", "Electronic empty-room fallback recommendation");
-  if (values.some((value) => String(value).includes("資料讀取中"))) {
-    throw new Error("Electronic recommendation must not wait for optional room details");
-  }
+  assertIncludes(values, "房間數據整理中", "Seth 1 waits while fresh RTP is collected");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const sethOneRtpTexts = captured.pushes.at(-1).messages
+    .flatMap((message) => collectText(message));
+  assertIncludes(sethOneRtpTexts, "推薦房號", "Seth 1 RTP-backed recommendation");
+  assertIncludes(sethOneRtpTexts, "99.00%", "Seth 1 recommendation includes live RTP");
   electronicSource.resetForTest();
   electronicSource.ingestTables({
     type: "tables",
@@ -3004,56 +3007,20 @@ async function main() {
       dayBet: 1000,
     },
   });
-  setTimeout(() => electronicSource.ingestDetail({
-    gameName: "戰神賽特1",
-    detail: {
-      roomId: "seth-88",
-      number: 88,
-      status: "Empty",
-      todayWin: 198,
-      todayBet: 200,
-      dayWin: 1980,
-      dayBet: 2000,
-    },
-  }), 50);
   const waitingPushCount = captured.pushes.length;
-  const freshRecommendationPromise = send("重新推薦", "user-smoke");
-  await new Promise((resolve) => setTimeout(resolve, 5));
-  const provisionalFeaturePushCount = captured.pushes.length;
-  const provisionalFeatureNotified = await electronic.handleElectronicSpin({
-    gameName: "戰神賽特1",
-    roomNumber: 88,
-    spinId: "provisional-candidate-feature",
-    totalWinnings: 290,
-    featureTrigger: "natural",
-  });
-  if (provisionalFeatureNotified || captured.pushes.length !== provisionalFeaturePushCount) {
-    throw new Error("RTP candidate rooms must not send feature results before the recommendation is delivered");
-  }
-  const duplicateRecommendationReply = await send("重新推薦", "user-smoke");
-  const duplicateRecommendationTexts = duplicateRecommendationReply.messages
-    .flatMap((message) => collectText(message));
-  assertIncludes(
-    duplicateRecommendationTexts,
-    "完成後會自動回傳推薦房間",
-    "Duplicate electronic recommendation guard",
-  );
-  const freshRecommendationReply = await freshRecommendationPromise;
-  values = freshRecommendationReply.messages.flatMap((message) => collectText(message));
-  assertIncludes(values, "99.00%", "Electronic recommendation must use freshly confirmed room details");
-  assertIncludes(values, "結束該房間", "Electronic recommendation stop-room button");
-  if (values.some((value) => String(value).includes("只推薦即時狀態為 Empty 的房間"))) {
-    throw new Error("Electronic recommendation must not display internal Empty-room rules");
-  }
+  values = await sendAndTexts("重新推薦", "user-smoke");
+  assertIncludes(values, "完成後會自動回傳推薦房間", "Electronic RTP waiting reply");
+  await new Promise((resolve) => setTimeout(resolve, 20));
   const waitingPushTexts = captured.pushes
     .slice(waitingPushCount)
     .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
-  assertIncludes(waitingPushTexts, "即時房間數據同步中", "Electronic recommendation waiting Flex");
-  assertIncludes(waitingPushTexts, "通常約 15～45 秒，最長等待 90 秒｜請勿重複點擊", "Electronic recommendation waiting estimate");
-  assertIncludes(waitingPushTexts, "完成後會自動回傳推薦房間", "Electronic recommendation automatic response notice");
-  assertIncludes(waitingPushTexts, "取消推薦", "Electronic live-detail cancel action");
-  if (values.some((value) => String(value).includes("90.00%"))) {
-    throw new Error("Electronic recommendation must not display stale room details");
+  assertIncludes(waitingPushTexts, "推薦房號", "Electronic live RTP recommendation push");
+  assertIncludes(waitingPushTexts, "90.00%", "Electronic recommendation must use fresh RTP details");
+  assertIncludes(waitingPushTexts, "結束該房間", "Electronic recommendation stop-room button");
+  values = waitingPushTexts;
+  assertIncludes(values, "結束該房間", "Electronic recommendation stop-room button");
+  if (values.some((value) => String(value).includes("只推薦即時狀態為 Empty 的房間"))) {
+    throw new Error("Electronic recommendation must not display internal Empty-room rules");
   }
   const zeroPayoutPushCount = captured.pushes.length;
   const zeroPayoutNotified = await electronic.handleElectronicSpin({
@@ -3151,6 +3118,16 @@ async function main() {
   if (stoppedWatchNotified || captured.pushes.length !== stoppedWatchPushCount) {
     throw new Error("Stopped electronic room monitoring must not send feature notifications");
   }
+  electronicSource.resetForTest();
+  electronicSource.ingestTables({
+    type: "tables",
+    gameName: "戰神賽特1",
+    scanId: "cancel-inflight-seth-one",
+    page: 1,
+    totalPages: 1,
+    scanComplete: true,
+    tables: [{ roomId: "seth-88", number: 88, status: "Empty" }],
+  });
   electronic.setGameSession("cancel-inflight-user", "戰神賽特1");
   setTimeout(() => electronicSource.ingestDetail({
     gameName: "戰神賽特1",
@@ -3173,7 +3150,7 @@ async function main() {
   values = await sendAndTexts("取消推薦", "cancel-inflight-user");
   assertIncludes(values, "已取消推薦", "Electronic in-flight recommendation cancellation");
   await cancelledRecommendationPromise;
-  if (captured.replies.length !== cancelInFlightReplyCount + 1) {
+  if (captured.replies.length !== cancelInFlightReplyCount + 2) {
     throw new Error("Cancelled in-flight recommendation must not send a final reply");
   }
   const cancelledRecommendationPushTexts = captured.pushes
@@ -3202,7 +3179,7 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 5));
   electronic.resetElectronicSession("home-cancel-user");
   await homeCancelledRecommendation;
-  if (captured.replies.length !== homeCancelReplyCount) {
+  if (captured.replies.length !== homeCancelReplyCount + 1) {
     throw new Error("Returning home must cancel an in-flight electronic recommendation");
   }
   const restoredPendingKey = "electronic_pending:restored-pending-user";
