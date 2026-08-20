@@ -1743,8 +1743,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.10.3") {
-    throw new Error("Electronic relay extension version must be 2.10.3");
+  if (electronicRelayManifest.version !== "2.10.4") {
+    throw new Error("Electronic relay extension version must be 2.10.4");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");

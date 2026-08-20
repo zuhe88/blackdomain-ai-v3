@@ -265,7 +265,17 @@
           && value
           && (value.totalPages != null || value.totalTableCount != null)
         )),
-      ].find((value) => value && value.totalPages != null) || {};
+      ].find((value) => value && (
+        value.totalPages != null || value.totalTableCount != null
+      )) || {};
+      const derivedTotalPages = Math.ceil(
+        Number(metadata.totalTableCount ?? candidate.totalTableCount) /
+        Math.max(1, Number(
+          metadata.tablePerPage
+          ?? candidate.tablePerPage
+          ?? candidate.tables.length,
+        )),
+      );
       return {
         tables,
         page: Number(
@@ -280,6 +290,7 @@
             candidate.totalPages
             ?? candidate.tableMeta?.totalPages
             ?? metadata.totalPages
+            ?? (derivedTotalPages > 0 ? derivedTotalPages : null)
             ?? response?.totalPages,
           ) || 1),
         ),
