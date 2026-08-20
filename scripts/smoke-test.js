@@ -1515,10 +1515,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260814.04", "styles.css?v=20260814.04"]) {
+  for (const expected of ["app.js?v=20260820.01", "styles.css?v=20260820.01"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260814.04"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.01"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
@@ -1527,7 +1527,7 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
-  for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "entry.at", "activeOperation.startedAt"]) {
+  for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
     if (!webPortalAppSource.includes(expected) && !fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
       throw new Error(`Electronic recommendation anti-stall recovery is missing: ${expected}`);
     }
@@ -1738,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.3.0") {
-    throw new Error("Electronic relay extension version must be 2.3.0");
+  if (electronicRelayManifest.version !== "2.4.0") {
+    throw new Error("Electronic relay extension version must be 2.4.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1812,9 +1812,9 @@ async function main() {
     "installExclusiveRelayHost",
     "ATG 五款封包主機運作中",
     "window.stop()",
-    "cocos creator 3.7.2",
-    "platform: { type: 101 }",
-    "state.initialResponse",
+    'platform: { type: "DESKTOP_BROWSER" }',
+    "blackdomain-packet-status",
+    "setHostStatus",
     "戰神賽特1",
     "戰神賽特2",
     "古神巴風特",

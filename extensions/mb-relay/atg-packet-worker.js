@@ -47,6 +47,9 @@
               <div style="font-size:13px;letter-spacing:.28em;color:#56b8ff">BLACKDOMAIN RELAY</div>
               <h1 style="margin:16px 0 8px;font-size:30px">ATG 五款封包主機運作中</h1>
               <p style="margin:0;color:#9cb4c9;line-height:1.8">戰神賽特1・戰神賽特2・古神巴風特・虎小妹・赤三國</p>
+              <div id="blackdomain-packet-status" style="margin:24px auto 0;display:grid;gap:8px;text-align:left;max-width:420px">
+                ${GAME_TARGETS.map((target) => `<div style="display:flex;justify-content:space-between;gap:20px;padding:9px 12px;border-radius:9px;background:#07101a"><b>${target.name}</b><span id="blackdomain-status-${target.code}" style="color:#9cb4c9">等待掃描</span></div>`).join("")}
+              </div>
               <p style="margin:22px 0 0;color:#5fd59b">此分頁請保持開啟，不需要切換遊戲。</p>
             </section>
           </main>`;
@@ -59,6 +62,14 @@
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", {
       detail: { ...body, relayMode: "packet-worker" },
     }));
+  }
+
+  function setHostStatus(target, message, kind = "pending") {
+    const node = document.getElementById(`blackdomain-status-${target.code}`);
+    if (!node) return;
+    const clean = String(message || "").replace(/[a-f\d]{24,}/gi, "…").slice(0, 72);
+    node.textContent = clean;
+    node.style.color = kind === "ok" ? "#5fd59b" : kind === "error" ? "#ff8b8b" : "#56b8ff";
   }
 
   function parsePageContext() {
@@ -194,16 +205,6 @@
     return result;
   }
 
-  function atgDeviceInfo() {
-    const chromeVersion = navigator.userAgent.match(/(?:Chrome|Chromium)\/([\d.]+)/)?.[1] || "";
-    return {
-      browser: { name: "chrome", version: chromeVersion },
-      os: { name: "Windows", version: "10", versionName: "10" },
-      platform: { type: 101 },
-      engine: { name: "cocos creator 3.7.2" },
-    };
-  }
-
   function objectCandidates(root, maximumDepth = 5) {
     const results = [];
     const visited = new Set();
@@ -296,21 +297,22 @@
     };
     state.socket = await connectSocket();
     state.socket.on("disconnect", () => { state.socket = null; });
-    const initialResponse = await gameRequestNow(state, "initial", {
+    await gameRequestNow(state, "initial", {
       clientType: CLIENT_TYPE,
-      deviceInfo: atgDeviceInfo(),
+      deviceInfo: {
+        browser: { name: "Chrome", version: navigator.userAgent },
+        os: { name: "Windows" },
+        platform: { type: "DESKTOP_BROWSER" },
+        engine: { name: "blackdomain-packet-worker" },
+      },
     });
-    if (Number(initialResponse?.status) !== 200) {
-      throw new Error(`${state.target.name} initial rejected (${initialResponse?.status ?? "unknown"})`);
-    }
-    state.initialResponse = initialResponse;
     gameStates.clear();
     gameStates.set(state.target.name, state);
     return state;
   }
 
   async function scanGame(state) {
-    if (state.scanInFlight || !state.socket?.connected) return;
+    if (state.scanInFlight || !state.socket?.connected) return false;
     state.scanInFlight = true;
     try {
       await enqueue(state, async () => {
@@ -318,13 +320,8 @@
         const emptyTables = new Map();
         let totalPages = 1;
         for (let page = 1; page <= totalPages; page += 1) {
-          let response = null;
-          try {
-            response = await gameRequestNow(state, "getSlotTables", { page });
-          } catch (error) {
-            if (page !== 1 || !tablePage(state.initialResponse)) throw error;
-          }
-          const data = tablePage(response) || (page === 1 ? tablePage(state.initialResponse) : null);
+          const response = await gameRequestNow(state, "getSlotTables", { page });
+          const data = tablePage(response);
           if (!data) throw new Error(`${state.target.name} returned no table page`);
           totalPages = Math.max(totalPages, data.totalPages);
           data.tables.forEach((table) => {
@@ -346,8 +343,10 @@
           if (page < totalPages) await delay(REQUEST_GAP_MS);
         }
       });
+      return true;
     } catch (error) {
       console.warn(`[BLACKDOMAIN Packet] ${state.target.name} scan failed`, error?.message || error);
+      throw error;
     } finally {
       state.scanInFlight = false;
     }
@@ -414,16 +413,20 @@
   async function scanTarget(target, context) {
     let state = null;
     try {
+      setHostStatus(target, "正在連線…");
       const launch = await createLaunch(target, context);
       state = await connectGame(launch, context);
+      setHostStatus(target, "正在讀取房間…");
       await scanGame(state);
       const detailCount = Math.min(12, (watchedRooms.get(target.name) || []).length);
       for (let index = 0; index < detailCount; index += 1) {
         await pollDetail(state);
         if (index + 1 < detailCount) await delay(REQUEST_GAP_MS);
       }
+      setHostStatus(target, `已同步 ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`, "ok");
       console.info(`[BLACKDOMAIN Packet] ${target.name} packet scan complete`);
     } catch (error) {
+      setHostStatus(target, `失敗：${error?.message || "未知錯誤"}`, "error");
       console.warn(`[BLACKDOMAIN Packet] ${target.name} packet scan failed`, error?.message || error);
       if (!state) {
         lobbySocket?.close();

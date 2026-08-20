@@ -128,7 +128,7 @@ function registerWebPortalRoutes(app) {
         web.cancelReply(replyToken);
         throw error;
       }
-      return res.json({ messages: await pending, portalBuild: "20260814.04" });
+      return res.json({ messages: await pending, portalBuild: "20260820.01" });
     } catch (error) { return next(error); }
   });
 }
