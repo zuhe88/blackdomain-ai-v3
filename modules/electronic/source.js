@@ -1,10 +1,13 @@
-const GAME_NAMES = ["戰神賽特1", "戰神賽特2"];
+const GAME_NAMES = ["戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"];
 const LIVE_TTL_MS = 2 * 60 * 1000;
 const FULL_SCAN_TTL_MS = 15 * 60 * 1000;
 const REFRESH_COOLDOWN_MS = 30 * 1000;
 const MIN_READY_TABLES = new Map([
   [GAME_NAMES[0], 1200],
   [GAME_NAMES[1], 3900],
+  [GAME_NAMES[2], 900],
+  [GAME_NAMES[3], 2900],
+  [GAME_NAMES[4], 150],
 ]);
 let refreshSequence = 0;
 let refreshRequest = null;

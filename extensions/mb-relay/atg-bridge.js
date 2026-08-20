@@ -175,7 +175,11 @@
 
   function detectGameName(payload) {
     if (location.pathname.includes("cfca28d832b0ae2c364caae4b6de4e11aa22f0c4")) return "戰神賽特1";
+    if (location.pathname.includes("88d5a6c6b3ebe4c6410b52b1c1aba71f2fad6de0")) return "戰神賽特1";
     if (location.pathname.includes("361d567d94ac569664c82068a30b762e8d8438b8")) return "戰神賽特2";
+    if (location.pathname.includes("2b4c37c532b5e60f542a29c23e602748c06fd426")) return "古神巴風特";
+    if (location.pathname.includes("9c0ec83253193a1c672c2906b83e88e29a61a826")) return "虎小妹";
+    if (location.pathname.includes("e19fdb8f5121a0abeecca7638e92d010dbe496c1")) return "赤三國";
     const hints = [
       location.href,
       payload?.engine?.gameType,
@@ -186,7 +190,21 @@
     ].filter(Boolean).join(" ");
     if (/g1001|egyptian-mythology|erase-any-times-1/i.test(hints)) return "戰神賽特1";
     if (/g1005|golden-seth|erase-any-times-2/i.test(hints)) return "戰神賽特2";
+    if (/g1007|hades|erase-cluster-times-1/i.test(hints)) return "古神巴風特";
+    if (/g1008|scarlet-three-kingdoms/i.test(hints)) return "赤三國";
+    if (/g1009|tiger-princess/i.test(hints)) return "虎小妹";
     return null;
+  }
+
+  function senderCodeForCurrentGame() {
+    const name = gameName || detectGameName();
+    return {
+      戰神賽特1: "g1001",
+      戰神賽特2: "g1005",
+      古神巴風特: "g1007",
+      赤三國: "g1008",
+      虎小妹: "g1009",
+    }[name] || "";
   }
 
   function findData(payload) {
@@ -821,7 +839,12 @@
   }
 
   function installSenderWrapper() {
-    const sender = window.App?.senderManager?._datas?.get?.("g1005");
+    const senders = window.App?.senderManager?._datas;
+    const senderCode = senderCodeForCurrentGame();
+    const sender = senders?.get?.(senderCode)
+      || (senders?.values
+        ? [...senders.values()].find((item) => typeof item?.send === "function")
+        : null);
     if (!sender || typeof sender.send !== "function" || sender.send === wrappedSender) return;
     const senderOriginal = sender.send;
     originalSender = senderOriginal;

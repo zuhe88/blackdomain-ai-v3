@@ -299,8 +299,13 @@ const {
 } = require("../modules/baccarat/session");
 const electronic = require("../modules/electronic");
 const electronicSource = require("../modules/electronic/source");
-electronicSource.setMinimumReadyTablesForTest(electronicSource.GAME_NAMES[0], 1);
-electronicSource.setMinimumReadyTablesForTest(electronicSource.GAME_NAMES[1], 1);
+const expectedElectronicGames = ["戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"];
+if (JSON.stringify(electronicSource.GAME_NAMES) !== JSON.stringify(expectedElectronicGames)) {
+  throw new Error("Electronic live source must expose all five ATG games");
+}
+electronicSource.GAME_NAMES.forEach((gameName) => {
+  electronicSource.setMinimumReadyTablesForTest(gameName, 1);
+});
 const electronicSourceCode = fs.readFileSync(
   path.join(__dirname, "..", "modules", "electronic", "source.js"),
   "utf8",
@@ -1733,8 +1738,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "1.3.15") {
-    throw new Error("Electronic relay extension version must be 1.3.15");
+  if (electronicRelayManifest.version !== "1.4.0") {
+    throw new Error("Electronic relay extension version must be 1.4.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1796,6 +1801,10 @@ async function main() {
     'reportSessionStale("game-socket-closed")',
     "socket\\.godeebxp\\.com",
     "MutationObserver",
+    '古神巴風特: "g1007"',
+    '赤三國: "g1008"',
+    '虎小妹: "g1009"',
+    "senderCodeForCurrentGame",
   ]) {
     if (!atgBridgeSource.includes(expected)) {
       throw new Error(`ATG startup token recovery is missing: ${expected}`);
@@ -2315,7 +2324,14 @@ async function main() {
   if (electronicSource.markRefreshGameComplete("戰神賽特1", firstRefreshId)) {
     throw new Error("Electronic room refresh must wait for every supported game");
   }
-  const completedElectronicRefresh = electronicSource.markRefreshGameComplete("戰神賽特2", firstRefreshId);
+  let completedElectronicRefresh = null;
+  electronicSource.GAME_NAMES.slice(1).forEach((gameName, index, games) => {
+    const result = electronicSource.markRefreshGameComplete(gameName, firstRefreshId);
+    if (index < games.length - 1 && result) {
+      throw new Error("Electronic room refresh completed before every supported game");
+    }
+    if (result) completedElectronicRefresh = result;
+  });
   if (
     completedElectronicRefresh?.requestedBy !== "Uaf293ee976e5170d4e8672d2c12b3f76"
     || !completedElectronicRefresh.completedAt
@@ -2732,7 +2748,7 @@ async function main() {
     "await pushStrict(event.source.userId, message)",
     "handleElectronicDataReady(gameName)",
     "clearInterval(pending.retryTimer)",
-    "if (gameName === electronicSource.GAME_NAMES[1] && !rtpRankedRooms.length) return null",
+    "if (requiresLiveRtp(gameName) && !rtpRankedRooms.length) return null",
     "seedRecommendationProbes(userId, gameName)",
     "refreshPendingRecommendationProbes(gameName)",
   ]) {

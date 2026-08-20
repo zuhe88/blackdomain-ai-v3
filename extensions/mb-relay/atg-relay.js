@@ -17,11 +17,11 @@
   function isRecoveredSethLaunch() {
     try {
       const current = new URL(window.location.href);
-      if (current.searchParams.get(AUTO_REOPEN_PARAM) === "seth2") return true;
+      if (current.searchParams.get(AUTO_REOPEN_PARAM)) return true;
       const rawLobbyUrl = current.searchParams.get("goback_url");
       if (!rawLobbyUrl) return false;
       const lobby = new URL(rawLobbyUrl);
-      return lobby.searchParams.get(AUTO_REOPEN_PARAM) === "seth2";
+      return Boolean(lobby.searchParams.get(AUTO_REOPEN_PARAM));
     } catch {
       return false;
     }
@@ -69,12 +69,13 @@
 
   function autoReopenSeth2() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get(AUTO_REOPEN_PARAM) !== "seth2") return;
+    const gameId = String(params.get(AUTO_REOPEN_PARAM) || "").trim();
+    if (!gameId) return;
     let attempts = 0;
     const timer = window.setInterval(() => {
       attempts += 1;
       const image = document.querySelector(
-        'img[alt*="戰神賽特2"], img[alt*="賽特2"], img[src*="golden-seth"]',
+        `img[src*="/egames/${CSS.escape(gameId)}/"], img[alt*="戰神賽特2"], img[alt*="賽特2"], img[src*="golden-seth"]`,
       );
       const container = image?.closest('.card, [class*="card"], li, article, [role="button"]');
       const button = container?.querySelector('button, a, [role="button"]')

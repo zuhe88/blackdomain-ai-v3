@@ -45,12 +45,12 @@ const PENDING_RECOMMEND_TIMEOUT_MS = Math.max(
 const FIRST_SCAN_ESTIMATE = "正在掃描房間中並計算 RTP";
 const RTP_WAIT_ESTIMATE = "通常約 15～45 秒，最長等待 90 秒";
 const RECOMMEND_PROBE_BATCH_SIZE = 12;
-const BACKGROUND_PROBE_OWNER = "seth2-background-pool";
+const BACKGROUND_PROBE_OWNER = "electronic-background-pool";
 const BACKGROUND_PROBE_ROTATE_MS = 45 * 1000;
 const RECOMMEND_HISTORY_LIMIT = 500;
 const FALLBACK_ROOM_HISTORY_LIMIT = 100;
 const recommendHistoryHydrated = new Set();
-let backgroundProbeSeededAt = 0;
+const backgroundProbeSeededAt = new Map();
 
 const GAME_CONFIG = {
   戰神賽特1: { name: "戰神賽特1", min: 1, max: 1300, pad: 3 },
@@ -195,7 +195,7 @@ function watchRecommendationCandidate(userId, gameName, roomNumber) {
 }
 
 function seedRecommendationProbes(userId, gameName, limit = RECOMMEND_PROBE_BATCH_SIZE) {
-  if (gameName !== electronicSource.GAME_NAMES[1]) return 0;
+  if (!requiresLiveRtp(gameName)) return 0;
   const owner = String(userId || "guest");
   clearRecommendationProbes(owner);
   const rooms = electronicSource.getEmptyRooms(gameName)
@@ -228,14 +228,16 @@ function seedRecommendationProbes(userId, gameName, limit = RECOMMEND_PROBE_BATC
 }
 
 function refreshBackgroundRecommendationProbes(now = Date.now()) {
-  const gameName = electronicSource.GAME_NAMES[1];
-  const hasActiveBatch = [...recommendationProbes.values()].some((probe) => (
-    probe.userId === BACKGROUND_PROBE_OWNER
-    && probe.gameName === gameName
-  ));
-  if (hasActiveBatch && now - backgroundProbeSeededAt < BACKGROUND_PROBE_ROTATE_MS) return;
-  seedRecommendationProbes(BACKGROUND_PROBE_OWNER, gameName);
-  backgroundProbeSeededAt = now;
+  electronicSource.GAME_NAMES.filter(requiresLiveRtp).forEach((gameName) => {
+    const owner = `${BACKGROUND_PROBE_OWNER}:${gameName}`;
+    const hasActiveBatch = [...recommendationProbes.values()].some((probe) => (
+      probe.userId === owner && probe.gameName === gameName
+    ));
+    const seededAt = Number(backgroundProbeSeededAt.get(gameName)) || 0;
+    if (hasActiveBatch && now - seededAt < BACKGROUND_PROBE_ROTATE_MS) return;
+    seedRecommendationProbes(owner, gameName);
+    backgroundProbeSeededAt.set(gameName, now);
+  });
 }
 
 function refreshPendingRecommendationProbes(gameName) {
@@ -846,9 +848,14 @@ function scoreSethRoomByRtp(room) {
   return (todayRtp * 0.65) + (monthRtp * 0.35);
 }
 
+function requiresLiveRtp(gameName) {
+  return electronicSource.SUPPORTED_GAMES.has(gameName)
+    && gameName !== electronicSource.GAME_NAMES[0];
+}
+
 function hasRecommendableRoomData(gameName) {
   if (!electronicSource.hasReadyData(gameName)) return false;
-  if (gameName !== electronicSource.GAME_NAMES[1]) return true;
+  if (!requiresLiveRtp(gameName)) return true;
   return electronicSource.getEmptyRooms(gameName)
     .some((room) => scoreSethRoomByRtp(room) != null);
 }
@@ -923,16 +930,16 @@ function getNextRecommendRoom(userId, gameName) {
   if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
     const emptyRooms = electronicSource.getEmptyRooms(gameName);
     if (!emptyRooms.length) return null;
-    const rtpRankedRooms = gameName === electronicSource.GAME_NAMES[1]
+    const rtpRankedRooms = requiresLiveRtp(gameName)
       ? emptyRooms
         .map((room) => ({ room, rtpScore: scoreSethRoomByRtp(room) }))
         .filter((item) => item.rtpScore != null)
         .sort((a, b) => b.rtpScore - a.rtpScore || a.room.number - b.room.number)
         .map((item) => item.room)
       : [];
-    if (gameName === electronicSource.GAME_NAMES[1] && !rtpRankedRooms.length) return null;
+    if (requiresLiveRtp(gameName) && !rtpRankedRooms.length) return null;
     const detailedRooms = emptyRooms.filter((room) => room.detail);
-    const candidates = gameName === electronicSource.GAME_NAMES[1]
+    const candidates = requiresLiveRtp(gameName)
       ? rtpRankedRooms
       : (detailedRooms.length ? detailedRooms.slice(0, 10) : emptyRooms);
     const key = `${userId || "guest"}:${gameName}:live`;
@@ -1213,7 +1220,7 @@ async function performRecommendRoom(event) {
       Date.now() + DETAIL_WAIT_MS,
       Number(event.recommendationDeadline) || Number.POSITIVE_INFINITY,
     );
-    const selectedHasUsableRtp = session.gameName === electronicSource.GAME_NAMES[1]
+    const selectedHasUsableRtp = requiresLiveRtp(session.gameName)
       && scoreSethRoomByRtp(selected) != null;
     if (!selectedHasUsableRtp && !event.waitingAlreadySent) {
       await pushRoomSyncWaiting(userId, session.gameName);
@@ -1231,8 +1238,8 @@ async function performRecommendRoom(event) {
         : null;
     if (await stopIfRecommendationCancelled(event, userId)) return false;
     // ATG does not consistently emit a new detail response for every empty
-    // room. A previously captured valid RTP snapshot remains usable, but Seth
-    // 2 must never fall back to a room without RTP statistics.
+    // room. A previously captured valid RTP snapshot remains usable, but live
+    // ATG recommendations must never fall back to a room without statistics.
     if (
       !refreshed
       && selected.status === "Empty"
@@ -1258,7 +1265,7 @@ async function performRecommendRoom(event) {
     } else {
       selected = refreshed;
     }
-    const missingRequiredRtp = session.gameName === electronicSource.GAME_NAMES[1]
+    const missingRequiredRtp = requiresLiveRtp(session.gameName)
       && scoreSethRoomByRtp(selected) == null;
     if (!selected || missingRequiredRtp || (typeof selected === "object" && (
       selected.status !== "Empty" || selected.occupied === true
@@ -1323,7 +1330,7 @@ async function recommendRoom(event) {
   }
   if (!event.autoPush) allowNewLiveWatch(userId);
   const currentGame = getUserSession(userId).gameName;
-  if (!event.autoPush && currentGame === electronicSource.GAME_NAMES[1]) {
+  if (!event.autoPush && requiresLiveRtp(currentGame)) {
     const request = { id: crypto.randomUUID(), cancelled: false };
     recommendInFlight.set(userId, request);
     await reply(event.replyToken, recommendationWaitingFlex(

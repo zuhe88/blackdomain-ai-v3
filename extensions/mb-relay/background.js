@@ -69,7 +69,16 @@ async function restoreRelayGamesAfterLogin() {
     if (isAtgLobby(tab.url)) {
       try {
         const lobby = new URL(tab.url);
-        lobby.searchParams.set("blackdomain_reopen", "seth2");
+        const key = healthKey(tab.id);
+        const savedRecovery = await chrome.storage.local.get([key, "blackdomainAtgRecoveryLobbyUrl"]);
+        const recovery = refreshRecoveryLobbyUrl(
+          savedRecovery[key]?.recoveryLobbyUrl || savedRecovery.blackdomainAtgRecoveryLobbyUrl,
+          now,
+        );
+        const recoveryGame = recovery
+          ? new URL(recovery).searchParams.get("blackdomain_reopen")
+          : "";
+        if (recoveryGame) lobby.searchParams.set("blackdomain_reopen", recoveryGame);
         lobby.searchParams.set("blackdomain_recovered_at", String(now));
         await chrome.tabs.update(tab.id, { url: lobby.href });
       } catch {
@@ -102,6 +111,7 @@ async function rememberHeartbeat(kind, tabId, dataAt = 0) {
       reloadDataAt: Number(previous.reloadDataAt) || 0,
       reloadAttempts: Number(previous.reloadAttempts) || 0,
       lastTokenRecoveryAt: Number(previous.lastTokenRecoveryAt) || 0,
+      recoveryLobbyUrl: String(previous.recoveryLobbyUrl || ""),
       firstSeenAt: Number(previous.firstSeenAt) || Date.now(),
     },
   });
@@ -115,6 +125,15 @@ function isAtgLobby(url) {
   }
 }
 
+function atgGameId(url) {
+  try {
+    const match = new URL(url).pathname.match(/\/egames\/([^/]+)\/game\//i);
+    return match?.[1] || "";
+  } catch {
+    return "";
+  }
+}
+
 function buildFreshTokenLobbyUrl(gameUrl, now) {
   try {
     const current = new URL(gameUrl);
@@ -122,7 +141,9 @@ function buildFreshTokenLobbyUrl(gameUrl, now) {
     if (!rawLobbyUrl) return "";
     const lobby = new URL(rawLobbyUrl);
     if (lobby.hostname !== current.hostname || !isAtgLobby(lobby.href)) return "";
-    lobby.searchParams.set("blackdomain_reopen", "seth2");
+    const gameId = atgGameId(current.href);
+    if (!gameId) return "";
+    lobby.searchParams.set("blackdomain_reopen", gameId);
     lobby.searchParams.set("blackdomain_recovered_at", String(now));
     return lobby.href;
   } catch {
@@ -134,7 +155,7 @@ function refreshRecoveryLobbyUrl(value, now) {
   try {
     const lobby = new URL(value);
     if (lobby.hostname !== "play.godeebxp.com" || !isAtgLobby(lobby.href)) return "";
-    lobby.searchParams.set("blackdomain_reopen", "seth2");
+    if (!lobby.searchParams.get("blackdomain_reopen")) return "";
     lobby.searchParams.set("blackdomain_recovered_at", String(now));
     return lobby.href;
   } catch {
@@ -148,7 +169,10 @@ async function recoverAtgToken(tab, health, key, now) {
     await chrome.storage.local.set({ blackdomainAtgRecoveryLobbyUrl: lobbyUrl });
   } else {
     const saved = await chrome.storage.local.get("blackdomainAtgRecoveryLobbyUrl");
-    lobbyUrl = refreshRecoveryLobbyUrl(saved.blackdomainAtgRecoveryLobbyUrl, now);
+    lobbyUrl = refreshRecoveryLobbyUrl(
+      health.recoveryLobbyUrl || saved.blackdomainAtgRecoveryLobbyUrl,
+      now,
+    );
   }
   if (!lobbyUrl) return false;
   await chrome.storage.local.set({
@@ -157,6 +181,7 @@ async function recoverAtgToken(tab, health, key, now) {
       kind: "electronic",
       lastTokenRecoveryAt: now,
       reloadAttempts: 0,
+      recoveryLobbyUrl: lobbyUrl,
     },
   });
   try {
