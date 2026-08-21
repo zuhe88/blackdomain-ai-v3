@@ -5,22 +5,29 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="theme-color" content="#07080c">
+  <meta name="color-scheme" content="dark">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="黑域AI">
   <meta name="description" content="黑域AI 即時分析中心">
   <title>黑域AI｜智能分析中心</title>
-  <link rel="icon" type="image/png" href="/brand/blackdomain-ai-logo.png">
-  <link rel="apple-touch-icon" href="/brand/blackdomain-ai-logo.png">
-  <link rel="stylesheet" href="/portal/styles.css?v=20260820.04">
+  <link rel="manifest" href="/portal/manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="/portal/icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/portal/icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="/portal/styles.css?v=20260821.01">
 </head>
 <body>
   <div class="app-shell" id="app">
     <header class="app-header">
       <button class="brand" data-go="/portal/" aria-label="回到首頁"><span class="brand-mark"><img src="/brand/blackdomain-ai-logo.png" alt="黑域AI Logo"></span><span><b>黑域AI</b><small>BLACKDOMAIN AI</small></span></button>
-      <div class="header-actions"><button class="vip-link" data-go="/portal/vip/status">VIP</button><div class="connection" id="connection" data-state="connecting"><i></i><span>連線中</span></div></div>
+      <div class="header-actions"><button class="install-app" id="installApp" type="button" hidden>安裝APP</button><button class="vip-link" data-go="/portal/vip/status">VIP</button><div class="connection" id="connection" data-state="connecting"><i></i><span>連線中</span></div></div>
     </header>
     <main id="view" tabindex="-1"></main>
   </div>
   <div class="loading-overlay" id="loading" hidden><div class="loader"><span>AI</span></div><b>AI 分析中</b><small>同步平台數據，完成後會自動顯示</small></div>
+  <div class="install-dialog" id="installDialog" hidden role="dialog" aria-modal="true" aria-labelledby="installTitle"><div class="install-panel"><button class="install-close" id="installClose" type="button" aria-label="關閉">×</button><img src="/portal/icons/icon-192.png" alt="黑域AI APP"><p>BLACKDOMAIN AI</p><h2 id="installTitle">安裝黑域AI APP</h2><div id="installInstructions"></div><button class="install-confirm" id="installConfirm" type="button">了解</button></div></div>
   <div class="toast-region" id="toasts" aria-live="polite"></div>
-  <script src="/portal/app.js?v=20260820.04" defer></script>
+  <script src="/portal/app.js?v=20260821.01" defer></script>
 </body>
 </html>

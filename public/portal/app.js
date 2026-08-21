@@ -2,7 +2,13 @@ const view=document.querySelector("#view");
 const connection=document.querySelector("#connection");
 const loading=document.querySelector("#loading");
 const toasts=document.querySelector("#toasts");
-const PORTAL_BUILD="20260820.04";
+const installButton=document.querySelector("#installApp");
+const installDialog=document.querySelector("#installDialog");
+const installInstructions=document.querySelector("#installInstructions");
+const installClose=document.querySelector("#installClose");
+const installConfirm=document.querySelector("#installConfirm");
+const PORTAL_BUILD="20260821.01";
+let deferredInstallPrompt=null;
 
 const categories={
   baccarat:{name:"百家樂",subtitle:"AI 牌路分析",image:"/images/electronic/dg.png",items:[
@@ -58,6 +64,13 @@ function setAccessIndicator(){setConnection(accessAllowed?"access-granted":"acce
 function applyElectronicAvailability(enabled){allElectronicGamesEnabled=Boolean(enabled);categories.atg.items.forEach(item=>{item.disabled=item.id!=="set2"&&!allElectronicGamesEnabled;item.disabledLabel=item.disabled?"暫停開放":"";});}
 function applyRuntimeAccess(value,{rerender=false}={}){const previousAccess=accessAllowed;const previousElectronic=allElectronicGamesEnabled;accessAllowed=Boolean(value.accessAllowed);applyElectronicAvailability(value.allElectronicGamesEnabled!==false);setAccessIndicator();if(rerender&&(previousAccess!==accessAllowed||previousElectronic!==allElectronicGamesEnabled)){routeRevision+=1;activeOperation=null;renderRoute();}}
 function toast(title,detail){const item=document.createElement("div");item.className="toast";item.innerHTML=`<b>${escapeHtml(title)}</b><span>${escapeHtml(detail)}</span>`;toasts.append(item);setTimeout(()=>item.remove(),4000);}
+function isStandaloneApp(){return matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;}
+function isIosDevice(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);}
+function setInstallVisibility(){installButton.hidden=isStandaloneApp()||(!deferredInstallPrompt&&!isIosDevice());}
+function closeInstallDialog(){installDialog.hidden=true;}
+function showInstallHelp(){const ios=isIosDevice();installInstructions.innerHTML=ios?`<ol><li>點擊 Safari 下方的「分享」圖示</li><li>選擇「加入主畫面」</li><li>確認名稱後點擊「新增」</li></ol><p>安裝後請從桌面的黑域AI圖示開啟。</p>`:`<ol><li>開啟瀏覽器選單</li><li>選擇「安裝應用程式」或「加到主畫面」</li><li>完成後從桌面開啟黑域AI</li></ol>`;installDialog.hidden=false;}
+async function installPwa(){if(!deferredInstallPrompt){showInstallHelp();return;}const prompt=deferredInstallPrompt;deferredInstallPrompt=null;await prompt.prompt();const choice=await prompt.userChoice;if(choice.outcome==="accepted")toast("正在安裝黑域AI","完成後可從桌面直接開啟");setInstallVisibility();}
+function renderOffline(){setConnection("offline","網路中斷");view.innerHTML=`<section class="screen offline-screen"><article><img src="/portal/icons/icon-192.png" alt="黑域AI"><p>BLACKDOMAIN AI</p><h1>目前沒有網路連線</h1><span>為避免顯示舊房況與舊分析，離線時不提供分析資料。</span><button type="button" onclick="location.reload()">重新連線</button></article></section>`;}
 function navigate(path,{replace=false}={}){const normalized=normalizePath(path);if(replace)history.replaceState({},"",normalized);else history.pushState({},"",normalized);currentPath=normalized;activeOperation=null;routeRevision+=1;renderRoute();}
 let homeStopInFlight=false;
 async function stopMonitoringAndGoHome(){if(homeStopInFlight)return;homeStopInFlight=true;loading.hidden=false;try{const response=await fetch("/api/web/stop",{method:"POST",headers:{"content-type":"application/json"},body:"{}"});if(response.status===401){authenticated=false;renderLogin();return;}if(!response.ok)throw new Error(`HTTP ${response.status}`);resumeBaccaratSession=false;restoredMessages=[];navigate("/portal/");}catch(error){console.error("Portal monitoring stop failed",error);toast("尚未停止監控","連線異常，請再按一次首頁。");}finally{loading.hidden=true;homeStopInFlight=false;}}
@@ -136,4 +149,14 @@ const ELECTRONIC_CLIENT_TIMEOUT_MS=95_000;
 setInterval(()=>{if(!authenticated||activeOperation?.categoryKey!=="atg"||activeOperation?.mode!=="recommend"||!document.querySelector("#analysisStage"))return;if(Date.now()-Number(activeOperation.startedAt||0)<ELECTRONIC_CLIENT_TIMEOUT_MS)return;activeOperation.mode="recommend-timeout";setAnalysisFlowStep(3);showAnalysisState("本次推薦已停止","目前沒有取得足夠的即時空房與 RTP 資料，請稍後再試。",{error:true});toast("推薦已停止","頁面不會繼續卡在分析中");},1_000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)recoverElectronicRecommendation();});
 if(!matchMedia("(prefers-reduced-motion: reduce)").matches&&matchMedia("(hover: hover)").matches){let pointerFrame=0;let cursorX="50%";let cursorY="38%";addEventListener("pointermove",event=>{cursorX=`${Math.max(0,Math.min(100,event.clientX/innerWidth*100)).toFixed(2)}%`;cursorY=`${Math.max(0,Math.min(100,event.clientY/innerHeight*100)).toFixed(2)}%`;if(pointerFrame)return;pointerFrame=requestAnimationFrame(()=>{document.body.style.setProperty("--cursor-x",cursorX);document.body.style.setProperty("--cursor-y",cursorY);pointerFrame=0;});},{passive:true});}
-fetch("/api/web/me").then(response=>response.json()).then(value=>{authenticated=Boolean(value.authenticated);applyRuntimeAccess(value);resumeBaccaratSession=Boolean(value.activeBaccaratSession);resumeBaccaratPlatform=value.activeBaccaratPlatform||null;restoredMessages=Array.isArray(value.messages)?value.messages:[];currentPath=normalizePath(location.pathname);renderRoute();if(!authenticated)return;const events=new EventSource("/api/web/events");events.addEventListener("ready",()=>{setAccessIndicator();refreshRuntimeAccess();syncActiveBaccarat();});events.addEventListener("message",event=>{try{if(activeOperation)renderResults(JSON.parse(event.data),{enforceScope:true,automatic:true});}catch(error){console.error("Portal event parse failed",error);}});events.onerror=()=>setConnection("connecting","重新連線");}).catch(error=>{console.error("Portal initialization failed",error);authenticated=false;accessAllowed=false;renderLogin();});
+installButton.addEventListener("click",installPwa);
+installClose.addEventListener("click",closeInstallDialog);
+installConfirm.addEventListener("click",closeInstallDialog);
+installDialog.addEventListener("click",event=>{if(event.target===installDialog)closeInstallDialog();});
+addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;setInstallVisibility();});
+addEventListener("appinstalled",()=>{deferredInstallPrompt=null;setInstallVisibility();toast("黑域AI安裝完成","現在可以從桌面直接開啟");});
+addEventListener("online",()=>{if(document.querySelector(".offline-screen"))location.reload();else toast("網路已恢復","即時資料將繼續同步");});
+addEventListener("offline",()=>{setConnection("offline","網路中斷");toast("網路連線中斷","不會使用快取資料產生分析");});
+setInstallVisibility();
+if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("/portal/sw.js",{scope:"/portal/",updateViaCache:"none"}).then(registration=>registration.update()).catch(error=>console.error("PWA registration failed",error)));}
+fetch("/api/web/me").then(response=>response.json()).then(value=>{authenticated=Boolean(value.authenticated);applyRuntimeAccess(value);resumeBaccaratSession=Boolean(value.activeBaccaratSession);resumeBaccaratPlatform=value.activeBaccaratPlatform||null;restoredMessages=Array.isArray(value.messages)?value.messages:[];currentPath=normalizePath(location.pathname);renderRoute();if(!authenticated)return;const events=new EventSource("/api/web/events");events.addEventListener("ready",()=>{setAccessIndicator();refreshRuntimeAccess();syncActiveBaccarat();});events.addEventListener("message",event=>{try{if(activeOperation)renderResults(JSON.parse(event.data),{enforceScope:true,automatic:true});}catch(error){console.error("Portal event parse failed",error);}});events.onerror=()=>setConnection("connecting","重新連線");}).catch(error=>{console.error("Portal initialization failed",error);authenticated=false;accessAllowed=false;if(!navigator.onLine)renderOffline();else renderLogin();});

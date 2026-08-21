@@ -1515,11 +1515,26 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260820.04", "styles.css?v=20260820.04"]) {
+  for (const expected of ["app.js?v=20260821.01", "styles.css?v=20260821.01"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260820.04"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260821.01"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
+  }
+  const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
+  const webServiceWorkerSource = fs.readFileSync(path.join(root, "public", "portal", "sw.js"), "utf8");
+  const webManifest = JSON.parse(webManifestSource);
+  if (webManifest.scope !== "/portal/" || webManifest.display !== "standalone") {
+    throw new Error("Web portal PWA manifest must stay scoped to the member portal");
+  }
+  for (const expected of ['rel="manifest"', 'apple-mobile-web-app-capable', 'id="installApp"', 'id="installDialog"']) {
+    if (!webPortalSource.includes(expected)) throw new Error(`Web portal PWA UI is missing: ${expected}`);
+  }
+  for (const expected of ['navigator.serviceWorker.register("/portal/sw.js"', 'beforeinstallprompt', "isStandaloneApp", "renderOffline"]) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal PWA behavior is missing: ${expected}`);
+  }
+  for (const expected of ['url.pathname.startsWith("/api/")', 'url.pathname.startsWith("/portal/login")', 'networkFirst(request, "/portal/index.html")']) {
+    if (!webServiceWorkerSource.includes(expected)) throw new Error(`Web portal PWA cache safety is missing: ${expected}`);
   }
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal is missing feature: ${expected}`);
