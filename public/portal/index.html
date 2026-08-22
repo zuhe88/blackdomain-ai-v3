@@ -15,19 +15,20 @@
   <link rel="manifest" href="/portal/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/portal/icons/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/portal/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/portal/styles.css?v=20260821.01">
+  <link rel="stylesheet" href="/portal/styles.css?v=20260822.01">
+  <link rel="stylesheet" href="/portal/admin.css?v=20260822.01">
 </head>
 <body>
   <div class="app-shell" id="app">
     <header class="app-header">
       <button class="brand" data-go="/portal/" aria-label="回到首頁"><span class="brand-mark"><img src="/brand/blackdomain-ai-logo.png" alt="黑域AI Logo"></span><span><b>黑域AI</b><small>BLACKDOMAIN AI</small></span></button>
-      <div class="header-actions"><button class="install-app" id="installApp" type="button" hidden>安裝APP</button><button class="vip-link" data-go="/portal/vip/status">VIP</button><div class="connection" id="connection" data-state="connecting"><i></i><span>連線中</span></div></div>
+      <div class="header-actions"><button class="admin-link" id="adminMonitor" data-go="/portal/admin/monitor" type="button" hidden>系統監控</button><button class="install-app" id="installApp" type="button" hidden>安裝APP</button><button class="vip-link" data-go="/portal/vip/status">VIP</button><div class="connection" id="connection" data-state="connecting"><i></i><span>連線中</span></div></div>
     </header>
     <main id="view" tabindex="-1"></main>
   </div>
   <div class="loading-overlay" id="loading" hidden><div class="loader"><span>AI</span></div><b>AI 分析中</b><small>同步平台數據，完成後會自動顯示</small></div>
   <div class="install-dialog" id="installDialog" hidden role="dialog" aria-modal="true" aria-labelledby="installTitle"><div class="install-panel"><button class="install-close" id="installClose" type="button" aria-label="關閉">×</button><img src="/portal/icons/icon-192.png" alt="黑域AI APP"><p>BLACKDOMAIN AI</p><h2 id="installTitle">安裝黑域AI APP</h2><div id="installInstructions"></div><button class="install-confirm" id="installConfirm" type="button">了解</button></div></div>
   <div class="toast-region" id="toasts" aria-live="polite"></div>
-  <script src="/portal/app.js?v=20260821.01" defer></script>
+  <script src="/portal/app.js?v=20260822.01" defer></script>
 </body>
 </html>

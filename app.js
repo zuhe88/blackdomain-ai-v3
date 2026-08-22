@@ -13,8 +13,13 @@ const { registerDgRelayRoutes } = require("./routes/dgRelay");
 const { registerMtLiveRoutes } = require("./routes/mtLive");
 const { registerWebPortalRoutes } = require("./routes/webPortal");
 const { errorHandler } = require("./middleware/errorHandler");
+const { portalCsrf, portalRateLimit, securityHeaders } = require("./middleware/portalSecurity");
 
 const app = express();
+
+app.use(securityHeaders);
+app.use(portalRateLimit);
+app.use(portalCsrf);
 
 registerImageRoutes(app);
 registerHealthRoutes(app);

@@ -4,6 +4,8 @@ const web = require("../services/webChannel");
 const vip = require("../modules/vip");
 const baccarat = require("../modules/baccarat");
 const electronicAvailability = require("../modules/electronic/availability");
+const { isAdminLineUserId } = require("../config/admin");
+const { getSystemHealth } = require("../services/systemHealth");
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
 }
@@ -46,8 +48,13 @@ function registerWebPortalRoutes(app) {
     res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
     return res.type("html").send(loginPage(req.query.code));
   });
-  app.post("/portal/login", (req, res) => {
-    const token = web.redeem(req.query.code);
+  app.post("/portal/login", async (req, res, next) => {
+    let token;
+    try {
+      token = await web.redeem(req.query.code);
+    } catch (error) {
+      return next(error);
+    }
     res.setHeader("cache-control", "no-store");
     res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
     if (!token) return res.status(401).type("html").send(invalidLoginPage());
@@ -66,6 +73,7 @@ function registerWebPortalRoutes(app) {
     const access = await vip.checkVipAccess(userId);
     return res.json({
       authenticated: true,
+      isAdmin: isAdminLineUserId(userId),
       accessAllowed: Boolean(access.allowed),
       allElectronicGamesEnabled: electronicAvailability.areAllElectronicGamesEnabled(),
       activeBaccaratSession: baccarat.hasActiveBaccaratSession(userId),
@@ -73,6 +81,13 @@ function registerWebPortalRoutes(app) {
       messages: web.history(userId),
     });
     } catch (error) { return next(error); }
+  });
+  app.get("/api/web/admin/monitor", (req, res) => {
+    const userId = user(req);
+    if (!userId) return res.status(401).json({ error: "請重新登入。" });
+    if (!isAdminLineUserId(userId)) return res.status(403).json({ error: "沒有管理員權限。" });
+    res.setHeader("cache-control", "no-store");
+    return res.json(getSystemHealth());
   });
   app.get("/api/web/events", (req, res) => {
     const userId = user(req); if (!userId) return res.status(401).end();
@@ -137,7 +152,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20260821.01",
+        portalBuild: "20260822.01",
       });
     } catch (error) { return next(error); }
   });

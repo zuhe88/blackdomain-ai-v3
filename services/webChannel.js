@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const supabase = require("./supabase");
 
 const replies = new Map();
 const clients = new Map();
@@ -28,9 +29,37 @@ function verify(token) {
 function issue(userId) {
   return sign({ kind: "login", userId, exp: Date.now() + CODE_TTL, nonce: randomToken(8) });
 }
-function redeem(code) {
+let warnedNonceFallback = false;
+async function redeem(code) {
   const pending = verify(code);
   if (!pending || pending.kind !== "login" || usedLoginNonces.has(pending.nonce)) return null;
+  const nonceHash = crypto.createHash("sha256").update(pending.nonce).digest("hex");
+  if (supabase) {
+    const { error } = await supabase.from("lottery_settings").insert({
+      key: `web_login_nonce:${nonceHash}`,
+      value: {
+        lineUserId: String(pending.userId || ""),
+        expiresAt: pending.exp,
+        redeemedAt: Date.now(),
+      },
+      updated_at: new Date().toISOString(),
+      updated_by: "web-login",
+    });
+    if (error?.code === "23505") return null;
+    if (error && !warnedNonceFallback) {
+      warnedNonceFallback = true;
+      console.warn("[WebAuth] Persistent nonce ledger unavailable; using process fallback:", error.message);
+    }
+    if (!error && Math.random() < 0.02) {
+      supabase
+        .from("lottery_settings")
+        .delete()
+        .like("key", "web_login_nonce:%")
+        .lt("updated_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .then(() => {})
+        .catch(() => {});
+    }
+  }
   usedLoginNonces.set(pending.nonce, pending.exp);
   for (const [nonce, expiresAt] of usedLoginNonces) {
     if (expiresAt < Date.now()) usedLoginNonces.delete(nonce);
