@@ -8,7 +8,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20260826.01";
+const PORTAL_BUILD="20260826.02";
 let deferredInstallPrompt=null;
 
 const categories={
@@ -16,15 +16,15 @@ const categories={
     {id:"dg",name:"DG",subtitle:"DG 百家樂 AI",image:"/images/electronic/dg.png",command:"DG"},
     {id:"mt",name:"MT",subtitle:"MT 百家樂 AI",image:"/images/electronic/mt.png",command:"MT"},
   ]},
-  atg:{name:"ATG",subtitle:"AI 電子選房",image:"/images/electronic/seth2-hd.webp",items:[
+  atg:{name:"ATG",subtitle:"AI 電子選房與賽馬",image:"/images/electronic/seth2-hd.webp",items:[
     {id:"set1",name:"賽特1",fullName:"戰神賽特1",subtitle:"AI 智能選房",image:"/images/electronic/seth1-hd.webp",command:"戰神賽特1"},
     {id:"set2",name:"賽特2",fullName:"戰神賽特2",subtitle:"AI 智能選房",image:"/images/electronic/seth2-hd.webp",command:"戰神賽特2"},
     {id:"baphomet",name:"古神",fullName:"古神巴風特",subtitle:"AI 智能選房",image:"/images/electronic/baphomet-hd.webp",command:"古神巴風特"},
     {id:"tiger",name:"虎小妹",subtitle:"AI 智能選房",image:"/images/electronic/tiger-girl-hd.webp",command:"虎小妹"},
     {id:"red3",name:"赤三國",subtitle:"AI 智能選房",image:"/images/electronic/red-three-kingdoms-hd.webp",command:"赤三國"},
+    {id:"horse",name:"ATG 賽馬",subtitle:"服務維護中",image:"/images/electronic/atg-horse-hd.webp",command:"ATG賽馬",disabled:true},
   ]},
   lottery:{name:"彩票",subtitle:"AI 彩票預測",image:"/images/electronic/mb-marble-hd.webp",items:[
-    {id:"horse",name:"ATG 賽馬",subtitle:"服務維護中",image:"/images/electronic/atg-horse-hd.webp",command:"ATG賽馬",disabled:true},
     {id:"mb",name:"MB 彈珠",subtitle:"AI 彈珠預測",image:"/images/electronic/mb-marble-hd.webp",command:"MB彈珠"},
     {id:"539",name:"今彩 539",subtitle:"AI 號碼分析",image:"/images/electronic/lottery539-hd.webp",command:"539"},
   ]},
