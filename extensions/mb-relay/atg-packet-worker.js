@@ -8,7 +8,9 @@
   const CLIENT_TYPE = "web";
   const CYCLE_PAUSE_MS = 10 * 1000;
   const FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000;
-  const GAME_SWITCH_GAP_MS = 800;
+  // ATG now releases game sessions more slowly. Keep the original single-pass
+  // flow, but leave enough time for the previous Socket.IO session to close.
+  const GAME_SWITCH_GAP_MS = 5000;
   const REQUEST_TIMEOUT_MS = 15000;
   const REQUEST_GAP_MS = 120;
   const MAX_SOURCE_PAGES = 20;

@@ -1744,8 +1744,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.11.3") {
-    throw new Error("Electronic relay extension version must be 2.11.3");
+  if (electronicRelayManifest.version !== "2.11.4") {
+    throw new Error("Electronic relay extension version must be 2.11.4");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1829,7 +1829,7 @@ async function main() {
     "blackdomain-packet-status",
     "setHostStatus",
     "FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000",
-    "GAME_SWITCH_GAP_MS = 800",
+    "GAME_SWITCH_GAP_MS = 5000",
     "tableCatalogs",
     'fullScanDue ? "full scan" : "RTP refresh"',
     "戰神賽特1",
