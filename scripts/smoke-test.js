@@ -1515,10 +1515,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260826.02", "styles.css?v=20260826.02", "admin.css?v=20260826.02"]) {
+  for (const expected of ["app.js?v=20260826.03", "styles.css?v=20260826.03", "admin.css?v=20260826.03"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.02"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.03"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1541,6 +1541,11 @@ async function main() {
   }
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
+  }
+  const portalAtgCategory = webPortalAppSource.split("atg:{")[1]?.split("lottery:{")[0] || "";
+  const portalLotteryCategory = webPortalAppSource.split("lottery:{")[1]?.split("sports:{")[0] || "";
+  if (portalAtgCategory.includes('id:"horse"') || !portalLotteryCategory.includes('id:"horse"')) {
+    throw new Error("ATG horse must stay in the website lottery category while using the ATG data relay");
   }
   for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "restartElectronicRecommendation", 'command.dataset.command==="重新推薦"', "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
     if (!webPortalAppSource.includes(expected) && !fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
