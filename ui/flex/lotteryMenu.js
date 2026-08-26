@@ -89,10 +89,9 @@ function lotteryMenuFlex() {
       contents: [
         gameCard({
           title: "ATG賽馬 AI",
-          subtitle: "目前暫停服務，系統維護完成後開放",
+          subtitle: "第一名至第十名 AI 定位分析",
           image: "atg-horse-hd.webp",
-          actionText: "ATG賽馬 維護中",
-          maintenance: true,
+          actionText: "ATG賽馬",
         }),
         gameCard({
           title: "MB彈珠",

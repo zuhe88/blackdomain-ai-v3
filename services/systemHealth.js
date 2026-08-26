@@ -3,6 +3,7 @@ const mtSource = require("../modules/baccarat/mtSource");
 const electronicSource = require("../modules/electronic/source");
 const electronicAvailability = require("../modules/electronic/availability");
 const mbSource = require("../modules/mb/source");
+const atgSource = require("../modules/atg/source");
 const { lineConfig } = require("./line");
 const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
 
@@ -66,13 +67,27 @@ function mbProvider() {
   };
 }
 
+function atgHorseProvider() {
+  const snapshot = atgSource.getSnapshot();
+  const history = Array.isArray(snapshot.history) ? snapshot.history : [];
+  const live = ["live", "relay"].includes(snapshot.source);
+  return {
+    id: "atg-horse",
+    label: "ATG 賽馬",
+    state: live ? stateFor(snapshot.updatedAt, history.length > 0, 180) : history.length ? "stale" : "offline",
+    lastUpdatedAt: snapshot.updatedAt || null,
+    ageSeconds: ageSeconds(snapshot.updatedAt),
+    metrics: { historyCount: history.length, source: snapshot.source, targetPeriodId: snapshot.targetPeriodId },
+  };
+}
+
 function getSystemHealth() {
   const providers = [
     baccaratProvider("dg", "DG 百家樂", dgSource.getSnapshot()),
     baccaratProvider("mt", "MT 百家樂", mtSource.getSnapshot()),
     electronicProvider(),
     mbProvider(),
-    { id: "atg-horse", label: "ATG 賽馬", state: "maintenance", lastUpdatedAt: null, ageSeconds: null },
+    atgHorseProvider(),
   ];
   const unhealthy = providers.filter((provider) => !["healthy", "maintenance"].includes(provider.state)).length;
   return {

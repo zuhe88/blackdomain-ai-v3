@@ -34,7 +34,6 @@ const ADMIN_COMMANDS = new Set([
 const OFFICIAL_WEBSITE_COMMANDS = new Set(["官網", "黑域官網", "🌐 黑域官網"]);
 const CONTACT_COMMANDS = new Set(["管理員", "客服", "聯繫管理員", "📞 聯繫管理員"]);
 const WELCOME_PREVIEW_COMMANDS = new Set(["歡迎訊息", "測試歡迎訊息"]);
-const ATG_MAINTENANCE_COMMANDS = new Set(["ATG賽馬", "ATG賽馬AI", "🏇 ATG賽馬AI", "ATG賽馬 維護中"]);
 
 const AI_BROWSE_COMMANDS = new Set([
   "百家樂",
@@ -207,16 +206,6 @@ async function handleEvent(event) {
     return replyHome(event);
   }
 
-  if (
-    ATG_MAINTENANCE_COMMANDS.has(text)
-    || (text !== "ATG" && atg.isAtgCommand(text))
-  ) {
-    await clearAllUserSessions(userId);
-    const allowed = await ensureVipOrReply(event, "atg");
-    if (!allowed) return;
-    return reply(event.replyToken, "ATG賽馬 AI 目前維護中，服務暫停開放，完成後將重新上線。");
-  }
-
   if (VIP_COMMANDS.has(text) || isAdminCommand(text)) {
     await clearAllUserSessions(userId);
     return vip.handleVipMessage(event);
@@ -259,6 +248,8 @@ async function handleEvent(event) {
 
   if (atg.isEntryCommand(text)) {
     await clearAllUserSessions(userId);
+    const allowed = await ensureVipOrReply(event, "atg");
+    if (!allowed) return;
     return atg.handleAtgMessage(event);
   }
 

@@ -1515,10 +1515,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260826.03", "styles.css?v=20260826.03", "admin.css?v=20260826.03"]) {
+  for (const expected of ["app.js?v=20260826.04", "styles.css?v=20260826.04", "admin.css?v=20260826.04"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.03"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.04"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1587,7 +1587,7 @@ async function main() {
   for (const expected of [".sports-game-tabs", ".sports-pager", ".sports-slide.active"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Website sports match navigation styling is missing: ${expected}`);
   }
-  for (const expected of ["blackdomain-ai-logo.png", "recommendationCard", "genericResultBody", "disabled:true", "initializeGame", 'send("百家樂"', "quickReplyActions", "baccaratForm"]) {
+  for (const expected of ["blackdomain-ai-logo.png", "recommendationCard", "genericResultBody", "initializeGame", 'send("百家樂"', "quickReplyActions", "baccaratForm"]) {
     if (!webPortalAppSource.includes(expected) && !webPortalSource.includes(expected)) {
       throw new Error(`Web portal UI flow is missing: ${expected}`);
     }
@@ -2537,7 +2537,7 @@ async function main() {
   assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the 539 lottery card");
   values = await sendAndTexts("MB彈珠", "non-vip-lottery-user");
   assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the MB lottery card");
-  values = await sendAndTexts("ATG賽馬 維護中", "non-vip-lottery-user");
+  values = await sendAndTexts("ATG賽馬", "non-vip-lottery-user");
   assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the ATG lottery card");
 
   values = await sendAndTexts("體育", "non-vip-sports-user");
@@ -3441,16 +3441,16 @@ async function main() {
   const lotteryMenuReply = await send("彩票", "user-smoke");
   values = lotteryMenuReply.messages.flatMap((message) => collectText(message));
   assertIncludes(values, "ATG賽馬", "Lottery game menu");
-  assertIncludes(values, "系統維護中", "ATG maintenance status");
+  assertIncludes(values, "第一名至第十名 AI 定位分析", "ATG horse availability status");
   assertIncludes(values, "MB彈珠", "Lottery game menu");
   assertIncludes(values, "今彩539", "Lottery game menu");
   const lotteryCards = lotteryMenuReply.messages[0]?.contents?.contents || [];
   const lotteryActions = lotteryCards.map((item) => item.hero?.action?.text);
-  if (lotteryActions.join(",") !== "ATG賽馬 維護中,MB彈珠,539") {
+  if (lotteryActions.join(",") !== "ATG賽馬,MB彈珠,539") {
     throw new Error(`Lottery menu has incorrect game order: ${lotteryActions.join(",")}`);
   }
   if (!lotteryCards[0]?.hero?.url?.includes("atg-horse-hd.webp")) {
-    throw new Error("ATG maintenance card must keep the original horse image");
+    throw new Error("ATG horse card must keep the original horse image");
   }
   if (!lotteryCards[2]?.hero?.url?.includes("lottery539-hd.webp")) {
     throw new Error("Lottery 539 card must use the enhanced image");
@@ -4129,11 +4129,9 @@ async function main() {
   assertIncludes(values, "AI預測勝方", "Sports analysis");
 
   values = await sendAndTexts("ATG賽馬", "user-smoke");
-  assertIncludes(values, "目前維護中", "ATG maintenance reply");
-  values = await sendAndTexts("ATG賽馬 維護中", "user-smoke");
-  assertIncludes(values, "服務暫停開放", "ATG maintenance card action");
+  assertIncludes(values, "第一名至第十名定位分析", "ATG horse entry menu");
   values = await sendAndTexts("ATG 5碼", "user-smoke");
-  assertIncludes(values, "服務暫停開放", "ATG maintenance direct-command guard");
+  assertIncludes(values, "ATG賽馬AI", "ATG horse analysis result");
 
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");
