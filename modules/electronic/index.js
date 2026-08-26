@@ -12,6 +12,7 @@ const {
 const supabase = require("../../services/supabase");
 const electronicSource = require("./source");
 const electronicAvailability = require("./availability");
+const featureAudit = require("./featureAudit");
 const { isAdminLineUserId } = require("../../config/admin");
 const webChannel = require("../../services/webChannel");
 
@@ -571,6 +572,28 @@ async function getLiveWatchers(gameName, roomNumber) {
     }
   }
   return [...watchers.values()].filter((watch) => !stoppedWatchKeys.has(watchKey(watch)));
+}
+
+async function isStillTracking(userId, gameName, roomNumber) {
+  const now = Date.now();
+  let watch = liveWatches.get(userId) || null;
+  if (!watch && supabase) {
+    const { data, error } = await supabase
+      .from("lottery_settings")
+      .select("value")
+      .eq("key", `${WATCH_KEY_PREFIX}${userId}`)
+      .maybeSingle();
+    if (error) console.error("[Electronic] Feature tracking lookup failed:", error.message);
+    watch = data?.value || null;
+  }
+  return Boolean(
+    watch?.userId
+    && watch.gameName === gameName
+    && Number(watch.roomNumber) === Number(roomNumber)
+    && !watch.stoppedAt
+    && !stoppedWatchKeys.has(watchKey(watch))
+    && now - Number(watch.updatedAt || 0) <= LIVE_WATCH_TIMEOUT,
+  );
 }
 
 async function getActiveWatchRooms() {
@@ -1565,6 +1588,17 @@ async function handleElectronicSpin(payload = {}) {
       console.error("[Electronic] Feature notification failed:", result.reason?.message || result.reason);
     }
   });
+  await Promise.all(pendingWatchers.map((watch, index) => {
+    const result = results[index];
+    return featureAudit.recordFeatureNotification({
+      payload: { ...payload, totalWinnings: normalizedWinnings },
+      watch,
+      notificationSucceeded: result.status === "fulfilled",
+      notificationError: result.status === "rejected"
+        ? result.reason?.message || String(result.reason || "通知失敗")
+        : "",
+    });
+  }));
   while (notifiedSpins.size > 500) notifiedSpins.delete(notifiedSpins.values().next().value);
   return delivered;
 }
@@ -1688,6 +1722,7 @@ module.exports = {
   getNextRecommendRoom,
   handleElectronicSpin,
   getActiveWatchRooms,
+  isStillTracking,
   handleAdminRefreshCommand,
   notifyAdminRefreshComplete,
   hydratePendingRecommendations,

@@ -8,8 +8,12 @@
   const CLIENT_TYPE = "web";
   const CYCLE_PAUSE_MS = 10 * 1000;
   const FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000;
-  const GAME_SWITCH_GAP_MS = 800;
+  const GAME_SWITCH_GAP_MS = 1800;
+  const LAUNCH_SETTLE_MS = 1200;
   const REQUEST_TIMEOUT_MS = 15000;
+  const INITIAL_REQUEST_TIMEOUT_MS = 25000;
+  const TARGET_SCAN_MAX_ATTEMPTS = 3;
+  const TARGET_RETRY_GAP_MS = 1800;
   const REQUEST_GAP_MS = 120;
   const MAX_SOURCE_PAGES = 20;
   const GAME_TARGETS = [
@@ -181,9 +185,9 @@
     });
   }
 
-  function emitAck(socket, eventName, payload) {
+  function emitAck(socket, eventName, payload, timeoutMs = REQUEST_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`${eventName} timeout`)), REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => reject(new Error(`${eventName} timeout`)), timeoutMs);
       socket.emit(eventName, payload, (response) => {
         clearTimeout(timer);
         resolve(response);
@@ -265,7 +269,7 @@
       // Match ATG's official sender byte-for-byte. Legacy games reject the
       // redundant `request` field and require the normalized locale casing.
       locale: String(state.locale || "zh-tw").toLowerCase(),
-    });
+    }, eventName === "initial" ? INITIAL_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
     const response = await decodeGameResponse(packet, requestToken);
     if (response?.token) state.token = String(response.token);
     return response;
@@ -399,16 +403,22 @@
       detailCursor: 0,
     };
     state.socket = await connectSocket();
+    try {
+      state.initialResponse = await gameRequestNow(state, "initial", {
+        clientType: CLIENT_TYPE,
+        deviceInfo: {
+          browser: { name: "Chrome", version: navigator.userAgent },
+          os: { name: "Windows" },
+          platform: { type: "DESKTOP_BROWSER" },
+          engine: { name: "blackdomain-packet-worker" },
+        },
+      });
+    } catch (error) {
+      state.socket?.close();
+      state.socket = null;
+      throw error;
+    }
     state.socket.on("disconnect", () => { state.socket = null; });
-    state.initialResponse = await gameRequestNow(state, "initial", {
-      clientType: CLIENT_TYPE,
-      deviceInfo: {
-        browser: { name: "Chrome", version: navigator.userAgent },
-        os: { name: "Windows" },
-        platform: { type: "DESKTOP_BROWSER" },
-        engine: { name: "blackdomain-packet-worker" },
-      },
-    });
     gameStates.clear();
     gameStates.set(state.target.name, state);
     return state;
@@ -515,11 +525,12 @@
     return { target, token };
   }
 
-  async function scanTarget(target, context) {
+  async function scanTarget(target, context, attempt = 1) {
     let state = null;
     try {
       setHostStatus(target, "正在連線…");
       const launch = await createLaunch(target, context);
+      await delay(LAUNCH_SETTLE_MS);
       state = await connectGame(launch, context);
       const lastFullScanAt = Number(lastFullScans.get(target.name)) || 0;
       const fullScanDue = forcedFullScans.has(target.name)
@@ -540,12 +551,20 @@
       setHostStatus(target, `已同步 ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`, "ok");
       console.info(`[BLACKDOMAIN Packet] ${target.name} packet ${fullScanDue ? "full scan" : "RTP refresh"} complete`);
     } catch (error) {
-      setHostStatus(target, `失敗：${error?.message || "未知錯誤"}`, "error");
       console.warn(`[BLACKDOMAIN Packet] ${target.name} packet scan failed`, error?.message || error);
       if (!state) {
         lobbySocket?.close();
         lobbySocket = null;
       }
+      if (!stopping && attempt < TARGET_SCAN_MAX_ATTEMPTS) {
+        state?.socket?.close();
+        gameStates.delete(target.name);
+        state = null;
+        setHostStatus(target, `連線重試 ${attempt} / ${TARGET_SCAN_MAX_ATTEMPTS - 1}…`);
+        await delay(TARGET_RETRY_GAP_MS * attempt);
+        return scanTarget(target, context, attempt + 1);
+      }
+      setHostStatus(target, `失敗：${error?.message || "未知錯誤"}`, "error");
     } finally {
       state?.socket?.close();
       gameStates.delete(target.name);

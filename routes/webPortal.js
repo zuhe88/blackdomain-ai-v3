@@ -3,7 +3,9 @@ const express = require("express");
 const web = require("../services/webChannel");
 const vip = require("../modules/vip");
 const baccarat = require("../modules/baccarat");
+const electronic = require("../modules/electronic");
 const electronicAvailability = require("../modules/electronic/availability");
+const featureAudit = require("../modules/electronic/featureAudit");
 const { isAdminLineUserId } = require("../config/admin");
 const { getSystemHealth } = require("../services/systemHealth");
 function cookies(req) {
@@ -82,12 +84,23 @@ function registerWebPortalRoutes(app) {
     });
     } catch (error) { return next(error); }
   });
-  app.get("/api/web/admin/monitor", (req, res) => {
+  app.get("/api/web/admin/monitor", async (req, res, next) => {
+    try {
     const userId = user(req);
     if (!userId) return res.status(401).json({ error: "請重新登入。" });
     if (!isAdminLineUserId(userId)) return res.status(403).json({ error: "沒有管理員權限。" });
     res.setHeader("cache-control", "no-store");
-    return res.json(getSystemHealth());
+    const featureRecords = await featureAudit.listFeatureNotifications(30);
+    const recordsWithTracking = await Promise.all(featureRecords.map(async (record) => ({
+      ...record,
+      stillTracking: await electronic.isStillTracking(
+        record.member.lineUserId,
+        record.gameName,
+        record.roomNumber,
+      ),
+    })));
+    return res.json({ ...getSystemHealth(), featureRecords: recordsWithTracking });
+    } catch (error) { return next(error); }
   });
   app.get("/api/web/events", (req, res) => {
     const userId = user(req); if (!userId) return res.status(401).end();
@@ -152,7 +165,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20260826.06",
+        portalBuild: "20260826.07",
       });
     } catch (error) { return next(error); }
   });

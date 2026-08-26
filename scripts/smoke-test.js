@@ -296,6 +296,7 @@ const {
 } = require("../modules/baccarat/session");
 const electronic = require("../modules/electronic");
 const electronicSource = require("../modules/electronic/source");
+const featureAudit = require("../modules/electronic/featureAudit");
 const expectedElectronicGames = ["戰神賽特1", "戰神賽特2", "古神巴風特", "虎小妹", "赤三國"];
 if (JSON.stringify(electronicSource.GAME_NAMES) !== JSON.stringify(expectedElectronicGames)) {
   throw new Error("Electronic live source must expose all five ATG games");
@@ -1499,10 +1500,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260826.06", "styles.css?v=20260826.06", "admin.css?v=20260826.06"]) {
+  for (const expected of ["app.js?v=20260826.07", "styles.css?v=20260826.07", "admin.css?v=20260826.07"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.06"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.07"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1525,6 +1526,12 @@ async function main() {
   }
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
+  }
+  for (const expected of ["特色遊戲紀錄", "featureRecords", "通知成功", "仍在追蹤", "偵測派彩"]) {
+    if (!webPortalAppSource.includes(expected)) throw new Error(`Admin feature audit UI is missing: ${expected}`);
+  }
+  for (const expected of ["listFeatureNotifications", "isStillTracking", "featureRecords: recordsWithTracking"]) {
+    if (!webPortalRouteSource.includes(expected)) throw new Error(`Admin feature audit API is missing: ${expected}`);
   }
   if (webPortalAppSource.includes('id:"horse"')) {
     throw new Error("Retired ATG horse must not remain in the website categories");
@@ -1737,8 +1744,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.11.0") {
-    throw new Error("Electronic relay extension version must be 2.11.0");
+  if (electronicRelayManifest.version !== "2.11.1") {
+    throw new Error("Electronic relay extension version must be 2.11.1");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1822,6 +1829,10 @@ async function main() {
     "blackdomain-packet-status",
     "setHostStatus",
     "FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000",
+    "INITIAL_REQUEST_TIMEOUT_MS = 25000",
+    "TARGET_SCAN_MAX_ATTEMPTS = 3",
+    "LAUNCH_SETTLE_MS = 1200",
+    "連線重試",
     "tableCatalogs",
     'fullScanDue ? "full scan" : "RTP refresh"',
     "戰神賽特1",
@@ -3060,6 +3071,24 @@ async function main() {
   if (!naturalFeatureNotification || captured.pushes.length !== naturalFeaturePushCount + 1) {
     throw new Error("Confirmed natural features must not require an optional action label");
   }
+  const featureRecords = await featureAudit.listFeatureNotifications(10);
+  if (!featureRecords.some((record) => (
+    record.spinId === "retryable-feature"
+    && record.notificationSucceeded === false
+    && record.winnings === 500
+  ))) {
+    throw new Error("Failed feature notifications must remain visible in the admin audit");
+  }
+  if (!featureRecords.some((record) => (
+    record.spinId === "retryable-feature"
+    && record.notificationSucceeded === true
+    && record.member.lineUserId === "user-smoke"
+  ))) {
+    throw new Error("Successful feature notifications must identify the notified member in the admin audit");
+  }
+  if (!await electronic.isStillTracking("user-smoke", "戰神賽特1", 88)) {
+    throw new Error("Admin feature audit must report an active room watch before the member stops it");
+  }
   const crossPathDuplicatePushCount = captured.pushes.length;
   const originalDateNow = Date.now;
   const featureCompletionAt = originalDateNow() + 90 * 1000;
@@ -3098,6 +3127,9 @@ async function main() {
     room.gameName === "戰神賽特1" && room.roomNumber === 88
   ))) {
     throw new Error("Stopped electronic rooms must be removed from the relay watch queue");
+  }
+  if (await electronic.isStillTracking("user-smoke", "戰神賽特1", 88)) {
+    throw new Error("Admin feature audit must report that the member stopped tracking the room");
   }
   values = await sendAndTexts("結束房間監控 格式錯誤", "user-smoke");
   assertIncludes(values, "無法辨識房間", "Malformed electronic stop-room command guard");
