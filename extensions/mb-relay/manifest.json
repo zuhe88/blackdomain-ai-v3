@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BLACKDOMAIN 3A Game Relay",
-  "version": "2.10.4",
+  "version": "2.11.0",
   "description": "Synchronizes approved 3A game data with BLACKDOMAIN AI.",
   "permissions": [
     "storage",
@@ -13,7 +13,8 @@
     "https://*.3a1788.bet/*",
     "https://*.3a178.club/*",
     "https://mbracing.cc/*",
-    "https://play.godeebxp.com/*"
+    "https://play.godeebxp.com/*",
+    "https://socket-lottery.godeebxp.com/*"
   ],
   "background": {
     "service_worker": "background.js"

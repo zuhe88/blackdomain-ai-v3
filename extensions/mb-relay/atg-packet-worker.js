@@ -5,6 +5,7 @@
   window.__blackdomainAtgPacketWorkerInstalled = true;
 
   const SOCKET_ORIGIN = "https://socket.godeebxp.com";
+  const HORSE_SOCKET_ORIGIN = "https://socket-lottery.godeebxp.com";
   const CLIENT_TYPE = "web";
   const CYCLE_PAUSE_MS = 10 * 1000;
   const FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000;
@@ -19,6 +20,8 @@
     { name: "虎小妹", checksum: "9c0ec83253193a1c672c2906b83e88e29a61a826", code: "g1009" },
     { name: "赤三國", checksum: "e19fdb8f5121a0abeecca7638e92d010dbe496c1", code: "g1008" },
   ];
+  const HORSE_TARGET = { name: "ATG 賽馬", code: "horse" };
+  const ALL_TARGETS = [...GAME_TARGETS, HORSE_TARGET];
 
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
@@ -30,6 +33,10 @@
   let activeLobbyToken = "";
   let lobbyGames = [];
   let bootstrapPromise = null;
+  let horseSocket = null;
+  let horsePendingDraw = null;
+  let horseLastPacketAt = 0;
+  let hostStartedAt = Date.now();
   let stopping = false;
   const forcedFullScans = new Set();
 
@@ -43,19 +50,46 @@
           setTimeout(render, 25);
           return;
         }
-        document.title = "BLACKDOMAIN ATG 五款封包主機";
+        document.title = "BLACKDOMAIN ATG 即時數據作戰中心";
         document.body.innerHTML = `
-          <main style="min-height:100vh;display:grid;place-items:center;background:#070b12;color:#e8f3ff;font-family:system-ui,sans-serif">
-            <section style="max-width:620px;padding:40px;text-align:center;border:1px solid #1f4568;border-radius:18px;background:#0b1420;box-shadow:0 0 60px #0a78c522">
-              <div style="font-size:13px;letter-spacing:.28em;color:#56b8ff">BLACKDOMAIN RELAY</div>
-              <h1 style="margin:16px 0 8px;font-size:30px">ATG 五款封包主機運作中</h1>
-              <p style="margin:0;color:#9cb4c9;line-height:1.8">戰神賽特1・戰神賽特2・古神巴風特・虎小妹・赤三國</p>
-              <div id="blackdomain-packet-status" style="margin:24px auto 0;display:grid;gap:8px;text-align:left;max-width:420px">
-                ${GAME_TARGETS.map((target) => `<div style="display:flex;justify-content:space-between;gap:20px;padding:9px 12px;border-radius:9px;background:#07101a"><b>${target.name}</b><span id="blackdomain-status-${target.code}" style="color:#9cb4c9">等待掃描</span></div>`).join("")}
-              </div>
-              <p style="margin:22px 0 0;color:#5fd59b">此分頁請保持開啟，不需要切換遊戲。</p>
+          <style>
+            :root{color-scheme:only dark;--bg:#02050b;--panel:#071526;--line:rgba(63,214,255,.32);--cyan:#39d8ff;--green:#37f3a3;--red:#ff5570;--amber:#ffc64b;--muted:#8ca6bd}
+            *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#02050b!important;color:#fff!important;font-family:Inter,"Segoe UI","Noto Sans TC",system-ui,sans-serif}body{overflow-x:hidden}
+            body:before{content:"";position:fixed;inset:0;pointer-events:none;background-image:radial-gradient(circle at 12% 0,rgba(0,144,255,.32),transparent 34%),radial-gradient(circle at 92% 100%,rgba(28,240,166,.17),transparent 34%),linear-gradient(rgba(48,170,229,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(48,170,229,.07) 1px,transparent 1px),linear-gradient(145deg,#02050b,#06101e 58%,#02070d);background-size:auto,auto,38px 38px,38px 38px,auto}
+            .ops{position:relative;isolation:isolate;min-height:100vh;padding:25px clamp(24px,5vw,72px) 23px;background-image:linear-gradient(135deg,rgba(2,8,16,.93),rgba(3,13,25,.86));color:#fff!important}.ops:after{content:"";position:fixed;z-index:-1;width:min(59vw,690px);aspect-ratio:1;right:-4vw;bottom:-19vw;background:url("https://blackdomain-ai-v3-production.up.railway.app/brand/blackdomain-ai-logo.png") center/contain no-repeat;opacity:.13;filter:saturate(1.2) drop-shadow(0 0 45px rgba(255,190,61,.16));pointer-events:none}.topbar{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:18px;border-bottom:2px solid rgba(57,216,255,.25)}
+            .brand{display:flex;align-items:center;gap:17px}.brand-mark{width:61px;height:61px;display:grid;place-items:center;border:2px solid #e5b54a;border-radius:50%;background:#02050b url("https://blackdomain-ai-v3-production.up.railway.app/brand/blackdomain-ai-logo.png") center/cover no-repeat;box-shadow:0 0 30px rgba(229,181,74,.32),inset 0 0 22px rgba(57,216,255,.12);font-size:0}.eyebrow{margin:0 0 4px;color:var(--cyan)!important;-webkit-text-fill-color:var(--cyan)!important;font-size:11px;font-weight:900;letter-spacing:.3em}.brand h1{margin:0;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:clamp(27px,3vw,42px);font-weight:900;letter-spacing:.035em;text-shadow:0 0 25px rgba(57,216,255,.22)}.secure{display:flex;align-items:center;gap:10px;padding:12px 17px;border:2px solid rgba(55,243,163,.55);border-radius:10px;background-image:linear-gradient(145deg,rgba(14,84,63,.72),rgba(5,31,28,.88));box-shadow:0 0 24px rgba(55,243,163,.14);color:#7dffc7!important;-webkit-text-fill-color:#7dffc7!important;font-size:12px;font-weight:950;letter-spacing:.1em}.secure i,.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 13px var(--green);animation:pulse 1.8s ease-in-out infinite}
+            .summary{display:grid;grid-template-columns:1.45fr repeat(3,minmax(125px,.55fr));gap:13px;margin:18px 0}.metric{min-height:94px;padding:15px 18px;border:1px solid rgba(57,216,255,.28);border-radius:13px;background-image:linear-gradient(145deg,#0b2137,#061321);box-shadow:inset 0 1px rgba(255,255,255,.06),0 8px 24px rgba(0,0,0,.2)}.metric span{display:block;color:#80a7c1!important;-webkit-text-fill-color:#80a7c1!important;font-size:10px;font-weight:850;letter-spacing:.15em}.metric strong{display:block;margin-top:7px;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:25px;font-weight:950;font-variant-numeric:tabular-nums}.metric.primary{border-color:rgba(57,216,255,.65);background-image:linear-gradient(135deg,#103d5d,#071a2e);box-shadow:0 0 28px rgba(57,216,255,.12),inset 4px 0 var(--cyan)}.metric.primary strong{color:#76e8ff!important;-webkit-text-fill-color:#76e8ff!important;font-size:29px}.metric small{display:block;margin-top:5px;color:#7d99b1!important;-webkit-text-fill-color:#7d99b1!important;font-size:10px}
+            .section-head{display:flex;align-items:end;justify-content:space-between;gap:20px;margin:2px 0 10px}.section-head h2{margin:0;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:15px;font-weight:900;letter-spacing:.16em}.section-head p{margin:0;color:#7f9bb2!important;-webkit-text-fill-color:#7f9bb2!important;font-size:10px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.game{position:relative;min-height:139px;padding:16px 18px;border:2px solid rgba(57,216,255,.22);border-radius:14px;background-image:linear-gradient(145deg,#0b1d31,#06111e);box-shadow:0 10px 26px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.045);overflow:hidden;transition:border-color .25s,box-shadow .25s,transform .25s}.game:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cyan);box-shadow:0 0 14px var(--cyan)}.game:after{content:"";position:absolute;right:-35px;bottom:-48px;width:120px;height:120px;border:1px solid rgba(57,216,255,.12);border-radius:50%}.game[data-state="ok"]{border-color:rgba(55,243,163,.62);background-image:linear-gradient(145deg,#0b2c2a,#06191c);box-shadow:0 0 25px rgba(55,243,163,.1),0 10px 25px rgba(0,0,0,.28)}.game[data-state="ok"]:before{background:var(--green);box-shadow:0 0 16px var(--green)}.game[data-state="error"]{border-color:rgba(255,85,112,.65);background-image:linear-gradient(145deg,#35131d,#160b12)}.game[data-state="error"]:before{background:var(--red);box-shadow:0 0 15px var(--red)}.game-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.game-index{color:#6ca7c8!important;-webkit-text-fill-color:#6ca7c8!important;font-size:10px;font-weight:900;letter-spacing:.18em}.game-state{display:flex;align-items:center;gap:7px;color:#a4b7c8!important;-webkit-text-fill-color:#a4b7c8!important;font-size:10px;font-weight:950;letter-spacing:.13em}.game-state .dot{background:#607b92;box-shadow:none;animation:none}.game[data-state="ok"] .game-state{color:#73ffc1!important;-webkit-text-fill-color:#73ffc1!important}.game[data-state="ok"] .dot{background:var(--green);box-shadow:0 0 11px var(--green);animation:pulse 1.8s ease-in-out infinite}.game[data-state="error"] .game-state{color:#ff7e92!important;-webkit-text-fill-color:#ff7e92!important}.game[data-state="error"] .dot{background:var(--red)}.game h3{position:relative;margin:11px 0 2px;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:27px;font-weight:950;letter-spacing:.035em;text-shadow:0 0 18px rgba(255,255,255,.18)}.game-type{position:relative;display:block;margin-bottom:9px;color:#9fc4dd!important;-webkit-text-fill-color:#9fc4dd!important;font-size:10px;font-weight:800;letter-spacing:.08em}.status{position:relative;color:#58ddff!important;-webkit-text-fill-color:#58ddff!important;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}.game[data-state="ok"] .status{color:#6dffbd!important;-webkit-text-fill-color:#6dffbd!important}.game[data-state="error"] .status{color:#ff7e92!important;-webkit-text-fill-color:#ff7e92!important}.footer{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:15px;padding-top:14px;border-top:1px solid rgba(57,216,255,.25);color:#8ca6bd!important;-webkit-text-fill-color:#8ca6bd!important;font-size:10px;font-weight:700;letter-spacing:.08em}.footer b{color:#6dffbd!important;-webkit-text-fill-color:#6dffbd!important;font-weight:900}.scanline{position:fixed;left:0;right:0;top:-2px;height:2px;background-image:linear-gradient(90deg,transparent,rgba(57,216,255,.8),transparent);box-shadow:0 0 18px rgba(57,216,255,.55);animation:scan 8s linear infinite;pointer-events:none}@keyframes pulse{50%{opacity:.4;transform:scale(.82)}}@keyframes scan{to{transform:translateY(100vh)}}
+            @media(max-width:900px){.summary{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.ops{padding:22px 14px}.topbar,.footer{align-items:flex-start;flex-direction:column}.summary,.grid{grid-template-columns:1fr}.secure{display:none}}
+          </style>
+          <main class="ops">
+            <div class="scanline"></div>
+            <header class="topbar"><div class="brand"><div class="brand-mark">BLACKDOMAIN AI</div><div><p class="eyebrow">ATG 6-GAME LIVE COMMAND</p><h1>ATG 即時封包指揮中心</h1></div></div><div class="secure"><i></i> 全域數據鏈路運作中</div></header>
+            <section class="summary">
+              <article class="metric primary"><span>核心任務</span><strong>即時封包監控</strong><small>ATG 電子 × 賽馬資料鏈路</small></article>
+              <article class="metric"><span>監控節點</span><strong>6 / 6</strong><small>全部節點已掛載</small></article>
+              <article class="metric"><span>系統運行</span><strong id="blackdomain-uptime">00:00:00</strong><small>不中斷背景同步</small></article>
+              <article class="metric"><span>最近封包</span><strong id="blackdomain-last-packet">等待中</strong><small id="blackdomain-packet-health">建立安全鏈路</small></article>
             </section>
+            <div class="section-head"><h2>LIVE DATA NODES</h2><p>封包接收・解析・安全轉送</p></div>
+            <section id="blackdomain-packet-status" class="grid">
+              ${ALL_TARGETS.map((target, index) => `<article class="game" id="blackdomain-card-${target.code}" data-state="pending"><div class="game-head"><span class="game-index">NODE ${String(index + 1).padStart(2, "0")}</span><span class="game-state"><i class="dot"></i><b id="blackdomain-state-${target.code}">等待連線</b></span></div><h3>${target.name}</h3><span class="game-type">${target.code === "horse" ? "ATG 彩票遊戲・即時開獎資料" : "ATG 電子遊戲・即時 RTP 數據"}</span><div class="status" id="blackdomain-status-${target.code}">等待封包鏈路</div></article>`).join("")}
+            </section>
+            <footer class="footer"><span><b>● 主機運作中</b>　請保持此分頁開啟，不需要切換遊戲</span><span id="blackdomain-clock">TAIPEI --:--:--</span></footer>
           </main>`;
+        hostStartedAt = Date.now();
+        const updateClock = () => {
+          const elapsed = Math.max(0, Date.now() - hostStartedAt);
+          const hours = String(Math.floor(elapsed / 3600000)).padStart(2, "0");
+          const minutes = String(Math.floor(elapsed / 60000) % 60).padStart(2, "0");
+          const seconds = String(Math.floor(elapsed / 1000) % 60).padStart(2, "0");
+          const uptime = document.getElementById("blackdomain-uptime");
+          const clock = document.getElementById("blackdomain-clock");
+          if (uptime) uptime.textContent = `${hours}:${minutes}:${seconds}`;
+          if (clock) clock.textContent = `TAIPEI ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`;
+        };
+        updateClock();
+        setInterval(updateClock, 1000);
       };
       render();
     }, 75);
@@ -67,12 +101,28 @@
     }));
   }
 
+  function emitHorse(body) {
+    window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ATG_HORSE_RELAY", {
+      detail: { ...body, relayMode: "packet-worker" },
+    }));
+  }
+
   function setHostStatus(target, message, kind = "pending") {
     const node = document.getElementById(`blackdomain-status-${target.code}`);
     if (!node) return;
     const clean = String(message || "").replace(/[a-f\d]{24,}/gi, "…").slice(0, 72);
     node.textContent = clean;
-    node.style.color = kind === "ok" ? "#5fd59b" : kind === "error" ? "#ff8b8b" : "#56b8ff";
+    const card = document.getElementById(`blackdomain-card-${target.code}`);
+    const state = document.getElementById(`blackdomain-state-${target.code}`);
+    if (card) card.dataset.state = kind;
+    if (state) state.textContent = kind === "ok" ? "即時同步" : kind === "error" ? "連線異常" : "資料更新中";
+    if (kind === "ok") {
+      const now = new Date();
+      const lastPacket = document.getElementById("blackdomain-last-packet");
+      const health = document.getElementById("blackdomain-packet-health");
+      if (lastPacket) lastPacket.textContent = now.toLocaleTimeString("zh-TW", { hour12: false });
+      if (health) health.textContent = `${target.name} 已安全轉送`;
+    }
   }
 
   function parsePageContext() {
@@ -457,6 +507,90 @@
     lobbyGames = initial.content?.games ?? initial.games ?? initial.content ?? [];
   }
 
+  function normalizeHorseResults(results) {
+    return (Array.isArray(results) ? results : []).map((item) => ({
+      periodId: String(item?.periodId || ""),
+      time: Number(item?.time) || null,
+      result: Array.isArray(item?.result) ? item.result.map(Number) : [],
+    })).filter((item) => item.periodId && item.result.length === 10);
+  }
+
+  function markHorsePacket(label) {
+    horseLastPacketAt = Date.now();
+    setHostStatus(HORSE_TARGET, `${label} ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`, "ok");
+  }
+
+  function startHorseRelay(context) {
+    if (horseSocket || stopping) return;
+    if (typeof window.io !== "function") {
+      setHostStatus(HORSE_TARGET, "Socket.IO 元件未載入", "error");
+      return;
+    }
+    setHostStatus(HORSE_TARGET, "正在連接賽馬資料鏈路…");
+    horseSocket = window.io(HORSE_SOCKET_ORIGIN, {
+      path: "/socket.io",
+      transports: ["websocket"],
+      upgrade: false,
+      forceNew: true,
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 15000,
+      timeout: REQUEST_TIMEOUT_MS,
+      auth: { token: activeLobbyToken || context.token },
+    });
+    horseSocket.on("connect", () => {
+      setHostStatus(HORSE_TARGET, "已連線，等待即時封包…");
+    });
+    horseSocket.on("initial", (payload = {}) => {
+      const results = normalizeHorseResults(payload.engine?.results);
+      if (!results.length) return;
+      emitHorse({
+        type: "snapshot",
+        targetPeriodId: String(payload.engine?.periodId || ""),
+        results,
+      });
+      markHorsePacket(`歷史 ${results.length} 期`);
+    });
+    horseSocket.on("drawNotify", (payload = {}) => {
+      const data = payload.data || {};
+      horsePendingDraw = {
+        periodId: String(data.periodId || ""),
+        nextPeriodId: String(data.nextPeriodId || ""),
+        time: Number(data.serverCurrentTime) || Date.now(),
+      };
+      if (data.nextPeriodId) {
+        emitHorse({
+          type: "state",
+          targetPeriodId: String(data.nextPeriodId),
+          currentPeriodId: String(data.periodId || ""),
+          time: horsePendingDraw.time,
+        });
+      }
+      markHorsePacket(`期號 ${horsePendingDraw.periodId || "更新"}`);
+    });
+    horseSocket.on("horseAnime", (payload = {}) => {
+      const result = Array.isArray(payload.data?.result) ? payload.data.result.map(Number) : [];
+      if (!horsePendingDraw?.periodId || result.length !== 10) return;
+      emitHorse({ type: "result", ...horsePendingDraw, result });
+      markHorsePacket(`開獎 ${horsePendingDraw.periodId}`);
+      horsePendingDraw = null;
+    });
+    horseSocket.on("connect_error", (error) => {
+      setHostStatus(HORSE_TARGET, `重連中：${error?.message || "連線失敗"}`, "error");
+    });
+    horseSocket.on("disconnect", () => {
+      if (!stopping) setHostStatus(HORSE_TARGET, "鏈路中斷，正在自動重連…", "error");
+    });
+    setInterval(() => {
+      if (stopping || !horseSocket) return;
+      if (horseLastPacketAt && Date.now() - horseLastPacketAt > 150000) {
+        setHostStatus(HORSE_TARGET, "超過兩期未收到封包，重新連線…", "error");
+        horseSocket.disconnect();
+        horseSocket.connect();
+      }
+    }, 30000);
+  }
+
   async function createLaunch(target, context) {
     if (!lobbySocket?.connected) await initializeLobby(context);
     const game = findLobbyGame(lobbyGames, target);
@@ -519,7 +653,8 @@
       const context = parsePageContext();
       if (!context) throw new Error("ATG lobby token unavailable");
       await initializeLobby(context);
-      console.info("[BLACKDOMAIN Packet] sequential five-game packet scan active");
+      startHorseRelay(context);
+      console.info("[BLACKDOMAIN Packet] six-game ATG packet relay active");
       while (!stopping) {
         for (const target of GAME_TARGETS) {
           if (stopping) break;
@@ -567,6 +702,7 @@
     stopping = true;
     gameStates.forEach((state) => state.socket?.close());
     lobbySocket?.close();
+    horseSocket?.close();
   });
 
   if (parsePageContext() && !manualGameCaptureRequested()) {
@@ -578,5 +714,5 @@
     console.warn("[BLACKDOMAIN Packet] no ATG launch context; packet host not started");
   }
 
-  console.info("[BLACKDOMAIN Packet] sequential five-game packet worker installed");
+  console.info("[BLACKDOMAIN Packet] six-game packet worker installed");
 }());

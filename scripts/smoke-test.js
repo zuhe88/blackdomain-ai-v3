@@ -1763,8 +1763,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.10.4") {
-    throw new Error("Electronic relay extension version must be 2.10.4");
+  if (electronicRelayManifest.version !== "2.11.0") {
+    throw new Error("Electronic relay extension version must be 2.11.0");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1772,7 +1772,7 @@ async function main() {
   if (!electronicRelayManifest.permissions.includes("debugger")) {
     throw new Error("Relay extension must support a trusted ATG canvas entry click");
   }
-  for (const requiredHost of ["https://mbracing.cc/*", "https://play.godeebxp.com/*"]) {
+  for (const requiredHost of ["https://mbracing.cc/*", "https://play.godeebxp.com/*", "https://socket-lottery.godeebxp.com/*"]) {
     if (!electronicRelayManifest.host_permissions.includes(requiredHost)) {
       throw new Error(`Relay watchdog is missing host access: ${requiredHost}`);
     }
@@ -1838,10 +1838,15 @@ async function main() {
     'searchParams.get("blackdomain_manual") === "1"',
     'new DecompressionStream("deflate")',
     'relayMode: "packet-worker"',
-    "sequential five-game packet scan active",
+    "six-game ATG packet relay active",
     "await scanTarget(target, context)",
     "installExclusiveRelayHost",
-    "ATG 五款封包主機運作中",
+    "ATG 即時數據作戰中心",
+    "HORSE_SOCKET_ORIGIN",
+    "BLACKDOMAIN_ATG_HORSE_RELAY",
+    'horseSocket.on("initial"',
+    'horseSocket.on("drawNotify"',
+    'horseSocket.on("horseAnime"',
     "window.stop()",
     'platform: { type: "DESKTOP_BROWSER" }',
     "blackdomain-packet-status",
@@ -1856,7 +1861,7 @@ async function main() {
     "赤三國",
   ]) {
     if (!packetWorkerSource.includes(expected)) {
-      throw new Error(`ATG five-game packet worker is missing: ${expected}`);
+      throw new Error(`ATG six-game packet worker is missing: ${expected}`);
     }
   }
   for (const removedRotation of [

@@ -2,6 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "blackdomainElectronicRelayKey";
+  const HORSE_STORAGE_KEY = "blackdomainAtgRelayKey";
   let relayKey = "";
   let lastRefreshId = "";
   let watchSyncInFlight = false;
@@ -155,12 +156,52 @@
     return false;
   }
 
+  async function sendHorse(body, attempt = 0) {
+    const saved = await chrome.storage.local.get([HORSE_STORAGE_KEY, STORAGE_KEY, "blackdomainMbRelayKey"]);
+    const key = String(saved[HORSE_STORAGE_KEY] || saved[STORAGE_KEY] || saved.blackdomainMbRelayKey || "").trim();
+    if (!key) {
+      console.warn("[BLACKDOMAIN ATG Horse] missing relay key");
+      return false;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "BLACKDOMAIN_ATG_HORSE_FORWARD",
+        key,
+        body,
+      });
+      if (response?.ok) {
+        if (!saved[HORSE_STORAGE_KEY]) await chrome.storage.local.set({ [HORSE_STORAGE_KEY]: key });
+        return true;
+      }
+      if (response?.status === 401) {
+        await chrome.storage.local.remove(HORSE_STORAGE_KEY);
+        console.warn("[BLACKDOMAIN ATG Horse] relay key rejected");
+        return false;
+      }
+    } catch {
+      // Retry transient extension/background failures below.
+    }
+    if (attempt < 5) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(30000, 1000 * (2 ** attempt))));
+      return sendHorse(body, attempt + 1);
+    }
+    return false;
+  }
+
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_RELAY", async (event) => {
     const body = event.detail;
     if (!body || !["tables", "updates", "detail", "spin"].includes(body.type)) return;
     body.relayVersion = chrome.runtime.getManifest().version;
     lastGameDataAt = Date.now();
     await send(body);
+  });
+
+  window.addEventListener("BLACKDOMAIN_ATG_HORSE_RELAY", async (event) => {
+    const body = event.detail;
+    if (!body || !["snapshot", "state", "result"].includes(body.type)) return;
+    body.relayVersion = chrome.runtime.getManifest().version;
+    lastGameDataAt = Date.now();
+    await sendHorse(body);
   });
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", (event) => {
