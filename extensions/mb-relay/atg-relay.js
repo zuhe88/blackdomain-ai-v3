@@ -167,6 +167,7 @@
     chrome.runtime.sendMessage({
       type: "BLACKDOMAIN_ATG_SESSION_STALE",
       reason: event.detail?.reason || "unknown",
+      recoveryLobbyUrl: event.detail?.recoveryLobbyUrl || "",
     }).catch(() => {});
   });
 

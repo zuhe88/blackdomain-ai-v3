@@ -1744,8 +1744,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.11.1") {
-    throw new Error("Electronic relay extension version must be 2.11.1");
+  if (electronicRelayManifest.version !== "2.11.2") {
+    throw new Error("Electronic relay extension version must be 2.11.2");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1832,6 +1832,9 @@ async function main() {
     "INITIAL_REQUEST_TIMEOUT_MS = 25000",
     "TARGET_SCAN_MAX_ATTEMPTS = 3",
     "LAUNCH_SETTLE_MS = 1200",
+    "rememberLaunchLobby(redirect, context)",
+    'redirect.searchParams.get("goback_url")',
+    'reason: "lobby-ticket-rejected"',
     "連線重試",
     "tableCatalogs",
     'fullScanDue ? "full scan" : "RTP refresh"',
@@ -1844,6 +1847,9 @@ async function main() {
     if (!packetWorkerSource.includes(expected)) {
       throw new Error(`ATG five-game packet worker is missing: ${expected}`);
     }
+  }
+  if (!relayBackgroundSource.includes("message.recoveryLobbyUrl")) {
+    throw new Error("ATG background must preserve the rotated recovery lobby ticket");
   }
   for (const removedRotation of [
     "BLACKDOMAIN_ATG_SCAN_COMPLETE",

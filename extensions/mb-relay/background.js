@@ -352,10 +352,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const key = healthKey(tab?.id);
     chrome.storage.local.get(key)
       .then(async (saved) => {
-        const health = saved[key] || {};
+        let health = saved[key] || {};
         const now = Date.now();
         if (now - Number(health.lastTokenRecoveryAt || 0) < TOKEN_ERROR_RECOVERY_COOLDOWN_MS) {
           return false;
+        }
+        const reportedRecovery = refreshRecoveryLobbyUrl(message.recoveryLobbyUrl, now);
+        if (reportedRecovery) {
+          health = { ...health, recoveryLobbyUrl: reportedRecovery };
+          await chrome.storage.local.set({ blackdomainAtgRecoveryLobbyUrl: reportedRecovery });
         }
         return recoverAtgToken(tab, health, key, now);
       })

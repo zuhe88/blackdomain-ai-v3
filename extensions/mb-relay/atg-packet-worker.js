@@ -33,6 +33,7 @@
   const lastFullScans = new Map();
   let lobbySocket = null;
   let activeLobbyToken = "";
+  let recoveryLobbyUrl = "";
   let lobbyGames = [];
   let bootstrapPromise = null;
   let hostStartedAt = Date.now();
@@ -492,6 +493,25 @@
     ));
   }
 
+  function rememberLaunchLobby(redirect, context) {
+    try {
+      const rawLobbyUrl = redirect.searchParams.get("goback_url");
+      if (!rawLobbyUrl) return;
+      const lobby = new URL(rawLobbyUrl, redirect.href);
+      if (
+        lobby.hostname !== window.location.hostname
+        || !lobby.pathname.includes("/egames/lobby/game/")
+      ) return;
+      const token = String(lobby.searchParams.get("t") || "").trim();
+      if (!token) return;
+      activeLobbyToken = token;
+      context.token = token;
+      recoveryLobbyUrl = lobby.href;
+    } catch {
+      // A launch without a return URL can still use the response token.
+    }
+  }
+
   async function initializeLobby(context) {
     lobbySocket?.close();
     lobbySocket = await connectSocket();
@@ -500,7 +520,11 @@
       token: lobbyToken,
       clientType: CLIENT_TYPE,
     }));
-    if (!initial || Number(initial.status) !== 200) throw new Error("lobbyInitial rejected");
+    if (!initial || Number(initial.status) !== 200) {
+      lobbySocket.close();
+      lobbySocket = null;
+      throw new Error("lobbyInitial rejected");
+    }
     if (initial.token) lobbyToken = String(initial.token);
     activeLobbyToken = lobbyToken;
     lobbyGames = initial.content?.games ?? initial.games ?? initial.content ?? [];
@@ -520,6 +544,9 @@
     }
     if (played.token) activeLobbyToken = String(played.token);
     const redirect = new URL(played.redirectUrl, window.location.href);
+    // ATG rotates the lobby ticket after launches. The fresh ticket lives in
+    // the game's goback_url and must replace the one used by the first cycle.
+    rememberLaunchLobby(redirect, context);
     const token = String(redirect.searchParams.get("t") || "").trim();
     if (!token) throw new Error(`${target.name} launch token missing`);
     return { target, token };
@@ -565,6 +592,14 @@
         return scanTarget(target, context, attempt + 1);
       }
       setHostStatus(target, `失敗：${error?.message || "未知錯誤"}`, "error");
+      if (String(error?.message || "").includes("lobbyInitial rejected")) {
+        window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", {
+          detail: {
+            reason: "lobby-ticket-rejected",
+            recoveryLobbyUrl,
+          },
+        }));
+      }
     } finally {
       state?.socket?.close();
       gameStates.delete(target.name);
@@ -594,7 +629,7 @@
       const message = error?.message || "封包主機啟動失敗";
       GAME_TARGETS.forEach((target) => setHostStatus(target, `啟動失敗：${message}`, "error"));
       window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", {
-        detail: { reason: "packet-bootstrap-failed" },
+        detail: { reason: "packet-bootstrap-failed", recoveryLobbyUrl },
       }));
       gameStates.forEach((state) => state.socket?.close());
       gameStates.clear();
