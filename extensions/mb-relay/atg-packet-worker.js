@@ -5,7 +5,6 @@
   window.__blackdomainAtgPacketWorkerInstalled = true;
 
   const SOCKET_ORIGIN = "https://socket.godeebxp.com";
-  const HORSE_SOCKET_ORIGIN = "https://socket-lottery.godeebxp.com";
   const CLIENT_TYPE = "web";
   const CYCLE_PAUSE_MS = 10 * 1000;
   const FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000;
@@ -20,8 +19,7 @@
     { name: "虎小妹", checksum: "9c0ec83253193a1c672c2906b83e88e29a61a826", code: "g1009" },
     { name: "赤三國", checksum: "e19fdb8f5121a0abeecca7638e92d010dbe496c1", code: "g1008" },
   ];
-  const HORSE_TARGET = { name: "ATG 賽馬", code: "horse" };
-  const ALL_TARGETS = [...GAME_TARGETS, HORSE_TARGET];
+  const ALL_TARGETS = GAME_TARGETS;
 
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
@@ -33,9 +31,6 @@
   let activeLobbyToken = "";
   let lobbyGames = [];
   let bootstrapPromise = null;
-  let horseSocket = null;
-  let horsePendingDraw = null;
-  let horseLastPacketAt = 0;
   let hostStartedAt = Date.now();
   let stopping = false;
   const forcedFullScans = new Set();
@@ -64,16 +59,16 @@
           </style>
           <main class="ops">
             <div class="scanline"></div>
-            <header class="topbar"><div class="brand"><div class="brand-mark">BLACKDOMAIN AI</div><div><p class="eyebrow">ATG 6-GAME LIVE COMMAND</p><h1>ATG 即時封包指揮中心</h1></div></div><div class="secure"><i></i> 全域數據鏈路運作中</div></header>
+            <header class="topbar"><div class="brand"><div class="brand-mark">BLACKDOMAIN AI</div><div><p class="eyebrow">ATG 5-GAME LIVE COMMAND</p><h1>ATG 即時封包指揮中心</h1></div></div><div class="secure"><i></i> 全域數據鏈路運作中</div></header>
             <section class="summary">
               <article class="metric primary"><span>核心任務</span><strong>即時封包監控</strong><small>ATG 電子 × 賽馬資料鏈路</small></article>
-              <article class="metric"><span>監控節點</span><strong>6 / 6</strong><small>全部節點已掛載</small></article>
+              <article class="metric"><span>監控節點</span><strong>5 / 5</strong><small>全部節點已掛載</small></article>
               <article class="metric"><span>系統運行</span><strong id="blackdomain-uptime">00:00:00</strong><small>不中斷背景同步</small></article>
               <article class="metric"><span>最近封包</span><strong id="blackdomain-last-packet">等待中</strong><small id="blackdomain-packet-health">建立安全鏈路</small></article>
             </section>
             <div class="section-head"><h2>LIVE DATA NODES</h2><p>封包接收・解析・安全轉送</p></div>
             <section id="blackdomain-packet-status" class="grid">
-              ${ALL_TARGETS.map((target, index) => `<article class="game" id="blackdomain-card-${target.code}" data-state="pending"><div class="game-head"><span class="game-index">NODE ${String(index + 1).padStart(2, "0")}</span><span class="game-state"><i class="dot"></i><b id="blackdomain-state-${target.code}">等待連線</b></span></div><h3>${target.name}</h3><span class="game-type">${target.code === "horse" ? "ATG 彩票遊戲・即時開獎資料" : "ATG 電子遊戲・即時 RTP 數據"}</span><div class="status" id="blackdomain-status-${target.code}">等待封包鏈路</div></article>`).join("")}
+              ${ALL_TARGETS.map((target, index) => `<article class="game" id="blackdomain-card-${target.code}" data-state="pending"><div class="game-head"><span class="game-index">NODE ${String(index + 1).padStart(2, "0")}</span><span class="game-state"><i class="dot"></i><b id="blackdomain-state-${target.code}">等待連線</b></span></div><h3>${target.name}</h3><span class="game-type">ATG 電子遊戲・即時 RTP 數據</span><div class="status" id="blackdomain-status-${target.code}">等待封包鏈路</div></article>`).join("")}
             </section>
             <footer class="footer"><span><b>● 主機運作中</b>　請保持此分頁開啟，不需要切換遊戲</span><span id="blackdomain-clock">TAIPEI --:--:--</span></footer>
           </main>`;
@@ -97,12 +92,6 @@
 
   function emit(body) {
     window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_RELAY", {
-      detail: { ...body, relayMode: "packet-worker" },
-    }));
-  }
-
-  function emitHorse(body) {
-    window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ATG_HORSE_RELAY", {
       detail: { ...body, relayMode: "packet-worker" },
     }));
   }
@@ -507,90 +496,6 @@
     lobbyGames = initial.content?.games ?? initial.games ?? initial.content ?? [];
   }
 
-  function normalizeHorseResults(results) {
-    return (Array.isArray(results) ? results : []).map((item) => ({
-      periodId: String(item?.periodId || ""),
-      time: Number(item?.time) || null,
-      result: Array.isArray(item?.result) ? item.result.map(Number) : [],
-    })).filter((item) => item.periodId && item.result.length === 10);
-  }
-
-  function markHorsePacket(label) {
-    horseLastPacketAt = Date.now();
-    setHostStatus(HORSE_TARGET, `${label} ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`, "ok");
-  }
-
-  function startHorseRelay(context) {
-    if (horseSocket || stopping) return;
-    if (typeof window.io !== "function") {
-      setHostStatus(HORSE_TARGET, "Socket.IO 元件未載入", "error");
-      return;
-    }
-    setHostStatus(HORSE_TARGET, "正在連接賽馬資料鏈路…");
-    horseSocket = window.io(HORSE_SOCKET_ORIGIN, {
-      path: "/socket.io",
-      transports: ["websocket"],
-      upgrade: false,
-      forceNew: true,
-      reconnection: true,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 15000,
-      timeout: REQUEST_TIMEOUT_MS,
-      auth: { token: activeLobbyToken || context.token },
-    });
-    horseSocket.on("connect", () => {
-      setHostStatus(HORSE_TARGET, "已連線，等待即時封包…");
-    });
-    horseSocket.on("initial", (payload = {}) => {
-      const results = normalizeHorseResults(payload.engine?.results);
-      if (!results.length) return;
-      emitHorse({
-        type: "snapshot",
-        targetPeriodId: String(payload.engine?.periodId || ""),
-        results,
-      });
-      markHorsePacket(`歷史 ${results.length} 期`);
-    });
-    horseSocket.on("drawNotify", (payload = {}) => {
-      const data = payload.data || {};
-      horsePendingDraw = {
-        periodId: String(data.periodId || ""),
-        nextPeriodId: String(data.nextPeriodId || ""),
-        time: Number(data.serverCurrentTime) || Date.now(),
-      };
-      if (data.nextPeriodId) {
-        emitHorse({
-          type: "state",
-          targetPeriodId: String(data.nextPeriodId),
-          currentPeriodId: String(data.periodId || ""),
-          time: horsePendingDraw.time,
-        });
-      }
-      markHorsePacket(`期號 ${horsePendingDraw.periodId || "更新"}`);
-    });
-    horseSocket.on("horseAnime", (payload = {}) => {
-      const result = Array.isArray(payload.data?.result) ? payload.data.result.map(Number) : [];
-      if (!horsePendingDraw?.periodId || result.length !== 10) return;
-      emitHorse({ type: "result", ...horsePendingDraw, result });
-      markHorsePacket(`開獎 ${horsePendingDraw.periodId}`);
-      horsePendingDraw = null;
-    });
-    horseSocket.on("connect_error", (error) => {
-      setHostStatus(HORSE_TARGET, `重連中：${error?.message || "連線失敗"}`, "error");
-    });
-    horseSocket.on("disconnect", () => {
-      if (!stopping) setHostStatus(HORSE_TARGET, "鏈路中斷，正在自動重連…", "error");
-    });
-    setInterval(() => {
-      if (stopping || !horseSocket) return;
-      if (horseLastPacketAt && Date.now() - horseLastPacketAt > 150000) {
-        setHostStatus(HORSE_TARGET, "超過兩期未收到封包，重新連線…", "error");
-        horseSocket.disconnect();
-        horseSocket.connect();
-      }
-    }, 30000);
-  }
-
   async function createLaunch(target, context) {
     if (!lobbySocket?.connected) await initializeLobby(context);
     const game = findLobbyGame(lobbyGames, target);
@@ -653,8 +558,7 @@
       const context = parsePageContext();
       if (!context) throw new Error("ATG lobby token unavailable");
       await initializeLobby(context);
-      startHorseRelay(context);
-      console.info("[BLACKDOMAIN Packet] six-game ATG packet relay active");
+      console.info("[BLACKDOMAIN Packet] five-game ATG packet relay active");
       while (!stopping) {
         for (const target of GAME_TARGETS) {
           if (stopping) break;
@@ -702,7 +606,6 @@
     stopping = true;
     gameStates.forEach((state) => state.socket?.close());
     lobbySocket?.close();
-    horseSocket?.close();
   });
 
   if (parsePageContext() && !manualGameCaptureRequested()) {
@@ -714,5 +617,5 @@
     console.warn("[BLACKDOMAIN Packet] no ATG launch context; packet host not started");
   }
 
-  console.info("[BLACKDOMAIN Packet] six-game packet worker installed");
+  console.info("[BLACKDOMAIN Packet] five-game packet worker installed");
 }());

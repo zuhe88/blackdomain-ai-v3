@@ -8,7 +8,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20260826.05";
+const PORTAL_BUILD="20260826.06";
 let deferredInstallPrompt=null;
 
 const categories={
@@ -24,7 +24,6 @@ const categories={
     {id:"red3",name:"赤三國",subtitle:"AI 智能選房",image:"/images/electronic/red-three-kingdoms-hd.webp",command:"赤三國"},
   ]},
   lottery:{name:"彩票",subtitle:"AI 彩票預測",image:"/images/electronic/mb-marble-hd.webp",items:[
-    {id:"horse",name:"ATG 賽馬",subtitle:"AI 十名定位分析",image:"/images/electronic/atg-horse-hd.webp",command:"ATG賽馬"},
     {id:"mb",name:"MB 彈珠",subtitle:"AI 彈珠預測",image:"/images/electronic/mb-marble-hd.webp",command:"MB彈珠"},
     {id:"539",name:"今彩 539",subtitle:"AI 號碼分析",image:"/images/electronic/lottery539-hd.webp",command:"539"},
   ]},

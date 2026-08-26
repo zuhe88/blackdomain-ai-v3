@@ -8,7 +8,6 @@ const electronic = require("../modules/electronic");
 const baccarat = require("../modules/baccarat");
 const sports = require("../modules/sports");
 const lottery539 = require("../modules/lottery539");
-const atg = require("../modules/atg");
 const mb = require("../modules/mb");
 const vip = require("../modules/vip");
 const official = require("../modules/official");
@@ -84,7 +83,6 @@ async function clearAllUserSessions(userId) {
   clearUser(userId);
   if (electronic.resetElectronicSession) electronic.resetElectronicSession(userId);
   if (baccarat.resetBaccaratSession) await baccarat.resetBaccaratSession(userId);
-  if (atg.resetAtgSession) atg.resetAtgSession(userId);
   if (mb.resetMbSession) mb.resetMbSession(userId);
 }
 
@@ -246,13 +244,6 @@ async function handleEvent(event) {
     return lottery539.handle539Message(event);
   }
 
-  if (atg.isEntryCommand(text)) {
-    await clearAllUserSessions(userId);
-    const allowed = await ensureVipOrReply(event, "atg");
-    if (!allowed) return;
-    return atg.handleAtgMessage(event);
-  }
-
   if (sports.isSportsCommand(text) && ["體育", "體育AI", "SPORT", "SPORT AI"].includes(text)) {
     await clearAllUserSessions(userId);
     return sports.handleSportsMessage(event);
@@ -293,12 +284,6 @@ async function handleEvent(event) {
     const allowed = await ensureVipOrReply(event, "mb");
     if (!allowed) return;
     const handled = await mb.handleMbMessage(event);
-    if (handled !== false) return handled;
-  }
-  if (atg.hasActiveAtgSession(userId) || atg.isAtgCommand(text)) {
-    const allowed = await ensureVipOrReply(event, "atg");
-    if (!allowed) return;
-    const handled = await atg.handleAtgMessage(event);
     if (handled !== false) return handled;
   }
   if (sports.isSportsCommand(text)) {

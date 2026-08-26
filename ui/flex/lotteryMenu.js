@@ -88,12 +88,6 @@ function lotteryMenuFlex() {
       type: "carousel",
       contents: [
         gameCard({
-          title: "ATG賽馬 AI",
-          subtitle: "第一名至第十名 AI 定位分析",
-          image: "atg-horse-hd.webp",
-          actionText: "ATG賽馬",
-        }),
-        gameCard({
           title: "MB彈珠",
           subtitle: "四條賽道即時開獎與定位推薦",
           image: "mb-marble-hd.webp",

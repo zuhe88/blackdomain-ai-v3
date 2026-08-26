@@ -13,8 +13,7 @@
     "https://*.3a1788.bet/*",
     "https://*.3a178.club/*",
     "https://mbracing.cc/*",
-    "https://play.godeebxp.com/*",
-    "https://socket-lottery.godeebxp.com/*"
+    "https://play.godeebxp.com/*"
   ],
   "background": {
     "service_worker": "background.js"

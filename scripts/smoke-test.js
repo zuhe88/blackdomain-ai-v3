@@ -8,7 +8,6 @@ process.env.WEB_SESSION_SECRET = "test-web-session-secret";
 process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.NODE_ENV = "test";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
-process.env.ATG_DISABLE_LIVE = "true";
 process.env.DG_DISABLE_LIVE = "true";
 process.env.MT_DISABLE_LIVE = "true";
 process.env.LINE_HTTP_TIMEOUT_MS = "4321";
@@ -281,8 +280,6 @@ const {
   multicast,
   push,
 } = require("../services/line");
-const { buildAnalysis: buildAtgAnalysis } = require("../modules/atg/service");
-const atgSeed = require("../modules/atg/history-seed.json");
 const mbSource = require("../modules/mb/source");
 const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
 const { mbAnalysisFlex } = require("../modules/mb/flex");
@@ -1463,19 +1460,6 @@ async function main() {
     throw new Error("MB roadmap refresh must not move an active target period backwards");
   }
 
-  const atgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
-    source: "live",
-    targetPeriodId: atgSeed.targetPeriodId,
-    updatedAt: new Date().toISOString(),
-  });
-  if (!atgAnalysis.available || atgAnalysis.rows.length !== 10) throw new Error("ATG analysis must cover all 10 ranks");
-  if (atgAnalysis.recentResults.length !== 3) throw new Error("ATG analysis must expose the latest 3 results");
-  for (const row of atgAnalysis.rows) {
-    if (row.picks.length !== 5 || new Set(row.picks).size !== 5) {
-      throw new Error(`ATG ${row.label} must contain 5 unique picks`);
-    }
-  }
-
   require("../app");
   const root = path.join(__dirname, "..");
   for (const route of ["/portal/login", "/api/web/me", "/api/web/events", "/api/web/command"]) {
@@ -1515,10 +1499,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260826.05", "styles.css?v=20260826.05", "admin.css?v=20260826.05"]) {
+  for (const expected of ["app.js?v=20260826.06", "styles.css?v=20260826.06", "admin.css?v=20260826.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.05"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.06"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1542,10 +1526,8 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
-  const portalAtgCategory = webPortalAppSource.split("atg:{")[1]?.split("lottery:{")[0] || "";
-  const portalLotteryCategory = webPortalAppSource.split("lottery:{")[1]?.split("sports:{")[0] || "";
-  if (portalAtgCategory.includes('id:"horse"') || !portalLotteryCategory.includes('id:"horse"')) {
-    throw new Error("ATG horse must stay in the website lottery category while using the ATG data relay");
+  if (webPortalAppSource.includes('id:"horse"')) {
+    throw new Error("Retired ATG horse must not remain in the website categories");
   }
   for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "restartElectronicRecommendation", 'command.dataset.command==="重新推薦"', "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
     if (!webPortalAppSource.includes(expected) && !fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
@@ -1701,22 +1683,6 @@ async function main() {
   if (!captured.routes.static.some((staticRoot) => path.resolve(staticRoot) === path.join(root, "public", "brand"))) {
     throw new Error("Brand image route is not registered");
   }
-  const seedAtgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
-    source: "seed",
-    targetPeriodId: atgSeed.targetPeriodId,
-    updatedAt: atgSeed.updatedAt,
-  });
-  if (!seedAtgAnalysis.available || seedAtgAnalysis.rows.length !== 10) {
-    throw new Error("ATG seed data with enough complete rankings must remain available and clearly labeled");
-  }
-  const staleAtgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
-    source: "relay",
-    targetPeriodId: atgSeed.targetPeriodId,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  });
-  if (staleAtgAnalysis.available || staleAtgAnalysis.rows.length) {
-    throw new Error("ATG stale real-time data must never expose old recommendations");
-  }
   const timestampedRoom = electronicSource.normalizeTable({
     roomId: "freshness-room",
     number: 99,
@@ -1780,7 +1746,7 @@ async function main() {
   if (!electronicRelayManifest.permissions.includes("debugger")) {
     throw new Error("Relay extension must support a trusted ATG canvas entry click");
   }
-  for (const requiredHost of ["https://mbracing.cc/*", "https://play.godeebxp.com/*", "https://socket-lottery.godeebxp.com/*"]) {
+  for (const requiredHost of ["https://mbracing.cc/*", "https://play.godeebxp.com/*"]) {
     if (!electronicRelayManifest.host_permissions.includes(requiredHost)) {
       throw new Error(`Relay watchdog is missing host access: ${requiredHost}`);
     }
@@ -1846,15 +1812,11 @@ async function main() {
     'searchParams.get("blackdomain_manual") === "1"',
     'new DecompressionStream("deflate")',
     'relayMode: "packet-worker"',
-    "six-game ATG packet relay active",
+    "five-game ATG packet relay active",
     "await scanTarget(target, context)",
     "installExclusiveRelayHost",
     "ATG 即時數據作戰中心",
-    "HORSE_SOCKET_ORIGIN",
-    "BLACKDOMAIN_ATG_HORSE_RELAY",
-    'horseSocket.on("initial"',
-    'horseSocket.on("drawNotify"',
-    'horseSocket.on("horseAnime"',
+    "ATG 5-GAME LIVE COMMAND",
     "window.stop()",
     'platform: { type: "DESKTOP_BROWSER" }',
     "blackdomain-packet-status",
@@ -1869,7 +1831,7 @@ async function main() {
     "赤三國",
   ]) {
     if (!packetWorkerSource.includes(expected)) {
-      throw new Error(`ATG six-game packet worker is missing: ${expected}`);
+      throw new Error(`ATG five-game packet worker is missing: ${expected}`);
     }
   }
   for (const removedRotation of [
@@ -2538,16 +2500,12 @@ async function main() {
   }
 
   values = await sendAndTexts("彩票", "non-vip-lottery-user");
-  assertIncludes(values, "ATG賽馬 AI", "Non-VIP can browse the lottery game cards");
   assertIncludes(values, "MB彈珠", "Non-VIP can see the MB lottery card");
   assertIncludes(values, "今彩539", "Non-VIP can see the 539 lottery card");
   values = await sendAndTexts("539", "non-vip-lottery-user");
   assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the 539 lottery card");
   values = await sendAndTexts("MB彈珠", "non-vip-lottery-user");
   assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the MB lottery card");
-  values = await sendAndTexts("ATG賽馬", "non-vip-lottery-user");
-  assertIncludes(values, "需要開通權限", "Non-VIP is blocked on the ATG lottery card");
-
   values = await sendAndTexts("體育", "non-vip-sports-user");
   assertIncludes(values, "MLB AI", "Non-VIP can browse sports league cards");
   for (const league of ["CPBL", "MLB", "NBA"]) {
@@ -3443,24 +3401,19 @@ async function main() {
     throw new Error("Enabled electronic game menu must not show unavailable status");
   }
   if (values.some((value) => String(value).includes("ATG賽馬"))) {
-    throw new Error("ATG horse must only appear inside the lottery menu");
+    throw new Error("Retired ATG horse must not appear inside the ATG electronic menu");
   }
 
   const lotteryMenuReply = await send("彩票", "user-smoke");
   values = lotteryMenuReply.messages.flatMap((message) => collectText(message));
-  assertIncludes(values, "ATG賽馬", "Lottery game menu");
-  assertIncludes(values, "第一名至第十名 AI 定位分析", "ATG horse availability status");
   assertIncludes(values, "MB彈珠", "Lottery game menu");
   assertIncludes(values, "今彩539", "Lottery game menu");
   const lotteryCards = lotteryMenuReply.messages[0]?.contents?.contents || [];
   const lotteryActions = lotteryCards.map((item) => item.hero?.action?.text);
-  if (lotteryActions.join(",") !== "ATG賽馬,MB彈珠,539") {
+  if (lotteryActions.join(",") !== "MB彈珠,539") {
     throw new Error(`Lottery menu has incorrect game order: ${lotteryActions.join(",")}`);
   }
-  if (!lotteryCards[0]?.hero?.url?.includes("atg-horse-hd.webp")) {
-    throw new Error("ATG horse card must keep the original horse image");
-  }
-  if (!lotteryCards[2]?.hero?.url?.includes("lottery539-hd.webp")) {
+  if (!lotteryCards[1]?.hero?.url?.includes("lottery539-hd.webp")) {
     throw new Error("Lottery 539 card must use the enhanced image");
   }
 
@@ -4135,11 +4088,6 @@ async function main() {
 
   values = await sendAndTexts("CPBL", "user-smoke");
   assertIncludes(values, "AI預測勝方", "Sports analysis");
-
-  values = await sendAndTexts("ATG賽馬", "user-smoke");
-  assertIncludes(values, "第一名至第十名定位分析", "ATG horse entry menu");
-  values = await sendAndTexts("ATG 5碼", "user-smoke");
-  assertIncludes(values, "ATG賽馬AI", "ATG horse analysis result");
 
   await push("push-user", "測試推播");
   await multicast(["user-a", "user-b"], "測試群發");
