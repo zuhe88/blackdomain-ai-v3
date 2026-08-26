@@ -14,6 +14,7 @@ coverage
 
 dist
 build
+output/
 
 .tmp
 .temp

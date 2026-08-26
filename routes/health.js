@@ -63,7 +63,7 @@ function registerHealthRoutes(app) {
       websiteMonitoringLifecycle: "server-session-v2",
       portalDirectReplyRendering: "unfiltered-v2",
       lineMemberBindingPreserved: true,
-      portalBuild: "20260822.01",
+      portalBuild: "20260826.01",
     });
   });
 }
