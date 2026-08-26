@@ -1515,10 +1515,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260826.04", "styles.css?v=20260826.04", "admin.css?v=20260826.04"]) {
+  for (const expected of ["app.js?v=20260826.05", "styles.css?v=20260826.05", "admin.css?v=20260826.05"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.04"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.05"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1701,13 +1701,21 @@ async function main() {
   if (!captured.routes.static.some((staticRoot) => path.resolve(staticRoot) === path.join(root, "public", "brand"))) {
     throw new Error("Brand image route is not registered");
   }
-  const staleAtgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
+  const seedAtgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
     source: "seed",
     targetPeriodId: atgSeed.targetPeriodId,
     updatedAt: atgSeed.updatedAt,
   });
+  if (!seedAtgAnalysis.available || seedAtgAnalysis.rows.length !== 10) {
+    throw new Error("ATG seed data with enough complete rankings must remain available and clearly labeled");
+  }
+  const staleAtgAnalysis = buildAtgAnalysis(atgSeed.results, 5, {
+    source: "relay",
+    targetPeriodId: atgSeed.targetPeriodId,
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
   if (staleAtgAnalysis.available || staleAtgAnalysis.rows.length) {
-    throw new Error("ATG seed or stale data must never expose old recommendations");
+    throw new Error("ATG stale real-time data must never expose old recommendations");
   }
   const timestampedRoom = electronicSource.normalizeTable({
     roomId: "freshness-room",

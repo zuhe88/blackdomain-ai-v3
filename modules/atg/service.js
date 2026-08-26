@@ -97,11 +97,14 @@ function buildAnalysis(records, pickCount, metadata = {}) {
   const history = normalizeHistory(records);
   const source = metadata.source || "unavailable";
   const timestamp = Date.parse(metadata.updatedAt || "");
-  const stale = !["live", "relay"].includes(source)
-    || !Number.isFinite(timestamp)
+  const isRealtime = ["live", "relay"].includes(source);
+  const stale = isRealtime && (
+    !Number.isFinite(timestamp)
     || Date.now() - timestamp < 0
-    || Date.now() - timestamp > LIVE_TTL_MS;
-  if (history.length < 20 || stale) {
+    || Date.now() - timestamp > LIVE_TTL_MS
+  );
+  const supportedSource = isRealtime || source === "seed";
+  if (history.length < 20 || stale || !supportedSource) {
     return {
       available: false,
       stale,
