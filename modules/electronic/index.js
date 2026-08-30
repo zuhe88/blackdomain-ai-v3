@@ -1599,7 +1599,6 @@ async function handleElectronicSpin(payload = {}) {
   if (!isElectronicGameEnabled(payload.gameName)) return false;
   const featureTrigger = String(payload.featureTrigger || "");
   const isConfirmedFeature = featureTrigger === "purchased"
-    || featureTrigger === "room-monitor"
     || featureTrigger === "natural";
   if (!isConfirmedFeature) return false;
   const roomNumber = Number(payload.roomNumber);
@@ -1653,7 +1652,6 @@ async function handleElectronicSpin(payload = {}) {
     formatRoom(payload.gameName, roomNumber),
     winnings,
     afterRecommendQuickReply(),
-    { estimated: featureTrigger === "room-monitor" },
   );
   const results = await Promise.allSettled(
     pendingWatchers.map((watch) => pushStrict(watch.userId, message)),

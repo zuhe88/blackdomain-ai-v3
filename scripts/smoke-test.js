@@ -1500,10 +1500,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260826.07", "styles.css?v=20260826.07", "admin.css?v=20260826.07"]) {
+  for (const expected of ["app.js?v=20260830.02", "styles.css?v=20260830.02", "admin.css?v=20260830.02"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260826.07"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260830.02"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1527,7 +1527,7 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
-  for (const expected of ["特色遊戲紀錄", "featureRecords", "通知成功", "仍在追蹤", "房間派彩差額（估算）", "admin-direct-watch-form", "/api/web/admin/electronic-watch", "/api/web/admin/electronic-room", "搜尋紀錄"]) {
+  for (const expected of ["特色遊戲紀錄", "featureRecords", "通知成功", "仍在追蹤", "實際開獎金額（精確）", "admin-direct-watch-form", "/api/web/admin/electronic-watch", "/api/web/admin/electronic-room", "搜尋紀錄"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Admin feature audit UI is missing: ${expected}`);
   }
   for (const expected of ["listFeatureNotifications", "isStillTracking", "featureRecords: recordsWithTracking"]) {
@@ -3579,6 +3579,34 @@ async function main() {
     || activeAdminWatch?.adminDirect !== true
   ) {
     throw new Error("Administrators must be able to directly monitor Seth 2 room 1165");
+  }
+  const exactOnlyPushCount = captured.pushes.length;
+  const estimatedAdminNotification = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特2",
+    roomNumber: 1165,
+    spinId: "admin-room-statistics-only",
+    totalWinnings: 55,
+    featureTrigger: "room-monitor",
+  });
+  if (estimatedAdminNotification || captured.pushes.length !== exactOnlyPushCount) {
+    throw new Error("Room-level payout deltas must never trigger exact feature notifications");
+  }
+  const exactAdminNotification = await electronic.handleElectronicSpin({
+    gameName: "戰神賽特2",
+    roomNumber: 1165,
+    spinId: "admin-exact-feature-packet",
+    totalWinnings: 888,
+    featureTrigger: "purchased",
+  });
+  const exactAdminTexts = captured.pushes.at(-1)?.messages
+    ?.flatMap((message) => collectText(message)) || [];
+  if (
+    !exactAdminNotification
+    || captured.pushes.length !== exactOnlyPushCount + 1
+    || !exactAdminTexts.includes("本次開獎金額（精確）")
+    || !exactAdminTexts.includes("888.00")
+  ) {
+    throw new Error("Exact precomputed feature packets must notify the selected room before animation");
   }
 
   const atgGameMenuReply = await send("ATG", "user-smoke");

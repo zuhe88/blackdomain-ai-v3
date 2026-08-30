@@ -182,13 +182,12 @@ function electronicAnalyzeFlex(gameName, room, updateTime, quickReply, options =
   });
 }
 
-function electronicFeatureResultFlex(gameName, room, winnings, quickReply, options = {}) {
+function electronicFeatureResultFlex(gameName, room, winnings, quickReply) {
   const amount = Number(winnings).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const estimated = options.estimated === true;
-  const amountLabel = estimated ? "房間派彩差額（估算）" : "本次開獎金額（精確）";
+  const amountLabel = "本次開獎金額（精確）";
   const message = {
     type: "flex",
     altText: `${gameName} 房號 ${room} ${amountLabel} ${amount}`,
@@ -207,7 +206,6 @@ function electronicFeatureResultFlex(gameName, room, winnings, quickReply, optio
           text(gameName, { size: "xl", weight: "bold", color: COLORS.gold, align: "center" }),
           infoLine("房號", room),
           infoLine(amountLabel, amount),
-          ...(estimated ? [note("此數字來自全房累計派彩變化，僅供判斷特色遊戲已觸發，不代表單一玩家實際派彩。")]: []),
         ],
       },
     },

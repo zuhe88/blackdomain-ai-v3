@@ -12,6 +12,9 @@ function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
 }
 function user(req) { return web.authenticate(cookies(req).blackdomain_web); }
+function isExactFeatureRecord(record) {
+  return record?.featureTrigger === "purchased" || record?.featureTrigger === "natural";
+}
 
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
@@ -90,7 +93,9 @@ function registerWebPortalRoutes(app) {
     if (!userId) return res.status(401).json({ error: "請重新登入。" });
     if (!isAdminLineUserId(userId)) return res.status(403).json({ error: "沒有管理員權限。" });
     res.setHeader("cache-control", "no-store");
-    const featureRecords = await featureAudit.listFeatureNotifications(30);
+    const featureRecords = (await featureAudit.listFeatureNotifications(100))
+      .filter(isExactFeatureRecord)
+      .slice(0, 30);
     const recordsWithTracking = await Promise.all(featureRecords.map(async (record) => ({
       ...record,
       stillTracking: await electronic.isStillTracking(
@@ -124,7 +129,8 @@ function registerWebPortalRoutes(app) {
       const roomNumber = Number(req.query.roomNumber);
       const allRecords = await featureAudit.listFeatureNotifications(100);
       const matching = allRecords.filter((record) => (
-        record.gameName === gameName && Number(record.roomNumber) === roomNumber
+        isExactFeatureRecord(record)
+        && record.gameName === gameName && Number(record.roomNumber) === roomNumber
       ));
       const records = await Promise.all(matching.map(async (record) => ({
         ...record,
@@ -202,7 +208,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20260826.07",
+        portalBuild: "20260830.02",
       });
     } catch (error) { return next(error); }
   });
