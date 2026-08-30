@@ -41,6 +41,14 @@ function formatAmount(value) {
     : "尚未取得";
 }
 
+function betVolumeRatio(detail = {}) {
+  const todayBet = Number(detail.todayBet ?? detail.hourBet);
+  const monthBet = Number(detail.dayBet);
+  return Number.isFinite(todayBet) && todayBet >= 0 && Number.isFinite(monthBet) && monthBet > 0
+    ? `${((todayBet / monthBet) * 100).toFixed(2)}%`
+    : "尚無資料";
+}
+
 function statCell(label, value, color = COLORS.white, options = {}) {
   return {
     type: "box",
@@ -96,7 +104,14 @@ function rtpSummary(detail = {}) {
   };
 }
 
-function betSummary(detail = {}) {
+function betSummary(detail = {}, gameName = "") {
+  const cells = [
+    statCell("今日總下注額", formatAmount(detail.todayBet ?? detail.hourBet), COLORS.green),
+    statCell("近30天總下注額", formatAmount(detail.dayBet), COLORS.gold),
+  ];
+  if (gameName === "戰神賽特2") {
+    cells.push(statCell("下注占比", betVolumeRatio(detail), COLORS.blue, { labelSize: "xxs" }));
+  }
   return {
     type: "box",
     layout: "horizontal",
@@ -106,10 +121,7 @@ function betSummary(detail = {}) {
     backgroundColor: "#11100E",
     borderColor: "#4C3C1E",
     borderWidth: "1px",
-    contents: [
-      statCell("今日總下注額", formatAmount(detail.todayBet ?? detail.hourBet), COLORS.green),
-      statCell("近30天總下注額", formatAmount(detail.dayBet), COLORS.gold),
-    ],
+    contents: cells,
   };
 }
 
@@ -134,8 +146,10 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomDat
       ...(detail ? [section([
         text("RTP 評估", { size: "sm", weight: "bold", color: COLORS.gold, align: "center" }),
         rtpSummary(detail),
-        betSummary(detail),
-        text("依今日與近30天房間統計換算", {
+        betSummary(detail, gameName),
+        text(gameName === "戰神賽特2"
+          ? "下注占比＝今日下注量 ÷ 近30天下注量｜30天得分率須為 85～95%"
+          : "依今日與近30天房間統計換算", {
           size: "xxs",
           color: COLORS.muted,
           align: "center",
