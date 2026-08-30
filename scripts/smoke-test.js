@@ -1527,7 +1527,7 @@ async function main() {
   for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
-  for (const expected of ["特色遊戲紀錄", "featureRecords", "通知成功", "仍在追蹤", "偵測派彩"]) {
+  for (const expected of ["特色遊戲紀錄", "featureRecords", "通知成功", "仍在追蹤", "房間派彩差額（估算）", "admin-direct-watch-form", "/api/web/admin/electronic-watch", "/api/web/admin/electronic-room", "搜尋紀錄"]) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Admin feature audit UI is missing: ${expected}`);
   }
   for (const expected of ["listFeatureNotifications", "isStillTracking", "featureRecords: recordsWithTracking"]) {
@@ -3547,6 +3547,38 @@ async function main() {
     || Math.abs(delayedFeatureSample.feature.totalWinnings - 55) > 1e-6
   ) {
     throw new Error("Seth 2 room monitoring must detect a feature after polling misses the exact zero count");
+  }
+  const deniedAdminWatch = electronic.startAdminRoomWatch(
+    "non-admin-direct-watch",
+    "戰神賽特2",
+    1165,
+  );
+  if (deniedAdminWatch.ok) {
+    throw new Error("Direct electronic room monitoring must be restricted to administrators");
+  }
+  const invalidAdminWatch = electronic.startAdminRoomWatch(
+    "Uaf293ee976e5170d4e8672d2c12b3f76",
+    "戰神賽特2",
+    4001,
+  );
+  if (invalidAdminWatch.ok) {
+    throw new Error("Direct electronic room monitoring must validate each game's room range");
+  }
+  const adminWatch = electronic.startAdminRoomWatch(
+    "Uaf293ee976e5170d4e8672d2c12b3f76",
+    "戰神賽特2",
+    1165,
+  );
+  const activeAdminWatch = await electronic.getActiveWatchForUser(
+    "Uaf293ee976e5170d4e8672d2c12b3f76",
+  );
+  if (
+    !adminWatch.ok
+    || activeAdminWatch?.gameName !== "戰神賽特2"
+    || activeAdminWatch?.roomNumber !== 1165
+    || activeAdminWatch?.adminDirect !== true
+  ) {
+    throw new Error("Administrators must be able to directly monitor Seth 2 room 1165");
   }
 
   const atgGameMenuReply = await send("ATG", "user-smoke");

@@ -99,8 +99,45 @@ function registerWebPortalRoutes(app) {
         record.roomNumber,
       ),
     })));
-    return res.json({ ...getSystemHealth(), featureRecords: recordsWithTracking });
+    const adminWatch = await electronic.getActiveWatchForUser(userId);
+    return res.json({ ...getSystemHealth(), featureRecords: recordsWithTracking, adminWatch });
     } catch (error) { return next(error); }
+  });
+  app.post("/api/web/admin/electronic-watch", express.json({ limit: "4kb" }), async (req, res, next) => {
+    try {
+      const userId = user(req);
+      if (!userId) return res.status(401).json({ error: "請重新登入。" });
+      if (!isAdminLineUserId(userId)) return res.status(403).json({ error: "沒有管理員權限。" });
+      const result = electronic.startAdminRoomWatch(userId, req.body?.gameName, req.body?.roomNumber);
+      if (!result.ok) return res.status(400).json(result);
+      return res.json(result);
+    } catch (error) {
+      return next(error);
+    }
+  });
+  app.get("/api/web/admin/electronic-room", async (req, res, next) => {
+    try {
+      const userId = user(req);
+      if (!userId) return res.status(401).json({ error: "請重新登入。" });
+      if (!isAdminLineUserId(userId)) return res.status(403).json({ error: "沒有管理員權限。" });
+      const gameName = String(req.query.gameName || "");
+      const roomNumber = Number(req.query.roomNumber);
+      const allRecords = await featureAudit.listFeatureNotifications(100);
+      const matching = allRecords.filter((record) => (
+        record.gameName === gameName && Number(record.roomNumber) === roomNumber
+      ));
+      const records = await Promise.all(matching.map(async (record) => ({
+        ...record,
+        stillTracking: await electronic.isStillTracking(
+          record.member.lineUserId,
+          record.gameName,
+          record.roomNumber,
+        ),
+      })));
+      return res.json({ ok: true, gameName, roomNumber, records });
+    } catch (error) {
+      return next(error);
+    }
   });
   app.get("/api/web/events", (req, res) => {
     const userId = user(req); if (!userId) return res.status(401).end();

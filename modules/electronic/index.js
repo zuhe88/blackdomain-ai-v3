@@ -599,6 +599,59 @@ async function isStillTracking(userId, gameName, roomNumber) {
   );
 }
 
+async function getActiveWatchForUser(userId) {
+  let watch = liveWatches.get(userId) || null;
+  if (!watch && supabase) {
+    const { data, error } = await supabase
+      .from("lottery_settings")
+      .select("value")
+      .eq("key", `${WATCH_KEY_PREFIX}${userId}`)
+      .maybeSingle();
+    if (error) console.error("[Electronic] Active watch lookup failed:", error.message);
+    watch = data?.value || null;
+  }
+  if (
+    !watch
+    || watch.stoppedAt
+    || Date.now() - Number(watch.updatedAt || 0) > LIVE_WATCH_TIMEOUT
+  ) return null;
+  return {
+    gameName: watch.gameName,
+    roomNumber: Number(watch.roomNumber),
+    updatedAt: Number(watch.updatedAt),
+    adminDirect: watch.adminDirect === true,
+  };
+}
+
+function startAdminRoomWatch(userId, gameName, roomNumber) {
+  if (!isAdminLineUserId(userId)) return { ok: false, error: "沒有管理員權限。" };
+  const config = GAME_CONFIG[String(gameName || "")];
+  const number = Number(roomNumber);
+  if (!config) return { ok: false, error: "不支援此電子遊戲。" };
+  if (!Number.isInteger(number) || number < config.min || number > config.max) {
+    return { ok: false, error: `房號必須介於 ${config.min}～${config.max}。` };
+  }
+  allowNewLiveWatch(userId);
+  releaseRoomRecommendationLeases(userId);
+  const watch = {
+    userId,
+    gameName: config.name,
+    roomNumber: number,
+    updatedAt: Date.now(),
+    adminDirect: true,
+  };
+  rememberLiveWatch(watch);
+  return {
+    ok: true,
+    watch: {
+      gameName: watch.gameName,
+      roomNumber: watch.roomNumber,
+      updatedAt: watch.updatedAt,
+      adminDirect: true,
+    },
+  };
+}
+
 async function getActiveWatchRooms() {
   const watches = new Map();
   const now = Date.now();
@@ -1600,6 +1653,7 @@ async function handleElectronicSpin(payload = {}) {
     formatRoom(payload.gameName, roomNumber),
     winnings,
     afterRecommendQuickReply(),
+    { estimated: featureTrigger === "room-monitor" },
   );
   const results = await Promise.allSettled(
     pendingWatchers.map((watch) => pushStrict(watch.userId, message)),
@@ -1762,6 +1816,8 @@ module.exports = {
   handleElectronicSpin,
   getActiveWatchRooms,
   isStillTracking,
+  getActiveWatchForUser,
+  startAdminRoomWatch,
   handleAdminRefreshCommand,
   notifyAdminRefreshComplete,
   hydratePendingRecommendations,
