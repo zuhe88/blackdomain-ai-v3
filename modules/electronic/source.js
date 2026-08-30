@@ -204,7 +204,6 @@ function ingestDetail(payload = {}) {
   const previousCounts = previous?.detail?.mgCounts || [];
   const featureReset = normalized.status === "Full"
     && previousCounts[0] > 0
-    && currentCounts[0] === 0
     && currentCounts[1] === previousCounts[0]
     && currentCounts[2] === previousCounts[1];
   let pending = previous?.pending || null;

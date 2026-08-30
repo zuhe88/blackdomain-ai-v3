@@ -3506,6 +3506,49 @@ async function main() {
     throw new Error("Occupied recommended rooms must remain feature-monitored after leaving the empty-room pool");
   }
 
+  electronicSource.resetForTest();
+  electronicSource.ingestTables({
+    gameName: "戰神賽特2",
+    tables: [{
+      roomId: "delayed-feature-sample",
+      number: 1165,
+      status: "Empty",
+      todayWin: 100,
+      todayBet: 1000,
+      mgCounts: [17, 3, 13],
+    }],
+  });
+  electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "delayed-feature-sample",
+      number: 1165,
+      status: "Empty",
+      todayWin: 100,
+      todayBet: 1000,
+      mgCounts: [17, 3, 13],
+      capturedAt: Date.now(),
+    },
+  });
+  const delayedFeatureSample = electronicSource.ingestDetail({
+    gameName: "戰神賽特2",
+    detail: {
+      roomId: "delayed-feature-sample",
+      number: 1165,
+      status: "Full",
+      todayWin: 155,
+      todayBet: 1100,
+      mgCounts: [2, 17, 3],
+      capturedAt: Date.now() + 2000,
+    },
+  });
+  if (
+    delayedFeatureSample?.feature?.featureTrigger !== "room-monitor"
+    || Math.abs(delayedFeatureSample.feature.totalWinnings - 55) > 1e-6
+  ) {
+    throw new Error("Seth 2 room monitoring must detect a feature after polling misses the exact zero count");
+  }
+
   const atgGameMenuReply = await send("ATG", "user-smoke");
   const electronicCards = atgGameMenuReply.messages[0]?.contents?.contents || [];
   const electronicActions = electronicCards.map((item) => item.hero?.action?.text);
