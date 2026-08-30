@@ -1536,7 +1536,7 @@ async function main() {
   if (webPortalAppSource.includes('id:"horse"')) {
     throw new Error("Retired ATG horse must not remain in the website categories");
   }
-  for (const expected of ["selectedHasUsableRtp", "scoreRoomForRecommendation(session.gameName, selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "restartElectronicRecommendation", 'command.dataset.command==="重新推薦"', "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
+  for (const expected of ["selectedHasUsableRtp", "scoreSethRoomByRtp(selected) != null", "recoverElectronicRecommendation", "setInterval(recoverElectronicRecommendation,5_000)", "restartElectronicRecommendation", 'command.dataset.command==="重新推薦"', "ELECTRONIC_CLIENT_TIMEOUT_MS=95_000", "recommend-timeout", "entry.at", "activeOperation.startedAt"]) {
     if (!webPortalAppSource.includes(expected) && !fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
       throw new Error(`Electronic recommendation anti-stall recovery is missing: ${expected}`);
     }
@@ -1904,8 +1904,6 @@ async function main() {
     "可信度",
     "今日總下注額",
     "近30天總下注額",
-    "下注占比",
-    "今日下注量 ÷ 近30天下注量",
   ]) {
     if (!electronicResultSource.includes(expected)) {
       throw new Error(`Electronic recommendation card is missing RTP display: ${expected}`);
@@ -1921,8 +1919,6 @@ async function main() {
     "refreshBackgroundRecommendationProbes(now)",
     "bucketCount = Math.min(batchSize, RECOMMEND_PROBE_BATCH_SIZE)",
     "spreadRtpQualityPool(pool, gameName)",
-    "monthRtp < SETH2_MONTH_RTP_MIN",
-    "isSeth2BetRatioRecommendable(betRatio)",
   ]) {
     if (!electronicRecommendationModuleSource.includes(expected)) {
       throw new Error(`Electronic recommendation must keep expanding its RTP pool: ${expected}`);
@@ -2693,34 +2689,25 @@ async function main() {
         roomId: "seth-rtp-low",
         number: 3998,
         status: "Empty",
-        todayBet: 100000,
-        todayWin: 95000,
+        todayBet: 500000,
+        todayWin: 475000,
         dayBet: 10000000,
-        dayWin: 9000000,
+        dayWin: 9700000,
       },
       {
         roomId: "seth-rtp-high",
         number: 3999,
         status: "Empty",
-        todayBet: 200000,
-        todayWin: 220000,
+        todayBet: 500000,
+        todayWin: 550000,
         dayBet: 10000000,
-        dayWin: 9500000,
-      },
-      {
-        roomId: "seth-bad-volume",
-        number: 3994,
-        status: "Empty",
-        todayBet: 40000,
-        todayWin: 40000,
-        dayBet: 10000000,
-        dayWin: 9000000,
+        dayWin: 10500000,
       },
     ],
   });
   const rtpRankedRoom = electronic.getNextRecommendRoom("rtp-ranking-user", electronicSource.GAME_NAMES[1]);
   if (![3998, 3999].includes(rtpRankedRoom?.number)) {
-    throw new Error("Seth 2 recommendations must stay inside the valid RTP and bet-volume pool");
+    throw new Error("Seth 2 recommendations must stay inside the valid RTP room pool");
   }
   const secondUserRtpRoom = electronic.getNextRecommendRoom(
     "rtp-ranking-user-2",
@@ -2739,10 +2726,10 @@ async function main() {
       roomId: `seth-rotation-${number}`,
       number,
       status: "Empty",
-      todayBet: 100000 + (index * 50000),
-      todayWin: 95000 + (index * 45000),
+      todayBet: 500000,
+      todayWin: 520000 - (index * 5000),
       dayBet: 10000000,
-      dayWin: 9000000 - (index * 50000),
+      dayWin: 10100000 - (index * 50000),
     })),
   });
   const rotationRooms = Array.from({ length: 3 }, () => (
@@ -2750,67 +2737,6 @@ async function main() {
   ));
   if (new Set(rotationRooms).size !== rotationRooms.length) {
     throw new Error(`Seth 2 recent recommendations must not repeat: ${rotationRooms.join(",")}`);
-  }
-  electronicSource.resetForTest();
-  electronicSource.ingestTables({
-    type: "tables",
-    gameName: electronicSource.GAME_NAMES[1],
-    scanId: "invalid-seth2-conditions",
-    page: 1,
-    totalPages: 1,
-    scanComplete: true,
-    emptyOnly: true,
-    tables: [
-      {
-        roomId: "seth-too-little-volume",
-        number: 3003,
-        status: "Empty",
-        todayBet: 40,
-        dayBet: 10000,
-        dayRtp: 90,
-      },
-      {
-        roomId: "seth-outside-month-rtp",
-        number: 3004,
-        status: "Empty",
-        todayBet: 100,
-        dayBet: 10000,
-        dayRtp: 96,
-      },
-      {
-        roomId: "seth-regression-2737",
-        number: 2737,
-        status: "Empty",
-        todayBet: 9676.8,
-        dayBet: 11506938.6,
-        todayRtp: 116.81,
-        dayRtp: 98.32,
-      },
-    ],
-  });
-  if (electronic.getNextRecommendRoom("invalid-seth2-user", "戰神賽特2") !== null) {
-    throw new Error("Seth 2 must reject room 2737 and other rooms outside the volume or monthly RTP limits");
-  }
-  electronicSource.resetForTest();
-  electronicSource.ingestTables({
-    type: "tables",
-    gameName: electronicSource.GAME_NAMES[1],
-    scanId: "seth2-mid-volume-band",
-    page: 1,
-    totalPages: 1,
-    scanComplete: true,
-    emptyOnly: true,
-    tables: [{
-      roomId: "seth-mid-volume",
-      number: 3005,
-      status: "Empty",
-      todayBet: 275,
-      dayBet: 10000,
-      dayRtp: 90,
-    }],
-  });
-  if (electronic.getNextRecommendRoom("seth2-mid-volume-user", "戰神賽特2")?.number !== 3005) {
-    throw new Error("Seth 2 must recommend rooms in the 2.5-3.0% bet-volume band");
   }
   electronicSource.resetForTest();
   electronicSource.ingestTables({
@@ -2826,19 +2752,15 @@ async function main() {
         roomId: "persistent-history-3001",
         number: 3001,
         status: "Empty",
-        todayBet: 100,
-        dayBet: 10000,
         todayRtp: 120,
-        dayRtp: 90,
+        dayRtp: 110,
       },
       {
         roomId: "persistent-history-3002",
         number: 3002,
         status: "Empty",
-        todayBet: 150,
-        dayBet: 10000,
         todayRtp: 105,
-        dayRtp: 92,
+        dayRtp: 102,
       },
     ],
   });
@@ -2945,7 +2867,7 @@ async function main() {
       status: "Empty",
       todayWin: 98,
       todayBet: 100,
-      dayWin: 900,
+      dayWin: 980,
       dayBet: 1000,
     },
   });
@@ -2957,7 +2879,7 @@ async function main() {
       status: "Empty",
       todayWin: 198,
       todayBet: 200,
-      dayWin: 1800,
+      dayWin: 1980,
       dayBet: 2000,
     },
   }), 10);
@@ -2977,7 +2899,6 @@ async function main() {
     .flatMap((entry) => entry.messages.flatMap((message) => collectText(message)));
   assertIncludes(automaticRecommendationTexts, "推薦房號", "Electronic data-ready automatic recommendation");
   assertIncludes(automaticRecommendationTexts, "98.00%", "Electronic automatic recommendation immediately uses existing fresh RTP details");
-  assertIncludes(automaticRecommendationTexts, "10.00%", "Seth 2 recommendation displays its bet-volume ratio");
   if (automaticRecommendationTexts.some((value) => value === "即時房間數據同步中")) {
     throw new Error("Electronic data-ready flow must not send a second waiting card");
   }
@@ -2994,7 +2915,7 @@ async function main() {
       status: "Empty",
       todayWin: 97,
       todayBet: 100,
-      dayWin: 900,
+      dayWin: 970,
       dayBet: 1000,
     },
   });
@@ -3007,7 +2928,7 @@ async function main() {
       status: "Empty",
       todayWin: 194,
       todayBet: 200,
-      dayWin: 1800,
+      dayWin: 1940,
       dayBet: 2000,
     },
   }), 20);

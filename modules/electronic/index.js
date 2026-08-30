@@ -51,9 +51,6 @@ const BACKGROUND_PROBE_OWNER = "electronic-background-pool";
 const BACKGROUND_PROBE_ROTATE_MS = 45 * 1000;
 const RECOMMEND_HISTORY_LIMIT = 500;
 const FALLBACK_ROOM_HISTORY_LIMIT = 100;
-const SETH2_GAME_NAME = "戰神賽特2";
-const SETH2_MONTH_RTP_MIN = 85;
-const SETH2_MONTH_RTP_MAX = 95;
 const recommendHistoryHydrated = new Set();
 const backgroundProbeSeededAt = new Map();
 
@@ -972,42 +969,6 @@ function scoreSethRoomByRtp(room) {
   return (todayRtp * 0.65) + (monthRtp * 0.35);
 }
 
-function seth2BetVolumeRatio(detail = {}) {
-  const todayBet = Number(detail.todayBet ?? detail.hourBet);
-  const monthBet = Number(detail.dayBet);
-  if (!Number.isFinite(todayBet) || todayBet < 0 || !Number.isFinite(monthBet) || monthBet <= 0) {
-    return null;
-  }
-  return (todayBet / monthBet) * 100;
-}
-
-function isSeth2BetRatioRecommendable(ratio) {
-  return Number.isFinite(ratio) && ratio >= 0.8;
-}
-
-function scoreSeth2Room(room) {
-  if (!electronicSource.hasFreshRoomDetail(room)) return null;
-  const detail = room?.detail;
-  if (!detail) return null;
-  const monthBet = Number(detail.dayBet) || 0;
-  const monthWin = Number(detail.dayWin) || 0;
-  const monthRtp = reportedRtp(detail.dayRtp, monthWin, monthBet);
-  const betRatio = seth2BetVolumeRatio(detail);
-  if (
-    monthRtp == null
-    || monthRtp < SETH2_MONTH_RTP_MIN
-    || monthRtp > SETH2_MONTH_RTP_MAX
-    || !isSeth2BetRatioRecommendable(betRatio)
-  ) return null;
-  return betRatio;
-}
-
-function scoreRoomForRecommendation(gameName, room) {
-  return gameName === SETH2_GAME_NAME
-    ? scoreSeth2Room(room)
-    : scoreSethRoomByRtp(room);
-}
-
 function requiresLiveRtp(gameName) {
   return electronicSource.SUPPORTED_GAMES.has(gameName);
 }
@@ -1047,7 +1008,7 @@ function hasRecommendableRoomData(gameName) {
   if (!electronicSource.hasReadyData(gameName)) return false;
   if (!requiresLiveRtp(gameName)) return true;
   return electronicSource.getEmptyRooms(gameName)
-    .some((room) => scoreRoomForRecommendation(gameName, room) != null);
+    .some((room) => scoreSethRoomByRtp(room) != null);
 }
 
 function roomLeaseKey(gameName, roomNumber) {
@@ -1122,7 +1083,7 @@ function getNextRecommendRoom(userId, gameName) {
     if (!emptyRooms.length) return null;
     const rtpRankedRooms = requiresLiveRtp(gameName)
       ? emptyRooms
-        .map((room) => ({ room, rtpScore: scoreRoomForRecommendation(gameName, room) }))
+        .map((room) => ({ room, rtpScore: scoreSethRoomByRtp(room) }))
         .filter((item) => item.rtpScore != null)
         .sort((a, b) => b.rtpScore - a.rtpScore || a.room.number - b.room.number)
         .map((item) => item.room)
@@ -1416,7 +1377,7 @@ async function performRecommendRoom(event) {
       Number(event.recommendationDeadline) || Number.POSITIVE_INFINITY,
     );
     const selectedHasUsableRtp = requiresLiveRtp(session.gameName)
-      && scoreRoomForRecommendation(session.gameName, selected) != null;
+      && scoreSethRoomByRtp(selected) != null;
     if (!selectedHasUsableRtp && !event.waitingAlreadySent) {
       await pushRoomSyncWaiting(userId, session.gameName);
     }
@@ -1461,7 +1422,7 @@ async function performRecommendRoom(event) {
       selected = refreshed;
     }
     const missingRequiredRtp = requiresLiveRtp(session.gameName)
-      && scoreRoomForRecommendation(session.gameName, selected) == null;
+      && scoreSethRoomByRtp(selected) == null;
     if (!selected || missingRequiredRtp || (typeof selected === "object" && (
       selected.status !== "Empty" || selected.occupied === true
     ))) {
