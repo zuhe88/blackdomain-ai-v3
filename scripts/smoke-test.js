@@ -1074,6 +1074,25 @@ async function main() {
   if (mtSource.getTableByRoom("MT01")?.history.length !== 1) {
     throw new Error("MT new shoe must replace the previous shoe road history");
   }
+  process.env.MT_DATA_FRESHNESS_MS = "1000";
+  mtSource.ingestTables([{
+    table_id: 99,
+    table_name: "百家樂 15",
+    table_type: "BAC",
+    shoe: "stale-recovery-shoe",
+    trend: { bead_plate2: "01020102010201020102" },
+  }]);
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  if (!mtSource.ingestTables([{
+    table_id: 99,
+    table_name: "百家樂 15",
+    table_type: "BAC",
+    shoe: "stale-recovery-shoe",
+    trend: { bead_plate2: "0201" },
+  }]) || mtSource.getTableByRoom("MT15")?.history.length !== 2) {
+    throw new Error("MT must rebase a stale room from the latest full table snapshot");
+  }
+  delete process.env.MT_DATA_FRESHNESS_MS;
   const mtOrderingEvents = [];
   const stopMtOrderingListener = mtSource.onResult((result) => {
     if (result.room === "MT02") mtOrderingEvents.push(result);
@@ -1500,10 +1519,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260830.02", "styles.css?v=20260830.02", "admin.css?v=20260830.02"]) {
+  for (const expected of ["app.js?v=20260831.01", "styles.css?v=20260831.01", "admin.css?v=20260831.01"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260830.02"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260831.01"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1546,7 +1565,7 @@ async function main() {
       throw new Error(`Electronic web delivery recovery is missing: ${expected}`);
     }
   }
-  for (const expected of ["accessAllowed", "renderAccessDenied", "LINE：@893jrweh", "https://line.me/ti/p/@893jrweh", "if(!accessAllowed)return renderAccessDenied(categoryKey)", "setAccessIndicator", 'action.text==="綁定"']) {
+  for (const expected of ["accessAllowed", "renderAccessDenied", "LINE：@893jrweh", "https://line.me/ti/p/@893jrweh", "accessExpired?renderAccessExpired():renderAccessDenied(categoryKey)", "setAccessIndicator", 'action.text==="綁定"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal card-level access guard is missing: ${expected}`);
   }
   for (const expected of ["前往官方帳號登入", "開通權限・聯絡管理員", "https://line.me/ti/p/@391wiftp", "https://line.me/ti/p/@893jrweh", "login-panel", "login-official", "login-manager"]) {
@@ -1563,6 +1582,14 @@ async function main() {
   }
   if (!webPortalRouteSource.includes("vip.checkVipAccess(userId)") || !webPortalRouteSource.includes("accessAllowed:")) {
     throw new Error("Web member endpoint must expose the current AI access state");
+  }
+  for (const expected of ["scheduleAccessExpiry", "clearExpiredUserSessions", "accessExpiresAt:", "accessExpired,", "expireAccessImmediately", "會員權限已到期", 'fetch("/api/web/stop"', "renderAccessExpired"]) {
+    if (!webPortalRouteSource.includes(expected) && !webPortalAppSource.includes(expected)) {
+      throw new Error(`Website immediate access expiry enforcement is missing: ${expected}`);
+    }
+  }
+  for (const expected of [".access-expired-card", ".expiry-status", ".expiry-actions"]) {
+    if (!webPortalStylesSource.includes(expected)) throw new Error(`Website access expiry styling is missing: ${expected}`);
   }
   for (const expected of ["allElectronicGamesEnabled:", "electronicAvailability.areAllElectronicGamesEnabled()", "applyElectronicAvailability", "applyRuntimeAccess", "refreshRuntimeAccess", "setInterval(refreshRuntimeAccess,5_000)"]) {
     if (!webPortalRouteSource.includes(expected) && !webPortalAppSource.includes(expected)) throw new Error(`Website live admin access synchronization is missing: ${expected}`);

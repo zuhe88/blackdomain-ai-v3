@@ -164,9 +164,11 @@ async function forwardTables(tables) {
 }
 
 function handleMessage(raw) {
+  const text = String(raw ?? "");
+  if (!text.trim()) return;
   try {
     lastMessageAt = new Date().toISOString();
-    const message = JSON.parse(String(raw));
+    const message = JSON.parse(text);
     const action = typeof message.action === "string" ? message.action : message.action?.name;
     if (action === "/api/v1/authenticate") {
       if (Number(message.err) !== 0) {

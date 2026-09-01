@@ -8,6 +8,58 @@ const electronicAvailability = require("../modules/electronic/availability");
 const featureAudit = require("../modules/electronic/featureAudit");
 const { isAdminLineUserId } = require("../config/admin");
 const { getSystemHealth } = require("../services/systemHealth");
+const accessExpiryTimers = new Map();
+const accessRevokedUsers = new Set();
+const MAX_TIMER_DELAY_MS = 2_147_000_000;
+
+function effectiveAccessExpiry(access) {
+  if (!access?.allowed || access.isAdmin || access.globalAccess) return null;
+  const timestamp = Date.parse(access.user?.expiresAt || "");
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function cancelAccessExpiry(userId) {
+  const timer = accessExpiryTimers.get(userId);
+  if (timer) clearTimeout(timer);
+  accessExpiryTimers.delete(userId);
+}
+
+async function clearExpiredUserSessions(userId) {
+  if (accessRevokedUsers.has(userId)) return;
+  accessRevokedUsers.add(userId);
+  const { clearAllUserSessions } = require("./webhook");
+  await clearAllUserSessions(userId);
+}
+
+function scheduleAccessExpiry(userId, expiresAt) {
+  cancelAccessExpiry(userId);
+  if (!Number.isFinite(expiresAt)) return;
+  const enforce = async () => {
+    accessExpiryTimers.delete(userId);
+    const remaining = expiresAt - Date.now();
+    if (remaining > 0) {
+      const timer = setTimeout(enforce, Math.min(remaining, MAX_TIMER_DELAY_MS));
+      timer.unref();
+      accessExpiryTimers.set(userId, timer);
+      return;
+    }
+    try {
+      const access = await vip.checkVipAccess(userId);
+      if (access.allowed) {
+        accessRevokedUsers.delete(userId);
+        scheduleAccessExpiry(userId, effectiveAccessExpiry(access));
+        return;
+      }
+      await clearExpiredUserSessions(userId);
+    } catch (error) {
+      console.error("[Web] Access expiry enforcement failed:", error.message);
+    }
+  };
+  const timer = setTimeout(enforce, Math.min(Math.max(0, expiresAt - Date.now()), MAX_TIMER_DELAY_MS));
+  timer.unref();
+  accessExpiryTimers.set(userId, timer);
+}
+
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
 }
@@ -76,10 +128,25 @@ function registerWebPortalRoutes(app) {
     const userId = user(req);
     if (!userId) return res.json({ authenticated: false, accessAllowed: false, messages: [] });
     const access = await vip.checkVipAccess(userId);
+    const expiresAt = effectiveAccessExpiry(access);
+    const accessExpired = Boolean(
+      !access.allowed
+      && access.user?.expiresAt
+      && Date.parse(access.user.expiresAt) <= Date.now(),
+    );
+    if (access.allowed) {
+      accessRevokedUsers.delete(userId);
+      scheduleAccessExpiry(userId, expiresAt);
+    } else {
+      cancelAccessExpiry(userId);
+      await clearExpiredUserSessions(userId);
+    }
     return res.json({
       authenticated: true,
       isAdmin: isAdminLineUserId(userId),
       accessAllowed: Boolean(access.allowed),
+      accessExpired,
+      accessExpiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
       allElectronicGamesEnabled: electronicAvailability.areAllElectronicGamesEnabled(),
       activeBaccaratSession: baccarat.hasActiveBaccaratSession(userId),
       activeBaccaratPlatform: baccarat.activeBaccaratPlatform(userId),
@@ -208,7 +275,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20260830.02",
+        portalBuild: "20260831.01",
       });
     } catch (error) { return next(error); }
   });

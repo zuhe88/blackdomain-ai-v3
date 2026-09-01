@@ -1,6 +1,6 @@
-// LINE member analysis is temporarily locked to the website portal.
-// Keep the test override so the legacy LINE flows can still be regression-tested.
-const PRODUCTION_WEBSITE_ONLY_LOCK = true;
+// LINE member analysis and the website portal are both available in production.
+// Keep the test override so website-only fallback behavior can still be regression-tested.
+const PRODUCTION_WEBSITE_ONLY_LOCK = false;
 
 function isLineWebsiteOnlyMode() {
   if (process.env.NODE_ENV === "test") {

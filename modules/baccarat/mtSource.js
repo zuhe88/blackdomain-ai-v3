@@ -317,7 +317,11 @@ function emitResultEvent(
 function mergeTable(incoming) {
   const tableId = String(incoming?.table_id ?? incoming?.tableId ?? "").trim();
   if (!tableId) return false;
-  const hadCurrent = tables.has(tableId);
+  const storedCurrent = tables.get(tableId);
+  const hadCurrent = Boolean(
+    storedCurrent
+    && isTimestampFresh(storedCurrent.updatedAt, Date.now(), freshnessMs()),
+  );
   const tableType = String(incoming.table_type ?? incoming.tableType ?? "").toUpperCase();
   if (tableType && !["BAC", "BAS"].includes(tableType)) {
     tables.delete(tableId);
@@ -325,7 +329,7 @@ function mergeTable(incoming) {
   }
 
   const incomingRoom = roomFromName(incoming.table_name ?? incoming.tableName);
-  const current = tables.get(tableId) || { tableId, history: [] };
+  const current = hadCurrent ? storedCurrent : { tableId, history: [] };
   const previousHistory = current.history || [];
   const room = incomingRoom || current.room || null;
   if (!room || !MT_ROOMS.includes(room)) {
