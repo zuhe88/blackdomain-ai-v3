@@ -8,9 +8,7 @@ const WATCHDOG_PERIOD_MINUTES = 1;
 const HEARTBEAT_TIMEOUT_MS = 90 * 1000;
 const GAME_DATA_TIMEOUT_MS = 3 * 60 * 1000;
 const RELOAD_COOLDOWN_MS = 5 * 60 * 1000;
-const TOKEN_RECOVERY_DELAY_MS = 90 * 1000;
-const TOKEN_RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
-const TOKEN_ERROR_RECOVERY_COOLDOWN_MS = 30 * 1000;
+const ATG_SOFT_REFRESH_COOLDOWN_MS = 30 * 1000;
 const SESSION_NOTICE_COOLDOWN_MS = 60 * 1000;
 const RELAY_TABS = [
   { kind: "mb", url: "https://mbracing.cc/*" },
@@ -63,33 +61,9 @@ async function restoreRelayGamesAfterLogin() {
   await Promise.all(mbTabs.map((tab) => (
     Number.isInteger(tab.id) ? chrome.tabs.reload(tab.id).catch(() => {}) : null
   )));
-  await Promise.all(electronicTabs.map(async (tab) => {
-    if (!Number.isInteger(tab.id)) return;
-    const now = Date.now();
-    if (isAtgLobby(tab.url)) {
-      try {
-        const lobby = new URL(tab.url);
-        const key = healthKey(tab.id);
-        const savedRecovery = await chrome.storage.local.get([key, "blackdomainAtgRecoveryLobbyUrl"]);
-        const recovery = refreshRecoveryLobbyUrl(
-          savedRecovery[key]?.recoveryLobbyUrl || savedRecovery.blackdomainAtgRecoveryLobbyUrl,
-          now,
-        );
-        const recoveryGame = recovery
-          ? new URL(recovery).searchParams.get("blackdomain_reopen")
-          : "";
-        if (recoveryGame) lobby.searchParams.set("blackdomain_reopen", recoveryGame);
-        lobby.searchParams.set("blackdomain_recovered_at", String(now));
-        await chrome.tabs.update(tab.id, { url: lobby.href });
-      } catch {
-        // The watchdog will retry an unavailable lobby tab.
-      }
-      return;
-    }
-    const key = healthKey(tab.id);
-    const health = (await chrome.storage.local.get(key))[key] || {};
-    await recoverAtgToken(tab, health, key, now);
-  }));
+  await Promise.all(electronicTabs.map((tab) => (
+    Number.isInteger(tab.id) ? requestAtgSoftRefresh(tab.id) : null
+  )));
   return true;
 }
 
@@ -110,86 +84,10 @@ async function rememberHeartbeat(kind, tabId, dataAt = 0) {
       lastReloadAt: Number(previous.lastReloadAt) || 0,
       reloadDataAt: Number(previous.reloadDataAt) || 0,
       reloadAttempts: Number(previous.reloadAttempts) || 0,
-      lastTokenRecoveryAt: Number(previous.lastTokenRecoveryAt) || 0,
-      recoveryLobbyUrl: String(previous.recoveryLobbyUrl || ""),
+      lastSoftRefreshAt: Number(previous.lastSoftRefreshAt) || 0,
       firstSeenAt: Number(previous.firstSeenAt) || Date.now(),
     },
   });
-}
-
-function isAtgLobby(url) {
-  try {
-    return new URL(url).pathname.includes("/egames/lobby/game/");
-  } catch {
-    return false;
-  }
-}
-
-function atgGameId(url) {
-  try {
-    const match = new URL(url).pathname.match(/\/egames\/([^/]+)\/game\//i);
-    return match?.[1] || "";
-  } catch {
-    return "";
-  }
-}
-
-function buildFreshTokenLobbyUrl(gameUrl, now) {
-  try {
-    const current = new URL(gameUrl);
-    const rawLobbyUrl = current.searchParams.get("goback_url");
-    if (!rawLobbyUrl) return "";
-    const lobby = new URL(rawLobbyUrl);
-    if (lobby.hostname !== current.hostname || !isAtgLobby(lobby.href)) return "";
-    const gameId = atgGameId(current.href);
-    if (!gameId) return "";
-    lobby.searchParams.set("blackdomain_reopen", gameId);
-    lobby.searchParams.set("blackdomain_recovered_at", String(now));
-    return lobby.href;
-  } catch {
-    return "";
-  }
-}
-
-function refreshRecoveryLobbyUrl(value, now) {
-  try {
-    const lobby = new URL(value);
-    if (lobby.hostname !== "play.godeebxp.com" || !isAtgLobby(lobby.href)) return "";
-    if (!lobby.searchParams.get("blackdomain_reopen")) return "";
-    lobby.searchParams.set("blackdomain_recovered_at", String(now));
-    return lobby.href;
-  } catch {
-    return "";
-  }
-}
-
-async function recoverAtgToken(tab, health, key, now) {
-  let lobbyUrl = buildFreshTokenLobbyUrl(tab.url, now);
-  if (lobbyUrl) {
-    await chrome.storage.local.set({ blackdomainAtgRecoveryLobbyUrl: lobbyUrl });
-  } else {
-    const saved = await chrome.storage.local.get("blackdomainAtgRecoveryLobbyUrl");
-    lobbyUrl = refreshRecoveryLobbyUrl(
-      health.recoveryLobbyUrl || saved.blackdomainAtgRecoveryLobbyUrl,
-      now,
-    );
-  }
-  if (!lobbyUrl) return false;
-  await chrome.storage.local.set({
-    [key]: {
-      ...health,
-      kind: "electronic",
-      lastTokenRecoveryAt: now,
-      reloadAttempts: 0,
-      recoveryLobbyUrl: lobbyUrl,
-    },
-  });
-  try {
-    await chrome.tabs.update(tab.id, { url: lobbyUrl });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function pingRelayTab(tabId, kind) {
@@ -200,6 +98,17 @@ async function pingRelayTab(tabId, kind) {
     ]);
   } catch {
     return null;
+  }
+}
+
+async function requestAtgSoftRefresh(tabId) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: "BLACKDOMAIN_ATG_SOFT_REFRESH",
+    });
+    return Boolean(response?.ok);
+  } catch {
+    return false;
   }
 }
 
@@ -224,17 +133,18 @@ async function inspectRelayTab(tab, kind) {
   const heartbeatStale = now - Number(health.heartbeatAt || 0) > HEARTBEAT_TIMEOUT_MS;
   const gameDataStale = now - Number(health.dataAt || 0) > GAME_DATA_TIMEOUT_MS;
   const reloadAllowed = now - Number(health.lastReloadAt || 0) > RELOAD_COOLDOWN_MS;
-  const dataAdvancedAfterReload = Number(health.dataAt || 0) > Number(health.reloadDataAt || 0);
-  const tokenRecoveryDue = kind === "electronic"
-    && gameDataStale
-    && Number(health.reloadAttempts || 0) > 0
-    && !dataAdvancedAfterReload
-    && now - Number(health.lastReloadAt || 0) >= TOKEN_RECOVERY_DELAY_MS
-    && now - Number(health.lastTokenRecoveryAt || 0) >= TOKEN_RECOVERY_COOLDOWN_MS;
+  const softRefreshAllowed = now - Number(health.lastSoftRefreshAt || 0) > ATG_SOFT_REFRESH_COOLDOWN_MS;
   const initialGraceActive = !health.heartbeatAt
     && now - Number(health.firstSeenAt || now) <= HEARTBEAT_TIMEOUT_MS;
-  if (tokenRecoveryDue && await recoverAtgToken(tab, health, key, now)) return;
-  if ((!health.heartbeatAt || heartbeatStale || gameDataStale) && reloadAllowed && !initialGraceActive) {
+  const relayStale = !health.heartbeatAt || heartbeatStale || gameDataStale;
+  if (kind === "electronic" && relayStale && softRefreshAllowed && !initialGraceActive) {
+    await chrome.storage.local.set({
+      [key]: { ...health, kind, lastSoftRefreshAt: now },
+    });
+    await requestAtgSoftRefresh(tab.id);
+    return;
+  }
+  if (kind !== "electronic" && relayStale && reloadAllowed && !initialGraceActive) {
     await chrome.storage.local.set({
       [key]: {
         ...health,
@@ -354,10 +264,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(async (saved) => {
         const health = saved[key] || {};
         const now = Date.now();
-        if (now - Number(health.lastTokenRecoveryAt || 0) < TOKEN_ERROR_RECOVERY_COOLDOWN_MS) {
+        if (now - Number(health.lastSoftRefreshAt || 0) < ATG_SOFT_REFRESH_COOLDOWN_MS) {
           return false;
         }
-        return recoverAtgToken(tab, health, key, now);
+        await chrome.storage.local.set({
+          [key]: { ...health, kind: "electronic", lastSoftRefreshAt: now },
+        });
+        return requestAtgSoftRefresh(tab.id);
       })
       .then((recovered) => sendResponse({ ok: Boolean(recovered) }))
       .catch(() => sendResponse({ ok: false }));

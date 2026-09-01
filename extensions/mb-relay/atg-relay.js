@@ -171,6 +171,15 @@
   });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "BLACKDOMAIN_ATG_SOFT_REFRESH") {
+      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_FORCE_REFRESH", {
+        detail: { reason: "relay-soft-recovery" },
+      }));
+      syncWatchRooms();
+      sendHeartbeat();
+      sendResponse({ ok: true, dataAt: lastGameDataAt });
+      return false;
+    }
     if (message?.type !== "BLACKDOMAIN_RELAY_PING" || message.kind !== "electronic") return false;
     syncWatchRooms();
     sendHeartbeat();

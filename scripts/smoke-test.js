@@ -1783,8 +1783,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.11.4") {
-    throw new Error("Electronic relay extension version must be 2.11.4");
+  if (electronicRelayManifest.version !== "2.11.5") {
+    throw new Error("Electronic relay extension version must be 2.11.5");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1804,18 +1804,22 @@ async function main() {
   for (const expected of [
     "BLACKDOMAIN_RELAY_HEARTBEAT",
     "BLACKDOMAIN_RELAY_PING",
+    "BLACKDOMAIN_ATG_SOFT_REFRESH",
+    "requestAtgSoftRefresh",
     "chrome.alarms.onAlarm",
     "chrome.tabs.reload",
     "GAME_DATA_TIMEOUT_MS",
-    "buildFreshTokenLobbyUrl",
-    "blackdomainAtgRecoveryLobbyUrl",
-    "refreshRecoveryLobbyUrl",
-    "blackdomain_reopen",
-    "TOKEN_ERROR_RECOVERY_COOLDOWN_MS",
+    "kind !== \"electronic\"",
   ]) {
     if (!relayBackgroundSource.includes(expected)) {
       throw new Error(`Relay background watchdog is missing: ${expected}`);
     }
+  }
+  if (
+    relayBackgroundSource.includes("recoverAtgToken")
+    || relayBackgroundSource.includes("chrome.tabs.update(tab.id, { url: lobbyUrl })")
+  ) {
+    throw new Error("ATG relay recovery must never reload or navigate the whole page");
   }
   for (const expected of [
     "clickAtgCanvas",
