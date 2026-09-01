@@ -1,4 +1,4 @@
-const { lineClient, push, pushStrict, quickReply, reply } = require("../../services/line");
+const { lineClient, pushLine, pushLineStrict, quickReply, reply } = require("../../services/line");
 const { adminLineUserIds, isAdminLineUserId } = require("../../config/admin");
 const { getSession, updateSession } = require("../../utils/sessionStore");
 const { bubble, button, infoLine, metric, note, text, uriButton } = require("../../ui/flex/premium");
@@ -134,7 +134,7 @@ async function pushVipUpdateOrError(user, message) {
     return { ok: false, error: "找不到此會員的 LINE User ID，無法推送通知。" };
   }
   try {
-    await pushStrict(user.lineUserId, message);
+    await pushLineStrict(user.lineUserId, message);
     return { ok: true };
   } catch (error) {
     console.error("[VIP push failed]", {
@@ -388,7 +388,7 @@ async function notifyAdminsBind({ lineUserId, lineName, account3A }) {
       clipboardButton("複製綁定格式", `綁定 ${account3A}`),
     ],
   });
-  await Promise.all(adminLineUserIds().map((adminId) => push(adminId, message)));
+  await Promise.all(adminLineUserIds().map((adminId) => pushLine(adminId, message)));
 }
 
 function vipCenterFlex(user, isAdmin = false, globalAccessEnabled = false) {

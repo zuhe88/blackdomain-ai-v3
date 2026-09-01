@@ -279,6 +279,7 @@ const {
   lineConfig,
   multicast,
   push,
+  pushLineStrict,
 } = require("../services/line");
 const mbSource = require("../modules/mb/source");
 const { buildAnalysis: buildMbAnalysis } = require("../modules/mb/service");
@@ -470,6 +471,17 @@ async function main() {
     || captured.lineClient?.http?.instance?.defaults?.timeout !== 4321
   ) {
     throw new Error("LINE SDK Axios timeout must be applied to the live HTTP instance");
+  }
+  const criticalLineUser = "critical-line-notification-user";
+  const unsubscribeCriticalLineUser = webChannel.subscribe(criticalLineUser, { write() {} });
+  const criticalPushCount = captured.pushes.length;
+  await pushLineStrict(criticalLineUser, "VIP critical notification");
+  unsubscribeCriticalLineUser();
+  if (
+    captured.pushes.length !== criticalPushCount + 1
+    || captured.pushes[captured.pushes.length - 1]?.userId !== criticalLineUser
+  ) {
+    throw new Error("Critical account notifications must reach LINE even while the website is connected");
   }
   const encryptedDgToken = dgLive.encrypt("0123456789abcdef0123456789abcdef");
   if (!encryptedDgToken || encryptedDgToken === "0123456789abcdef0123456789abcdef") {

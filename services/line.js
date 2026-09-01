@@ -162,6 +162,14 @@ async function push(userId, messages) {
   }
 }
 
+async function pushLine(userId, messages) {
+  try {
+    await pushLineStrict(userId, messages);
+  } catch (err) {
+    logError("E002", err);
+  }
+}
+
 async function pushStrict(userId, messages) {
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
   const normalized = normalizeMessages(messages);
@@ -170,6 +178,16 @@ async function pushStrict(userId, messages) {
     return;
   }
   if (webChannel.connected(userId)) {
+    webChannel.publish(userId, normalized);
+    return;
+  }
+  await lineClient.pushMessage(userId, normalized);
+}
+
+async function pushLineStrict(userId, messages) {
+  if (!userId) throw new Error("Missing line_user_id for pushMessage.");
+  const normalized = normalizeMessages(messages);
+  if (isLineWebsiteOnlyMode()) {
     webChannel.publish(userId, normalized);
     return;
   }
@@ -201,6 +219,8 @@ module.exports = {
   quickReply,
   reply,
   push,
+  pushLine,
+  pushLineStrict,
   pushStrict,
   multicast,
 };
