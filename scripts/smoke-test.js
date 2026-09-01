@@ -3145,8 +3145,7 @@ async function main() {
   assertIncludes(values, "目前監控房間已變更", "Old electronic recommendation card guard");
   values = await sendAndTexts("結束房間監控 戰神賽特1 088", "user-smoke");
   assertIncludes(values, "監控已結束", "Electronic room monitoring stop");
-  assertIncludes(values, "已停止接收通知", "Electronic room monitoring stop confirmation");
-  assertIncludes(values, "後續特色遊戲結果不會再傳送給您", "Electronic room monitoring stop explanation");
+  assertIncludes(values, "已停止監控", "Electronic room monitoring stop confirmation");
   const stoppedWatchRow = mockElectronicRows.get("electronic_watch:user-smoke");
   if (
     stoppedWatchRow?.value?.gameName !== "戰神賽特1"
@@ -3681,7 +3680,8 @@ async function main() {
   await send("RB01", "user-smoke");
   values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "本房牌路統計", "Baccarat room statistics");
-  assertIncludes(values, "請核對本局莊、閒、和是否與平台一致，下一局會自動分析。", "Baccarat platform verification notice");
+  assertIncludes(values, "請核對本局莊、閒、和是否與平台一致，", "Baccarat platform verification notice");
+  assertIncludes(values, "下一局會自動分析。", "Baccarat automatic next-round notice");
   assertIncludes(values, "等待本房下一局開獎", "Baccarat immediate automatic recommendation");
   assertIncludes(values, "玩家自行決定", "Baccarat free-bet direction");
   assertIncludes(values, "有效命中", "Baccarat resolved hit-rate label");

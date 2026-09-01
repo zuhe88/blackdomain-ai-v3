@@ -151,6 +151,79 @@ function resultActionPanel() {
   };
 }
 
+function verificationNotice() {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "md",
+    paddingAll: "14px",
+    backgroundColor: "#15130E",
+    cornerRadius: "16px",
+    borderColor: "#6D5728",
+    borderWidth: "1px",
+    contents: [
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "sm",
+        alignItems: "center",
+        contents: [
+          {
+            type: "box",
+            layout: "vertical",
+            width: "24px",
+            height: "24px",
+            backgroundColor: "#302713",
+            cornerRadius: "12px",
+            justifyContent: "center",
+            contents: [
+              text("✓", {
+                size: "xs",
+                weight: "bold",
+                color: COLORS.gold,
+                align: "center",
+                gravity: "center",
+                wrap: false,
+              }),
+            ],
+          },
+          text("核對提示", {
+            size: "sm",
+            weight: "bold",
+            color: COLORS.gold,
+            flex: 1,
+            wrap: false,
+          }),
+        ],
+      },
+      text("請核對本局莊、閒、和是否與平台一致，", {
+        size: "sm",
+        color: COLORS.white,
+        lineSpacing: "5px",
+      }),
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "sm",
+        paddingAll: "10px",
+        backgroundColor: "#102219",
+        cornerRadius: "10px",
+        alignItems: "center",
+        contents: [
+          text("●", { size: "xxs", color: COLORS.green, flex: 0, wrap: false }),
+          text("下一局會自動分析。", {
+            size: "xs",
+            weight: "bold",
+            color: COLORS.green,
+            flex: 1,
+            wrap: false,
+          }),
+        ],
+      },
+    ],
+  };
+}
+
 function roomStat(label, value, color) {
   return {
     type: "box",
@@ -402,10 +475,7 @@ function baccaratAnalysisFlex({
         infoLine("目前獲利", String(profit)),
       ] : []),
       roomStatsPanel(tableStats),
-      infoLine(
-        "核對提示",
-        "請核對本局莊、閒、和是否與平台一致，下一局會自動分析。",
-      ),
+      verificationNotice(),
       performancePanel(results, hitRate),
       ...(notice ? [infoLine("同步狀態", notice)] : []),
       ...(autoResult ? [infoLine(

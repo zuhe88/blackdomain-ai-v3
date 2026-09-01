@@ -929,14 +929,8 @@ function electronicStopMonitoringFlex(result, quickReplyData = null) {
         borderColor: "#315B46",
         borderWidth: "1px",
         contents: [
-          text("✓ 已停止接收通知", { size: "md", weight: "bold", color: COLORS.green, align: "center" }),
+          text("✓ 已停止監控", { size: "md", weight: "bold", color: COLORS.green, align: "center" }),
           text(room, { size: "xxl", weight: "bold", color: COLORS.white, align: "center" }),
-          text("後續特色遊戲結果不會再傳送給您", {
-            size: "xs",
-            color: COLORS.muted,
-            align: "center",
-            wrap: true,
-          }),
         ],
       },
       note("需要其他房間時，可直接使用下方的「重新推薦」。"),
@@ -1204,7 +1198,7 @@ async function handleCancelRecommendation(event) {
     ], electronicModeQuickReply()));
   }
   return reply(event.replyToken, electronicPromptFlex("目前沒有等待中的推薦", [
-    "若要停止房間特色遊戲通知",
+    "若要停止房間特色遊戲追蹤",
     "請使用推薦卡下方的「結束該房間」",
   ], afterRecommendQuickReply()));
 }
