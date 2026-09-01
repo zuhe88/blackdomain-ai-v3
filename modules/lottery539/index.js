@@ -1,6 +1,6 @@
 const { reply, quickReply } = require("../../services/line");
 const { updateSession } = require("../../utils/sessionStore");
-const { bubble, card, infoLine, metric, note } = require("../../ui/flex/premium");
+const { bubble, card, infoLine, note, text, COLORS } = require("../../ui/flex/premium");
 const { buildAnalysis, formatDate, targetDate } = require("./service");
 
 const COMMANDS = ["539", "539AI", "今彩539", "🎯 539AI", "AI今日預測", "重新分析"];
@@ -37,8 +37,132 @@ function menuFlex() {
   });
 }
 
+function predictionPanel(analysis, hasHistory) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "md",
+    paddingAll: "18px",
+    backgroundColor: "#171511",
+    cornerRadius: "20px",
+    borderColor: "#8B6F2C",
+    borderWidth: "1px",
+    contents: [
+      {
+        type: "box",
+        layout: "horizontal",
+        alignItems: "center",
+        contents: [
+          text("AI預測", { size: "sm", weight: "bold", color: COLORS.gold, flex: 1, wrap: false }),
+          {
+            type: "box",
+            layout: "vertical",
+            flex: 0,
+            paddingStart: "10px",
+            paddingEnd: "10px",
+            paddingTop: "5px",
+            paddingBottom: "5px",
+            backgroundColor: "#2A2112",
+            cornerRadius: "12px",
+            contents: [text(analysis.date, { size: "xxs", color: COLORS.blueSoft, wrap: false })],
+          },
+        ],
+      },
+      text(hasHistory ? analysis.prediction.join("  ") : "資料不足", {
+        size: hasHistory ? "xxl" : "xl",
+        weight: "bold",
+        color: COLORS.white,
+        align: "center",
+        adjustMode: "shrink-to-fit",
+        wrap: false,
+      }),
+      text(hasHistory ? "AI 精選組合・號碼範圍 01—39" : "等待歷史資料更新", {
+        size: "xxs",
+        color: COLORS.muted,
+        align: "center",
+      }),
+    ],
+  };
+}
+
+function trendRow(label, values, color, backgroundColor) {
+  return {
+    type: "box",
+    layout: "horizontal",
+    spacing: "sm",
+    paddingAll: "11px",
+    backgroundColor,
+    cornerRadius: "12px",
+    alignItems: "center",
+    contents: [
+      text(label, { size: "xs", weight: "bold", color, flex: 2, wrap: false }),
+      text(values.join(" · "), {
+        size: "sm",
+        weight: "bold",
+        color: COLORS.white,
+        align: "end",
+        flex: 5,
+        adjustMode: "shrink-to-fit",
+        wrap: false,
+      }),
+    ],
+  };
+}
+
+function trendPanel(analysis) {
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    paddingAll: "14px",
+    backgroundColor: "#11100E",
+    cornerRadius: "18px",
+    borderColor: "#4C3C1E",
+    borderWidth: "1px",
+    contents: [
+      text("趨勢參考", { size: "xs", weight: "bold", color: COLORS.gold }),
+      trendRow("熱號", analysis.hot, COLORS.gold, "#201A0F"),
+      trendRow("冷號", analysis.cold, "#7FC8FF", "#101A21"),
+    ],
+  };
+}
+
+function recentDrawPanel(record) {
+  if (!record) return null;
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    paddingAll: "14px",
+    backgroundColor: "#11100E",
+    cornerRadius: "18px",
+    borderColor: "#4C3C1E",
+    borderWidth: "1px",
+    contents: [
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          text("近期開獎 1", { size: "xs", weight: "bold", color: COLORS.gold, flex: 1, wrap: false }),
+          text(record.date, { size: "xxs", color: COLORS.muted, align: "end", flex: 1, wrap: false }),
+        ],
+      },
+      text(record.numbers.join("  ·  "), {
+        size: "md",
+        weight: "bold",
+        color: COLORS.gray,
+        align: "center",
+        adjustMode: "shrink-to-fit",
+        wrap: false,
+      }),
+      text("最近一期開獎結果", { size: "xxs", color: COLORS.muted, align: "center" }),
+    ],
+  };
+}
+
 function analysisFlex(title, analysis) {
   const hasHistory = analysis.source !== "missing-history";
+  const recentDraw = hasHistory ? recentDrawPanel(analysis.recentHistory[0]) : null;
   return bubble({
     altText: "539AI",
     title,
@@ -46,18 +170,14 @@ function analysisFlex(title, analysis) {
     quickReply: lotteryQuickReply(),
     footer: "BLACKDOMAIN 539 AI",
     contents: [
-      infoLine("預測日期", analysis.date),
-      metric("AI預測", hasHistory ? analysis.prediction.join("、") : "資料不足", hasHistory ? "號碼範圍 01 ~ 39" : "等待歷史資料更新"),
+      predictionPanel(analysis, hasHistory),
       ...(hasHistory
         ? [
-            infoLine("熱號", analysis.hot.join("、")),
-            infoLine("冷號", analysis.cold.join("、")),
-            ...analysis.recentHistory.map((record, index) => (
-              infoLine(`近期開獎 ${index + 1}`, `${record.date}｜${record.numbers.join("、")}`)
-            )),
+            trendPanel(analysis),
+            ...(recentDraw ? [recentDraw] : []),
           ]
         : [infoLine("資料狀態", analysis.summary)]),
-      infoLine("更新時間", analysis.updatedAt),
+      text(`最後更新 ${analysis.updatedAt}`, { size: "xxs", color: COLORS.muted, align: "center" }),
       note("本分析由 BLACKDOMAIN AI 生成，僅供娛樂參考。"),
     ],
   });
