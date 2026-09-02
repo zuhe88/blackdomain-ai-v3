@@ -1695,7 +1695,7 @@ async function main() {
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
-  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "LINE 分析功能暫時改由網站版提供", "成功登入後不受此限制", "adminLineCommand", "memberUtilityCommand", "vip.hasActiveVipSession?.(userId)"]) {
+  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "分析功能目前可於 LINE 與網站使用", "成功登入後不受此限制", "adminLineCommand", "memberUtilityCommand", "vip.hasActiveVipSession?.(userId)"]) {
     if (!webhookSource.includes(expected)) throw new Error(`LINE website-only mode is missing: ${expected}`);
   }
   for (const expected of ["isLineWebsiteOnlyMode", "webChannel.publish(userId, normalized)", "userIds.forEach((userId) => webChannel.publish"]) {
@@ -2370,7 +2370,7 @@ async function main() {
   assertIncludes(websiteLoginValues, "網站登入連結", "Website login command");
   process.env.LINE_WEBSITE_ONLY_MODE = "true";
   const websiteOnlyValues = await sendAndTexts("百家樂", "website-only-user");
-  assertIncludes(websiteOnlyValues, "暫時改由網站版提供", "LINE website-only redirect");
+  assertIncludes(websiteOnlyValues, "分析功能目前可於 LINE 與網站使用", "LINE website access redirect");
   if (websiteOnlyValues.some((value) => String(value).includes("DG 百家樂AI"))) {
     throw new Error("Website-only mode must not enter the LINE baccarat flow");
   }
@@ -2379,7 +2379,7 @@ async function main() {
   assertIncludes(websiteOnlyBindPrompt, "請輸入", "LINE website-only mode must preserve the 3A binding prompt");
   const websiteOnlyBindResult = await sendAndTexts("webbind123", websiteOnlyBindingUser);
   assertIncludes(websiteOnlyBindResult, "已收到", "LINE website-only mode must preserve the 3A binding submission");
-  if (websiteOnlyBindResult.some((value) => String(value).includes("暫時改由網站版提供"))) {
+  if (websiteOnlyBindResult.some((value) => String(value).includes("分析功能目前可於 LINE 與網站使用"))) {
     throw new Error("3A binding input must not be redirected to website analysis");
   }
   const websiteReplyToken = "web:website-command-user:website-only-bypass";
@@ -2393,7 +2393,7 @@ async function main() {
   const websiteCommandValues = (await websiteReplyPending)
     .flatMap((message) => collectText(message));
   assertIncludes(websiteCommandValues, "DG", "Website commands must bypass the LINE redirect");
-  if (websiteCommandValues.some((value) => String(value).includes("暫時改由網站版提供"))) {
+  if (websiteCommandValues.some((value) => String(value).includes("分析功能目前可於 LINE 與網站使用"))) {
     throw new Error("Website commands must never be redirected back to the website login link");
   }
   process.env.LINE_WEBSITE_ONLY_MODE = "false";
