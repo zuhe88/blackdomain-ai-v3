@@ -1,4 +1,4 @@
-const { pushStrict, reply } = require("../../services/line");
+const { pushLineStrict, reply } = require("../../services/line");
 const webChannel = require("../../services/webChannel");
 const {
   baccaratPromptFlex,
@@ -355,7 +355,7 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
   if (originalSession.deliveryChannel === "web") {
     webChannel.publish(originalSession.userId, [message], "baccarat");
   } else {
-    await pushStrict(originalSession.userId, message);
+    await pushLineStrict(originalSession.userId, message);
   }
   if (!isSameActiveSession(originalSession)) return false;
   updateAfterRound(originalSession.userId, analysis.session);
@@ -392,7 +392,7 @@ async function deliverLiveDecision(originalSession, analysis, event, notice = nu
   if (originalSession.deliveryChannel === "web") {
     webChannel.publish(originalSession.userId, [message], "baccarat");
   } else {
-    await pushStrict(originalSession.userId, message);
+    await pushLineStrict(originalSession.userId, message);
   }
   if (!isSameActiveSession(originalSession)) return false;
   await resetStoredSession(originalSession.userId);

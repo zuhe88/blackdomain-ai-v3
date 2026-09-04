@@ -1703,7 +1703,7 @@ async function main() {
   for (const expected of ['fetch("/api/web/sync"', "setInterval(syncActiveBaccarat,15_000)", 'document.addEventListener("visibilitychange"']) {
     if (!webPortalAppSource.includes(expected)) throw new Error(`Website baccarat catch-up trigger is missing: ${expected}`);
   }
-  for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish"]) {
+  for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish", "pushLineStrict"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
   for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "分析功能目前可於 LINE 與網站使用", "成功登入後不受此限制", "adminLineCommand", "memberUtilityCommand", "vip.hasActiveVipSession?.(userId)"]) {
@@ -3766,14 +3766,22 @@ async function main() {
     throw new Error("DG automatic settlement must not show manual result buttons");
   }
   const pushesBeforeDgResult = captured.pushes.length;
+  let incorrectlyDivertedLineResult = "";
+  const unsubscribeLineBaccaratWebClient = webChannel.subscribe("user-smoke", {
+    write(value) { incorrectlyDivertedLineResult += value; },
+  });
   dgSource.ingestMessage({
     cmd: 1004,
     tableId: 0,
     list: ["#1#0#0", "#9#0#0", "#5#0#0", "#1#0#0"],
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
+  unsubscribeLineBaccaratWebClient();
   if (captured.pushes.length !== pushesBeforeDgResult + 1) {
     throw new Error("DG result must automatically push the next analysis");
+  }
+  if (incorrectlyDivertedLineResult.includes("百家樂AI 分析結果")) {
+    throw new Error("A LINE baccarat session must not be diverted to an open website connection");
   }
   let dgPushTexts = captured.pushes[captured.pushes.length - 1].messages.flatMap((message) => collectText(message));
   assertBaccaratRecord(
