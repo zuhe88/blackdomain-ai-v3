@@ -76,9 +76,9 @@ function waitReply(token, timeoutMs = 90000) {
     replies.set(token, (messages) => { clearTimeout(timer); replies.delete(token); resolve(messages); });
   });
 }
-function remember(userId, messages, replayable = false, topic = "general") {
+function remember(userId, messages, replayable = false) {
   const history = recentMessages.get(userId) || [];
-  const entry = { id: randomToken(8), at: Date.now(), messages, replayable, topic };
+  const entry = { id: randomToken(8), at: Date.now(), messages, replayable };
   history.push(entry);
   recentMessages.set(userId, history.slice(-30));
   return entry;
@@ -103,21 +103,18 @@ function eventPayload(entry) {
 function subscribe(userId, response, lastEventId = "") {
   const set = clients.get(userId) || new Set();
   set.add(response); clients.set(userId, set);
-  const history = recentMessages.get(userId) || [];
   if (lastEventId) {
+    const history = recentMessages.get(userId) || [];
     const cursor = history.findIndex((entry) => entry.id === lastEventId);
     const missed = (cursor >= 0 ? history.slice(cursor + 1) : history.slice(-1))
       .filter((entry) => entry.replayable === true);
     missed.forEach((entry) => response.write(eventPayload(entry)));
-  } else {
-    const latest = [...history].reverse().find((entry) => entry.replayable === true);
-    if (latest) response.write(eventPayload(latest));
   }
   return () => { set.delete(response); if (!set.size) clients.delete(userId); };
 }
 function connected(userId) { return Boolean(clients.get(userId)?.size); }
-function publish(userId, messages, topic = "general") {
-  const entry = remember(userId, messages, true, topic);
+function publish(userId, messages) {
+  const entry = remember(userId, messages, true);
   const set = clients.get(userId);
   if (!set?.size) return false;
   const payload = eventPayload(entry);
@@ -125,10 +122,5 @@ function publish(userId, messages, topic = "general") {
   return set.size > 0;
 }
 function history(userId) { return [...(recentMessages.get(userId) || [])]; }
-function latestReplayable(userId, topic = "") {
-  return [...(recentMessages.get(userId) || [])]
-    .reverse()
-    .find((entry) => entry.replayable === true && (!topic || entry.topic === topic)) || null;
-}
 
-module.exports = { authenticate, cancelReply, connected, history, issue, latestReplayable, publish, redeem, resolveReply, subscribe, waitReply };
+module.exports = { authenticate, cancelReply, connected, history, issue, publish, redeem, resolveReply, subscribe, waitReply };

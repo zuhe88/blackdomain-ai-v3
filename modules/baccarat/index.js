@@ -353,7 +353,7 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
     ...liveResultOptions(),
   });
   if (originalSession.deliveryChannel === "web") {
-    webChannel.publish(originalSession.userId, [message], "baccarat");
+    webChannel.publish(originalSession.userId, [message]);
   } else {
     await pushLineStrict(originalSession.userId, message);
   }
@@ -390,7 +390,7 @@ async function deliverLiveDecision(originalSession, analysis, event, notice = nu
   if (!isSameActiveSession(originalSession)) return false;
   const message = fundingStopFlex(analysis);
   if (originalSession.deliveryChannel === "web") {
-    webChannel.publish(originalSession.userId, [message], "baccarat");
+    webChannel.publish(originalSession.userId, [message]);
   } else {
     await pushLineStrict(originalSession.userId, message);
   }

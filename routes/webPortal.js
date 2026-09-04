@@ -235,11 +235,7 @@ function registerWebPortalRoutes(app) {
       const userId = user(req);
       if (!userId) return res.status(401).json({ error: "請重新登入。" });
       const result = await baccarat.reconcileActiveBaccaratSession(userId);
-      return res.json({
-        ok: true,
-        ...result,
-        latestEvent: web.latestReplayable(userId, "baccarat"),
-      });
+      return res.json({ ok: true, ...result });
     } catch (error) {
       return next(error);
     }
@@ -279,7 +275,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20260905.02",
+        portalBuild: "20260905.03",
       });
     } catch (error) { return next(error); }
   });

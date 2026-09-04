@@ -483,17 +483,6 @@ async function main() {
   ) {
     throw new Error("Critical account notifications must reach LINE even while the website is connected");
   }
-  const replayUser = "website-baccarat-replay-user";
-  const replayMessage = [{ type: "text", text: "下一局分析" }];
-  if (webChannel.publish(replayUser, replayMessage, "baccarat")) {
-    throw new Error("Publishing without an active website connection must report no live recipient");
-  }
-  let replayPayload = "";
-  const unsubscribeReplay = webChannel.subscribe(replayUser, { write(value) { replayPayload += value; } });
-  unsubscribeReplay();
-  if (!replayPayload.includes("下一局分析") || webChannel.latestReplayable(replayUser, "baccarat")?.messages !== replayMessage) {
-    throw new Error("A fresh website connection must recover the latest missed baccarat result");
-  }
   const encryptedDgToken = dgLive.encrypt("0123456789abcdef0123456789abcdef");
   if (!encryptedDgToken || encryptedDgToken === "0123456789abcdef0123456789abcdef") {
     throw new Error("DG guest WebSocket token must be encrypted");
@@ -1542,10 +1531,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260905.02", "styles.css?v=20260905.02", "admin.css?v=20260905.02"]) {
+  for (const expected of ["app.js?v=20260905.03", "styles.css?v=20260905.03", "admin.css?v=20260905.03"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260905.02"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260905.03"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1583,7 +1572,7 @@ async function main() {
       throw new Error(`Electronic recommendation anti-stall recovery is missing: ${expected}`);
     }
   }
-  for (const expected of ["recommendationDeliveryChannel", 'event.deliveryChannel === "web"', 'webChannel.publish(userId, [message], "electronic")', "deliveryChannel: pending.deliveryChannel"]) {
+  for (const expected of ["recommendationDeliveryChannel", 'event.deliveryChannel === "web"', "webChannel.publish(userId, [message])", "deliveryChannel: pending.deliveryChannel"]) {
     if (!fs.readFileSync(path.join(root, "modules", "electronic", "index.js"), "utf8").includes(expected)) {
       throw new Error(`Electronic web delivery recovery is missing: ${expected}`);
     }
@@ -1679,7 +1668,7 @@ async function main() {
   if (!webChannelSource.includes("timeoutMs = 90000")) {
     throw new Error("Web commands must allow slow external analysis to return before timing out");
   }
-  for (const expected of ["eventPayload(entry)", "lastEventId", "history.slice(cursor + 1)", "entry.replayable === true", "remember(userId, messages, true, topic)", "id: ${entry.id}"]) {
+  for (const expected of ["eventPayload(entry)", "lastEventId", "history.slice(cursor + 1)", "entry.replayable === true", "remember(userId, messages, true)", "id: ${entry.id}"]) {
     if (!webChannelSource.includes(expected)) throw new Error(`Web realtime replay is missing: ${expected}`);
   }
   for (const expected of ["remember(userId, messages)", "activeBaccaratSession", "resumeBaccaratSession", "[...restoredMessages].reverse().find"]) {
