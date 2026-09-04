@@ -3696,11 +3696,9 @@ async function main() {
   await send("RB01", "user-smoke");
   values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "本房牌路統計", "Baccarat room statistics");
-  assertIncludes(values, "請核對本局莊、閒、和是否與平台一致，", "Baccarat platform verification notice");
-  assertIncludes(values, "下一局會自動分析。", "Baccarat automatic next-round notice");
-  assertIncludes(values, "等待本房下一局開獎", "Baccarat immediate automatic recommendation");
+  assertIncludes(values, "請核對莊、閒、和、總數是否與平台一致", "Baccarat platform verification notice");
+  assertIncludes(values, "分析中", "Baccarat compact analysis status");
   assertIncludes(values, "玩家自行決定", "Baccarat free-bet direction");
-  assertIncludes(values, "有效命中", "Baccarat resolved hit-rate label");
   assertIncludes(values, "結束並返回遊戲選單", "Baccarat persistent exit button");
   const dgAutoMessage = captured.replies[captured.replies.length - 1].messages[0];
   const dgAutoJson = JSON.stringify(dgAutoMessage);
@@ -4239,7 +4237,7 @@ async function main() {
   }
   const mtRecoveryTexts = captured.pushes[captured.pushes.length - 1].messages
     .flatMap((message) => collectText(message));
-  assertIncludes(mtRecoveryTexts, "自動結算", "MT fresh-data automatic recovery");
+  assertIncludes(mtRecoveryTexts, "分析中", "MT fresh-data automatic recovery");
   const pushesBeforeMtResult = captured.pushes.length;
   mtSource.ingestTables([{
     table_id: 1,

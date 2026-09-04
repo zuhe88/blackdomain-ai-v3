@@ -765,6 +765,7 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
+      compact: !String(token || "").startsWith("web:"),
       ...liveResultOptions(),
     }));
   }
@@ -794,6 +795,7 @@ async function handleBaccaratMessage(event) {
       bet: first.bet,
       reason: getReason(first.session),
       roomStats: roomStatsFor(first.session),
+      compact: !String(token || "").startsWith("web:"),
       ...liveResultOptions(),
     }));
   }

@@ -481,7 +481,7 @@ function baccaratLiveUpdateFlex({
       : prediction === "和"
         ? COLORS.green
         : COLORS.gold;
-  const altParts = ["最新預測", `${session.platform} ${session.room}`, prediction];
+  const altParts = ["分析中", `${session.platform} ${session.room}`, prediction];
   if (!isObserve) altParts.push(isFreeBet ? "自行配注" : `${betLabel} ${betText}`);
   const message = {
     type: "flex",
@@ -509,7 +509,7 @@ function baccaratLiveUpdateFlex({
                 layout: "vertical",
                 flex: 1,
                 contents: [
-                  text("BLACKDOMAIN BACCARAT AI", { size: "xxs", weight: "bold", color: COLORS.gold, wrap: false }),
+                  text("黑域AI", { size: "xxs", weight: "bold", color: COLORS.gold, wrap: false }),
                   text(`${session.platform} ${session.room}`, { size: "sm", weight: "bold", color: COLORS.white, wrap: false }),
                 ],
               },
@@ -523,7 +523,7 @@ function baccaratLiveUpdateFlex({
                 paddingBottom: "5px",
                 backgroundColor: "#153323",
                 cornerRadius: "12px",
-                contents: [text("NEW 最新預測", { size: "xxs", weight: "bold", color: COLORS.green, wrap: false })],
+                contents: [text("分析中", { size: "xxs", weight: "bold", color: COLORS.green, wrap: false })],
               },
             ],
           },
@@ -571,24 +571,12 @@ function baccaratLiveUpdateFlex({
           }] : []),
           roomStatsPanel(tableStats),
           compactPerformancePanel(results),
-          {
-            type: "box",
-            layout: "horizontal",
-            spacing: "sm",
-            paddingAll: "9px",
-            backgroundColor: "#102219",
-            cornerRadius: "10px",
-            contents: [
-              text("自動結算", { size: "xxs", weight: "bold", color: COLORS.green, flex: 2, wrap: false }),
-              text(notice || (isObserve ? "開獎後自動更新" : "等待下一局開獎"), {
-                size: "xxs",
-                color: COLORS.white,
-                align: "end",
-                flex: 5,
-                wrap: true,
-              }),
-            ],
-          },
+          ...(notice ? [text(`同步提示：${notice}`, {
+            size: "xxs",
+            color: COLORS.red,
+            align: "center",
+            wrap: true,
+          })] : []),
           text("請核對莊、閒、和、總數是否與平台一致", { size: "xxs", color: COLORS.gold, align: "center" }),
           button("結束並返回遊戲選單", "首頁", "danger"),
         ],
@@ -668,11 +656,6 @@ function baccaratAnalysisFlex({
       verificationNotice(),
       performancePanel(results, hitRate),
       ...(notice ? [infoLine("同步狀態", notice)] : []),
-      ...(autoResult ? [infoLine(
-        "自動結算",
-        isObserve ? "開獎後會自動重新分析" : "等待本房下一局開獎",
-      )] : []),
-      infoLine("更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
       ...(!autoResult ? [resultActionPanel()] : []),
       button("結束並返回遊戲選單", "首頁", "danger"),
     ],
