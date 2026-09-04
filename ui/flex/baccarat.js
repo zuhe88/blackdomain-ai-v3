@@ -426,6 +426,179 @@ function naturalReason(reason, { isFreeBet, isObserve }) {
   return reason;
 }
 
+function compactPerformancePanel(results) {
+  const trackedRounds = results.pass + results.fail + results.tie + results.observe;
+  return {
+    type: "box",
+    layout: "vertical",
+    spacing: "sm",
+    paddingAll: "10px",
+    backgroundColor: "#11100E",
+    cornerRadius: "12px",
+    borderColor: "#4C3C1E",
+    borderWidth: "1px",
+    contents: [
+      {
+        type: "box",
+        layout: "horizontal",
+        contents: [
+          text("推薦紀錄", { size: "xs", weight: "bold", color: COLORS.blueSoft, flex: 1, wrap: false }),
+          text(`共 ${trackedRounds} 局`, { size: "xxs", color: COLORS.muted, align: "end", flex: 1, wrap: false }),
+        ],
+      },
+      {
+        type: "box",
+        layout: "horizontal",
+        spacing: "xs",
+        contents: [
+          recordStat("命中", results.pass, COLORS.green),
+          recordStat("未中", results.fail, COLORS.red),
+          recordStat("和局", results.tie, "#8FCB65"),
+          recordStat("觀望", results.observe, COLORS.muted),
+        ],
+      },
+    ],
+  };
+}
+
+function baccaratLiveUpdateFlex({
+  session,
+  prediction,
+  betText,
+  betLabel,
+  isFreeBet,
+  isObserve,
+  profit,
+  results,
+  tableStats,
+  notice,
+  quickReply,
+}) {
+  const predictionColor = prediction === "莊"
+    ? "#F06060"
+    : prediction === "閒"
+      ? "#65A7FF"
+      : prediction === "和"
+        ? COLORS.green
+        : COLORS.gold;
+  const altParts = ["最新預測", `${session.platform} ${session.room}`, prediction];
+  if (!isObserve) altParts.push(isFreeBet ? "自行配注" : `${betLabel} ${betText}`);
+  const message = {
+    type: "flex",
+    altText: altParts.join("｜").slice(0, 400),
+    contents: {
+      type: "bubble",
+      size: "mega",
+      styles: {
+        body: { backgroundColor: COLORS.black },
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "sm",
+        paddingAll: "14px",
+        backgroundColor: COLORS.black,
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            alignItems: "center",
+            contents: [
+              {
+                type: "box",
+                layout: "vertical",
+                flex: 1,
+                contents: [
+                  text("BLACKDOMAIN BACCARAT AI", { size: "xxs", weight: "bold", color: COLORS.gold, wrap: false }),
+                  text(`${session.platform} ${session.room}`, { size: "sm", weight: "bold", color: COLORS.white, wrap: false }),
+                ],
+              },
+              {
+                type: "box",
+                layout: "vertical",
+                flex: 0,
+                paddingStart: "9px",
+                paddingEnd: "9px",
+                paddingTop: "5px",
+                paddingBottom: "5px",
+                backgroundColor: "#153323",
+                cornerRadius: "12px",
+                contents: [text("NEW 最新預測", { size: "xxs", weight: "bold", color: COLORS.green, wrap: false })],
+              },
+            ],
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            paddingAll: "13px",
+            backgroundColor: COLORS.glass,
+            cornerRadius: "16px",
+            borderColor: "#6D5728",
+            borderWidth: "1px",
+            alignItems: "center",
+            contents: [
+              {
+                type: "box",
+                layout: "vertical",
+                flex: 3,
+                contents: [
+                  text(isObserve ? "本局策略" : "下一局建議", { size: "xxs", color: COLORS.blueSoft, wrap: false }),
+                  text(prediction, { size: "xxl", weight: "bold", color: predictionColor, wrap: false }),
+                ],
+              },
+              ...(!isObserve ? [{
+                type: "box",
+                layout: "vertical",
+                flex: 2,
+                contents: [
+                  text(betLabel, { size: "xxs", color: COLORS.muted, align: "end", wrap: false }),
+                  text(betText, { size: "lg", weight: "bold", color: COLORS.white, align: "end", wrap: false, adjustMode: "shrink-to-fit" }),
+                ],
+              }] : []),
+            ],
+          },
+          ...(!isFreeBet ? [{
+            type: "box",
+            layout: "horizontal",
+            spacing: "md",
+            paddingStart: "4px",
+            paddingEnd: "4px",
+            contents: [
+              text(`本金 ${session.bankroll}`, { size: "xxs", color: COLORS.gray, flex: 1, wrap: false, adjustMode: "shrink-to-fit" }),
+              text(`獲利 ${profit}`, { size: "xxs", color: Number(profit) >= 0 ? COLORS.green : COLORS.red, align: "end", flex: 1, wrap: false, adjustMode: "shrink-to-fit" }),
+            ],
+          }] : []),
+          roomStatsPanel(tableStats),
+          compactPerformancePanel(results),
+          {
+            type: "box",
+            layout: "horizontal",
+            spacing: "sm",
+            paddingAll: "9px",
+            backgroundColor: "#102219",
+            cornerRadius: "10px",
+            contents: [
+              text("自動結算", { size: "xxs", weight: "bold", color: COLORS.green, flex: 2, wrap: false }),
+              text(notice || (isObserve ? "開獎後自動更新" : "等待下一局開獎"), {
+                size: "xxs",
+                color: COLORS.white,
+                align: "end",
+                flex: 5,
+                wrap: true,
+              }),
+            ],
+          },
+          text("請核對莊、閒、和、總數是否與平台一致", { size: "xxs", color: COLORS.gold, align: "center" }),
+          button("結束並返回遊戲選單", "首頁", "danger"),
+        ],
+      },
+    },
+  };
+  if (quickReply) message.quickReply = quickReply;
+  return message;
+}
+
 function baccaratAnalysisFlex({
   session,
   prediction,
@@ -433,6 +606,7 @@ function baccaratAnalysisFlex({
   reason = "BLACKDOMAIN AI 已完成分析",
   roomStats = {},
   autoResult = false,
+  compact = false,
   notice = null,
   quickReply,
 }) {
@@ -458,6 +632,22 @@ function baccaratAnalysisFlex({
     tie: Number(roomStats.tie) || 0,
     total: Number(roomStats.total) || 0,
   };
+
+  if (autoResult && compact) {
+    return baccaratLiveUpdateFlex({
+      session,
+      prediction,
+      betText,
+      betLabel,
+      isFreeBet,
+      isObserve,
+      profit,
+      results,
+      tableStats,
+      notice,
+      quickReply,
+    });
+  }
 
   return bubble({
     altText: "百家樂AI 分析結果",

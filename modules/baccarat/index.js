@@ -349,6 +349,7 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
     reason: getReason(analysis.session),
     roomStats: roomStatsFromEvent(event, analysis.session),
     notice,
+    compact: originalSession.deliveryChannel !== "web",
     ...liveResultOptions(),
   });
   if (originalSession.deliveryChannel === "web") {
