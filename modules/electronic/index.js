@@ -337,7 +337,7 @@ function recommendationDeliveryChannel(event = {}) {
 
 async function pushRecommendation(userId, message, deliveryChannel = "line") {
   if (deliveryChannel === "web") {
-    webChannel.publish(userId, [message]);
+    webChannel.publish(userId, [message], "electronic");
     return;
   }
   await pushStrict(userId, message);
