@@ -8,7 +8,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20260905.01";
+const PORTAL_BUILD="20260905.02";
 let deferredInstallPrompt=null;
 
 const categories={
