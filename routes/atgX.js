@@ -6,6 +6,7 @@ const { isAdminLineUserId } = require("../config/admin");
 const access = require("../modules/atgX/access");
 const analyzer = require("../modules/atgX/analyzer");
 const electronicSource = require("../modules/electronic/source");
+const onboarding = require("../modules/atgX/onboarding").createOnboarding();
 
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
@@ -76,15 +77,12 @@ function registerAtgXLineWebhook(app) {
   app.post("/webhook/atg-x", lineSdk.middleware(config), async (req, res) => {
     res.sendStatus(200);
     for (const event of req.body.events || []) {
-      if (event.type !== "message" || event.message?.type !== "text" || !event.replyToken) continue;
-      const text = String(event.message.text || "").trim();
+      if (!event.replyToken) continue;
+      const text = event.type === "message" && event.message?.type === "text" ? String(event.message.text || "").trim() : "";
       const userId = String(event.source?.userId || "");
       const isAdmin = configuredLineAdmins().includes(userId) || isAdminLineUserId(userId);
-      let replyText = "ATG AI 預測X輔助程式\n\n輸入「網站」開啟序號登入頁。";
-      if (/^(網站|登入|開始|首頁)$/i.test(text)) {
-        const base = String(process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app").replace(/\/$/, "");
-        replyText = `ATG AI 預測X輔助程式\n${base}/atg-x/\n\n請使用管理員提供的序號啟用。`;
-      } else if (text === "我的ID") {
+      let replyText = null;
+      if (text === "我的ID") {
         replyText = `你的 LINE 管理識別碼：\n${userId}`;
       } else if (/^產生序號(?:\s|$)/.test(text)) {
         if (!isAdmin) {
@@ -102,8 +100,10 @@ function registerAtgXLineWebhook(app) {
         }
       }
       try {
+        const message = replyText ? { type: "text", text: replyText.slice(0, 5000) } : await onboarding.handle(event);
+        if (!message) continue;
         const client = await getAtgXLineClient(config);
-        await client.replyMessage(event.replyToken, { type: "text", text: replyText.slice(0, 5000) });
+        await client.replyMessage(event.replyToken, message);
       } catch (error) {
         console.error("[ATG X LINE] Reply failed:", error.message);
       }
