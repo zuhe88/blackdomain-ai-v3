@@ -165,6 +165,94 @@
 .signal span { color: #ff8490; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .metric i { display: block; margin-top: 8px; color: #604e51; font: 700 8px/1 monospace; letter-spacing: .1em; }
 
+.playbook {
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid #48242a;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(22, 9, 12, .92), rgba(7, 6, 7, .96));
+}
+
+.playbook > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.playbook header small { color: #ff6674; font: 800 8px/1 monospace; letter-spacing: .14em; }
+.playbook header h3 { margin: 7px 0 0; font-size: 18px; }
+.playbook header > span { color: #9d8589; font-size: 10px; white-space: nowrap; }
+
+.rule-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1.35fr .7fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.rule-grid > div {
+  padding: 11px;
+  border: 1px solid #351c20;
+  border-radius: 10px;
+  background: #090708;
+}
+
+.rule-grid small,
+.stake-console small { display: block; color: #806c6f; font-size: 8px; }
+.rule-grid b { display: block; margin-top: 6px; color: #d9c5c8; font-size: 10px; line-height: 1.55; }
+.symbol-note { margin: 10px 0 0; padding: 9px 11px; border-radius: 9px; background: rgba(255, 37, 58, .07); color: #bd9da2; font-size: 10px; line-height: 1.6; }
+.signal-selector { margin-top: 14px; }
+.selector-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.selector-head b { font-size: 12px; }
+.selector-head span { color: #8a7477; font-size: 9px; }
+.signal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+.signal-chip {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 1px solid #48242a;
+  border-radius: 11px;
+  background: #0c0809;
+  color: #d8c5c8;
+  cursor: pointer;
+}
+
+.signal-chip:hover,
+.signal-chip.active {
+  border-color: #ff4051;
+  background: #260c11;
+  box-shadow: 0 0 20px rgba(255, 35, 57, .13);
+}
+
+.signal-chip img { width: 38px; height: 34px; object-fit: contain; }
+.signal-chip i { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #74303a; border-radius: 50%; color: #ff7280; font-style: normal; font-weight: 900; }
+.signal-chip span { font-size: 10px; font-weight: 800; white-space: nowrap; }
+
+.signal-decision {
+  margin-top: 11px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--green);
+  background: rgba(13, 54, 40, .24);
+  color: #bcead7;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.stake-console {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.stake-console > div { padding: 11px; border: 1px solid #351c20; border-radius: 10px; background: #090708; }
+.stake-console b { display: block; margin-top: 6px; color: #fff; font-size: 14px; }
+.stake-console span { display: block; margin-top: 5px; color: #806c6f; font-size: 8px; }
+
 .plan-empty {
   margin-top: 10px;
   padding: 13px;
@@ -205,6 +293,7 @@
   .game { min-height: 210px; grid-template-columns: 44% 1fr; }
   .game-body { padding: 20px; }
   .workspace { grid-template-columns: 1fr; }
+  .rule-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 620px) {
@@ -222,4 +311,9 @@
   .scanner-orbit { width: 94px; height: 94px; }
   .signal { grid-template-columns: 1fr; }
   .signal span { white-space: normal; }
+  .playbook { padding: 14px; }
+  .playbook > header, .selector-head { flex-direction: column; }
+  .playbook header > span { white-space: normal; }
+  .signal-chip { flex: 1 1 calc(50% - 8px); }
+  .stake-console { grid-template-columns: 1fr 1fr; }
 }

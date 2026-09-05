@@ -9,6 +9,18 @@ const GAME_IMAGES = {
 };
 
 const EXCLUSIVE_GAMES = ["戰神賽特1", "戰神賽特2"];
+const LEGAL_BETS = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 24, 28, 30, 32, 36, 40,
+  42, 48, 54, 56, 60, 64, 72, 80, 96, 100, 112, 120, 128, 140, 144, 160, 180,
+  200, 240, 280, 300, 320, 360, 400, 420, 480, 500, 540, 560, 600, 640, 700, 720,
+  800, 840, 900, 960, 980, 1000, 1080, 1120, 1200, 1260, 1280, 1400, 1440, 1600,
+  1800, 2000,
+];
+
+function legalBetAtOrBelow(target) {
+  const numeric = Math.max(0, Number(target) || 0);
+  return [...LEGAL_BETS].reverse().find((value) => value <= numeric) || LEGAL_BETS[0];
+}
 
 function roomMetric(room) {
   const detail = room.detail || {};
@@ -40,6 +52,56 @@ function gameStatus(gameName) {
   };
 }
 
+function playbook(gameName, bankroll) {
+  const principal = Math.max(0, Number(bankroll) || 0);
+  const regularBet = principal ? legalBetAtOrBelow(principal * 0.005) : null;
+  const featureBet = principal ? legalBetAtOrBelow(principal * 0.0005) : null;
+  const shared = {
+    board: "6×5 無賠付線・8 個以上同符號消除",
+    rtp: "96.89%",
+    volatility: "高波動",
+    featurePrice: "投注額 ×100",
+    staking: principal ? {
+      bankroll: principal,
+      regularBet,
+      featureBet,
+      featureCost: featureBet * 100,
+      featureEligible: featureBet * 100 <= principal * 0.05,
+      legalTier: true,
+      stopLoss: Math.max(1, Math.floor(principal * 0.05)),
+      takeProfit: Math.max(1, Math.floor(principal * 0.03)),
+    } : null,
+  };
+  if (gameName === "戰神賽特1") {
+    return {
+      ...shared,
+      edition: "靈魂之火",
+      maxMultiplier: "最高 51,000×",
+      trigger: "4 個聖甲蟲 SCATTER 觸發免費遊戲",
+      symbolNote: "賽特1僅使用一般聖甲蟲 SCATTER，沒有戰神分裂與女神鎖定機制。",
+      symbols: [
+        { id: "scatter3", label: "3 個 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
+        { id: "scatter4", label: "4 個以上 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
+        { id: "multiplier", label: "高倍數球密集", icon: null },
+      ],
+    };
+  }
+  return {
+    ...shared,
+    edition: "覺醒之力",
+    maxMultiplier: "最高 81,000×",
+    trigger: "4 個以上 SCATTER；含覺醒 SCATTER 進入覺醒模式",
+    symbolNote: "賽特2同時使用一般與覺醒 SCATTER；戰神分裂、女神鎖定只屬於覺醒機制。",
+    symbols: [
+      { id: "scatter3", label: "3 個 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
+      { id: "scatter4", label: "4 個以上 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
+      { id: "awakening", label: "覺醒 SCATTER", icon: "/atg-x/assets/symbols/scatter-awakening.png" },
+      { id: "seth", label: "3 個戰神＋倍數球", icon: null },
+      { id: "goddess", label: "3 個女神＋倍數球", icon: null },
+    ],
+  };
+}
+
 function analyze(gameName, bankroll = 0) {
   if (!EXCLUSIVE_GAMES.includes(gameName)) throw new Error("目前僅開放戰神賽特1與戰神賽特2。");
   if (!electronicSource.hasReadyData(gameName)) throw new Error("即時資料正在同步，請稍後再試。");
@@ -65,6 +127,7 @@ function analyze(gameName, bankroll = 0) {
       todayBet: selected.metric.todayBet,
       monthBet: selected.metric.monthBet,
     },
+    playbook: playbook(gameName, principal),
     plan: unit ? {
       unit,
       entry: `固定 1 單位（${unit.toLocaleString("zh-TW")}）`,
@@ -75,4 +138,4 @@ function analyze(gameName, bankroll = 0) {
   };
 }
 
-module.exports = { EXCLUSIVE_GAMES, gameStatus, analyze };
+module.exports = { EXCLUSIVE_GAMES, LEGAL_BETS, gameStatus, analyze, playbook, legalBetAtOrBelow };
