@@ -1531,10 +1531,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260905.03", "styles.css?v=20260905.03", "admin.css?v=20260905.03"]) {
+  for (const expected of ["app.js?v=20260905.04", "styles.css?v=20260905.04", "admin.css?v=20260905.04"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260905.03"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260905.04"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1695,7 +1695,7 @@ async function main() {
   for (const expected of ["deliveryChannel", "setDeliveryChannel", 'startsWith("web:")', 'originalSession.deliveryChannel === "web"', "webChannel.publish", "pushLineStrict"]) {
     if (!baccaratSessionSource.includes(expected) && !baccaratModuleSource.includes(expected)) throw new Error(`Baccarat delivery-channel isolation is missing: ${expected}`);
   }
-  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "分析功能目前可於 LINE 與網站使用", "成功登入後不受此限制", "adminLineCommand", "memberUtilityCommand", "vip.hasActiveVipSession?.(userId)"]) {
+  for (const expected of ["isLineWebsiteOnlyMode", "websiteAccessReply", "LINE 分析功能暫時改由網站版提供", "網站登入連結（10 分鐘內有效）", "adminLineCommand", "memberUtilityCommand", "vip.hasActiveVipSession?.(userId)"]) {
     if (!webhookSource.includes(expected)) throw new Error(`LINE website-only mode is missing: ${expected}`);
   }
   for (const expected of ["isLineWebsiteOnlyMode", "webChannel.publish(userId, normalized)", "userIds.forEach((userId) => webChannel.publish"]) {
@@ -2370,7 +2370,7 @@ async function main() {
   assertIncludes(websiteLoginValues, "網站登入連結", "Website login command");
   process.env.LINE_WEBSITE_ONLY_MODE = "true";
   const websiteOnlyValues = await sendAndTexts("百家樂", "website-only-user");
-  assertIncludes(websiteOnlyValues, "分析功能目前可於 LINE 與網站使用", "LINE website access redirect");
+  assertIncludes(websiteOnlyValues, "LINE 分析功能暫時改由網站版提供", "LINE website access redirect");
   if (websiteOnlyValues.some((value) => String(value).includes("DG 百家樂AI"))) {
     throw new Error("Website-only mode must not enter the LINE baccarat flow");
   }
@@ -2379,7 +2379,7 @@ async function main() {
   assertIncludes(websiteOnlyBindPrompt, "請輸入", "LINE website-only mode must preserve the 3A binding prompt");
   const websiteOnlyBindResult = await sendAndTexts("webbind123", websiteOnlyBindingUser);
   assertIncludes(websiteOnlyBindResult, "已收到", "LINE website-only mode must preserve the 3A binding submission");
-  if (websiteOnlyBindResult.some((value) => String(value).includes("分析功能目前可於 LINE 與網站使用"))) {
+  if (websiteOnlyBindResult.some((value) => String(value).includes("LINE 分析功能暫時改由網站版提供"))) {
     throw new Error("3A binding input must not be redirected to website analysis");
   }
   const websiteReplyToken = "web:website-command-user:website-only-bypass";
@@ -2393,7 +2393,7 @@ async function main() {
   const websiteCommandValues = (await websiteReplyPending)
     .flatMap((message) => collectText(message));
   assertIncludes(websiteCommandValues, "DG", "Website commands must bypass the LINE redirect");
-  if (websiteCommandValues.some((value) => String(value).includes("分析功能目前可於 LINE 與網站使用"))) {
+  if (websiteCommandValues.some((value) => String(value).includes("LINE 分析功能暫時改由網站版提供"))) {
     throw new Error("Website commands must never be redirected back to the website login link");
   }
   process.env.LINE_WEBSITE_ONLY_MODE = "false";

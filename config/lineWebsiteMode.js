@@ -3,11 +3,11 @@
 const PRODUCTION_WEBSITE_ONLY_LOCK = false;
 
 function isLineWebsiteOnlyMode() {
-  if (process.env.NODE_ENV === "test") {
-    return String(process.env.LINE_WEBSITE_ONLY_MODE || "true").toLowerCase() !== "false";
+  const configured = process.env.LINE_WEBSITE_ONLY_MODE;
+  if (configured != null && String(configured).trim() !== "") {
+    return String(configured).toLowerCase() !== "false";
   }
-
-  return PRODUCTION_WEBSITE_ONLY_LOCK;
+  return process.env.NODE_ENV === "test" ? true : PRODUCTION_WEBSITE_ONLY_LOCK;
 }
 
 module.exports = {
