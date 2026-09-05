@@ -67,7 +67,7 @@ function gameCard(game, index) {
 
 function roomStatusBar() {
   const game = games.find((item) => item.gameName === selectedGame);
-  return `<div class="room-status-bar"><div><span class="status-marker ${game?.ready ? "ready" : ""}"></span><b>${escapeHtml(selectedGame)}</b><span>${game?.ready ? "房況資料已同步" : "等待房況資料"}</span></div><small>篩選條件：空房・近期資料完整</small><strong>符合條件 <em>${formatNumber(game?.availableRooms || 0)}</em> 房</strong></div>`;
+  return `<div class="room-status-bar"><div><span class="status-marker ${game?.ready ? "ready" : ""}"></span><b>${escapeHtml(selectedGame)}</b><span>${game?.ready ? "房況資料已同步" : "等待房況資料"}</span></div><small>選房評估：空房核驗・資料時效・樣本完整度</small><strong>符合條件 <em>${formatNumber(game?.availableRooms || 0)}</em> 房</strong></div>`;
 }
 
 function dashboard(me) {
