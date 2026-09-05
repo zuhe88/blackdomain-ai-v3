@@ -42,8 +42,6 @@ const SYMBOLS = {
   staff: { id: "staff", label: "眼鏡蛇權杖", icon: "/atg-x/assets/symbols/extracted/staff.png" },
   bow: { id: "bow", label: "弓箭", icon: "/atg-x/assets/symbols/extracted/bow.png" },
   blade: { id: "blade", label: "沙漠之刃", icon: "/atg-x/assets/symbols/extracted/blade.png" },
-  seth: { id: "seth", label: "戰神", icon: "/atg-x/assets/symbols/extracted/seth.png" },
-  goddess: { id: "goddess", label: "女神", icon: "/atg-x/assets/symbols/extracted/goddess.png" },
   yellow: { id: "yellow", label: "黃寶石", icon: "/atg-x/assets/symbols/extracted/yellow.png" },
   red: { id: "red", label: "紅寶石", icon: "/atg-x/assets/symbols/extracted/red.png" },
   purple: { id: "purple", label: "紫寶石", icon: "/atg-x/assets/symbols/extracted/purple.png" },
@@ -64,8 +62,6 @@ const SIGNAL_CATALOG = {
     { code: "S2-SCATTER-3", level: "強", action: "buy", symbols: [["scatter", 3]] },
     { code: "S2-AWAKENING-3", level: "強", action: "awakening", weight: 1, symbols: [["scatter", 2], ["awakening", 1]] },
     { code: "S2-BLADE-RED", level: "強", action: "buy", symbols: [["blade", 5], ["red", 3]] },
-    { code: "S2-SETH-RED", level: "中", action: "spin", symbols: [["seth", 3], ["red", 5]] },
-    { code: "S2-GODDESS-PURPLE", level: "中", action: "spin", symbols: [["goddess", 3], ["purple", 5]] },
     { code: "S2-EYE-YELLOW", level: "中", action: "spin", symbols: [["eye", 6], ["yellow", 2]] },
     { code: "S2-STAFF-BLUE", level: "中", action: "spin", symbols: [["staff", 5], ["blue", 3]] },
     { code: "S2-BOW-GREEN", level: "低", action: "wait", symbols: [["bow", 4], ["green", 4]] },
@@ -92,7 +88,16 @@ function generateSignal(gameName, staking) {
     const eligible = awakening ? staking?.awakeningEligible : staking?.freeGameEligible;
     const product = awakening ? "覺醒之力" : "免費遊戲";
     if (staking && !eligible) {
-      return { ...template, action: "wait", level: "低", symbols, total, recommendation: "本輪平轉，不購買", detail: `${product}最低成本 ${cost.toLocaleString("zh-TW")} 對目前本金過高。` };
+      return {
+        ...template,
+        action: "wait",
+        level: "低",
+        symbols,
+        total,
+        recommendation: "本輪平轉，不購買",
+        detail: `${product}最低成本 ${cost.toLocaleString("zh-TW")} 對目前本金過高。`,
+        purchase: { product, multiplier: awakening ? 500 : 200, bet, cost, allowed: false },
+      };
     }
     return {
       ...template,
@@ -102,6 +107,7 @@ function generateSignal(gameName, staking) {
       detail: staking
         ? `單轉底注 ${bet.toLocaleString("zh-TW")}，購買金額 ${cost.toLocaleString("zh-TW")}。`
         : `本輪屬於${product}訊號；輸入本金後會自動換算可購買金額。`,
+      purchase: { product, multiplier: awakening ? 500 : 200, bet: bet ?? null, cost: cost ?? null, allowed: true },
     };
   }
   if (template.action === "spin") {
@@ -111,9 +117,10 @@ function generateSignal(gameName, staking) {
       total,
       recommendation: "建議固定注試轉",
       detail: staking ? `平轉金額 ${staking.regularBet.toLocaleString("zh-TW")}。` : "輸入本金後會自動換算平轉金額。",
+      purchase: { product: "免費遊戲", multiplier: 200, bet: null, cost: null, allowed: false },
     };
   }
-  return { ...template, symbols, total, recommendation: "本輪觀望", detail: "訊號密度不足，不購買免遊、不提高單轉金額。" };
+  return { ...template, symbols, total, recommendation: "本輪觀望", detail: "訊號密度不足，本輪維持平轉。", purchase: { product: "免費遊戲", multiplier: 200, bet: null, cost: null, allowed: false } };
 }
 
 function roomMetric(room) {
