@@ -56,8 +56,9 @@ function login() {
 
 function gameCard(game, index) {
   const active = game.gameName === selectedGame;
-  const status = game.ready ? `${game.availableRooms} 房完成校驗` : "資料鏈路同步中";
-  return `<button class="game ${game.ready ? "ready" : ""} ${active ? "active" : ""}" data-game="${escapeHtml(game.gameName)}"><span class="game-visual"><img src="${escapeHtml(game.image)}" alt="${escapeHtml(game.gameName)}"><em>SET-${String(index + 1).padStart(2, "0")}</em></span><span class="game-body"><small>ATG EXCLUSIVE MODULE</small><b>${escapeHtml(game.gameName)}</b><span><i></i>${escapeHtml(status)}</span><u>${active ? "目前選定" : "切換分析"}</u></span></button>`;
+  const operational = game.ready && game.availableRooms > 0;
+  const status = operational ? `${game.availableRooms} 房完成校驗` : game.ready ? "等待可分析空房" : "資料鏈路同步中";
+  return `<button class="game ${operational ? "ready" : ""} ${active ? "active" : ""}" data-game="${escapeHtml(game.gameName)}"><span class="game-visual"><img src="${escapeHtml(game.image)}" alt="${escapeHtml(game.gameName)}"><em>SET-${String(index + 1).padStart(2, "0")}</em></span><span class="game-body"><small>ATG EXCLUSIVE MODULE</small><b>${escapeHtml(game.gameName)}</b><span><i></i>${escapeHtml(status)}</span><u>${active ? "目前選定" : "切換分析"}</u></span></button>`;
 }
 
 function dashboard(me) {
