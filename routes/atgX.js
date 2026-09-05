@@ -143,7 +143,7 @@ function registerAtgXRoutes(app) {
   app.get("/api/atg-x/games", async (req, res, next) => {
     try {
       if (!await member(req)) return res.status(401).json({ error: "請先輸入有效序號。" });
-      return res.json({ games: electronicSource.GAME_NAMES.map(analyzer.gameStatus) });
+      return res.json({ games: analyzer.EXCLUSIVE_GAMES.map(analyzer.gameStatus) });
     } catch (error) { return next(error); }
   });
   app.post("/api/atg-x/analyze", express.json({ limit: "4kb" }), requireSameOrigin, async (req, res, next) => {

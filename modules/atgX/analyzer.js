@@ -8,6 +8,8 @@ const GAME_IMAGES = {
   赤三國: "/images/electronic/red-three-kingdoms-hd.webp",
 };
 
+const EXCLUSIVE_GAMES = ["戰神賽特1", "戰神賽特2"];
+
 function roomMetric(room) {
   const detail = room.detail || {};
   const todayRtp = Number(detail.todayRtp);
@@ -39,7 +41,7 @@ function gameStatus(gameName) {
 }
 
 function analyze(gameName, bankroll = 0) {
-  if (!electronicSource.GAME_NAMES.includes(gameName)) throw new Error("請重新選擇 ATG 遊戲。");
+  if (!EXCLUSIVE_GAMES.includes(gameName)) throw new Error("目前僅開放戰神賽特1與戰神賽特2。");
   if (!electronicSource.hasReadyData(gameName)) throw new Error("即時資料正在同步，請稍後再試。");
   const candidates = electronicSource.getEmptyRooms(gameName)
     .filter((room) => electronicSource.hasFreshRoomDetail(room))
@@ -73,4 +75,4 @@ function analyze(gameName, bankroll = 0) {
   };
 }
 
-module.exports = { gameStatus, analyze };
+module.exports = { EXCLUSIVE_GAMES, gameStatus, analyze };
