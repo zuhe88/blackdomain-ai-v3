@@ -1,8 +1,8 @@
 const supabase = require("../../services/supabase");
 
 const STATES = Object.freeze({ WELCOME: "WELCOME", CHOICE: "WAITING_3A_CHOICE", ACCOUNT: "WAITING_3A_ACCOUNT", RECEIVED: "ACCOUNT_RECEIVED" });
-const REGISTRATION_URL = "https://atg888.3a1788.bet/";
-const textMessage = (text) => ({ type: "text", text });
+const cards = require("./onboardingCards");
+const { REGISTRATION_URL } = cards;
 
 const store = {
   async get(userId) {
@@ -35,32 +35,31 @@ function createOnboarding({ storage = store } = {}) {
     const save = (changes) => storage.save(userId, { ...state, ...changes, lastEventId: event.webhookEventId || null });
     if (event.type === "follow") {
       await save({ state: STATES.WELCOME });
-      return textMessage("歡迎進入【ATG駭客】💻\n\n我是 ATG駭客\n負責把複雜的遊戲數據，整理成你看得懂的資訊。\n\n想開始了解黑域AI\n直接回覆「AI」即可。");
+      return cards.welcome();
     }
     if (/^AI$/i.test(text)) {
       await save({ state: STATES.CHOICE });
-      return { ...textMessage("請問目前是否有【3A娛樂城】帳號？"), quickReply: { items: [
-        { type: "action", action: { type: "postback", label: "1️⃣ 有", data: "atgx:has-account", displayText: "有" } },
-        { type: "action", action: { type: "postback", label: "2️⃣ 沒有", data: "atgx:no-account", displayText: "沒有" } },
-      ] } };
+      return cards.choice();
     }
-    // Once waiting, text is the account even if it is literally "1" or "2".
+    const hasAccount = ["有", "我有", "1️⃣ 有", "atgx:has-account"].includes(text) || (text === "1" && state.state !== STATES.ACCOUNT);
+    const noAccount = ["沒有", "我沒有", "2️⃣ 沒有", "atgx:no-account"].includes(text) || (text === "2" && state.state !== STATES.ACCOUNT);
+    if (hasAccount) {
+      await save({ state: STATES.ACCOUNT, choice: "existing" });
+      return cards.existing();
+    }
+    if (noAccount) {
+      await save({ state: STATES.ACCOUNT, choice: "registration" });
+      return cards.registration();
+    }
+    // Numeric accounts (including 1/2) remain valid once an account is requested.
     if (state.state === STATES.ACCOUNT && event.type === "message") {
-      if (!text || text.length > 128 || /\s/.test(text)) return textMessage("請只傳送您的 3A 帳號，方便我協助確認。");
+      if (!/^[A-Za-z0-9]{1,128}$/.test(text)) return cards.invalid();
       await save({ state: STATES.RECEIVED, request: {
         account: text, source: state.choice, status: "pending", userId,
         receivedAt: new Date().toISOString(), eventId: event.webhookEventId || null,
         transferStatus: "pending", notificationStatus: "not_configured", bindingStatus: "unbound",
       } });
-      return textMessage("已收到您的 3A 帳號，看到後會第一時間協助確認。");
-    }
-    if (["有", "1", "1️⃣ 有", "atgx:has-account"].includes(text)) {
-      await save({ state: STATES.ACCOUNT, choice: "existing" });
-      return textMessage("請留下您的 3A 帳號，\n看到後會第一時間協助您轉線。");
-    }
-    if (["沒有", "2", "2️⃣ 沒有", "atgx:no-account"].includes(text)) {
-      await save({ state: STATES.ACCOUNT, choice: "registration" });
-      return textMessage(`請先完成註冊：\n\n${REGISTRATION_URL}\n\n註冊成功後，請將您的帳號傳給我即可。`);
+      return cards.received(text);
     }
     return null;
   }

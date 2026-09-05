@@ -1,5 +1,4 @@
 const electronicSource = require("../electronic/source");
-const { randomInt } = require("crypto");
 
 const GAME_IMAGES = {
   戰神賽特1: "/images/electronic/seth1-hd.webp",
@@ -35,93 +34,6 @@ function reportedRate(value, win, bet) {
   return (winnings / stake) * 100;
 }
 
-const SYMBOLS = {
-  scatter: { id: "scatter", label: "SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
-  awakening: { id: "awakening", label: "覺醒 SCATTER", icon: "/atg-x/assets/symbols/scatter-awakening.png" },
-  eye: { id: "eye", label: "荷魯斯之眼", icon: "/atg-x/assets/symbols/extracted/eye.png" },
-  staff: { id: "staff", label: "眼鏡蛇權杖", icon: "/atg-x/assets/symbols/extracted/staff.png" },
-  bow: { id: "bow", label: "弓箭", icon: "/atg-x/assets/symbols/extracted/bow.png" },
-  blade: { id: "blade", label: "沙漠之刃", icon: "/atg-x/assets/symbols/extracted/blade.png" },
-  yellow: { id: "yellow", label: "黃寶石", icon: "/atg-x/assets/symbols/extracted/yellow.png" },
-  red: { id: "red", label: "紅寶石", icon: "/atg-x/assets/symbols/extracted/red.png" },
-  purple: { id: "purple", label: "紫寶石", icon: "/atg-x/assets/symbols/extracted/purple.png" },
-  blue: { id: "blue", label: "藍寶石", icon: "/atg-x/assets/symbols/extracted/blue.png" },
-  green: { id: "green", label: "綠寶石", icon: "/atg-x/assets/symbols/extracted/green.png" },
-};
-
-const SIGNAL_CATALOG = {
-  戰神賽特1: [
-    { code: "S1-SCATTER-3", level: "強", action: "buy", symbols: [["scatter", 3]] },
-    { code: "S1-BLADE-RED", level: "強", action: "buy", symbols: [["blade", 5], ["red", 3]] },
-    { code: "S1-EYE-YELLOW", level: "中", action: "spin", symbols: [["eye", 6], ["yellow", 2]] },
-    { code: "S1-STAFF-PURPLE", level: "中", action: "spin", symbols: [["staff", 4], ["purple", 4]] },
-    { code: "S1-BOW-BLUE", level: "中", action: "spin", symbols: [["bow", 5], ["blue", 3]] },
-    { code: "S1-GEMS", level: "低", action: "wait", symbols: [["yellow", 4], ["green", 4]] },
-  ],
-  戰神賽特2: [
-    { code: "S2-SCATTER-3", level: "強", action: "buy", symbols: [["scatter", 3]] },
-    { code: "S2-AWAKENING-3", level: "強", action: "awakening", weight: 1, symbols: [["scatter", 2], ["awakening", 1]] },
-    { code: "S2-BLADE-RED", level: "強", action: "buy", symbols: [["blade", 5], ["red", 3]] },
-    { code: "S2-EYE-YELLOW", level: "中", action: "spin", symbols: [["eye", 6], ["yellow", 2]] },
-    { code: "S2-STAFF-BLUE", level: "中", action: "spin", symbols: [["staff", 5], ["blue", 3]] },
-    { code: "S2-BOW-GREEN", level: "低", action: "wait", symbols: [["bow", 4], ["green", 4]] },
-  ],
-};
-
-function generateSignal(gameName, staking) {
-  const catalog = SIGNAL_CATALOG[gameName];
-  const weighted = catalog.flatMap((item) => Array.from({ length: item.weight || 3 }, () => item));
-  const template = weighted[randomInt(weighted.length)];
-  const symbols = template.symbols.map(([id, count]) => ({ ...SYMBOLS[id], count }));
-  const total = symbols.reduce((sum, symbol) => sum + symbol.count, 0);
-  const scatterTotal = symbols
-    .filter((symbol) => symbol.id === "scatter" || symbol.id === "awakening")
-    .reduce((sum, symbol) => sum + symbol.count, 0);
-  if (total > 8 || scatterTotal > 3 || symbols.some((symbol) => symbol.id !== "scatter" && symbol.id !== "awakening" && symbol.count >= 8)) {
-    throw new Error("訊號組合超出盤面限制。");
-  }
-
-  if (template.action === "buy" || template.action === "awakening") {
-    const awakening = template.action === "awakening";
-    const bet = awakening ? staking?.awakeningBet : staking?.freeGameBet;
-    const cost = awakening ? staking?.awakeningCost : staking?.freeGameCost;
-    const eligible = awakening ? staking?.awakeningEligible : staking?.freeGameEligible;
-    const product = awakening ? "覺醒之力" : "免費遊戲";
-    if (staking && !eligible) {
-      return {
-        ...template,
-        action: "wait",
-        level: "低",
-        symbols,
-        total,
-        recommendation: "本輪平轉，不購買",
-        detail: `${product}最低成本 ${cost.toLocaleString("zh-TW")} 對目前本金過高。`,
-        purchase: { product, multiplier: awakening ? 500 : 200, bet, cost, allowed: false },
-      };
-    }
-    return {
-      ...template,
-      symbols,
-      total,
-      recommendation: `建議購買${product}`,
-      detail: staking
-        ? `單轉底注 ${bet.toLocaleString("zh-TW")}，購買金額 ${cost.toLocaleString("zh-TW")}。`
-        : `本輪屬於${product}訊號；輸入本金後會自動換算可購買金額。`,
-      purchase: { product, multiplier: awakening ? 500 : 200, bet: bet ?? null, cost: cost ?? null, allowed: true },
-    };
-  }
-  if (template.action === "spin") {
-    return {
-      ...template,
-      symbols,
-      total,
-      recommendation: "建議固定注試轉",
-      detail: staking ? `平轉金額 ${staking.regularBet.toLocaleString("zh-TW")}。` : "輸入本金後會自動換算平轉金額。",
-      purchase: { product: "免費遊戲", multiplier: 200, bet: null, cost: null, allowed: false },
-    };
-  }
-  return { ...template, symbols, total, recommendation: "本輪觀望", detail: "訊號密度不足，本輪維持平轉。", purchase: { product: "免費遊戲", multiplier: 200, bet: null, cost: null, allowed: false } };
-}
 
 function roomMetric(room) {
   const detail = room.detail || {};
@@ -198,15 +110,18 @@ function playbook(gameName, bankroll) {
   };
 }
 
-function analyze(gameName, bankroll = 0) {
+function analyze(gameName, bankroll = 0, selection = {}) {
   if (!EXCLUSIVE_GAMES.includes(gameName)) throw new Error("目前僅開放戰神賽特1與戰神賽特2。");
   if (!electronicSource.hasReadyData(gameName)) throw new Error("即時資料正在同步，請稍後再試。");
   const candidates = electronicSource.getEmptyRooms(gameName)
     .filter((room) => electronicSource.hasFreshRoomDetail(room))
     .map((room) => ({ room, metric: roomMetric(room) }))
-    .sort((a, b) => b.metric.score - a.metric.score);
+    .sort((a, b) => b.metric.score - a.metric.score || String(a.room.number).localeCompare(String(b.room.number), "en", { numeric: true }));
   if (!candidates.length) throw new Error("目前沒有完成即時核對的空房，請稍後再分析。");
-  const selected = candidates[0];
+  const currentIndex = candidates.findIndex(({ room }) => String(room.number) === String(selection.roomNumber));
+  const selected = selection.next === true
+    ? candidates[(currentIndex + 1) % candidates.length]
+    : candidates[Math.max(0, currentIndex)];
   const confidence = selected.metric.score >= 82 ? "高" : selected.metric.score >= 62 ? "中" : "低";
   const principal = Math.max(0, Number(bankroll) || 0);
   const unit = principal ? Math.max(1, Math.floor(principal * 0.01)) : null;
@@ -214,6 +129,7 @@ function analyze(gameName, bankroll = 0) {
     gameName,
     image: GAME_IMAGES[gameName],
     roomNumber: selected.room.number,
+    availableRooms: candidates.length,
     confidence,
     signal: confidence === "高" ? "資料完整・可列入觀察" : confidence === "中" ? "條件一般・建議等待確認" : "樣本不足・本輪觀望",
     updatedAt: selected.room.detailUpdatedAt,
@@ -232,8 +148,10 @@ function analyze(gameName, bankroll = 0) {
     } : null,
     note: "可信度代表資料新鮮度與樣本完整度，不代表中獎機率；請勿追損。",
   };
-  result.predictionSignal = generateSignal(gameName, result.playbook.staking);
+  // Aggregate room statistics do not contain a live symbol board. Never invent
+  // symbol combinations or purchase signals from those statistics.
+  result.predictionSignal = null;
   return result;
 }
 
-module.exports = { EXCLUSIVE_GAMES, LEGAL_BETS, SIGNAL_CATALOG, gameStatus, analyze, playbook, legalBetAtOrBelow, generateSignal, reportedRate };
+module.exports = { EXCLUSIVE_GAMES, LEGAL_BETS, gameStatus, analyze, playbook, legalBetAtOrBelow, reportedRate };
