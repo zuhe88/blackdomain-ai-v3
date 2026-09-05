@@ -1,4 +1,5 @@
 const electronicSource = require("../electronic/source");
+const { randomInt } = require("crypto");
 
 const GAME_IMAGES = {
   戰神賽特1: "/images/electronic/seth1-hd.webp",
@@ -22,17 +23,80 @@ function legalBetAtOrBelow(target) {
   return [...LEGAL_BETS].reverse().find((value) => value <= numeric) || LEGAL_BETS[0];
 }
 
-const SHARED_PAY_SYMBOLS = [
-  { id: "eye", label: "荷魯斯之眼", payout: "8–9: 10×｜10–11: 25×｜12+: 50×", sheet: "primary", left: -56, top: -108 },
-  { id: "staff", label: "眼鏡蛇權杖", payout: "8–9: 2.5×｜10–11: 10×｜12+: 25×", sheet: "primary", left: -236, top: -110 },
-  { id: "bow", label: "弓箭", payout: "8–9: 2×｜10–11: 5×｜12+: 25×", sheet: "primary", left: -416, top: -110 },
-  { id: "blade", label: "沙漠之刃", payout: "8–9: 1.5×｜10–11: 2×｜12+: 12×", sheet: "primary", left: -57, top: -320 },
-  { id: "yellow", label: "黃寶石", payout: "8–9: 1×｜10–11: 1.5×｜12+: 10×", sheet: "gems", left: -66, top: -87 },
-  { id: "red", label: "紅寶石", payout: "8–9: 0.8×｜10–11: 1.2×｜12+: 8×", sheet: "gems", left: -246, top: -87 },
-  { id: "purple", label: "紫寶石", payout: "8–9: 0.5×｜10–11: 1×｜12+: 5×", sheet: "gems", left: -426, top: -87 },
-  { id: "blue", label: "藍寶石", payout: "8–9: 0.4×｜10–11: 0.9×｜12+: 4×", sheet: "gems", left: -66, top: -299 },
-  { id: "green", label: "綠寶石", payout: "8–9: 0.25×｜10–11: 0.75×｜12+: 2×", sheet: "gems", left: -246, top: -299 },
-];
+const SYMBOLS = {
+  scatter: { id: "scatter", label: "SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
+  awakening: { id: "awakening", label: "覺醒 SCATTER", icon: "/atg-x/assets/symbols/scatter-awakening.png" },
+  eye: { id: "eye", label: "荷魯斯之眼", icon: "/atg-x/assets/symbols/extracted/eye.png" },
+  staff: { id: "staff", label: "眼鏡蛇權杖", icon: "/atg-x/assets/symbols/extracted/staff.png" },
+  bow: { id: "bow", label: "弓箭", icon: "/atg-x/assets/symbols/extracted/bow.png" },
+  blade: { id: "blade", label: "沙漠之刃", icon: "/atg-x/assets/symbols/extracted/blade.png" },
+  seth: { id: "seth", label: "戰神", icon: "/atg-x/assets/symbols/extracted/seth.png" },
+  goddess: { id: "goddess", label: "女神", icon: "/atg-x/assets/symbols/extracted/goddess.png" },
+  yellow: { id: "yellow", label: "黃寶石", icon: "/atg-x/assets/symbols/extracted/yellow.png" },
+  red: { id: "red", label: "紅寶石", icon: "/atg-x/assets/symbols/extracted/red.png" },
+  purple: { id: "purple", label: "紫寶石", icon: "/atg-x/assets/symbols/extracted/purple.png" },
+  blue: { id: "blue", label: "藍寶石", icon: "/atg-x/assets/symbols/extracted/blue.png" },
+  green: { id: "green", label: "綠寶石", icon: "/atg-x/assets/symbols/extracted/green.png" },
+};
+
+const SIGNAL_CATALOG = {
+  戰神賽特1: [
+    { code: "S1-SCATTER-3", level: "強", action: "buy", symbols: [["scatter", 3]] },
+    { code: "S1-BLADE-RED", level: "強", action: "buy", symbols: [["blade", 5], ["red", 3]] },
+    { code: "S1-EYE-YELLOW", level: "中", action: "spin", symbols: [["eye", 6], ["yellow", 2]] },
+    { code: "S1-STAFF-PURPLE", level: "中", action: "spin", symbols: [["staff", 4], ["purple", 4]] },
+    { code: "S1-BOW-BLUE", level: "中", action: "spin", symbols: [["bow", 5], ["blue", 3]] },
+    { code: "S1-GEMS", level: "低", action: "wait", symbols: [["yellow", 4], ["green", 4]] },
+  ],
+  戰神賽特2: [
+    { code: "S2-SCATTER-3", level: "強", action: "buy", symbols: [["scatter", 3]] },
+    { code: "S2-AWAKENING-3", level: "強", action: "buy", symbols: [["scatter", 2], ["awakening", 1]] },
+    { code: "S2-BLADE-RED", level: "強", action: "buy", symbols: [["blade", 5], ["red", 3]] },
+    { code: "S2-SETH-RED", level: "中", action: "spin", symbols: [["seth", 3], ["red", 5]] },
+    { code: "S2-GODDESS-PURPLE", level: "中", action: "spin", symbols: [["goddess", 3], ["purple", 5]] },
+    { code: "S2-EYE-YELLOW", level: "中", action: "spin", symbols: [["eye", 6], ["yellow", 2]] },
+    { code: "S2-STAFF-BLUE", level: "中", action: "spin", symbols: [["staff", 5], ["blue", 3]] },
+    { code: "S2-BOW-GREEN", level: "低", action: "wait", symbols: [["bow", 4], ["green", 4]] },
+  ],
+};
+
+function generateSignal(gameName, staking) {
+  const catalog = SIGNAL_CATALOG[gameName];
+  const template = catalog[randomInt(catalog.length)];
+  const symbols = template.symbols.map(([id, count]) => ({ ...SYMBOLS[id], count }));
+  const total = symbols.reduce((sum, symbol) => sum + symbol.count, 0);
+  const scatterTotal = symbols
+    .filter((symbol) => symbol.id === "scatter" || symbol.id === "awakening")
+    .reduce((sum, symbol) => sum + symbol.count, 0);
+  if (total > 8 || scatterTotal > 3 || symbols.some((symbol) => symbol.id !== "scatter" && symbol.id !== "awakening" && symbol.count >= 8)) {
+    throw new Error("訊號組合超出盤面限制。");
+  }
+
+  if (template.action === "buy") {
+    if (staking && !staking.featureEligible) {
+      return { ...template, action: "wait", level: "低", symbols, total, recommendation: "本輪觀望", detail: `最低合法購買成本 ${staking.featureCost.toLocaleString("zh-TW")} 已超過本金風控上限。` };
+    }
+    return {
+      ...template,
+      symbols,
+      total,
+      recommendation: "建議購買免遊",
+      detail: staking
+        ? `免遊底注 ${staking.featureBet.toLocaleString("zh-TW")}，單次成本 ${staking.featureCost.toLocaleString("zh-TW")}；只執行一次，不追買。`
+        : "本輪屬於免遊型訊號；輸入本金後會自動換算合法底注。",
+    };
+  }
+  if (template.action === "spin") {
+    return {
+      ...template,
+      symbols,
+      total,
+      recommendation: "建議固定注試轉",
+      detail: staking ? `單轉 ${staking.regularBet.toLocaleString("zh-TW")}，最多 3 轉；未延續訊號就停止。` : "輸入本金後會自動換算合法單轉金額。",
+    };
+  }
+  return { ...template, symbols, total, recommendation: "本輪觀望", detail: "訊號密度不足，不購買免遊、不提高單轉金額。" };
+}
 
 function roomMetric(room) {
   const detail = room.detail || {};
@@ -91,12 +155,6 @@ function playbook(gameName, bankroll) {
       maxMultiplier: "最高 51,000×",
       trigger: "4 個聖甲蟲 SCATTER 觸發免費遊戲",
       symbolNote: "賽特1僅使用一般聖甲蟲 SCATTER，沒有戰神分裂與女神鎖定機制。",
-      symbols: [
-        { id: "scatter3", label: "3 個 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
-        { id: "scatter4", label: "4 個以上 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
-        { id: "multiplier", label: "高倍數球密集", icon: null },
-        ...SHARED_PAY_SYMBOLS,
-      ],
     };
   }
   return {
@@ -105,14 +163,6 @@ function playbook(gameName, bankroll) {
     maxMultiplier: "最高 81,000×",
     trigger: "4 個以上 SCATTER；含覺醒 SCATTER 進入覺醒模式",
     symbolNote: "賽特2同時使用一般與覺醒 SCATTER；戰神分裂、女神鎖定只屬於覺醒機制。",
-    symbols: [
-      { id: "scatter3", label: "3 個 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
-      { id: "scatter4", label: "4 個以上 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
-      { id: "awakening", label: "覺醒 SCATTER", icon: "/atg-x/assets/symbols/scatter-awakening.png" },
-      { id: "seth", label: "3 個戰神＋倍數球", payout: "觸發倍數球分裂", sheet: "primary", left: -236, top: -320 },
-      { id: "goddess", label: "3 個女神＋倍數球", payout: "觸發倍數球鎖定", sheet: "primary", left: -416, top: -320 },
-      ...SHARED_PAY_SYMBOLS,
-    ],
   };
 }
 
@@ -128,7 +178,7 @@ function analyze(gameName, bankroll = 0) {
   const confidence = selected.metric.score >= 82 ? "高" : selected.metric.score >= 62 ? "中" : "低";
   const principal = Math.max(0, Number(bankroll) || 0);
   const unit = principal ? Math.max(1, Math.floor(principal * 0.01)) : null;
-  return {
+  const result = {
     gameName,
     image: GAME_IMAGES[gameName],
     roomNumber: selected.room.number,
@@ -150,6 +200,8 @@ function analyze(gameName, bankroll = 0) {
     } : null,
     note: "可信度代表資料新鮮度與樣本完整度，不代表中獎機率；請勿追損。",
   };
+  result.predictionSignal = generateSignal(gameName, result.playbook.staking);
+  return result;
 }
 
-module.exports = { EXCLUSIVE_GAMES, LEGAL_BETS, gameStatus, analyze, playbook, legalBetAtOrBelow };
+module.exports = { EXCLUSIVE_GAMES, LEGAL_BETS, SIGNAL_CATALOG, gameStatus, analyze, playbook, legalBetAtOrBelow, generateSignal };

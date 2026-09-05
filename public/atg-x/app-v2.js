@@ -5,7 +5,6 @@ let games = [];
 let selectedGame = "戰神賽特2";
 let currentMember = null;
 let activeResult = null;
-const selectedSignals = new Set();
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -66,49 +65,15 @@ function gameCard(game, index) {
 function dashboard(me) {
   currentMember = me;
   activeResult = null;
-  selectedSignals.clear();
   root.innerHTML = `<section class="section-head"><div><p class="eyebrow">ATG X・SETH EXCLUSIVE COMMAND</p><h1>戰神雙核心分析</h1><p>雙遊戲獨立資料鏈路，空房校驗完成後才會建立分析結果。</p></div><div class="license-state">授權至 ${new Date(me.expiresAt).toLocaleDateString("zh-TW")}</div></section><section class="game-grid" id="games">${games.map(gameCard).join("")}</section><div class="intel-strip"><span><i></i>LIVE DATA LINK</span><b>房況同步</b><b>空房核對</b><b>樣本評級</b><b>風控計算</b></div><section class="workspace"><div class="panel command-panel"><div class="panel-kicker">ANALYSIS CONTROL</div><h2>戰術參數</h2><div class="control"><label>目前分析核心</label><input id="gameName" value="${escapeHtml(selectedGame)}" readonly></div><div class="control"><label>本次操作本金（選填）</label><input id="bankroll" inputmode="numeric" placeholder="例如 10000"></div><button class="primary" id="analyze">啟動 AI 戰術掃描</button><button class="ghost" id="logout">登出本裝置</button></div><div class="result" id="result"><div class="empty-result"><div class="scanner-orbit"><i></i><span>AI</span></div><div><p class="eyebrow">SYSTEM STANDBY</p><b>等待啟動戰術掃描</b><p>依序執行房況同步、空房核對、樣本評級與風控計算</p></div></div></div></section>`;
-}
-
-function symbolArtwork(symbol) {
-  if (symbol.icon) return `<span class="symbol-art direct"><img src="${escapeHtml(symbol.icon)}" alt=""></span>`;
-  if (symbol.sheet) {
-    const file = symbol.sheet === "gems" ? "symbol-sheet-gems.png" : "symbol-sheet-primary.png";
-    return `<span class="symbol-art sprite sheet-${escapeHtml(symbol.sheet)}"><img src="/atg-x/assets/symbols/${file}" alt="" style="left:${Number(symbol.left)}px;top:${Number(symbol.top)}px"></span>`;
-  }
-  return `<i>${symbol.id === "multiplier" ? "×" : "•"}</i>`;
 }
 
 function playbookPanel(result) {
   const book = result.playbook;
-  if (!book) return "";
-  return `<section class="playbook"><header><div><small>SETH SIGNAL PLAYBOOK</small><h3>${escapeHtml(book.edition)}訊號校準</h3></div><span>${escapeHtml(book.rtp)}・${escapeHtml(book.volatility)}</span></header><div class="rule-grid"><div><small>盤面規則</small><b>${escapeHtml(book.board)}</b></div><div><small>免遊條件</small><b>${escapeHtml(book.trigger)}</b></div><div><small>遊戲上限</small><b>${escapeHtml(book.maxMultiplier)}</b></div></div><p class="symbol-note">${escapeHtml(book.symbolNote)}</p><div class="signal-selector"><div class="selector-head"><b>圖像化盤面訊號雷達</b><span>點選你目前看到的圖案，可複選</span></div><div class="signal-chips">${book.symbols.map((symbol) => `<button type="button" class="signal-chip" data-signal-toggle="${escapeHtml(symbol.id)}">${symbolArtwork(symbol)}<span><b>${escapeHtml(symbol.label)}</b>${symbol.payout ? `<small>${escapeHtml(symbol.payout)}</small>` : ""}</span></button>`).join("")}</div><div class="signal-decision" id="signalDecision">尚未勾選盤面訊號；先維持固定小注，不追碼。</div></div>${book.staking ? `<div class="stake-console"><div><small>平轉固定注</small><b>${formatNumber(book.staking.regularBet)}</b><span>合法注額・本金 0.5% 內</span></div><div><small>免遊專用底注上限</small><b>${formatNumber(book.staking.featureBet)}</b><span>合法注額・購買成本 ${formatNumber(book.staking.featureCost)}</span></div><div><small>整場停損</small><b>${formatNumber(book.staking.stopLoss)}</b><span>本金 5%</span></div><div><small>單次停利</small><b>${formatNumber(book.staking.takeProfit)}</b><span>本金 3%</span></div></div>` : `<div class="plan-empty">輸入本金後才會產生合法檔位的平轉、免遊成本與停損配置。</div>`}</section>`;
-}
-
-function signalDecision(result) {
-  const selected = selectedSignals;
-  const seth2 = result.gameName === "戰神賽特2";
-  const stakes = result.playbook?.staking;
-  const buyGuard = stakes
-    ? stakes.featureEligible
-      ? `若要購買，底注最多 ${formatNumber(stakes.featureBet)}，單次成本 ${formatNumber(stakes.featureCost)}；最多一次，禁止補買追損。`
-      : `目前最低合法注額的購買成本 ${formatNumber(stakes.featureCost)} 已超過本金 5%，不建議購買免遊。`
-    : "未輸入本金，不提供購買免遊金額。";
-  if (selected.has("scatter4")) {
-    if (seth2 && selected.has("awakening")) return `已符合覺醒免費遊戲：等待自然進場，不要重複購買。${selected.has("seth") && selected.has("goddess") ? " 覺醒內同時留意分裂與鎖定雙機制。" : ""}`;
-    return "已符合自然免費遊戲條件：等待系統進場，不建議再購買免遊。";
-  }
-  if (seth2 && selected.has("seth") && selected.has("goddess")) return `覺醒模式內的雙核心訊號：戰神分裂、女神鎖定可同時放大倍數，但不提高下一轉必中的機率。${buyGuard}`;
-  if (seth2 && selected.has("seth")) return `覺醒模式內，3 個戰神搭配倍數球會啟動分裂；目前維持原注，不因單一符號加碼。${buyGuard}`;
-  if (seth2 && selected.has("goddess")) return `覺醒模式內，3 個女神搭配倍數球會啟動鎖定；目前維持原注，不採倍增追碼。${buyGuard}`;
-  if (selected.has("scatter3")) return `3 個 SCATTER 是接近觸發但不代表下一轉機率提高。建議維持固定注觀察，不用追注；${buyGuard}`;
-  if (selected.has("awakening")) return `覺醒 SCATTER 必須搭配總計 4 個以上 SCATTER 才能進入覺醒免費遊戲。尚未達標前維持固定注。${buyGuard}`;
-  if (selected.has("multiplier")) return "高倍數球只會放大當局已形成的贏分，不是下一局必中的訊號；維持固定注，不加倍。";
-  const highPay = ["eye", "staff", "bow", "blade"];
-  const gems = ["yellow", "red", "purple", "blue", "green"];
-  if (highPay.some((id) => selected.has(id))) return "目前勾選的是高價符號；必須在同一盤面達到 8 個以上才會得分。它只影響當局賠付，不代表下一轉更容易中，維持固定注。";
-  if (gems.some((id) => selected.has(id))) return "寶石屬於一般賠付符號，8 個以上才形成得分。不要因連續出現寶石提高下一注，維持系統合法固定注額。";
-  return "尚未勾選盤面訊號；先維持固定小注，不追碼。";
+  const signal = result.predictionSignal;
+  if (!book || !signal) return "";
+  const symbolCards = signal.symbols.map((symbol) => `<div class="combo-symbol"><div class="combo-art"><img src="${escapeHtml(symbol.icon)}" alt="${escapeHtml(symbol.label)}"><strong>×${escapeHtml(symbol.count)}</strong></div><b>${escapeHtml(symbol.label)}</b></div>`).join('<span class="combo-plus">＋</span>');
+  return `<section class="playbook signal-matrix"><header><div><small>ATG X・LIVE SIGNAL MATRIX</small><h3>本輪隨機訊號組合</h3></div><span class="matrix-code">${escapeHtml(signal.code)}</span></header><div class="combo-stage">${symbolCards}</div><div class="action-callout action-${escapeHtml(signal.action)}"><div><small>AI ACTION SIGNAL</small><h2>${escapeHtml(signal.recommendation)}</h2></div><div class="signal-strength"><b>${escapeHtml(signal.level)}</b><span>訊號強度</span></div><p>${escapeHtml(signal.detail)}</p></div>${book.staking ? `<div class="stake-console"><div><small>固定單轉</small><b>${formatNumber(book.staking.regularBet)}</b><span>平台合法注額</span></div><div><small>免遊底注</small><b>${formatNumber(book.staking.featureBet)}</b><span>成本 ${formatNumber(book.staking.featureCost)}</span></div><div><small>整場停損</small><b>${formatNumber(book.staking.stopLoss)}</b><span>到線立即停止</span></div><div><small>單次停利</small><b>${formatNumber(book.staking.takeProfit)}</b><span>到線立即收手</span></div></div>` : `<div class="plan-empty">輸入本金後，訊號會同步給出平台合法注額與免遊成本。</div>`}</section>`;
 }
 
 function resultCard(result) {
@@ -153,16 +118,6 @@ document.addEventListener("submit", async (event) => {
 });
 
 document.addEventListener("click", async (event) => {
-  const signalToggle = event.target.closest("[data-signal-toggle]");
-  if (signalToggle && activeResult) {
-    const signal = signalToggle.dataset.signalToggle;
-    if (selectedSignals.has(signal)) selectedSignals.delete(signal);
-    else selectedSignals.add(signal);
-    signalToggle.classList.toggle("active", selectedSignals.has(signal));
-    const decision = document.querySelector("#signalDecision");
-    if (decision) decision.textContent = signalDecision(activeResult);
-    return;
-  }
   const card = event.target.closest("[data-game]");
   if (card) {
     selectedGame = card.dataset.game;
@@ -178,7 +133,6 @@ document.addEventListener("click", async (event) => {
     try {
       const data = await api("/api/atg-x/analyze", { method: "POST", body: JSON.stringify({ gameName: selectedGame, bankroll: document.querySelector("#bankroll").value }) });
       activeResult = data.result;
-      selectedSignals.clear();
       document.querySelector("#result").innerHTML = resultCard(data.result);
     } catch (error) {
       toast(error.message);

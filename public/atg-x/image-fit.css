@@ -184,6 +184,126 @@
 .playbook header h3 { margin: 7px 0 0; font-size: 18px; }
 .playbook header > span { color: #9d8589; font-size: 10px; white-space: nowrap; }
 
+.signal-matrix {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 48, 70, .58);
+  box-shadow: inset 0 0 44px rgba(255, 18, 45, .055), 0 14px 46px rgba(0, 0, 0, .28);
+}
+
+.signal-matrix::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 20%, rgba(255, 38, 60, .055) 48%, transparent 74%);
+  transform: translateX(-55%);
+  animation: matrixScan 4.8s linear infinite;
+}
+
+@keyframes matrixScan { to { transform: translateX(65%); } }
+
+.matrix-code {
+  padding: 7px 10px;
+  border: 1px solid #54242c;
+  border-radius: 999px;
+  background: #10090a;
+  color: #ff7885 !important;
+  font: 800 8px/1 monospace !important;
+  letter-spacing: .08em;
+}
+
+.combo-stage {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 204px;
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid rgba(91, 38, 46, .75);
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 29, 54, .12), transparent 52%),
+    linear-gradient(145deg, rgba(19, 8, 10, .97), rgba(5, 5, 6, .98));
+}
+
+.combo-symbol { min-width: 0; text-align: center; }
+.combo-symbol > b { display: block; margin-top: 9px; color: #f4e9eb; font-size: 12px; }
+.combo-plus { color: #ff4354; font-size: 30px; font-weight: 300; text-shadow: 0 0 16px rgba(255, 35, 58, .7); }
+
+.combo-art {
+  position: relative;
+  width: 138px;
+  height: 138px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 76, 93, .32);
+  border-radius: 24px;
+  background: radial-gradient(circle, rgba(95, 21, 32, .44), rgba(8, 5, 6, .2) 67%);
+  box-shadow: inset 0 0 28px rgba(255, 34, 56, .06), 0 0 28px rgba(255, 20, 44, .08);
+}
+
+.combo-art img {
+  width: 116px;
+  height: 116px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 13px rgba(255, 74, 88, .28));
+}
+
+.combo-art strong {
+  position: absolute;
+  right: -9px;
+  top: -9px;
+  min-width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0 8px;
+  border: 2px solid #ff6572;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ff3449, #9d0e24);
+  color: white;
+  font: 900 17px/1 monospace;
+  box-shadow: 0 0 22px rgba(255, 33, 57, .5);
+}
+
+.action-callout {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 18px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 17px 18px;
+  border: 1px solid #63303a;
+  border-left: 4px solid #ff3348;
+  border-radius: 13px;
+  background: linear-gradient(100deg, rgba(82, 12, 25, .48), rgba(14, 8, 10, .95));
+}
+
+.action-callout small { color: #ff8994; font: 800 8px/1 monospace; letter-spacing: .14em; }
+.action-callout h2 { margin: 6px 0 0; color: #fff; font-size: clamp(20px, 3vw, 29px); }
+.action-callout p { grid-column: 1 / -1; margin: 4px 0 0; color: #c7abb0; font-size: 10px; line-height: 1.65; }
+.action-spin { border-left-color: #ffbf45; background: linear-gradient(100deg, rgba(89, 53, 7, .35), rgba(14, 8, 10, .95)); }
+.action-wait { border-left-color: #777; background: linear-gradient(100deg, rgba(42, 38, 39, .52), rgba(14, 8, 10, .95)); }
+
+.signal-strength {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-content: center;
+  border: 1px solid rgba(255, 84, 101, .58);
+  border-radius: 50%;
+  text-align: center;
+  box-shadow: inset 0 0 20px rgba(255, 35, 57, .1);
+}
+
+.signal-strength b { color: #ff5b6b; font-size: 25px; }
+.signal-strength span { margin-top: 3px; color: #9c7f83; font-size: 7px; }
+
 .rule-grid {
   display: grid;
   grid-template-columns: 1.15fr 1.35fr .7fr;
@@ -335,4 +455,18 @@
   .symbol-art { flex-basis: 54px; width: 54px; height: 50px; }
   .symbol-art.direct img { width: 50px; height: 46px; }
   .stake-console { grid-template-columns: 1fr 1fr; }
+  .combo-stage { min-height: 170px; gap: 10px; padding: 14px 8px; }
+  .combo-art { width: 108px; height: 108px; border-radius: 19px; }
+  .combo-art img { width: 92px; height: 92px; }
+  .combo-art strong { right: -5px; top: -6px; min-width: 37px; height: 37px; font-size: 14px; }
+  .combo-symbol > b { font-size: 10px; }
+  .combo-plus { font-size: 22px; }
+  .action-callout { padding: 14px; }
+  .signal-strength { width: 56px; height: 56px; }
+}
+
+@media (max-width: 390px) {
+  .combo-art { width: 92px; height: 92px; }
+  .combo-art img { width: 78px; height: 78px; }
+  .combo-art strong { min-width: 34px; height: 34px; }
 }
