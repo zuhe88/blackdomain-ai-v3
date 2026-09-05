@@ -23,6 +23,18 @@ function legalBetAtOrBelow(target) {
   return [...LEGAL_BETS].reverse().find((value) => value <= numeric) || LEGAL_BETS[0];
 }
 
+function reportedRate(value, win, bet) {
+  const winnings = Number(win);
+  const stake = Number(bet);
+  if (value != null && value !== "") {
+    const direct = Number(value);
+    if (Number.isFinite(direct) && direct > 0) return direct;
+    if (direct === 0 && (!Number.isFinite(winnings) || winnings <= 0 || !Number.isFinite(stake) || stake <= 0)) return 0;
+  }
+  if (!Number.isFinite(winnings) || !Number.isFinite(stake) || stake <= 0) return null;
+  return (winnings / stake) * 100;
+}
+
 const SYMBOLS = {
   scatter: { id: "scatter", label: "SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
   awakening: { id: "awakening", label: "覺醒 SCATTER", icon: "/atg-x/assets/symbols/scatter-awakening.png" },
@@ -50,7 +62,7 @@ const SIGNAL_CATALOG = {
   ],
   戰神賽特2: [
     { code: "S2-SCATTER-3", level: "強", action: "buy", symbols: [["scatter", 3]] },
-    { code: "S2-AWAKENING-3", level: "強", action: "buy", symbols: [["scatter", 2], ["awakening", 1]] },
+    { code: "S2-AWAKENING-3", level: "強", action: "awakening", weight: 1, symbols: [["scatter", 2], ["awakening", 1]] },
     { code: "S2-BLADE-RED", level: "強", action: "buy", symbols: [["blade", 5], ["red", 3]] },
     { code: "S2-SETH-RED", level: "中", action: "spin", symbols: [["seth", 3], ["red", 5]] },
     { code: "S2-GODDESS-PURPLE", level: "中", action: "spin", symbols: [["goddess", 3], ["purple", 5]] },
@@ -62,7 +74,8 @@ const SIGNAL_CATALOG = {
 
 function generateSignal(gameName, staking) {
   const catalog = SIGNAL_CATALOG[gameName];
-  const template = catalog[randomInt(catalog.length)];
+  const weighted = catalog.flatMap((item) => Array.from({ length: item.weight || 3 }, () => item));
+  const template = weighted[randomInt(weighted.length)];
   const symbols = template.symbols.map(([id, count]) => ({ ...SYMBOLS[id], count }));
   const total = symbols.reduce((sum, symbol) => sum + symbol.count, 0);
   const scatterTotal = symbols
@@ -72,18 +85,23 @@ function generateSignal(gameName, staking) {
     throw new Error("訊號組合超出盤面限制。");
   }
 
-  if (template.action === "buy") {
-    if (staking && !staking.featureEligible) {
-      return { ...template, action: "wait", level: "低", symbols, total, recommendation: "本輪觀望", detail: `最低合法購買成本 ${staking.featureCost.toLocaleString("zh-TW")} 已超過本金風控上限。` };
+  if (template.action === "buy" || template.action === "awakening") {
+    const awakening = template.action === "awakening";
+    const bet = awakening ? staking?.awakeningBet : staking?.freeGameBet;
+    const cost = awakening ? staking?.awakeningCost : staking?.freeGameCost;
+    const eligible = awakening ? staking?.awakeningEligible : staking?.freeGameEligible;
+    const product = awakening ? "覺醒之力" : "免費遊戲";
+    if (staking && !eligible) {
+      return { ...template, action: "wait", level: "低", symbols, total, recommendation: "本輪平轉，不購買", detail: `${product}最低成本 ${cost.toLocaleString("zh-TW")} 對目前本金過高。` };
     }
     return {
       ...template,
       symbols,
       total,
-      recommendation: "建議購買免遊",
+      recommendation: `建議購買${product}`,
       detail: staking
-        ? `免遊底注 ${staking.featureBet.toLocaleString("zh-TW")}，單次成本 ${staking.featureCost.toLocaleString("zh-TW")}；只執行一次，不追買。`
-        : "本輪屬於免遊型訊號；輸入本金後會自動換算合法底注。",
+        ? `單轉底注 ${bet.toLocaleString("zh-TW")}，購買金額 ${cost.toLocaleString("zh-TW")}。`
+        : `本輪屬於${product}訊號；輸入本金後會自動換算可購買金額。`,
     };
   }
   if (template.action === "spin") {
@@ -92,7 +110,7 @@ function generateSignal(gameName, staking) {
       symbols,
       total,
       recommendation: "建議固定注試轉",
-      detail: staking ? `單轉 ${staking.regularBet.toLocaleString("zh-TW")}，最多 3 轉；未延續訊號就停止。` : "輸入本金後會自動換算合法單轉金額。",
+      detail: staking ? `平轉金額 ${staking.regularBet.toLocaleString("zh-TW")}。` : "輸入本金後會自動換算平轉金額。",
     };
   }
   return { ...template, symbols, total, recommendation: "本輪觀望", detail: "訊號密度不足，不購買免遊、不提高單轉金額。" };
@@ -100,10 +118,12 @@ function generateSignal(gameName, staking) {
 
 function roomMetric(room) {
   const detail = room.detail || {};
-  const todayRtp = Number(detail.todayRtp);
-  const monthRtp = Number(detail.dayRtp);
   const todayBet = Math.max(0, Number(detail.todayBet) || Number(detail.hourBet) || 0);
+  const todayWin = Math.max(0, Number(detail.todayWin) || Number(detail.hourWin) || 0);
   const monthBet = Math.max(0, Number(detail.dayBet) || 0);
+  const monthWin = Math.max(0, Number(detail.dayWin) || 0);
+  const todayRtp = reportedRate(detail.todayRtp, todayWin, todayBet);
+  const monthRtp = reportedRate(detail.dayRtp, monthWin, monthBet);
   const ageMs = Date.now() - Date.parse(room.detailUpdatedAt || "");
   const fresh = Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= 120000;
   const sampleScore = Math.min(30, Math.log10(Math.max(10, todayBet + monthBet)) * 7);
@@ -131,21 +151,26 @@ function gameStatus(gameName) {
 function playbook(gameName, bankroll) {
   const principal = Math.max(0, Number(bankroll) || 0);
   const regularBet = principal ? legalBetAtOrBelow(principal * 0.005) : null;
-  const featureBet = principal ? legalBetAtOrBelow(principal * 0.0005) : null;
+  const freeGameBet = principal ? legalBetAtOrBelow((principal * 0.05) / 200) : null;
+  const freeGameCost = freeGameBet ? freeGameBet * 200 : null;
+  const awakeningBet = gameName === "戰神賽特2" && principal ? legalBetAtOrBelow((principal * 0.05) / 500) : null;
+  const awakeningCost = awakeningBet ? awakeningBet * 500 : null;
   const shared = {
     board: "6×5 無賠付線・8 個以上同符號消除",
     rtp: "96.89%",
     volatility: "高波動",
-    featurePrice: "投注額 ×100",
     staking: principal ? {
       bankroll: principal,
       regularBet,
-      featureBet,
-      featureCost: featureBet * 100,
-      featureEligible: featureBet * 100 <= principal * 0.05,
+      freeGameMultiplier: 200,
+      freeGameBet,
+      freeGameCost,
+      freeGameEligible: freeGameCost <= principal * 0.05,
+      awakeningMultiplier: gameName === "戰神賽特2" ? 500 : null,
+      awakeningBet,
+      awakeningCost,
+      awakeningEligible: awakeningCost != null && awakeningCost <= principal * 0.05,
       legalTier: true,
-      stopLoss: Math.max(1, Math.floor(principal * 0.05)),
-      takeProfit: Math.max(1, Math.floor(principal * 0.03)),
     } : null,
   };
   if (gameName === "戰神賽特1") {
@@ -204,4 +229,4 @@ function analyze(gameName, bankroll = 0) {
   return result;
 }
 
-module.exports = { EXCLUSIVE_GAMES, LEGAL_BETS, SIGNAL_CATALOG, gameStatus, analyze, playbook, legalBetAtOrBelow, generateSignal };
+module.exports = { EXCLUSIVE_GAMES, LEGAL_BETS, SIGNAL_CATALOG, gameStatus, analyze, playbook, legalBetAtOrBelow, generateSignal, reportedRate };

@@ -45,6 +45,7 @@ function toast(message) {
 }
 
 function formatNumber(value, suffix = "") {
+  if (value == null || value === "") return "—";
   const number = Number(value);
   return Number.isFinite(number)
     ? `${number.toLocaleString("zh-TW", { maximumFractionDigits: 2 })}${suffix}`
@@ -73,7 +74,7 @@ function playbookPanel(result) {
   const signal = result.predictionSignal;
   if (!book || !signal) return "";
   const symbolCards = signal.symbols.map((symbol) => `<div class="combo-symbol"><div class="combo-art"><img src="${escapeHtml(symbol.icon)}" alt="${escapeHtml(symbol.label)}"><strong>×${escapeHtml(symbol.count)}</strong></div><b>${escapeHtml(symbol.label)}</b></div>`).join('<span class="combo-plus">＋</span>');
-  return `<section class="playbook signal-matrix"><header><div><small>ATG X・LIVE SIGNAL MATRIX</small><h3>本輪隨機訊號組合</h3></div><span class="matrix-code">${escapeHtml(signal.code)}</span></header><div class="combo-stage">${symbolCards}</div><div class="action-callout action-${escapeHtml(signal.action)}"><div><small>AI ACTION SIGNAL</small><h2>${escapeHtml(signal.recommendation)}</h2></div><div class="signal-strength"><b>${escapeHtml(signal.level)}</b><span>訊號強度</span></div><p>${escapeHtml(signal.detail)}</p></div>${book.staking ? `<div class="stake-console"><div><small>固定單轉</small><b>${formatNumber(book.staking.regularBet)}</b><span>平台合法注額</span></div><div><small>免遊底注</small><b>${formatNumber(book.staking.featureBet)}</b><span>成本 ${formatNumber(book.staking.featureCost)}</span></div><div><small>整場停損</small><b>${formatNumber(book.staking.stopLoss)}</b><span>到線立即停止</span></div><div><small>單次停利</small><b>${formatNumber(book.staking.takeProfit)}</b><span>到線立即收手</span></div></div>` : `<div class="plan-empty">輸入本金後，訊號會同步給出平台合法注額與免遊成本。</div>`}</section>`;
+  return `<section class="playbook signal-matrix"><header><div><small>ATG X・LIVE SIGNAL MATRIX</small><h3>本輪隨機訊號組合</h3></div><span class="matrix-code">${escapeHtml(signal.code)}</span></header><div class="combo-stage">${symbolCards}</div><div class="action-callout action-${escapeHtml(signal.action)}"><div><small>AI ACTION SIGNAL</small><h2>${escapeHtml(signal.recommendation)}</h2></div><div class="signal-strength"><b>${escapeHtml(signal.level)}</b><span>訊號強度</span></div><p>${escapeHtml(signal.detail)}</p></div>${book.staking ? `<div class="stake-console direct-stakes"><div><small>平轉金額</small><b>${formatNumber(book.staking.regularBet)}</b><span>每一轉固定此金額</span></div><div><small>訊號後購買</small><b>${escapeHtml(signal.recommendation)}</b><span>${escapeHtml(signal.detail)}</span></div></div>` : `<div class="plan-empty">輸入本金後，會直接顯示平轉多少及訊號後購買多少。</div>`}</section>`;
 }
 
 function resultCard(result) {

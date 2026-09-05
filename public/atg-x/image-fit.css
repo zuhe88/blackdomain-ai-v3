@@ -288,6 +288,7 @@
 .action-callout h2 { margin: 6px 0 0; color: #fff; font-size: clamp(20px, 3vw, 29px); }
 .action-callout p { grid-column: 1 / -1; margin: 4px 0 0; color: #c7abb0; font-size: 10px; line-height: 1.65; }
 .action-spin { border-left-color: #ffbf45; background: linear-gradient(100deg, rgba(89, 53, 7, .35), rgba(14, 8, 10, .95)); }
+.action-awakening { border-left-color: #b36cff; background: linear-gradient(100deg, rgba(74, 24, 108, .48), rgba(14, 8, 10, .95)); }
 .action-wait { border-left-color: #777; background: linear-gradient(100deg, rgba(42, 38, 39, .52), rgba(14, 8, 10, .95)); }
 
 .signal-strength {
@@ -389,6 +390,13 @@
 .stake-console b { display: block; margin-top: 6px; color: #fff; font-size: 14px; }
 .stake-console span { display: block; margin-top: 5px; color: #806c6f; font-size: 8px; }
 
+.direct-stakes { grid-template-columns: .72fr 1.28fr; gap: 10px; }
+.direct-stakes > div { padding: 15px 16px; border-color: rgba(255, 64, 82, .34); }
+.direct-stakes small { color: #b08b90; font-size: 9px; letter-spacing: .06em; }
+.direct-stakes b { margin-top: 8px; color: #fff; font-size: 21px; line-height: 1.25; }
+.direct-stakes > div:first-child b { color: #48f1ad; font-size: 30px; text-shadow: 0 0 18px rgba(72, 241, 173, .2); }
+.direct-stakes span { color: #b89a9f; font-size: 9px; line-height: 1.55; }
+
 .plan-empty {
   margin-top: 10px;
   padding: 13px;
@@ -455,6 +463,7 @@
   .symbol-art { flex-basis: 54px; width: 54px; height: 50px; }
   .symbol-art.direct img { width: 50px; height: 46px; }
   .stake-console { grid-template-columns: 1fr 1fr; }
+  .direct-stakes { grid-template-columns: 1fr; }
   .combo-stage { min-height: 170px; gap: 10px; padding: 14px 8px; }
   .combo-art { width: 108px; height: 108px; border-radius: 19px; }
   .combo-art img { width: 92px; height: 92px; }
