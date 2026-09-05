@@ -22,6 +22,18 @@ function legalBetAtOrBelow(target) {
   return [...LEGAL_BETS].reverse().find((value) => value <= numeric) || LEGAL_BETS[0];
 }
 
+const SHARED_PAY_SYMBOLS = [
+  { id: "eye", label: "荷魯斯之眼", payout: "8–9: 10×｜10–11: 25×｜12+: 50×", sheet: "primary", left: -56, top: -108 },
+  { id: "staff", label: "眼鏡蛇權杖", payout: "8–9: 2.5×｜10–11: 10×｜12+: 25×", sheet: "primary", left: -236, top: -110 },
+  { id: "bow", label: "弓箭", payout: "8–9: 2×｜10–11: 5×｜12+: 25×", sheet: "primary", left: -416, top: -110 },
+  { id: "blade", label: "沙漠之刃", payout: "8–9: 1.5×｜10–11: 2×｜12+: 12×", sheet: "primary", left: -57, top: -320 },
+  { id: "yellow", label: "黃寶石", payout: "8–9: 1×｜10–11: 1.5×｜12+: 10×", sheet: "gems", left: -66, top: -87 },
+  { id: "red", label: "紅寶石", payout: "8–9: 0.8×｜10–11: 1.2×｜12+: 8×", sheet: "gems", left: -246, top: -87 },
+  { id: "purple", label: "紫寶石", payout: "8–9: 0.5×｜10–11: 1×｜12+: 5×", sheet: "gems", left: -426, top: -87 },
+  { id: "blue", label: "藍寶石", payout: "8–9: 0.4×｜10–11: 0.9×｜12+: 4×", sheet: "gems", left: -66, top: -299 },
+  { id: "green", label: "綠寶石", payout: "8–9: 0.25×｜10–11: 0.75×｜12+: 2×", sheet: "gems", left: -246, top: -299 },
+];
+
 function roomMetric(room) {
   const detail = room.detail || {};
   const todayRtp = Number(detail.todayRtp);
@@ -83,6 +95,7 @@ function playbook(gameName, bankroll) {
         { id: "scatter3", label: "3 個 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
         { id: "scatter4", label: "4 個以上 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
         { id: "multiplier", label: "高倍數球密集", icon: null },
+        ...SHARED_PAY_SYMBOLS,
       ],
     };
   }
@@ -96,8 +109,9 @@ function playbook(gameName, bankroll) {
       { id: "scatter3", label: "3 個 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
       { id: "scatter4", label: "4 個以上 SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
       { id: "awakening", label: "覺醒 SCATTER", icon: "/atg-x/assets/symbols/scatter-awakening.png" },
-      { id: "seth", label: "3 個戰神＋倍數球", icon: null },
-      { id: "goddess", label: "3 個女神＋倍數球", icon: null },
+      { id: "seth", label: "3 個戰神＋倍數球", payout: "觸發倍數球分裂", sheet: "primary", left: -236, top: -320 },
+      { id: "goddess", label: "3 個女神＋倍數球", payout: "觸發倍數球鎖定", sheet: "primary", left: -416, top: -320 },
+      ...SHARED_PAY_SYMBOLS,
     ],
   };
 }

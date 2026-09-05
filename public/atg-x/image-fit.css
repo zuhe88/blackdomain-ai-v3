@@ -206,10 +206,10 @@
 .selector-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .selector-head b { font-size: 12px; }
 .selector-head span { color: #8a7477; font-size: 9px; }
-.signal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.signal-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 
 .signal-chip {
-  min-height: 50px;
+  min-height: 76px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -228,9 +228,25 @@
   box-shadow: 0 0 20px rgba(255, 35, 57, .13);
 }
 
-.signal-chip img { width: 38px; height: 34px; object-fit: contain; }
+.symbol-art {
+  position: relative;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 56px;
+  display: block;
+  overflow: hidden;
+  border-radius: 9px;
+  background: radial-gradient(circle, #2d1216, #080607 72%);
+}
+
+.symbol-art.direct img { width: 60px; height: 52px; margin: 2px; object-fit: contain; }
+.symbol-art.sprite img { position: absolute; max-width: none; height: auto; object-fit: initial; }
+.symbol-art.sheet-primary img { width: 534px; }
+.symbol-art.sheet-gems img { width: 602px; }
 .signal-chip i { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #74303a; border-radius: 50%; color: #ff7280; font-style: normal; font-weight: 900; }
-.signal-chip span { font-size: 10px; font-weight: 800; white-space: nowrap; }
+.signal-chip > span:last-child { min-width: 0; font-size: 10px; font-weight: 800; }
+.signal-chip > span:last-child b { display: block; color: #f3e6e8; font-size: 10px; }
+.signal-chip > span:last-child small { display: block; margin-top: 5px; color: #8e767a; font-size: 7px; line-height: 1.45; }
 
 .signal-decision {
   margin-top: 11px;
@@ -294,6 +310,7 @@
   .game-body { padding: 20px; }
   .workspace { grid-template-columns: 1fr; }
   .rule-grid { grid-template-columns: 1fr; }
+  .signal-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 620px) {
@@ -314,6 +331,8 @@
   .playbook { padding: 14px; }
   .playbook > header, .selector-head { flex-direction: column; }
   .playbook header > span { white-space: normal; }
-  .signal-chip { flex: 1 1 calc(50% - 8px); }
+  .signal-chip { min-height: 70px; padding: 6px 8px; }
+  .symbol-art { flex-basis: 54px; width: 54px; height: 50px; }
+  .symbol-art.direct img { width: 50px; height: 46px; }
   .stake-console { grid-template-columns: 1fr 1fr; }
 }
