@@ -64,6 +64,8 @@ function registerHealthRoutes(app) {
       portalDirectReplyRendering: "unfiltered-v2",
       lineMemberBindingPreserved: true,
       portalBuild: "20260905.04",
+      atgXBuild: "20260905.01",
+      atgXLineConfigured: Boolean(process.env.ATGX_LINE_CHANNEL_ACCESS_TOKEN && process.env.ATGX_LINE_CHANNEL_SECRET),
     });
   });
 }

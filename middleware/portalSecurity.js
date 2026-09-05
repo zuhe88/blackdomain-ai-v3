@@ -12,7 +12,7 @@ function securityHeaders(req, res, next) {
   res.setHeader("referrer-policy", "strict-origin-when-cross-origin");
   res.setHeader("permissions-policy", "camera=(), microphone=(), geolocation=(), payment=()");
   res.setHeader("x-request-id", req.get("x-request-id") || crypto.randomUUID());
-  if (req.path === "/portal" || req.path.startsWith("/portal/")) {
+  if (req.path === "/portal" || req.path.startsWith("/portal/") || req.path === "/atg-x" || req.path.startsWith("/atg-x/")) {
     res.setHeader(
       "content-security-policy",
       "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
@@ -22,8 +22,8 @@ function securityHeaders(req, res, next) {
 }
 
 function portalRateLimit(req, res, next) {
-  const isLogin = req.path === "/portal/login";
-  const isPortalApi = req.path.startsWith("/api/web/");
+  const isLogin = req.path === "/portal/login" || req.path === "/api/atg-x/activate";
+  const isPortalApi = req.path.startsWith("/api/web/") || req.path.startsWith("/api/atg-x/");
   if (!isLogin && !isPortalApi) return next();
 
   const windowMs = isLogin ? 10 * 60 * 1000 : 60 * 1000;

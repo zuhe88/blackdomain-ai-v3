@@ -11,6 +11,7 @@ const { registerMbRelayRoutes } = require("./routes/mbRelay");
 const { registerDgRelayRoutes } = require("./routes/dgRelay");
 const { registerMtLiveRoutes } = require("./routes/mtLive");
 const { registerWebPortalRoutes } = require("./routes/webPortal");
+const { registerAtgXRoutes } = require("./routes/atgX");
 const { errorHandler } = require("./middleware/errorHandler");
 const { portalCsrf, portalRateLimit, securityHeaders } = require("./middleware/portalSecurity");
 
@@ -29,6 +30,7 @@ registerElectronicRelayRoutes(app);
 registerMbRelayRoutes(app);
 registerDgRelayRoutes(app);
 registerMtLiveRoutes(app);
+registerAtgXRoutes(app);
 registerWebPortalRoutes(app);
 app.use(errorHandler);
 

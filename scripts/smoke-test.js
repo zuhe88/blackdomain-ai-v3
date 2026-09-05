@@ -1498,6 +1498,10 @@ async function main() {
     const registered = [...captured.routes.get, ...captured.routes.post].some((entry) => entry.route === route);
     if (!registered) throw new Error(`Web portal route is missing: ${route}`);
   }
+  for (const route of ["/atg-x/*", "/api/atg-x/me", "/api/atg-x/activate", "/api/atg-x/games", "/api/atg-x/analyze", "/webhook/atg-x"]) {
+    const registered = [...captured.routes.get, ...captured.routes.post].some((entry) => entry.route === route);
+    if (!registered) throw new Error(`ATG X route is missing: ${route}`);
+  }
   if (!captured.routes.get.some((entry) => entry.route === "/portal/login")) {
     throw new Error("Web login must provide a preview-safe GET confirmation page");
   }
@@ -1522,6 +1526,22 @@ async function main() {
   const publicSiteSource = fs.readFileSync(path.join(root, "public", "index.html"), "utf8");
   const webPortalAppSource = fs.readFileSync(path.join(root, "public", "portal", "app.js"), "utf8");
   const webPortalStylesSource = fs.readFileSync(path.join(root, "public", "portal", "styles.css"), "utf8");
+  const atgXSource = fs.readFileSync(path.join(root, "public", "atg-x", "index.html"), "utf8");
+  const atgXAppSource = fs.readFileSync(path.join(root, "public", "atg-x", "app.js"), "utf8");
+  const atgXRouteSource = fs.readFileSync(path.join(root, "routes", "atgX.js"), "utf8");
+  const atgXAccessSource = fs.readFileSync(path.join(root, "modules", "atgX", "access.js"), "utf8");
+  for (const expected of ["ATG AI 預測X輔助程式", "/atg-x/assets/atg-x-logo.webp", "noindex,nofollow,noarchive"]) {
+    if (!atgXSource.includes(expected)) throw new Error(`ATG X website is missing: ${expected}`);
+  }
+  for (const expected of ["/api/atg-x/activate", "/api/atg-x/games", "/api/atg-x/analyze", "固定單位", "資料可信度"]) {
+    if (!atgXAppSource.includes(expected)) throw new Error(`ATG X client flow is missing: ${expected}`);
+  }
+  for (const expected of ["ATGX_LINE_CHANNEL_ACCESS_TOKEN", 'app.post("/webhook/atg-x"', "產生序號", "configuredLineAdmins"]) {
+    if (!atgXRouteSource.includes(expected)) throw new Error(`ATG X independent LINE flow is missing: ${expected}`);
+  }
+  for (const expected of ["atgx_license:", "deviceHash", "timingSafeEqual", "ATGX_SESSION_SECRET"]) {
+    if (!atgXAccessSource.includes(expected)) throw new Error(`ATG X license isolation is missing: ${expected}`);
+  }
   for (const expected of ["黑域AI｜AI 遊戲數據分析與即時分析平台", 'rel="canonical"', 'application/ld+json', 'name="application-name" content="黑域AI"', 'rel="icon" type="image/png" sizes="384x384" href="/favicon.png"', "進入AI預測系統", "https://line.me/ti/p/@893jrweh", "聯絡管理員 LINE", "加入免費討論群", "2LjVINFUKeXijuZMnbxXBBhP779jdIHuwvsCDQ", "button community", "#ffdc78", "service-icon", '<svg viewBox="0 0 24 24">', "logoGlow", "haloPulse", ".hero-art img{position:relative;width:min(390px,100%);height:auto", "AI 實戰影片", "/videos/baccarat-practice.mp4", "/videos/seth2-practice.mp4", "/videos/mb-practice.mp4", 'preload="none"']) {
     if (!publicSiteSource.includes(expected)) throw new Error(`Public SEO website is missing: ${expected}`);
   }
