@@ -84,7 +84,7 @@ function playbookPanel(result) {
 function resultCard(result) {
   const confidenceClass = result.confidence === "高" ? "high" : result.confidence === "中" ? "medium" : "low";
   const updated = result.updatedAt ? new Date(result.updatedAt).toLocaleTimeString("zh-TW", { hour12: false }) : "—";
-  return `<section class="result-summary"><div class="result-topline"><span><i></i>ANALYSIS READY</span><time>資料核對 ${escapeHtml(updated)}</time></div><div class="room-overview"><div class="room"><small>${escapeHtml(result.gameName)}・推薦房間</small><strong>${escapeHtml(result.roomNumber)}</strong><em>SELECTED ROOM</em></div><div class="confidence ${confidenceClass}"><b>${escapeHtml(result.confidence)}</b><span>資料可信度</span></div></div><div class="data-strip"><div><span>今日得分率</span><b>${formatNumber(result.metrics.todayRtp, "%")}</b></div><div><span>近30日得分率</span><b>${formatNumber(result.metrics.monthRtp, "%")}</b></div><div><span>今日總下注額</span><b>${formatNumber(result.metrics.todayBet)}</b></div></div><div class="room-actions"><span>符合條件：共有 ${formatNumber(result.availableRooms)} 房</span><button class="ghost" id="next-room" ${result.availableRooms < 2 ? "disabled" : ""}>查看其他符合條件房間 →</button></div></section>${playbookPanel(result)}<p class="note">${escapeHtml(result.note)}</p>`;
+  return `<section class="result-summary"><div class="result-topline"><span><i></i>ANALYSIS READY</span><time>資料核對 ${escapeHtml(updated)}</time></div><div class="room-overview"><div class="room"><small>${escapeHtml(result.gameName)}・推薦房間</small><strong>${escapeHtml(result.roomNumber)}</strong><em>SELECTED ROOM</em></div><div class="confidence ${confidenceClass}"><b>${escapeHtml(result.confidence)}</b><span>資料可信度</span></div></div><div class="data-strip"><div><span>今日得分率</span><b>${formatNumber(result.metrics.todayRtp, "%")}</b></div><div><span>近30日得分率</span><b>${formatNumber(result.metrics.monthRtp, "%")}</b></div><div><span>今日總下注額</span><b>${formatNumber(result.metrics.todayBet)}</b></div></div><div class="room-actions"><span>符合條件：共有 ${formatNumber(result.availableRooms)} 房</span><button class="ghost" id="recheck-room">重新核對目前房間</button></div></section>${playbookPanel(result)}<p class="note">${escapeHtml(result.note)}</p>`;
 }
 
 async function loadGames() {
@@ -132,19 +132,19 @@ document.addEventListener("click", async (event) => {
     if (input) input.value = selectedGame;
     return;
   }
-  if (event.target.id === "analyze" || event.target.id === "next-room") {
+  if (event.target.id === "analyze" || event.target.id === "recheck-room") {
     if (scanning) return;
     scanning = true;
     const button = document.querySelector("#analyze");
-    const next = event.target.id === "next-room";
+    const recheck = event.target.id === "recheck-room";
     bankrollValue = document.querySelector("#bankroll").value;
     button.disabled = true;
-    const nextButton = document.querySelector("#next-room");
-    if (nextButton) nextButton.disabled = true;
+    const recheckButton = document.querySelector("#recheck-room");
+    if (recheckButton) recheckButton.disabled = true;
     button.textContent = "正在核對房況…";
     document.querySelector(".workspace")?.classList.add("is-scanning");
     try {
-      const data = await api("/api/atg-x/analyze", { method: "POST", body: JSON.stringify({ gameName: selectedGame, bankroll: bankrollValue, roomNumber: activeResult?.roomNumber, next }) });
+      const data = await api("/api/atg-x/analyze", { method: "POST", body: JSON.stringify({ gameName: selectedGame, bankroll: bankrollValue, roomNumber: recheck ? activeResult?.roomNumber : undefined, recheck }) });
       activeResult = data.result;
       document.querySelector("#result").innerHTML = resultCard(data.result);
       const game = games.find((item) => item.gameName === selectedGame);
@@ -158,7 +158,7 @@ document.addEventListener("click", async (event) => {
     } finally {
       scanning = false;
       button.disabled = false;
-      button.textContent = activeResult ? "重新核對目前房間" : "啟動 AI 戰術掃描";
+      button.textContent = "啟動 AI 戰術掃描";
       document.querySelector(".workspace")?.classList.remove("is-scanning");
     }
   }

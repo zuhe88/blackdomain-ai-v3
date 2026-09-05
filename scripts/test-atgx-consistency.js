@@ -49,6 +49,8 @@ async function main() {
     assert.deepEqual(next.playbook, first.playbook);
     assert.equal(analyzer.analyze("戰神賽特2", 10000, { roomNumber: "102" }).roomNumber, "102");
     rooms = [rooms[1]];
+    assert.throws(() => analyzer.analyze("戰神賽特2", 10000, { roomNumber: "102", recheck: true }), /原房間/);
+    assert.equal(analyzer.analyze("戰神賽特2", 10000, { roomNumber: "101", recheck: true }).roomNumber, "101");
     assert.equal(analyzer.analyze("戰神賽特2", 10000, { roomNumber: "102", next: true }).roomNumber, "101");
     rooms = [];
     assert.throws(() => analyzer.analyze("戰神賽特2", 10000));

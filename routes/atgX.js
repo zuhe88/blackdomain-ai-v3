@@ -149,7 +149,7 @@ function registerAtgXRoutes(app) {
   app.post("/api/atg-x/analyze", express.json({ limit: "4kb" }), requireSameOrigin, async (req, res, next) => {
     try {
       if (!await member(req)) return res.status(401).json({ error: "授權已失效，請重新登入。" });
-      return res.json({ result: analyzer.analyze(String(req.body?.gameName || ""), req.body?.bankroll, { roomNumber: req.body?.roomNumber, next: req.body?.next === true }) });
+      return res.json({ result: analyzer.analyze(String(req.body?.gameName || ""), req.body?.bankroll, { roomNumber: req.body?.roomNumber, next: req.body?.next === true, recheck: req.body?.recheck === true }) });
     } catch (error) {
       if (/請重新|正在同步|目前沒有/.test(error.message)) return res.status(409).json({ error: error.message });
       return next(error);

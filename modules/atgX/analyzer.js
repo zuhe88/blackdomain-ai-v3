@@ -119,6 +119,7 @@ function analyze(gameName, bankroll = 0, selection = {}) {
     .sort((a, b) => b.metric.score - a.metric.score || String(a.room.number).localeCompare(String(b.room.number), "en", { numeric: true }));
   if (!candidates.length) throw new Error("目前沒有完成即時核對的空房，請稍後再分析。");
   const currentIndex = candidates.findIndex(({ room }) => String(room.number) === String(selection.roomNumber));
+  if (selection.recheck === true && currentIndex < 0) throw new Error("目前沒有可核對的原房間資料，該房可能已有人或資料過期，請重新啟動 AI 戰術掃描。");
   const selected = selection.next === true
     ? candidates[(currentIndex + 1) % candidates.length]
     : candidates[Math.max(0, currentIndex)];
