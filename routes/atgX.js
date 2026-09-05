@@ -36,23 +36,50 @@ function configuredLineAdmins() {
   return String(process.env.ATGX_LINE_ADMIN_USER_IDS || "").split(",").map((value) => value.trim()).filter(Boolean);
 }
 
+let atgXLineClient = null;
+let atgXLineTokenExpiresAt = 0;
+
+async function getAtgXLineClient(config) {
+  if (process.env.ATGX_LINE_CHANNEL_ACCESS_TOKEN) {
+    if (!atgXLineClient) atgXLineClient = new lineSdk.Client(config);
+    return atgXLineClient;
+  }
+  const channelId = String(process.env.ATGX_LINE_CHANNEL_ID || "").trim();
+  if (!channelId) throw new Error("ATGX_LINE_CHANNEL_ID is not configured.");
+  if (atgXLineClient && Date.now() < atgXLineTokenExpiresAt - 300000) return atgXLineClient;
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    client_id: channelId,
+    client_secret: config.channelSecret,
+  });
+  const response = await fetch("https://api.line.me/v2/oauth/accessToken", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const token = await response.json();
+  if (!response.ok || !token.access_token) throw new Error(token.error_description || "LINE access token renewal failed.");
+  atgXLineTokenExpiresAt = Date.now() + Math.max(60000, Number(token.expires_in) * 1000);
+  atgXLineClient = new lineSdk.Client({ ...config, channelAccessToken: token.access_token });
+  return atgXLineClient;
+}
+
 function registerAtgXLineWebhook(app) {
   const config = {
     channelAccessToken: process.env.ATGX_LINE_CHANNEL_ACCESS_TOKEN,
     channelSecret: process.env.ATGX_LINE_CHANNEL_SECRET,
   };
-  if (!config.channelAccessToken || !config.channelSecret) {
+  if (!config.channelSecret || (!config.channelAccessToken && !process.env.ATGX_LINE_CHANNEL_ID)) {
     app.post("/webhook/atg-x", (_req, res) => res.status(503).json({ error: "ATG X LINE 尚未設定。" }));
     return;
   }
-  const client = new lineSdk.Client(config);
   app.post("/webhook/atg-x", lineSdk.middleware(config), async (req, res) => {
     res.sendStatus(200);
     for (const event of req.body.events || []) {
       if (event.type !== "message" || event.message?.type !== "text" || !event.replyToken) continue;
       const text = String(event.message.text || "").trim();
       const userId = String(event.source?.userId || "");
-      const isAdmin = configuredLineAdmins().includes(userId);
+      const isAdmin = configuredLineAdmins().includes(userId) || isAdminLineUserId(userId);
       let replyText = "ATG AI 預測X輔助程式\n\n輸入「網站」開啟序號登入頁。";
       if (/^(網站|登入|開始|首頁)$/i.test(text)) {
         const base = String(process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app").replace(/\/$/, "");
@@ -75,6 +102,7 @@ function registerAtgXLineWebhook(app) {
         }
       }
       try {
+        const client = await getAtgXLineClient(config);
         await client.replyMessage(event.replyToken, { type: "text", text: replyText.slice(0, 5000) });
       } catch (error) {
         console.error("[ATG X LINE] Reply failed:", error.message);
