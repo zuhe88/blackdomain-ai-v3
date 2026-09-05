@@ -1,6 +1,8 @@
 const assert = require("node:assert/strict");
 const { createOnboarding, STATES } = require("../modules/atgX/onboarding");
 const cards = require("../modules/atgX/onboardingCards");
+const fs = require("node:fs");
+const vm = require("node:vm");
 
 async function main() {
   let saved = {};
@@ -57,6 +59,20 @@ async function main() {
   } finally {
     [source.hasReadyData, source.getEmptyRooms, source.hasFreshRoomDetail] = original;
   }
+  const app = { innerHTML: "" };
+  let randomValue = 0;
+  const browser = { document: { querySelector: () => app, addEventListener: () => {} }, crypto: { getRandomValues(values) { values[0] = randomValue++; } }, console };
+  vm.createContext(browser);
+  vm.runInContext(fs.readFileSync("public/atg-x/app-v2.js", "utf8").replace(/boot\(\);\s*$/, ""), browser);
+  const result = { gameName: "戰神賽特2", roomNumber: "101", confidence: "高", availableRooms: 2, updatedAt: new Date().toISOString(), metrics: {}, playbook: { staking: { regularBet: 48, freeGameEligible: true, freeGameBet: 6, freeGameCost: 1200 } }, note: "" };
+  browser.result = result;
+  const firstMarkup = vm.runInContext("resultCard(result)", browser);
+  const sameMarkup = vm.runInContext("resultCard(result)", browser);
+  assert.equal(firstMarkup, sameMarkup);
+  assert.match(firstMarkup, /本輪符號示意/);
+  assert.ok(!/隨機|生成|即時偵測/.test(firstMarkup));
+  vm.runInContext("symbolExamples.set(exampleKey(result), createSymbolExample(result, symbolExamples.get(exampleKey(result))))", browser);
+  assert.notEqual(vm.runInContext("resultCard(result)", browser), firstMarkup);
   console.log("ATG X: account validation, Flex cards, stable analysis and room navigation passed.");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

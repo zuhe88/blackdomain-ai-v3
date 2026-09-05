@@ -64,7 +64,7 @@ function registerHealthRoutes(app) {
       portalDirectReplyRendering: "unfiltered-v2",
       lineMemberBindingPreserved: true,
       portalBuild: "20260905.04",
-      atgXBuild: "20260905.14",
+      atgXBuild: "20260906.15",
       atgXLineConfigured: Boolean(
         process.env.ATGX_LINE_CHANNEL_SECRET
         && (process.env.ATGX_LINE_CHANNEL_ACCESS_TOKEN || process.env.ATGX_LINE_CHANNEL_ID)

@@ -7,6 +7,7 @@ let currentMember = null;
 let activeResult = null;
 let scanning = false;
 let bankrollValue = "";
+const symbolExamples = new Map();
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -76,9 +77,53 @@ function dashboard(me) {
   root.innerHTML = `<section class="section-head"><div><p class="eyebrow">ATG X・SETH EXCLUSIVE COMMAND</p><h1>戰神雙核心分析</h1><p>雙遊戲獨立資料鏈路，空房校驗完成後才會建立分析結果。</p></div><div class="overview-meta"><div class="overview-brand"><span>SETH / DUAL CORE</span><b>雙遊戲房況工作站</b><small>選擇遊戲 → 檢視房況 → 比較房間</small></div><div class="license-state">授權至 ${new Date(me.expiresAt).toLocaleDateString("zh-TW")}</div></div></section><section class="game-grid" id="games">${games.map(gameCard).join("")}</section><div id="room-status">${roomStatusBar()}</div><section class="workspace"><div class="panel command-panel"><div class="panel-kicker">ANALYSIS CONTROL</div><h2>戰術參數</h2><div class="control"><label>目前分析核心</label><input id="gameName" value="${escapeHtml(selectedGame)}" readonly></div><div class="control"><label>本次操作本金（選填）</label><input id="bankroll" inputmode="numeric" value="${escapeHtml(bankrollValue)}" placeholder="例如 10000"></div><button class="primary" id="analyze">啟動 AI 戰術掃描</button><button class="ghost" id="logout">登出本裝置</button></div><div class="result" id="result"><div class="empty-result"><div class="scanner-orbit"><i></i><span>AI</span></div><div><p class="eyebrow">SYSTEM STANDBY</p><b>等待啟動戰術掃描</b><p>檢視可用空房與房間統計，不預測下一轉結果</p></div></div></div></section>`;
 }
 
+const SYMBOLS = {
+  scatter: { label: "SCATTER", icon: "/atg-x/assets/symbols/scatter-standard.png" },
+  awakening: { label: "覺醒 SCATTER", icon: "/atg-x/assets/symbols/scatter-awakening.png" },
+  eye: { label: "荷魯斯之眼", icon: "/atg-x/assets/symbols/extracted/eye.png" },
+  staff: { label: "眼鏡蛇權杖", icon: "/atg-x/assets/symbols/extracted/staff.png" },
+  bow: { label: "弓箭", icon: "/atg-x/assets/symbols/extracted/bow.png" },
+  blade: { label: "沙漠之刃", icon: "/atg-x/assets/symbols/extracted/blade.png" },
+  yellow: { label: "黃寶石", icon: "/atg-x/assets/symbols/extracted/yellow.png" },
+  red: { label: "紅寶石", icon: "/atg-x/assets/symbols/extracted/red.png" },
+  purple: { label: "紫寶石", icon: "/atg-x/assets/symbols/extracted/purple.png" },
+  blue: { label: "藍寶石", icon: "/atg-x/assets/symbols/extracted/blue.png" },
+  green: { label: "綠寶石", icon: "/atg-x/assets/symbols/extracted/green.png" },
+};
+const SYMBOL_EXAMPLES = {
+  戰神賽特1: [[["scatter", 3]], [["blade", 5], ["red", 3]], [["eye", 6], ["yellow", 2]], [["staff", 4], ["purple", 4]], [["bow", 5], ["blue", 3]], [["yellow", 4], ["green", 4]]],
+  戰神賽特2: [[["scatter", 3]], [["scatter", 2], ["awakening", 1]], [["blade", 5], ["red", 3]], [["eye", 6], ["yellow", 2]], [["staff", 5], ["blue", 3]], [["bow", 4], ["green", 4]]],
+};
+function randomIndex(length) {
+  if (crypto?.getRandomValues) {
+    const value = new Uint32Array(1);
+    crypto.getRandomValues(value);
+    return value[0] % length;
+  }
+  return Math.floor(Math.random() * length);
+}
+function exampleKey(result) { return `${result.gameName}:${result.roomNumber}`; }
+function createSymbolExample(result, previous) {
+  const catalog = SYMBOL_EXAMPLES[result.gameName] || [];
+  if (!catalog.length) return [];
+  let index = randomIndex(catalog.length);
+  if (catalog.length > 1 && previous?.index === index) index = (index + 1) % catalog.length;
+  return { index, symbols: catalog[index].map(([id, count]) => ({ ...SYMBOLS[id], id, count })) };
+}
+function symbolExample(result) {
+  const key = exampleKey(result);
+  if (!symbolExamples.has(key)) symbolExamples.set(key, createSymbolExample(result));
+  return symbolExamples.get(key);
+}
+function symbolExamplePanel(result) {
+  const example = symbolExample(result);
+  const cards = example.symbols.map((symbol) => `<div class="combo-symbol"><div class="combo-art"><img src="${escapeHtml(symbol.icon)}" alt="${escapeHtml(symbol.label)}"><strong>×${symbol.count}</strong></div><b>${escapeHtml(symbol.label)}</b></div>`).join('<span class="combo-plus">＋</span>');
+  return `<section class="symbol-example"><header><div><small>SYMBOL DISPLAY</small><h3>本輪符號示意</h3></div><button class="ghost" id="refresh-symbols">更換示意</button></header><div class="combo-stage">${cards}</div></section>`;
+}
+
 function playbookPanel(result) {
   const staking = result.playbook?.staking;
-  return `<section class="observation-panel"><div class="panel-kicker">BOARD OBSERVATION</div><h3>盤面訊號待確認</h3><p>目前資料為房間統計，尚無即時盤面符號；不提供符號購買訊號。</p>${staking ? `<div class="execution-grid"><article class="execution-card flat"><small>平轉底注試算</small><strong>${formatNumber(staking.regularBet)}</strong><span>依輸入本金固定換算</span></article><article class="execution-card"><small>免費遊戲底注試算</small><strong>${staking.freeGameEligible ? formatNumber(staking.freeGameBet) : "預算不足"}</strong><span>${staking.freeGameEligible ? `底注 × 200 倍・總成本 ${formatNumber(staking.freeGameCost)}` : "目前預算低於最低購買成本"}</span></article></div><small class="estimate-note">僅為成本試算，不是購買建議；相同本金不因再次掃描而改變。</small>` : '<div class="plan-empty">輸入本金可查看成本試算。</div>'}</section>`;
+  return `${symbolExamplePanel(result)}<section class="observation-panel"><div class="panel-kicker">STAKING CALCULATOR</div><h3>操作金額試算</h3>${staking ? `<div class="execution-grid"><article class="execution-card flat"><small>平轉底注試算</small><strong>${formatNumber(staking.regularBet)}</strong><span>依輸入本金固定換算</span></article><article class="execution-card"><small>免費遊戲底注試算</small><strong>${staking.freeGameEligible ? formatNumber(staking.freeGameBet) : "預算不足"}</strong><span>${staking.freeGameEligible ? `底注 × 200 倍・總成本 ${formatNumber(staking.freeGameCost)}` : "目前預算低於最低購買成本"}</span></article></div><small class="estimate-note">僅為成本試算，不是購買建議；相同本金不因再次掃描而改變。</small>` : '<div class="plan-empty">輸入本金可查看成本試算。</div>'}</section>`;
 }
 
 function resultCard(result) {
@@ -132,6 +177,12 @@ document.addEventListener("click", async (event) => {
     if (input) input.value = selectedGame;
     return;
   }
+  if (event.target.id === "refresh-symbols" && activeResult) {
+    const key = exampleKey(activeResult);
+    symbolExamples.set(key, createSymbolExample(activeResult, symbolExamples.get(key)));
+    document.querySelector("#result").innerHTML = resultCard(activeResult);
+    return;
+  }
   if (event.target.id === "analyze" || event.target.id === "recheck-room") {
     if (scanning) return;
     scanning = true;
@@ -146,6 +197,7 @@ document.addEventListener("click", async (event) => {
     try {
       const data = await api("/api/atg-x/analyze", { method: "POST", body: JSON.stringify({ gameName: selectedGame, bankroll: bankrollValue, roomNumber: recheck ? activeResult?.roomNumber : undefined, recheck }) });
       activeResult = data.result;
+      if (!recheck) symbolExamples.delete(exampleKey(data.result));
       document.querySelector("#result").innerHTML = resultCard(data.result);
       const game = games.find((item) => item.gameName === selectedGame);
       if (game) { game.availableRooms = data.result.availableRooms; game.ready = true; }
