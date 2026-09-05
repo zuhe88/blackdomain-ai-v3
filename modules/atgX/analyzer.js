@@ -158,7 +158,7 @@ function gameStatus(gameName) {
 function playbook(gameName, bankroll) {
   const principal = Math.max(0, Number(bankroll) || 0);
   const regularBet = principal ? legalBetAtOrBelow(principal * 0.005) : null;
-  const freeGameBet = principal ? legalBetAtOrBelow((principal * 0.10) / 200) : null;
+  const freeGameBet = principal ? legalBetAtOrBelow((principal * 0.12) / 200) : null;
   const freeGameCost = freeGameBet ? freeGameBet * 200 : null;
   const awakeningBet = gameName === "戰神賽特2" && principal ? legalBetAtOrBelow((principal * 0.05) / 500) : null;
   const awakeningCost = awakeningBet ? awakeningBet * 500 : null;
@@ -172,7 +172,7 @@ function playbook(gameName, bankroll) {
       freeGameMultiplier: 200,
       freeGameBet,
       freeGameCost,
-      freeGameEligible: freeGameCost <= principal * 0.10,
+      freeGameEligible: freeGameCost <= principal * 0.12,
       awakeningMultiplier: gameName === "戰神賽特2" ? 500 : null,
       awakeningBet,
       awakeningCost,
