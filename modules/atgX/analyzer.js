@@ -4,7 +4,7 @@ const GAME_IMAGES = {
   戰神賽特1: "/images/electronic/seth1-hd.webp",
   戰神賽特2: "/images/electronic/seth2-hd.webp",
   古神巴風特: "/images/electronic/baphomet-hd.webp",
-  虎小妹: "/images/electronic/tiger-hd.webp",
+  虎小妹: "/images/electronic/tiger-girl-hd.webp",
   赤三國: "/images/electronic/red-three-kingdoms-hd.webp",
 };
 
