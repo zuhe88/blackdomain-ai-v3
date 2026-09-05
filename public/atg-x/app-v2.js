@@ -75,11 +75,10 @@ function playbookPanel(result) {
   if (!book || !signal) return "";
   const symbolCards = signal.symbols.map((symbol) => `<div class="combo-symbol"><div class="combo-art"><img src="${escapeHtml(symbol.icon)}" alt="${escapeHtml(symbol.label)}"><strong>×${escapeHtml(symbol.count)}</strong></div><b>${escapeHtml(symbol.label)}</b></div>`).join('<span class="combo-plus">＋</span>');
   const purchase = signal.purchase || {};
-  const purchaseName = purchase.product === "免費遊戲" ? "免遊" : (purchase.product || "免遊");
-  const purchaseLabel = `出現訊號後建議多少購買${purchaseName}`;
-  const purchaseValue = purchase.allowed && purchase.cost != null ? formatNumber(purchase.cost) : "本輪不購買";
+  const purchaseLabel = "出現訊號後建議購買金額";
+  const purchaseValue = purchase.allowed && purchase.bet != null ? formatNumber(purchase.bet) : "本輪不購買";
   const purchaseMeta = purchase.allowed && purchase.bet != null
-    ? `單轉底注 ${formatNumber(purchase.bet)} × ${formatNumber(purchase.multiplier)} 倍`
+    ? `底注 ${formatNumber(purchase.bet)} × ${formatNumber(purchase.multiplier)} 倍・總購買金額 ${formatNumber(purchase.cost)}`
     : purchase.cost != null ? `最低購買金額 ${formatNumber(purchase.cost)}，目前本金不適合` : "維持平轉，不額外購買";
   return `<section class="playbook signal-matrix"><header><div><small>ATG X・SIGNAL MATRIX</small><h3>本輪訊號</h3></div><span class="matrix-code">${escapeHtml(signal.code)}</span></header><div class="combo-stage">${symbolCards}</div><div class="action-callout action-${escapeHtml(signal.action)}"><div><small>本輪建議</small><h2>${escapeHtml(signal.recommendation)}</h2><p>${escapeHtml(signal.detail)}</p></div><div class="signal-strength"><b>${escapeHtml(signal.level)}</b><span>訊號強度</span></div></div>${book.staking ? `<div class="execution-grid"><article class="execution-card flat"><small>建議平轉金額</small><strong>${formatNumber(book.staking.regularBet)}</strong><span>每一轉固定此金額</span></article><article class="execution-card purchase ${purchase.allowed ? "allowed" : "disabled"}"><small>${escapeHtml(purchaseLabel)}</small><strong>${escapeHtml(purchaseValue)}</strong><span>${escapeHtml(purchaseMeta)}</span></article></div>` : `<div class="plan-empty">輸入本金後，會直接顯示平轉金額與免遊購買金額。</div>`}</section>`;
 }
