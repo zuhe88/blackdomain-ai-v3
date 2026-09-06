@@ -158,6 +158,15 @@ async function boot() {
   }
 }
 
+function analysisSelection(recheck) {
+  const currentRoom = activeResult?.gameName === selectedGame ? activeResult.roomNumber : undefined;
+  return {
+    roomNumber: currentRoom,
+    recheck,
+    next: !recheck && currentRoom != null,
+  };
+}
+
 document.addEventListener("submit", async (event) => {
   if (event.target.id !== "activate") return;
   event.preventDefault();
@@ -197,9 +206,8 @@ document.addEventListener("click", async (event) => {
     button.textContent = "正在核對房況…";
     document.querySelector(".workspace")?.classList.add("is-scanning");
     try {
-      const data = await api("/api/atg-x/analyze", { method: "POST", body: JSON.stringify({ gameName: selectedGame, bankroll: bankrollValue, roomNumber: recheck ? activeResult?.roomNumber : undefined, recheck }) });
+      const data = await api("/api/atg-x/analyze", { method: "POST", body: JSON.stringify({ gameName: selectedGame, bankroll: bankrollValue, ...analysisSelection(recheck) }) });
       activeResult = data.result;
-      if (!recheck) symbolExamples.delete(exampleKey(data.result));
       document.querySelector("#result").innerHTML = resultCard(data.result);
       const game = games.find((item) => item.gameName === selectedGame);
       if (game) { game.availableRooms = data.result.availableRooms; game.ready = true; }

@@ -64,6 +64,11 @@ async function main() {
   const browser = { document: { querySelector: () => app, addEventListener: () => {} }, crypto: { getRandomValues(values) { values[0] = randomValue++; } }, console };
   vm.createContext(browser);
   vm.runInContext(fs.readFileSync("public/atg-x/app-v2.js", "utf8").replace(/boot\(\);\s*$/, ""), browser);
+  assert.equal(vm.runInContext("JSON.stringify(analysisSelection(false))", browser), JSON.stringify({ recheck: false, next: false }));
+  vm.runInContext("activeResult = { gameName: selectedGame, roomNumber: '101' }", browser);
+  assert.equal(vm.runInContext("JSON.stringify(analysisSelection(false))", browser), JSON.stringify({ roomNumber: "101", recheck: false, next: true }));
+  assert.equal(vm.runInContext("JSON.stringify(analysisSelection(true))", browser), JSON.stringify({ roomNumber: "101", recheck: true, next: false }));
+  vm.runInContext("activeResult = null", browser);
   assert.ok(!vm.runInContext("gameCard({ gameName: '戰神賽特2', ready: true, availableRooms: 1, image: '/game.webp' })", browser).includes("SET-"));
   vm.runInContext("dashboard({ expiresAt: new Date().toISOString() })", browser);
   assert.match(app.innerHTML, /empty-result standby/);
@@ -99,8 +104,7 @@ async function main() {
   assert.ok(!atgPage.includes("房況分析"));
   assert.match(atgPage, /line-logo/);
   assert.match(atgPage, /https:\/\/line\.me\/ti\/p\/@605ohfyh/);
-  vm.runInContext("symbolExamples.set(exampleKey(result), createSymbolExample(result, symbolExamples.get(exampleKey(result))))", browser);
-  assert.notEqual(vm.runInContext("resultCard(result)", browser), firstMarkup);
+  assert.ok(!fs.readFileSync("public/atg-x/app-v2.js", "utf8").includes("symbolExamples.delete(exampleKey(data.result))"));
   console.log("ATG X: account validation, Flex cards, stable analysis and room navigation passed.");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
