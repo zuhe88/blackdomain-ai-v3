@@ -508,10 +508,13 @@
   border-radius: 15px;
   background: #0b0d13;
 }
-.execution-card small { display: block; color: #8e95a3; font-size: 10px; line-height: 1.45; }
-.execution-card strong { display: block; margin-top: 9px; color: #f5f6f8; font-size: 25px; line-height: 1.2; }
-.execution-card span { display: block; margin-top: 7px; color: #777e8c; font-size: 9px; line-height: 1.6; }
+.execution-card small { display: block; color: #c4cad5; font-size: 14px; font-weight: 700; line-height: 1.45; letter-spacing: .04em; }
+.execution-card strong { display: block; margin-top: 9px; color: #f5f6f8; font-size: 29px; font-weight: 800; line-height: 1.2; }
+.execution-card span { display: block; margin-top: 9px; color: #b8c0ce; font-size: 14px; font-weight: 600; line-height: 1.6; }
 .execution-card.flat strong { color: #54eeb1; font-size: 34px; }
+.execution-card.purchase-recommendation { border-color: rgba(232, 63, 84, .48); background: linear-gradient(135deg, rgba(57, 15, 23, .55), #0b0d13 72%); }
+.execution-card.purchase-recommendation strong { color: #ff8390; }
+.execution-card.purchase-recommendation span b { color: #fff; font-size: 18px; font-weight: 800; }
 .execution-card.purchase.allowed { border-color: rgba(232, 63, 84, .48); background: linear-gradient(135deg, rgba(57, 15, 23, .55), #0b0d13 72%); }
 .execution-card.purchase.allowed strong { color: #ff8390; }
 .execution-card.purchase.disabled strong { color: #aeb3bd; }
@@ -647,7 +650,6 @@
 .symbol-example .combo-stage { margin-top: 20px; min-height: 210px; border-color: #31394a; background: radial-gradient(circle at 50% 45%,rgba(236,48,76,.12),transparent 46%),#090c12; }
 .symbol-example .combo-art { background: linear-gradient(145deg,#181d29,#0b0e15); border-color: #3c4659; box-shadow: inset 0 0 28px rgba(255,255,255,.025),0 18px 38px rgba(0,0,0,.28); }
 .symbol-example .combo-symbol > b { color: #e8ecf4; }
-.execution-grid.has-awakening { grid-template-columns: repeat(3,minmax(0,1fr)); }
 .execution-card.awakening { border-color: #704554; background: linear-gradient(145deg,#21141c,#10131a); }
 .execution-card.awakening strong { color: #ff8091; }
 @media (max-width: 720px) {
@@ -679,8 +681,7 @@
   .symbol-example { padding: 16px; }
   .symbol-example .combo-stage { min-height: 150px; margin-top: 14px; }
   .observation-panel { padding: 16px; }
-  .execution-grid, .execution-grid.has-awakening { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
-  .execution-grid.has-awakening .awakening { grid-column: 1 / -1; }
+  .execution-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
   .execution-card { min-height: 96px; padding: 13px; }
   .topbar { height: 82px; }
   .brand { gap: 10px; }

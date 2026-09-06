@@ -118,13 +118,18 @@ function symbolExample(result) {
 function symbolExamplePanel(result) {
   const example = symbolExample(result);
   const cards = example.symbols.map((symbol) => `<div class="combo-symbol"><div class="combo-art"><img src="${escapeHtml(symbol.icon)}" alt="${escapeHtml(symbol.label)}"><strong>×${symbol.count}</strong></div><b>${escapeHtml(symbol.label)}</b></div>`).join('<span class="combo-plus">＋</span>');
-  return `<section class="symbol-example"><header><div><small>SYMBOL DISPLAY</small><h3>本輪符號示意</h3></div></header><div class="combo-stage">${cards}</div></section>`;
+  return `<section class="symbol-example"><header><div><small>RECOMMENDED SIGNAL</small><h3>推薦訊號</h3></div></header><div class="combo-stage">${cards}</div></section>`;
 }
 
 function playbookPanel(result) {
   const staking = result.playbook?.staking;
-  const awakening = result.gameName === "戰神賽特2" && staking ? `<article class="execution-card awakening"><small>購買覺醒之力</small><strong>${staking.awakeningEligible ? formatNumber(staking.awakeningBet) : "預算不足"}</strong><span>${staking.awakeningEligible ? `購買成本 ${formatNumber(staking.awakeningCost)}` : "目前預算低於最低購買成本"}</span></article>` : "";
-  return `${symbolExamplePanel(result)}<section class="observation-panel"><div class="panel-kicker">STAKING CALCULATOR</div><h3>操作金額試算</h3>${staking ? `<div class="execution-grid ${awakening ? "has-awakening" : ""}"><article class="execution-card flat"><small>平轉底注</small><strong>${formatNumber(staking.regularBet)}</strong><span>建議平轉金額</span></article><article class="execution-card purchase-option"><small>購買免費遊戲</small><strong>${staking.freeGameEligible ? formatNumber(staking.freeGameBet) : "預算不足"}</strong><span>${staking.freeGameEligible ? `購買成本 ${formatNumber(staking.freeGameCost)}` : "目前預算低於最低購買成本"}</span></article>${awakening}</div>` : '<div class="plan-empty">輸入本金可查看平轉與購買方案。</div>'}</section>`;
+  const recommendsAwakening = result.gameName === "戰神賽特2" && symbolExample(result).symbols.some((symbol) => symbol.id === "awakening");
+  const purchaseName = recommendsAwakening ? "覺醒之力" : "免費遊戲";
+  const purchaseBet = recommendsAwakening ? staking?.awakeningBet : staking?.freeGameBet;
+  const purchaseCost = recommendsAwakening ? staking?.awakeningCost : staking?.freeGameCost;
+  const purchaseEligible = recommendsAwakening ? staking?.awakeningEligible : staking?.freeGameEligible;
+  const purchase = staking ? `<article class="execution-card purchase-recommendation ${recommendsAwakening ? "awakening" : ""}"><small>訊號出現後推薦購買</small><strong>${purchaseName}</strong><span>${purchaseEligible ? `建議購買金額 <b>${formatNumber(purchaseCost)}</b>・投注金額 ${formatNumber(purchaseBet)}` : "目前本金低於最低購買金額"}</span></article>` : "";
+  return `${symbolExamplePanel(result)}<section class="observation-panel"><div class="panel-kicker">RECOMMENDED BANKROLL</div><h3>建議操作本金</h3>${staking ? `<div class="execution-grid"><article class="execution-card flat"><small>平轉底注</small><strong>${formatNumber(staking.regularBet)}</strong><span>建議平轉金額</span></article>${purchase}</div>` : '<div class="plan-empty">輸入本金可查看平轉與訊號購買建議。</div>'}</section>`;
 }
 
 function resultCard(result) {

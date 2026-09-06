@@ -181,8 +181,10 @@ body {
   .execution-grid,.execution-grid.has-awakening { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
   .execution-grid.has-awakening .awakening { grid-column: 1 / -1; }
   .execution-card { min-height: 84px; padding: 11px; border-radius: 12px; }
-  .execution-card strong { margin-top: 6px; font-size: 22px; }
-  .execution-card span { font-size: 8px; }
+  .execution-card small { font-size: 12px; }
+  .execution-card strong { margin-top: 6px; font-size: 24px; }
+  .execution-card span { font-size: 12px; }
+  .execution-card.purchase-recommendation span b { font-size: 16px; }
   .note { margin-top: 10px; font-size: 9px; }
 }
 
