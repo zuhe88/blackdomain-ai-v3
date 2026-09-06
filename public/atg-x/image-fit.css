@@ -530,11 +530,21 @@
   text-align: center;
   background: radial-gradient(circle at 50% 43%, rgba(255, 42, 72, .12), transparent 38%);
 }
-.empty-result.standby::before {
+.scanner-field {
+  position: relative;
+  width: min(100%, 420px);
+  height: 220px;
+  display: grid;
+  place-items: center;
+}
+.scanner-field::before {
   content: "";
   position: absolute;
+  left: 50%;
+  top: 50%;
   width: 420px;
   height: 420px;
+  transform: translate(-50%, -50%);
   border: 1px solid rgba(67, 84, 109, .18);
   border-radius: 50%;
   background: repeating-radial-gradient(circle, transparent 0 42px, rgba(72, 90, 117, .08) 43px 44px);
@@ -593,7 +603,8 @@
   .intel-strip > * { border-bottom: 1px solid #32191d; }
   .empty-result { grid-template-columns: 1fr; justify-items: center; text-align: center; }
   .empty-result.standby { min-height: 300px; gap: 20px; padding: 18px 4px; }
-  .empty-result.standby::before { width: 330px; height: 330px; }
+  .scanner-field { height: 176px; }
+  .scanner-field::before { width: 330px; height: 330px; }
   .scanner-orbit { width: 140px; height: 140px; }
   .scanner-orbit::before { inset: 14px; }
   .scanner-orbit::after { inset: 37px; }
@@ -630,13 +641,13 @@
 
 /* A compact room overview replaces the decorative pipeline. */
 .topbar-nav { display: flex; align-items: center; }
-.topbar-nav .line-contact { display: flex; align-items: center; gap: 11px; padding: 8px 14px 8px 9px; border: 1px solid rgba(6, 199, 85, .68); border-radius: 13px; background: rgba(6, 199, 85, .1); color: #eafff2; text-decoration: none; box-shadow: inset 0 0 18px rgba(6, 199, 85, .05), 0 0 18px rgba(6, 199, 85, .12); transition: border-color .2s, background .2s, box-shadow .2s, transform .2s; }
-.topbar-nav .line-contact:hover { border-color: #25e874; background: rgba(6, 199, 85, .17); color: #fff; box-shadow: inset 0 0 20px rgba(6, 199, 85, .08), 0 0 24px rgba(6, 199, 85, .24); transform: translateY(-1px); }
+.topbar-nav .line-contact { display: flex; align-items: center; gap: 10px; padding: 7px 16px 7px 8px; border: 1px solid #364254; border-radius: 999px; background: linear-gradient(145deg, #111824, #090e16); color: #edf4f7; text-decoration: none; box-shadow: inset 0 1px rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.22); transition: border-color .2s, background .2s, box-shadow .2s, transform .2s; }
+.topbar-nav .line-contact:hover { border-color: rgba(6, 199, 85, .72); background: linear-gradient(145deg, #13221c, #0a1310); color: #fff; box-shadow: inset 0 1px rgba(255,255,255,.05), 0 8px 24px rgba(6,199,85,.13); transform: translateY(-1px); }
 .topbar-nav .line-contact::after { display: none; }
-.line-logo { flex: 0 0 38px; width: 38px; height: 38px; filter: drop-shadow(0 0 8px rgba(6, 199, 85, .3)); }
+.line-logo { flex: 0 0 36px; width: 36px; height: 36px; }
 .line-contact > span { display: grid; gap: 3px; }
-.line-contact small { color: #9fcdb1; font-size: 9px; font-weight: 700; letter-spacing: .08em; }
-.line-contact strong { color: #f2fff7; font: 800 13px/1.1 monospace; letter-spacing: .025em; }
+.line-contact small { color: #55db8b; font-size: 9px; font-weight: 800; letter-spacing: .06em; }
+.line-contact strong { color: #f2f6fa; font: 800 13px/1.1 system-ui, sans-serif; letter-spacing: .02em; }
 .topbar { height: 94px; }
 .brand { gap: 16px; }
 .brand img { width: 66px; height: 66px; filter: drop-shadow(0 0 17px rgba(255,36,60,.62)); }
