@@ -647,6 +647,9 @@
 .symbol-example .combo-stage { margin-top: 20px; min-height: 210px; border-color: #31394a; background: radial-gradient(circle at 50% 45%,rgba(236,48,76,.12),transparent 46%),#090c12; }
 .symbol-example .combo-art { background: linear-gradient(145deg,#181d29,#0b0e15); border-color: #3c4659; box-shadow: inset 0 0 28px rgba(255,255,255,.025),0 18px 38px rgba(0,0,0,.28); }
 .symbol-example .combo-symbol > b { color: #e8ecf4; }
+.execution-grid.has-awakening { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.execution-card.awakening { border-color: #704554; background: linear-gradient(145deg,#21141c,#10131a); }
+.execution-card.awakening strong { color: #ff8091; }
 @media (max-width: 720px) {
   .overview-meta { justify-items: start; width: 100%; }
   .overview-brand { display: none; }
@@ -655,13 +658,40 @@
   .room-status-bar { gap: 12px; padding: 18px; }
   .room-status-bar > small { width: 100%; order: 3; }
   .observation-panel { padding: 18px; }
-  .room-actions button { width: 100%; margin: 0; }
+  .result { padding: 16px; border-radius: 16px; }
+  .result-topline { margin-bottom: 12px; }
+  .room-overview { gap: 10px; padding-bottom: 14px; }
+  .room-overview .room strong { margin-top: 4px; font-size: 46px; }
+  .room-overview .room em { font-size: 7px; letter-spacing: .13em; }
+  .room-overview .confidence { width: 138px; height: 68px; padding: 7px 9px; gap: 8px; border-radius: 14px; }
+  .confidence-ring { flex-basis: 50px; width: 50px; height: 50px; }
+  .confidence-ring b { font-size: 19px; }
+  .confidence-copy small { display: none; }
+  .confidence-copy strong { font-size: 12px; }
+  .confidence-copy em { font-size: 9px; }
+  .data-strip { grid-template-columns: repeat(3,minmax(0,1fr)); padding: 10px 0; }
+  .data-strip > div { min-width: 0; padding: 0 8px; border-right: 1px solid #252a34; border-bottom: 0; }
+  .data-strip > div:first-child { padding-left: 0; }
+  .data-strip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
+  .data-strip b { margin-top: 4px; font-size: 12px; }
+  .room-actions { margin-top: 12px; justify-content: space-between; }
+  .room-actions button { width: auto; margin: 0; padding: 9px 12px; font-size: 11px; }
   .symbol-example { padding: 16px; }
-  .room-overview .confidence { width: 166px; height: 84px; padding: 10px; }
-  .confidence-ring { flex-basis: 58px; width: 58px; height: 58px; }
+  .symbol-example .combo-stage { min-height: 150px; margin-top: 14px; }
+  .observation-panel { padding: 16px; }
+  .execution-grid, .execution-grid.has-awakening { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .execution-grid.has-awakening .awakening { grid-column: 1 / -1; }
+  .execution-card { min-height: 96px; padding: 13px; }
   .topbar { height: 82px; }
   .brand { gap: 10px; }
   .brand img { width: 54px; height: 54px; }
   .brand b { font-size: 19px; }
   .brand small { font-size: 10px; letter-spacing: .12em; }
+}
+@media (max-width: 390px) {
+  .result { padding: 13px; }
+  .room-overview .confidence { width: 124px; }
+  .confidence-copy em { display: none; }
+  .room-actions span { font-size: 10px; }
+  .room-actions button { padding: 8px 10px; }
 }

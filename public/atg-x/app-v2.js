@@ -123,7 +123,8 @@ function symbolExamplePanel(result) {
 
 function playbookPanel(result) {
   const staking = result.playbook?.staking;
-  return `${symbolExamplePanel(result)}<section class="observation-panel"><div class="panel-kicker">STAKING CALCULATOR</div><h3>操作金額試算</h3>${staking ? `<div class="execution-grid"><article class="execution-card flat"><small>平轉底注試算</small><strong>${formatNumber(staking.regularBet)}</strong><span>建議平轉金額</span></article><article class="execution-card"><small>免費遊戲底注試算</small><strong>${staking.freeGameEligible ? formatNumber(staking.freeGameBet) : "預算不足"}</strong><span>${staking.freeGameEligible ? `購買成本 ${formatNumber(staking.freeGameCost)}` : "目前預算低於最低購買成本"}</span></article></div>` : '<div class="plan-empty">輸入本金可查看成本試算。</div>'}</section>`;
+  const awakening = result.gameName === "戰神賽特2" && staking ? `<article class="execution-card awakening"><small>購買覺醒之力</small><strong>${staking.awakeningEligible ? formatNumber(staking.awakeningBet) : "預算不足"}</strong><span>${staking.awakeningEligible ? `購買成本 ${formatNumber(staking.awakeningCost)}` : "目前預算低於最低購買成本"}</span></article>` : "";
+  return `${symbolExamplePanel(result)}<section class="observation-panel"><div class="panel-kicker">STAKING CALCULATOR</div><h3>操作金額試算</h3>${staking ? `<div class="execution-grid ${awakening ? "has-awakening" : ""}"><article class="execution-card flat"><small>平轉底注</small><strong>${formatNumber(staking.regularBet)}</strong><span>建議平轉金額</span></article><article class="execution-card purchase-option"><small>購買免費遊戲</small><strong>${staking.freeGameEligible ? formatNumber(staking.freeGameBet) : "預算不足"}</strong><span>${staking.freeGameEligible ? `購買成本 ${formatNumber(staking.freeGameCost)}` : "目前預算低於最低購買成本"}</span></article>${awakening}</div>` : '<div class="plan-empty">輸入本金可查看平轉與購買方案。</div>'}</section>`;
 }
 
 function resultCard(result) {

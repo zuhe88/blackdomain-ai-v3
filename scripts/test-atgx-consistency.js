@@ -77,6 +77,10 @@ async function main() {
   assert.match(firstMarkup, /購買成本 1,200/);
   assert.match(firstMarkup, /推薦程度/);
   assert.ok(!firstMarkup.includes("資料可信度"));
+  assert.match(firstMarkup, /購買免費遊戲/);
+  assert.match(firstMarkup, /購買覺醒之力/);
+  browser.result = { ...result, gameName: "戰神賽特1" };
+  assert.ok(!vm.runInContext("resultCard(result)", browser).includes("購買覺醒之力"));
   assert.ok(!fs.readFileSync("public/atg-x/app-v2.js", "utf8").includes("雙遊戲房況工作站"));
   vm.runInContext("symbolExamples.set(exampleKey(result), createSymbolExample(result, symbolExamples.get(exampleKey(result))))", browser);
   assert.notEqual(vm.runInContext("resultCard(result)", browser), firstMarkup);
