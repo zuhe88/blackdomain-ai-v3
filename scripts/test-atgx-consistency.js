@@ -65,6 +65,10 @@ async function main() {
   vm.createContext(browser);
   vm.runInContext(fs.readFileSync("public/atg-x/app-v2.js", "utf8").replace(/boot\(\);\s*$/, ""), browser);
   assert.ok(!vm.runInContext("gameCard({ gameName: '戰神賽特2', ready: true, availableRooms: 1, image: '/game.webp' })", browser).includes("SET-"));
+  vm.runInContext("dashboard({ expiresAt: new Date().toISOString() })", browser);
+  assert.match(app.innerHTML, /empty-result standby/);
+  assert.match(app.innerHTML, /等待啟動戰術掃描/);
+  assert.ok(!app.innerHTML.includes("檢視可用空房與房間統計"));
   const result = { gameName: "戰神賽特2", roomNumber: "101", confidence: "高", availableRooms: 2, updatedAt: new Date().toISOString(), metrics: {}, playbook: { staking: { regularBet: 48, freeGameEligible: true, freeGameBet: 6, freeGameCost: 1200 } }, note: "" };
   browser.result = result;
   const firstMarkup = vm.runInContext("resultCard(result)", browser);
@@ -90,6 +94,11 @@ async function main() {
   browser.result = { ...result, gameName: "戰神賽特1" };
   assert.ok(!vm.runInContext("resultCard(result)", browser).includes("覺醒之力"));
   assert.ok(!fs.readFileSync("public/atg-x/app-v2.js", "utf8").includes("雙遊戲房況工作站"));
+  const atgPage = fs.readFileSync("public/atg-x/index.html", "utf8");
+  assert.ok(!atgPage.includes("遊戲選擇"));
+  assert.ok(!atgPage.includes("房況分析"));
+  assert.match(atgPage, /line-logo/);
+  assert.match(atgPage, /https:\/\/line\.me\/ti\/p\/@605ohfyh/);
   vm.runInContext("symbolExamples.set(exampleKey(result), createSymbolExample(result, symbolExamples.get(exampleKey(result))))", browser);
   assert.notEqual(vm.runInContext("resultCard(result)", browser), firstMarkup);
   console.log("ATG X: account validation, Flex cards, stable analysis and room navigation passed.");

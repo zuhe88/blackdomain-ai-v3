@@ -129,7 +129,7 @@ body {
   .brand img { width: 46px; height: 46px; }
   .brand b { font-size: 17px; }
   .brand small { font-size: 9px; }
-  .topbar-nav { display: none; }
+  .topbar-nav { display: flex; }
   .section-head { min-height: 0; margin-bottom: 12px; padding: 22px 20px; border-radius: 18px; }
   .section-head::after { display: none; }
   .section-head h1 { font-size: 34px; }
