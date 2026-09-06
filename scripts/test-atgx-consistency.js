@@ -71,6 +71,10 @@ async function main() {
   assert.equal(firstMarkup, sameMarkup);
   assert.match(firstMarkup, /本輪符號示意/);
   assert.ok(!/隨機|生成|即時偵測/.test(firstMarkup));
+  assert.ok(!firstMarkup.includes("更換示意"));
+  assert.ok(!firstMarkup.includes("僅為成本試算"));
+  assert.match(firstMarkup, /建議平轉金額/);
+  assert.match(firstMarkup, /購買成本 1,200/);
   vm.runInContext("symbolExamples.set(exampleKey(result), createSymbolExample(result, symbolExamples.get(exampleKey(result))))", browser);
   assert.notEqual(vm.runInContext("resultCard(result)", browser), firstMarkup);
   console.log("ATG X: account validation, Flex cards, stable analysis and room navigation passed.");

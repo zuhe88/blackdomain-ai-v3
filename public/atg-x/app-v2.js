@@ -118,12 +118,12 @@ function symbolExample(result) {
 function symbolExamplePanel(result) {
   const example = symbolExample(result);
   const cards = example.symbols.map((symbol) => `<div class="combo-symbol"><div class="combo-art"><img src="${escapeHtml(symbol.icon)}" alt="${escapeHtml(symbol.label)}"><strong>×${symbol.count}</strong></div><b>${escapeHtml(symbol.label)}</b></div>`).join('<span class="combo-plus">＋</span>');
-  return `<section class="symbol-example"><header><div><small>SYMBOL DISPLAY</small><h3>本輪符號示意</h3></div><button class="ghost" id="refresh-symbols">更換示意</button></header><div class="combo-stage">${cards}</div></section>`;
+  return `<section class="symbol-example"><header><div><small>SYMBOL DISPLAY</small><h3>本輪符號示意</h3></div></header><div class="combo-stage">${cards}</div></section>`;
 }
 
 function playbookPanel(result) {
   const staking = result.playbook?.staking;
-  return `${symbolExamplePanel(result)}<section class="observation-panel"><div class="panel-kicker">STAKING CALCULATOR</div><h3>操作金額試算</h3>${staking ? `<div class="execution-grid"><article class="execution-card flat"><small>平轉底注試算</small><strong>${formatNumber(staking.regularBet)}</strong><span>依輸入本金固定換算</span></article><article class="execution-card"><small>免費遊戲底注試算</small><strong>${staking.freeGameEligible ? formatNumber(staking.freeGameBet) : "預算不足"}</strong><span>${staking.freeGameEligible ? `底注 × 200 倍・總成本 ${formatNumber(staking.freeGameCost)}` : "目前預算低於最低購買成本"}</span></article></div><small class="estimate-note">僅為成本試算，不是購買建議；相同本金不因再次掃描而改變。</small>` : '<div class="plan-empty">輸入本金可查看成本試算。</div>'}</section>`;
+  return `${symbolExamplePanel(result)}<section class="observation-panel"><div class="panel-kicker">STAKING CALCULATOR</div><h3>操作金額試算</h3>${staking ? `<div class="execution-grid"><article class="execution-card flat"><small>平轉底注試算</small><strong>${formatNumber(staking.regularBet)}</strong><span>建議平轉金額</span></article><article class="execution-card"><small>免費遊戲底注試算</small><strong>${staking.freeGameEligible ? formatNumber(staking.freeGameBet) : "預算不足"}</strong><span>${staking.freeGameEligible ? `購買成本 ${formatNumber(staking.freeGameCost)}` : "目前預算低於最低購買成本"}</span></article></div>` : '<div class="plan-empty">輸入本金可查看成本試算。</div>'}</section>`;
 }
 
 function resultCard(result) {
@@ -175,12 +175,6 @@ document.addEventListener("click", async (event) => {
     dashboard(currentMember);
     const input = document.querySelector("#gameName");
     if (input) input.value = selectedGame;
-    return;
-  }
-  if (event.target.id === "refresh-symbols" && activeResult) {
-    const key = exampleKey(activeResult);
-    symbolExamples.set(key, createSymbolExample(activeResult, symbolExamples.get(key)));
-    document.querySelector("#result").innerHTML = resultCard(activeResult);
     return;
   }
   if (event.target.id === "analyze" || event.target.id === "recheck-room") {
