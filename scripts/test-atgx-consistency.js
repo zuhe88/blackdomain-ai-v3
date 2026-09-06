@@ -64,6 +64,7 @@ async function main() {
   const browser = { document: { querySelector: () => app, addEventListener: () => {} }, crypto: { getRandomValues(values) { values[0] = randomValue++; } }, console };
   vm.createContext(browser);
   vm.runInContext(fs.readFileSync("public/atg-x/app-v2.js", "utf8").replace(/boot\(\);\s*$/, ""), browser);
+  assert.ok(!vm.runInContext("gameCard({ gameName: '戰神賽特2', ready: true, availableRooms: 1, image: '/game.webp' })", browser).includes("SET-"));
   const result = { gameName: "戰神賽特2", roomNumber: "101", confidence: "高", availableRooms: 2, updatedAt: new Date().toISOString(), metrics: {}, playbook: { staking: { regularBet: 48, freeGameEligible: true, freeGameBet: 6, freeGameCost: 1200 } }, note: "" };
   browser.result = result;
   const firstMarkup = vm.runInContext("resultCard(result)", browser);

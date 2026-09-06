@@ -59,11 +59,11 @@ function login() {
   root.innerHTML = `<section class="hero"><div class="hero-copy"><p class="eyebrow">ATG INTELLIGENCE・SERIAL ACCESS</p><h1>ATG AI <span>預測X輔助程式</span></h1><p>專注戰神賽特1、戰神賽特2的即時選房、資料訊號與資金節奏輔助。輸入管理員提供的專屬序號，即可啟用你的分析介面。</p><form class="login-card" id="activate"><label>輸入啟用序號</label><div class="serial-row"><input name="serial" autocomplete="off" spellcheck="false" placeholder="ATGX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" required><button class="primary">安全啟用</button></div><small>每組序號限綁定一個瀏覽器裝置。清除瀏覽器資料前請先聯絡管理員。</small></form></div><div class="hero-logo"><img src="/atg-x/assets/atg-x-logo.webp" alt="ATG駭客"></div></section>`;
 }
 
-function gameCard(game, index) {
+function gameCard(game) {
   const active = game.gameName === selectedGame;
   const operational = game.ready && game.availableRooms > 0;
   const status = operational ? `符合條件：共有 ${game.availableRooms} 房` : game.ready ? "等待可分析空房" : "資料鏈路同步中";
-  return `<button class="game ${operational ? "ready" : ""} ${active ? "active" : ""}" data-game="${escapeHtml(game.gameName)}"><span class="game-visual"><img src="${escapeHtml(game.image)}" alt="${escapeHtml(game.gameName)}"><em>SET-${String(index + 1).padStart(2, "0")}</em></span><span class="game-body"><small>ATG EXCLUSIVE MODULE</small><b>${escapeHtml(game.gameName)}</b><span><i></i>${escapeHtml(status)}</span><u>${active ? "目前選定" : "切換分析"}</u></span></button>`;
+  return `<button class="game ${operational ? "ready" : ""} ${active ? "active" : ""}" data-game="${escapeHtml(game.gameName)}"><span class="game-visual"><img src="${escapeHtml(game.image)}" alt="${escapeHtml(game.gameName)}"></span><span class="game-body"><small>ATG EXCLUSIVE MODULE</small><b>${escapeHtml(game.gameName)}</b><span><i></i>${escapeHtml(status)}</span><u>${active ? "目前選定" : "切換分析"}</u></span></button>`;
 }
 
 function roomStatusBar() {
