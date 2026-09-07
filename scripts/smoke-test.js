@@ -1513,6 +1513,10 @@ async function main() {
   }
   const webPortalRouteSource = fs.readFileSync(path.join(root, "routes", "webPortal.js"), "utf8");
   const mobileLoginSource = fs.readFileSync(path.join(root, "services", "mobileAccountLogin.js"), "utf8");
+  const vipModule = require("../modules/vip");
+  if (typeof vipModule.findVipUserByLineUserId !== "function" || typeof vipModule.findVipUserBy3AAccount !== "function") {
+    throw new Error("VIP module must expose member lookups used by mobile account login");
+  }
   const getLoginSection = webPortalRouteSource.split('app.get("/portal/login"')[1]?.split('app.post("/portal/login"')[0] || "";
   if (getLoginSection.includes("web.redeem")) {
     throw new Error("Web login GET must not consume a code because LINE previews open links");

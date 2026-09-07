@@ -744,6 +744,8 @@ module.exports = {
   hasActiveVipSession,
   handleVipMessage,
   checkVipAccess,
+  findVipUserByLineUserId,
+  findVipUserBy3AAccount,
   accessDeniedFlex,
   logAiUsage,
 };
