@@ -7,15 +7,18 @@ function clientAddress(req) {
 }
 
 function securityHeaders(req, res, next) {
+  const assistantEmbed = req.query?.embed === "1" && (req.path === "/portal" || req.path.startsWith("/portal/"));
   res.setHeader("x-content-type-options", "nosniff");
-  res.setHeader("x-frame-options", "SAMEORIGIN");
+  if (!assistantEmbed) res.setHeader("x-frame-options", "SAMEORIGIN");
   res.setHeader("referrer-policy", "strict-origin-when-cross-origin");
   res.setHeader("permissions-policy", "camera=(), microphone=(), geolocation=(), payment=()");
   res.setHeader("x-request-id", req.get("x-request-id") || crypto.randomUUID());
   if (req.path === "/portal" || req.path.startsWith("/portal/") || req.path === "/atg-x" || req.path.startsWith("/atg-x/")) {
     res.setHeader(
       "content-security-policy",
-      "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
+      assistantEmbed
+        ? "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://*.3a1788.bet https://*.ofalive99.net; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+        : "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
     );
   }
   next();

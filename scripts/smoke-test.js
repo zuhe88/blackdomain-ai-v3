@@ -1513,6 +1513,9 @@ async function main() {
   }
   const webPortalRouteSource = fs.readFileSync(path.join(root, "routes", "webPortal.js"), "utf8");
   const mobileLoginSource = fs.readFileSync(path.join(root, "services", "mobileAccountLogin.js"), "utf8");
+  const assistantBookmarkletSource = fs.readFileSync(path.join(root, "public", "assistant", "bookmarklet.js"), "utf8");
+  const assistantInstallSource = fs.readFileSync(path.join(root, "public", "assistant", "index.html"), "utf8");
+  const portalSecuritySource = fs.readFileSync(path.join(root, "middleware", "portalSecurity.js"), "utf8");
   const vipModule = require("../modules/vip");
   if (typeof vipModule.findVipUserByLineUserId !== "function" || typeof vipModule.findVipUserBy3AAccount !== "function") {
     throw new Error("VIP module must expose member lookups used by mobile account login");
@@ -1562,7 +1565,7 @@ async function main() {
   for (const expected of ["app.js?v=20260905.04", "styles.css?v=20260905.04", "admin.css?v=20260905.04"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.01"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.02"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1576,6 +1579,18 @@ async function main() {
   }
   for (const expected of ['id="installButton"', 'apple-mobile-web-app-capable', 'navigator.serviceWorker.register("/portal/sw.js"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Mobile login PWA install flow is missing: ${expected}`);
+  }
+  for (const expected of ["blackdomain-floating-assistant", "attachShadow", "pointermove", "mobile-login?embed=1", "3a1788\\.bet", "ofalive99\\.net"]) {
+    if (!assistantBookmarkletSource.includes(expected)) throw new Error(`Floating assistant bookmarklet is missing: ${expected}`);
+  }
+  for (const expected of ["複製書籤程式", "iPhone Safari 設定", "/assistant/bookmarklet.js"]) {
+    if (!assistantInstallSource.includes(expected)) throw new Error(`Floating assistant installer is missing: ${expected}`);
+  }
+  for (const expected of ['req.query?.embed === "1"', "https://*.3a1788.bet", "https://*.ofalive99.net"]) {
+    if (!portalSecuritySource.includes(expected)) throw new Error(`Floating assistant frame restriction is missing: ${expected}`);
+  }
+  for (const expected of ['req.body?.embed === true ? "None" : "Lax"', "document.requestStorageAccess", 'embedded?"/portal/?embed=1":"/portal/"']) {
+    if (!webPortalRouteSource.includes(expected)) throw new Error(`Embedded member login flow is missing: ${expected}`);
   }
   for (const expected of ['rel="manifest"', 'apple-mobile-web-app-capable', 'id="installApp"', 'id="installDialog"']) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal PWA UI is missing: ${expected}`);
