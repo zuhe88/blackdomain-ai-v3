@@ -64,7 +64,11 @@ function scheduleAccessExpiry(userId, expiresAt) {
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
 }
-function user(req) { return web.authenticate(cookies(req).blackdomain_web); }
+function user(req) {
+  const authorization = String(req.get("authorization") || "");
+  const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  return web.authenticate(cookies(req).blackdomain_web || bearer || req.query?.session);
+}
 function isExactFeatureRecord(record) {
   return record?.featureTrigger === "purchased" || record?.featureTrigger === "natural";
 }
@@ -99,6 +103,7 @@ function mobileLoginPage() {
 <script>
 let challengeId="",installPrompt=null;
 const embedded=new URLSearchParams(location.search).get("embed")==="1";
+const deviceId=new URLSearchParams(location.search).get("device")||"";
 const accountStep=document.getElementById("accountStep"),codeStep=document.getElementById("codeStep"),step2=document.getElementById("step2"),accountMessage=document.getElementById("accountMessage"),codeMessage=document.getElementById("codeMessage");
 function busy(form,value){form.querySelector("button[type=submit]").disabled=value}
 function within(promise,timeout=1600){return Promise.race([promise,new Promise(resolve=>setTimeout(()=>resolve(false),timeout))])}
@@ -106,7 +111,7 @@ async function requestEmbeddedStorage(){if(!embedded||typeof document.requestSto
 async function postJson(url,body){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);try{return await fetch(url,{method:"POST",headers:{"content-type":"application/json"},credentials:"include",signal:controller.signal,body:JSON.stringify(body)})}catch(error){if(error.name==="AbortError")throw new Error("連線逾時，請確認網路後再試一次。");throw error}finally{clearTimeout(timer)}}
 addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event});
 document.getElementById("installButton").addEventListener("click",async()=>{if(installPrompt){installPrompt.prompt();await installPrompt.userChoice;installPrompt=null;return}document.getElementById("installGuide").classList.toggle("hidden")});
-document.getElementById("accountForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget;accountMessage.className="message";accountMessage.textContent="正在核對會員資料…";busy(form,true);try{await requestEmbeddedStorage();const response=await postJson("/api/mobile/login/account",{account:document.getElementById("account").value,embed:embedded});const value=await response.json();if(!response.ok)throw new Error(value.error||value.message||"目前無法驗證");location.replace(embedded?"/portal/?embed=1":"/portal/")}catch(error){accountMessage.className="message bad";accountMessage.textContent=error.message||"目前無法驗證，請稍後再試。"}finally{busy(form,false)}});
+document.getElementById("accountForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget;accountMessage.className="message";accountMessage.textContent="正在核對會員資料…";busy(form,true);try{await requestEmbeddedStorage();const response=await postJson("/api/mobile/login/account",{account:document.getElementById("account").value,embed:embedded,deviceId});const value=await response.json();if(!response.ok)throw new Error(value.error||value.message||"目前無法驗證");try{localStorage.setItem("blackdomain_session",value.sessionToken)}catch{}const target=embedded?"/portal/?embed=1":"/portal/";location.replace(target+"#session="+encodeURIComponent(value.sessionToken))}catch(error){accountMessage.className="message bad";accountMessage.textContent=error.message||"目前無法驗證，請稍後再試。"}finally{busy(form,false)}});
 document.getElementById("codeForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget;codeMessage.className="message";codeMessage.textContent="正在登入…";busy(form,true);try{await requestEmbeddedStorage();const response=await postJson("/api/mobile/login/verify",{challengeId,code:document.getElementById("code").value,embed:embedded});const value=await response.json();if(!response.ok)throw new Error(value.error||"登入失敗");location.replace(embedded?"/portal/?embed=1":"/portal/")}catch(error){codeMessage.className="message bad";codeMessage.textContent=error.message||"登入失敗，請稍後再試。";busy(form,false)}});
 document.getElementById("back").addEventListener("click",()=>{challengeId="";codeStep.classList.add("hidden");accountStep.classList.remove("hidden");step2.classList.remove("on");codeMessage.textContent=""});
 if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/portal/sw.js",{scope:"/portal/",updateViaCache:"none"}).catch(()=>{}));
@@ -141,11 +146,19 @@ function registerWebPortalRoutes(app) {
     res.setHeader("set-cookie", `blackdomain_web=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
     return res.redirect(302, "/portal/");
   });
-  app.get("/portal/mobile-login", (req, res) => {
+  app.get("/portal/mobile-login", async (req, res, next) => {
     res.setHeader("cache-control", "no-store");
     res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
     const embedSuffix = req.query.embed === "1" ? "?embed=1" : "";
-    return user(req) ? res.redirect(302, `/portal/${embedSuffix}`) : res.type("html").send(mobileLoginPage());
+    if (user(req)) return res.redirect(302, `/portal/${embedSuffix}`);
+    try {
+      const deviceUserId = await mobileAccountLogin.authenticateAssistantDevice(req.query.device);
+      if (deviceUserId) {
+        const token = web.issueSession(deviceUserId);
+        return res.redirect(302, `/portal/${embedSuffix}#session=${encodeURIComponent(token)}`);
+      }
+      return res.type("html").send(mobileLoginPage());
+    } catch (error) { return next(error); }
   });
   app.post("/api/mobile/login/request", express.json({ limit: "4kb" }), async (req, res, next) => {
     try {
@@ -160,9 +173,10 @@ function registerWebPortalRoutes(app) {
       if (result.retryAfter) res.setHeader("retry-after", String(result.retryAfter));
       if (!result.ok) return res.status(result.status || 403).json(result);
       const token = web.issueSession(result.userId);
+      await mobileAccountLogin.bindAssistantDevice(req.body?.deviceId, result.userId);
       const sameSite = req.body?.embed === true ? "None" : "Lax";
       res.setHeader("set-cookie", `blackdomain_web=${token}; Path=/; HttpOnly; Secure; SameSite=${sameSite}; Max-Age=2592000`);
-      return res.json({ ok: true });
+      return res.json({ ok: true, sessionToken: token });
     } catch (error) { return next(error); }
   });
   app.post("/api/mobile/login/verify", express.json({ limit: "4kb" }), async (req, res, next) => {
@@ -333,7 +347,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20260907.06",
+        portalBuild: "20260907.07",
       });
     } catch (error) { return next(error); }
   });

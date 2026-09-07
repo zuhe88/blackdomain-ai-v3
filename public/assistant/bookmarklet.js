@@ -1,14 +1,10 @@
 (() => {
   "use strict";
   const ID = "blackdomain-floating-assistant";
-  const PORTAL = "https://blackdomain-ai-v3-production.up.railway.app/portal/mobile-login?embed=1";
+  const sourceUrl = new URL(document.currentScript?.src || location.href);
+  const deviceId = sourceUrl.searchParams.get("device") || "";
+  const PORTAL = `https://blackdomain-ai-v3-production.up.railway.app/portal/mobile-login?embed=1${deviceId ? `&device=${encodeURIComponent(deviceId)}` : ""}`;
   const LOGO = "https://blackdomain-ai-v3-production.up.railway.app/brand/blackdomain-ai-logo.png";
-  const allowedHost = /(^|\.)(3a1788\.bet|ofalive99\.net)$/i.test(location.hostname);
-  if (!allowedHost) {
-    alert("請先開啟 3A 遊戲頁面，再啟動黑域 AI 助手。");
-    return;
-  }
-
   const existing = document.getElementById(ID);
   if (existing) {
     existing.remove();

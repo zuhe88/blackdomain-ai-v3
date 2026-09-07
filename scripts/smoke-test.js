@@ -1541,7 +1541,7 @@ async function main() {
   for (const expected of ["ATG AI 預測X輔助程式", "/atg-x/assets/atg-x-logo.webp", "noindex,nofollow,noarchive"]) {
     if (!atgXSource.includes(expected)) throw new Error(`ATG X website is missing: ${expected}`);
   }
-  for (const expected of ["findVipUserBy3AAccount", "pushLineStrict", "timingSafeEqual", "attempts > 5", "CHALLENGE_TTL_MS", "STATUS.APPROVED"]) {
+  for (const expected of ["findVipUserBy3AAccount", "pushLineStrict", "timingSafeEqual", "attempts > 5", "CHALLENGE_TTL_MS", "STATUS.APPROVED", "bindAssistantDevice", "authenticateAssistantDevice"]) {
     if (!mobileLoginSource.includes(expected)) throw new Error(`Mobile account login security is missing: ${expected}`);
   }
   for (const expected of ["/api/atg-x/activate", "/api/atg-x/games", "/api/atg-x/analyze", "固定單位", "資料可信度"]) {
@@ -1562,10 +1562,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260905.04", "styles.css?v=20260905.04", "admin.css?v=20260905.04"]) {
+  for (const expected of ["app.js?v=20260907.05", "styles.css?v=20260907.05", "admin.css?v=20260907.05"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.06"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.07"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1580,16 +1580,16 @@ async function main() {
   for (const expected of ['id="installButton"', 'apple-mobile-web-app-capable', 'navigator.serviceWorker.register("/portal/sw.js"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Mobile login PWA install flow is missing: ${expected}`);
   }
-  for (const expected of ["blackdomain-floating-assistant", "attachShadow", "pointermove", "mobile-login?embed=1", "3a1788\\.bet", "ofalive99\\.net"]) {
+  for (const expected of ["blackdomain-floating-assistant", "attachShadow", "pointermove", "mobile-login?embed=1"]) {
     if (!assistantBookmarkletSource.includes(expected)) throw new Error(`Floating assistant bookmarklet is missing: ${expected}`);
   }
   for (const expected of ["複製書籤程式", "iPhone Safari 設定", "/assistant/bookmarklet.js"]) {
     if (!assistantInstallSource.includes(expected)) throw new Error(`Floating assistant installer is missing: ${expected}`);
   }
-  for (const expected of ['req.query?.embed === "1"', "https://*.3a1788.bet", "https://*.ofalive99.net"]) {
+  for (const expected of ['req.query?.embed === "1"', "frame-ancestors https:"]) {
     if (!portalSecuritySource.includes(expected)) throw new Error(`Floating assistant frame restriction is missing: ${expected}`);
   }
-  for (const expected of ['req.body?.embed === true ? "None" : "Lax"', "document.requestStorageAccess", 'embedded?"/portal/?embed=1":"/portal/"']) {
+  for (const expected of ['req.body?.embed === true ? "None" : "Lax"', "document.requestStorageAccess", 'embedded?"/portal/?embed=1":"/portal/"', "blackdomain_session", "sessionToken"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Embedded member login flow is missing: ${expected}`);
   }
   for (const expected of ['rel="manifest"', 'apple-mobile-web-app-capable', 'id="installApp"', 'id="installDialog"']) {
@@ -1604,7 +1604,7 @@ async function main() {
   for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal is missing feature: ${expected}`);
   }
-  for (const expected of ["EventSource(\"/api/web/events\")", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
+  for (const expected of ["new EventSource(eventStreamUrl())", "authorization", "blackdomain_session", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
     if (!webPortalAppSource.includes(expected)) throw new Error(`Web portal integration is missing: ${expected}`);
   }
   for (const expected of ["特色遊戲紀錄", "featureRecords", "通知成功", "仍在追蹤", "實際開獎金額（精確）", "admin-direct-watch-form", "/api/web/admin/electronic-watch", "/api/web/admin/electronic-room", "搜尋紀錄"]) {

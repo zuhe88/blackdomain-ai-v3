@@ -17,7 +17,7 @@ function securityHeaders(req, res, next) {
     res.setHeader(
       "content-security-policy",
       assistantEmbed
-        ? "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://*.3a1788.bet https://*.ofalive99.net; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
+        ? "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors https:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'"
         : "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'",
     );
   }

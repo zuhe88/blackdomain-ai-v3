@@ -15,8 +15,9 @@
   <link rel="manifest" href="/portal/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/portal/icons/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/portal/icons/apple-touch-icon.png">
-  <link rel="stylesheet" href="/portal/styles.css?v=20260905.04">
-  <link rel="stylesheet" href="/portal/admin.css?v=20260905.04">
+  <link rel="stylesheet" href="/portal/styles.css?v=20260907.05">
+  <link rel="stylesheet" href="/portal/mobile.css?v=20260907.05">
+  <link rel="stylesheet" href="/portal/admin.css?v=20260907.05">
 </head>
 <body>
   <div class="app-shell" id="app">
@@ -26,9 +27,16 @@
     </header>
     <main id="view" tabindex="-1"></main>
   </div>
+  <nav class="mobile-dock" id="mobileDock" aria-label="主要功能">
+    <button type="button" data-go="/portal/" data-nav="home"><i>⌂</i><span>首頁</span></button>
+    <button type="button" data-go="/portal/baccarat" data-nav="baccarat"><i>B</i><span>百家樂</span></button>
+    <button type="button" data-go="/portal/atg" data-nav="atg"><i>A</i><span>ATG</span></button>
+    <button type="button" data-go="/portal/lottery" data-nav="lottery"><i>5</i><span>彩票</span></button>
+    <button type="button" data-go="/portal/sports" data-nav="sports"><i>S</i><span>體育</span></button>
+  </nav>
   <div class="loading-overlay" id="loading" hidden><div class="loader"><span>AI</span></div><b>AI 分析中</b><small>同步平台數據，完成後會自動顯示</small></div>
   <div class="install-dialog" id="installDialog" hidden role="dialog" aria-modal="true" aria-labelledby="installTitle"><div class="install-panel"><button class="install-close" id="installClose" type="button" aria-label="關閉">×</button><img src="/portal/icons/icon-192.png" alt="黑域AI APP"><p>BLACKDOMAIN AI</p><h2 id="installTitle">安裝黑域AI APP</h2><div id="installInstructions"></div><button class="install-confirm" id="installConfirm" type="button">了解</button></div></div>
   <div class="toast-region" id="toasts" aria-live="polite"></div>
-  <script src="/portal/app.js?v=20260905.04" defer></script>
+  <script src="/portal/app.js?v=20260907.05" defer></script>
 </body>
 </html>

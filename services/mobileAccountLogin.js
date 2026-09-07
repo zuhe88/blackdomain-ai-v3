@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const vip = require('../modules/vip');
 const { STATUS } = require('../modules/vip/repository');
+const supabase = require('./supabase');
 const { validateAccount3A } = require('../modules/vip/validator');
 const { pushLineStrict, text } = require('./line');
 
@@ -12,6 +13,8 @@ const IP_WINDOW_MS = 10 * 60 * 1000;
 const IP_LIMIT = 6;
 const DIRECT_LOGIN_WINDOW_MS = 60 * 1000;
 const DIRECT_LOGIN_LIMIT = 30;
+const DEVICE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const deviceFallback = new Map();
 
 function digest(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
@@ -70,6 +73,52 @@ function hasDirectAccess(user) {
   if (user.vipStatus !== STATUS.APPROVED || user.aiPermission !== true) return false;
   if (!user.expiresAt) return true;
   return Date.parse(user.expiresAt) > Date.now();
+}
+
+function validDeviceId(value) {
+  const deviceId = String(value || '').trim();
+  return /^[A-Za-z0-9_-]{32,128}$/.test(deviceId) ? deviceId : '';
+}
+
+function deviceKey(deviceId) {
+  return `assistant_device:${digest(deviceId)}`;
+}
+
+async function bindAssistantDevice(rawDeviceId, userId) {
+  const deviceId = validDeviceId(rawDeviceId);
+  if (!deviceId || !userId) return false;
+  const expiresAt = Date.now() + DEVICE_TTL_MS;
+  deviceFallback.set(digest(deviceId), { userId, expiresAt });
+  if (!supabase) return true;
+  try {
+    const { error } = await supabase.from('lottery_settings').upsert({
+      key: deviceKey(deviceId),
+      value: { userId, expiresAt },
+      updated_at: new Date().toISOString(),
+      updated_by: 'assistant-device',
+    }, { onConflict: 'key' });
+    if (error) console.warn('[MobileLogin] Device persistence fallback:', error.message);
+  } catch (error) {
+    console.warn('[MobileLogin] Device persistence unavailable:', error.message);
+  }
+  return true;
+}
+
+async function authenticateAssistantDevice(rawDeviceId) {
+  const deviceId = validDeviceId(rawDeviceId);
+  if (!deviceId) return null;
+  let record = deviceFallback.get(digest(deviceId)) || null;
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('lottery_settings').select('value').eq('key', deviceKey(deviceId)).maybeSingle();
+      if (!error && data?.value) record = data.value;
+    } catch (error) {
+      console.warn('[MobileLogin] Device lookup unavailable:', error.message);
+    }
+  }
+  if (!record?.userId || Number(record.expiresAt) <= Date.now()) return null;
+  const member = await vip.findVipUserByLineUserId(record.userId);
+  return hasDirectAccess(member) ? record.userId : null;
 }
 
 async function authenticateAccount(rawAccount, clientKey) {
@@ -143,4 +192,4 @@ async function verifyCode(challengeId, code) {
   return { ok: true, userId: challenge.userId };
 }
 
-module.exports = { authenticateAccount, requestCode, verifyCode };
+module.exports = { authenticateAccount, authenticateAssistantDevice, bindAssistantDevice, requestCode, verifyCode };
