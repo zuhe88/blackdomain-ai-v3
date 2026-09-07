@@ -29,6 +29,9 @@ function verify(token) {
 function issue(userId) {
   return sign({ kind: "login", userId, exp: Date.now() + CODE_TTL, nonce: randomToken(8) });
 }
+function issueSession(userId) {
+  return sign({ kind: "session", userId, exp: Date.now() + SESSION_TTL });
+}
 let warnedNonceFallback = false;
 async function redeem(code) {
   const pending = verify(code);
@@ -64,7 +67,7 @@ async function redeem(code) {
   for (const [nonce, expiresAt] of usedLoginNonces) {
     if (expiresAt < Date.now()) usedLoginNonces.delete(nonce);
   }
-  return sign({ kind: "session", userId: pending.userId, exp: Date.now() + SESSION_TTL });
+  return issueSession(pending.userId);
 }
 function authenticate(token) {
   const session = verify(token);
@@ -123,4 +126,4 @@ function publish(userId, messages) {
 }
 function history(userId) { return [...(recentMessages.get(userId) || [])]; }
 
-module.exports = { authenticate, cancelReply, connected, history, issue, publish, redeem, resolveReply, subscribe, waitReply };
+module.exports = { authenticate, cancelReply, connected, history, issue, issueSession, publish, redeem, resolveReply, subscribe, waitReply };

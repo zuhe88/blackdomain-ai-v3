@@ -159,8 +159,7 @@ function registerWebPortalRoutes(app) {
       const result = await mobileAccountLogin.authenticateAccount(req.body?.account, req.ip || req.socket?.remoteAddress);
       if (result.retryAfter) res.setHeader("retry-after", String(result.retryAfter));
       if (!result.ok) return res.status(result.status || 403).json(result);
-      const token = await web.redeem(web.issue(result.userId));
-      if (!token) return res.status(503).json({ ok: false, error: "登入服務暫時無法使用。" });
+      const token = web.issueSession(result.userId);
       const sameSite = req.body?.embed === true ? "None" : "Lax";
       res.setHeader("set-cookie", `blackdomain_web=${token}; Path=/; HttpOnly; Secure; SameSite=${sameSite}; Max-Age=2592000`);
       return res.json({ ok: true });
@@ -334,7 +333,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20260907.04",
+        portalBuild: "20260907.05",
       });
     } catch (error) { return next(error); }
   });

@@ -9,6 +9,8 @@ const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const RESEND_DELAY_MS = 60 * 1000;
 const IP_WINDOW_MS = 10 * 60 * 1000;
 const IP_LIMIT = 6;
+const DIRECT_LOGIN_WINDOW_MS = 60 * 1000;
+const DIRECT_LOGIN_LIMIT = 30;
 
 function digest(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
@@ -30,7 +32,7 @@ function prune(now = Date.now()) {
   for (const [key, bucket] of requestBuckets) if (bucket.expiresAt <= now) requestBuckets.delete(key);
 }
 
-function takeRequestSlot(clientKey, account) {
+function takeRequestSlot(clientKey, account, { accountCooldown = true } = {}) {
   const now = Date.now();
   prune(now);
   const ipKey = `ip:${digest(clientKey)}`;
@@ -39,12 +41,25 @@ function takeRequestSlot(clientKey, account) {
   ipBucket.count += 1;
   requestBuckets.set(ipKey, ipBucket);
 
+  if (!accountCooldown) return { ok: true, retryAfter: 0 };
+
   const accountKey = `account:${digest(account)}`;
   const accountBucket = requestBuckets.get(accountKey);
   if (accountBucket && accountBucket.expiresAt > now) {
     return { ok: false, retryAfter: Math.ceil((accountBucket.expiresAt - now) / 1000) };
   }
   requestBuckets.set(accountKey, { count: 1, expiresAt: now + RESEND_DELAY_MS });
+  return { ok: true, retryAfter: 0 };
+}
+
+function takeDirectLoginSlot(clientKey) {
+  const now = Date.now();
+  prune(now);
+  const key = `direct-ip:${digest(clientKey)}`;
+  const bucket = requestBuckets.get(key) || { count: 0, expiresAt: now + DIRECT_LOGIN_WINDOW_MS };
+  if (bucket.count >= DIRECT_LOGIN_LIMIT) return { ok: false, retryAfter: Math.ceil((bucket.expiresAt - now) / 1000) };
+  bucket.count += 1;
+  requestBuckets.set(key, bucket);
   return { ok: true, retryAfter: 0 };
 }
 
@@ -59,7 +74,7 @@ function hasDirectAccess(user) {
 async function authenticateAccount(rawAccount, clientKey) {
   const validation = validateAccount3A(rawAccount);
   if (!validation.ok) return { ok: false, status: 400, error: validation.error };
-  const slot = takeRequestSlot(clientKey, validation.value);
+  const slot = takeDirectLoginSlot(clientKey);
   if (!slot.ok) return { ok: false, status: 429, retryAfter: slot.retryAfter, error: `操作過於頻繁，請在 ${slot.retryAfter} 秒後再試。` };
 
   const user = await vip.findVipUserBy3AAccount(validation.value);
