@@ -22,7 +22,7 @@ function securityHeaders(req, res, next) {
 }
 
 function portalRateLimit(req, res, next) {
-  const isLogin = req.path === "/portal/login" || req.path === "/api/atg-x/activate";
+  const isLogin = req.path === "/portal/login" || req.path.startsWith("/api/mobile/login/") || req.path === "/api/atg-x/activate";
   const isPortalApi = req.path.startsWith("/api/web/") || req.path.startsWith("/api/atg-x/");
   if (!isLogin && !isPortalApi) return next();
 

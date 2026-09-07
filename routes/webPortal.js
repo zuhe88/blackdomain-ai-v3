@@ -6,6 +6,7 @@ const baccarat = require("../modules/baccarat");
 const electronic = require("../modules/electronic");
 const electronicAvailability = require("../modules/electronic/availability");
 const featureAudit = require("../modules/electronic/featureAudit");
+const mobileAccountLogin = require("../services/mobileAccountLogin");
 const { isAdminLineUserId } = require("../config/admin");
 const { getSystemHealth } = require("../services/systemHealth");
 const accessExpiryTimers = new Map();
@@ -90,6 +91,14 @@ function invalidLoginPage() {
   return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>登入連結已失效</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#080807;color:#fff;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif}.card{width:min(88vw,390px);padding:34px 25px;text-align:center;border:1px solid #806415;border-radius:24px;background:#12110e}.brand{color:#f3cc39;font-size:12px;letter-spacing:.12em}h1{font-size:24px;margin:12px 0}p{color:#bbb5a5;line-height:1.7}a{display:block;margin-top:22px;padding:13px;border-radius:14px;background:#dfb426;color:#171207;text-decoration:none;font-weight:800}</style></head><body><main class="card"><div class="brand">BLACKDOMAIN AI</div><h1>登入連結已失效</h1><p>連結已使用或已超過有效時間。<br>請回到 LINE 再傳送一次「網站登入」。</p><a href="/portal/">返回網站首頁</a></main></body></html>`;
 }
 
+function mobileLoginPage() {
+  return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><title>黑域AI｜會員登入</title>
+<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 50% 0,#252112 0,#090b10 38%,#050609 100%);color:#f7f4eb;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif}.card{width:min(100%,430px);padding:30px 24px;border:1px solid #756029;border-radius:24px;background:linear-gradient(145deg,rgba(28,27,22,.97),rgba(8,10,14,.98));box-shadow:0 28px 80px #000}.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}.brand img{width:50px;height:50px;border-radius:50%;object-fit:contain}.brand small{display:block;color:#c2a966;letter-spacing:.14em;font-size:10px}.brand b{display:block;margin-top:3px;font-size:18px}h1{font-size:25px;margin:0 0 8px}.copy{margin:0 0 22px;color:#aaa99f;line-height:1.65;font-size:14px}.step{display:flex;gap:8px;margin-bottom:18px}.step i{height:3px;flex:1;border-radius:3px;background:#2c3038}.step i.on{background:#dcb85b;box-shadow:0 0 12px #bd8c20}label{display:block;margin:14px 0 7px;color:#d8d5cb;font-size:13px;font-weight:700}input{width:100%;height:50px;padding:0 14px;border:1px solid #404650;border-radius:13px;background:#090c11;color:white;font-size:16px;outline:none}input:focus{border-color:#dcb85b;box-shadow:0 0 0 3px rgba(220,184,91,.12)}button{width:100%;height:50px;margin-top:14px;border:0;border-radius:13px;background:linear-gradient(135deg,#efcd73,#b98a2e);color:#171207;font-size:15px;font-weight:900}.message{min-height:20px;margin:12px 0 0;color:#b7bdc8;font-size:12px;line-height:1.55}.message.bad{color:#ff9292}.secondary{background:#252a33;color:#e7e2d7}.hidden{display:none}.legal{display:block;margin-top:18px;color:#747b87;font-size:10px;text-align:center;line-height:1.5}</style></head><body><main class="card"><div class="brand"><img src="/brand/blackdomain-ai-logo.png" alt="黑域AI"><div><small>BLACKDOMAIN SECURE ACCESS</small><b>黑域 AI 手機助手</b></div></div><div class="step"><i class="on"></i><i id="step2"></i></div>
+<section id="accountStep"><h1>輸入 3A 帳號</h1><p class="copy">系統會核對原有會員資料與有效期限，只有已開通帳號能繼續。</p><form id="accountForm"><label for="account">3A 帳號</label><input id="account" name="account" autocomplete="username" inputmode="text" pattern="[A-Za-z0-9]+" maxlength="64" required><button type="submit">驗證會員資格</button></form><p id="accountMessage" class="message"></p></section>
+<section id="codeStep" class="hidden"><h1>輸入驗證碼</h1><p class="copy">6 位數驗證碼已傳送到會員原綁定的 LINE，有效時間 5 分鐘。</p><form id="codeForm"><label for="code">LINE 驗證碼</label><input id="code" name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required><button type="submit">登入黑域 AI</button></form><p id="codeMessage" class="message"></p><button id="back" class="secondary" type="button">返回修改帳號</button></section><small class="legal">登入只會核對既有權限，不會變更會員資料或有效期限。</small></main>
+<script>let challengeId="";const accountStep=document.getElementById("accountStep"),codeStep=document.getElementById("codeStep"),step2=document.getElementById("step2"),accountMessage=document.getElementById("accountMessage"),codeMessage=document.getElementById("codeMessage");function busy(form,value){form.querySelector("button[type=submit]").disabled=value}document.getElementById("accountForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget;accountMessage.className="message";accountMessage.textContent="正在核對會員資料…";busy(form,true);try{const response=await fetch("/api/mobile/login/request",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({account:document.getElementById("account").value})});const value=await response.json();if(!response.ok)throw new Error(value.error||"目前無法驗證");challengeId=value.challengeId;accountStep.classList.add("hidden");codeStep.classList.remove("hidden");step2.classList.add("on");document.getElementById("code").focus()}catch(error){accountMessage.className="message bad";accountMessage.textContent=error.message}finally{busy(form,false)}});document.getElementById("codeForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget;codeMessage.className="message";codeMessage.textContent="正在登入…";busy(form,true);try{const response=await fetch("/api/mobile/login/verify",{method:"POST",headers:{"content-type":"application/json"},credentials:"include",body:JSON.stringify({challengeId,code:document.getElementById("code").value})});const value=await response.json();if(!response.ok)throw new Error(value.error||"登入失敗");location.replace("/portal/")}catch(error){codeMessage.className="message bad";codeMessage.textContent=error.message;busy(form,false)}});document.getElementById("back").addEventListener("click",()=>{challengeId="";codeStep.classList.add("hidden");accountStep.classList.remove("hidden");step2.classList.remove("on");codeMessage.textContent=""});</script></body></html>`;
+}
+
 function registerWebPortalRoutes(app) {
   app.use("/portal", express.static(path.join(__dirname, "..", "public", "portal"), {
     etag: false,
@@ -117,6 +126,28 @@ function registerWebPortalRoutes(app) {
     if (!token) return res.status(401).type("html").send(invalidLoginPage());
     res.setHeader("set-cookie", `blackdomain_web=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
     return res.redirect(302, "/portal/");
+  });
+  app.get("/portal/mobile-login", (req, res) => {
+    res.setHeader("cache-control", "no-store");
+    res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
+    return user(req) ? res.redirect(302, "/portal/") : res.type("html").send(mobileLoginPage());
+  });
+  app.post("/api/mobile/login/request", express.json({ limit: "4kb" }), async (req, res, next) => {
+    try {
+      const result = await mobileAccountLogin.requestCode(req.body?.account, req.ip || req.socket?.remoteAddress);
+      if (result.retryAfter) res.setHeader("retry-after", String(result.retryAfter));
+      return res.status(result.status || 200).json(result);
+    } catch (error) { return next(error); }
+  });
+  app.post("/api/mobile/login/verify", express.json({ limit: "4kb" }), async (req, res, next) => {
+    try {
+      const result = await mobileAccountLogin.verifyCode(req.body?.challengeId, req.body?.code);
+      if (!result.ok) return res.status(result.status || 401).json(result);
+      const token = await web.redeem(web.issue(result.userId));
+      if (!token) return res.status(503).json({ ok: false, error: "登入服務暫時無法使用。" });
+      res.setHeader("set-cookie", `blackdomain_web=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+      return res.json({ ok: true });
+    } catch (error) { return next(error); }
   });
   app.get("/portal/*", (req, res) => {
     res.setHeader("cache-control", "no-cache");

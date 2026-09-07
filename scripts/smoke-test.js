@@ -1494,7 +1494,7 @@ async function main() {
 
   require("../app");
   const root = path.join(__dirname, "..");
-  for (const route of ["/portal/login", "/api/web/me", "/api/web/events", "/api/web/command"]) {
+  for (const route of ["/portal/login", "/portal/mobile-login", "/api/mobile/login/request", "/api/mobile/login/verify", "/api/web/me", "/api/web/events", "/api/web/command"]) {
     const registered = [...captured.routes.get, ...captured.routes.post].some((entry) => entry.route === route);
     if (!registered) throw new Error(`Web portal route is missing: ${route}`);
   }
@@ -1512,6 +1512,7 @@ async function main() {
     throw new Error("Web login must redeem its one-time code through POST");
   }
   const webPortalRouteSource = fs.readFileSync(path.join(root, "routes", "webPortal.js"), "utf8");
+  const mobileLoginSource = fs.readFileSync(path.join(root, "services", "mobileAccountLogin.js"), "utf8");
   const getLoginSection = webPortalRouteSource.split('app.get("/portal/login"')[1]?.split('app.post("/portal/login"')[0] || "";
   if (getLoginSection.includes("web.redeem")) {
     throw new Error("Web login GET must not consume a code because LINE previews open links");
@@ -1532,6 +1533,9 @@ async function main() {
   const atgXAccessSource = fs.readFileSync(path.join(root, "modules", "atgX", "access.js"), "utf8");
   for (const expected of ["ATG AI 預測X輔助程式", "/atg-x/assets/atg-x-logo.webp", "noindex,nofollow,noarchive"]) {
     if (!atgXSource.includes(expected)) throw new Error(`ATG X website is missing: ${expected}`);
+  }
+  for (const expected of ["findVipUserBy3AAccount", "pushLineStrict", "timingSafeEqual", "attempts > 5", "CHALLENGE_TTL_MS"]) {
+    if (!mobileLoginSource.includes(expected)) throw new Error(`Mobile account login security is missing: ${expected}`);
   }
   for (const expected of ["/api/atg-x/activate", "/api/atg-x/games", "/api/atg-x/analyze", "固定單位", "資料可信度"]) {
     if (!atgXAppSource.includes(expected)) throw new Error(`ATG X client flow is missing: ${expected}`);

@@ -1,0 +1,8 @@
+node_modules/
+.expo/
+dist/
+*.keystore
+*.mobileprovision
+*.p12
+.env.local
+test-qr.svg
