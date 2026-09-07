@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const vip = require('../modules/vip');
+const { STATUS } = require('../modules/vip/repository');
 const { validateAccount3A } = require('../modules/vip/validator');
 const { pushLineStrict, text } = require('./line');
 
@@ -66,7 +67,7 @@ function takeDirectLoginSlot(clientKey) {
 function hasDirectAccess(user) {
   if (!user?.account3A || !user.lineUserId) return false;
   if (user.isAdmin) return true;
-  if (user.vipStatus !== vip.STATUS.APPROVED || user.aiPermission !== true) return false;
+  if (user.vipStatus !== STATUS.APPROVED || user.aiPermission !== true) return false;
   if (!user.expiresAt) return true;
   return Date.parse(user.expiresAt) > Date.now();
 }

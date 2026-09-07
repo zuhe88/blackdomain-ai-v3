@@ -1541,7 +1541,7 @@ async function main() {
   for (const expected of ["ATG AI 預測X輔助程式", "/atg-x/assets/atg-x-logo.webp", "noindex,nofollow,noarchive"]) {
     if (!atgXSource.includes(expected)) throw new Error(`ATG X website is missing: ${expected}`);
   }
-  for (const expected of ["findVipUserBy3AAccount", "pushLineStrict", "timingSafeEqual", "attempts > 5", "CHALLENGE_TTL_MS"]) {
+  for (const expected of ["findVipUserBy3AAccount", "pushLineStrict", "timingSafeEqual", "attempts > 5", "CHALLENGE_TTL_MS", "STATUS.APPROVED"]) {
     if (!mobileLoginSource.includes(expected)) throw new Error(`Mobile account login security is missing: ${expected}`);
   }
   for (const expected of ["/api/atg-x/activate", "/api/atg-x/games", "/api/atg-x/analyze", "固定單位", "資料可信度"]) {
@@ -1565,7 +1565,7 @@ async function main() {
   for (const expected of ["app.js?v=20260905.04", "styles.css?v=20260905.04", "admin.css?v=20260905.04"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.05"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.06"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
