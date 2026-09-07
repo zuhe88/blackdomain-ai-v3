@@ -2,14 +2,32 @@
   "expo": {
     "name": "黑域 AI 助手",
     "slug": "blackdomain-mobile-assistant",
-    "version": "0.1.0",
+    "owner": "zu88.8",
+    "version": "1.0.0",
+    "scheme": "blackdomain-ai",
     "icon": "./assets/blackdomain-ai-logo.png",
     "orientation": "default",
     "userInterfaceStyle": "dark",
-    "ios": { "supportsTablet": true },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.blackdomain.aiassistant",
+      "buildNumber": "1"
+    },
     "android": {
-      "permissions": ["INTERNET"],
-      "adaptiveIcon": { "foregroundImage": "./assets/blackdomain-ai-logo.png", "backgroundColor": "#080c13" }
+      "package": "com.blackdomain.aiassistant",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/blackdomain-ai-logo.png",
+        "backgroundColor": "#080c13"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "03abf1fd-db61-4e7f-9ff3-c2a99a0e211b"
+      }
     }
   }
 }

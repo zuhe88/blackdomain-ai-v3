@@ -12,6 +12,8 @@ npm start
 
 使用與 SDK 相容的 Expo Go 在 iPhone、Android 掃描開發伺服器 QR code。電腦與手機需網路互通；Expo Go 僅供開發測試，不是使用者正式安裝包。Windows 無法執行 iOS 模擬器。正式安裝需要 Android/iOS 建置、簽署與分發設定，尚未建立或上架。
 
+正式識別：Android package 與 iOS bundle identifier 均為 `com.blackdomain.aiassistant`。`preview` 產生會員可直接安裝的 Android APK；`production` 產生商店／TestFlight 版本。
+
 ## 目前行為
 
 - 3A 入口：`https://sn058.3a1788.bet/`；分析：現有黑域 `/portal/`，保留既有會員驗證。
