@@ -1562,7 +1562,7 @@ async function main() {
   for (const expected of ["app.js?v=20260905.04", "styles.css?v=20260905.04", "admin.css?v=20260905.04"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260905.04"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.01"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"']) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1570,6 +1570,12 @@ async function main() {
   const webManifest = JSON.parse(webManifestSource);
   if (webManifest.scope !== "/portal/" || webManifest.display !== "standalone") {
     throw new Error("Web portal PWA manifest must stay scoped to the member portal");
+  }
+  if (webManifest.start_url !== "/portal/mobile-login?source=pwa") {
+    throw new Error("Installed member PWA must start at the persistent mobile login entry");
+  }
+  for (const expected of ['id="installButton"', 'apple-mobile-web-app-capable', 'navigator.serviceWorker.register("/portal/sw.js"']) {
+    if (!webPortalRouteSource.includes(expected)) throw new Error(`Mobile login PWA install flow is missing: ${expected}`);
   }
   for (const expected of ['rel="manifest"', 'apple-mobile-web-app-capable', 'id="installApp"', 'id="installDialog"']) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal PWA UI is missing: ${expected}`);

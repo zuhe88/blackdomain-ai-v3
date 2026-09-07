@@ -4,7 +4,7 @@
   "short_name": "黑域AI",
   "description": "黑域AI 即時數據與智能分析系統",
   "lang": "zh-Hant-TW",
-  "start_url": "/portal/?source=pwa",
+  "start_url": "/portal/mobile-login?source=pwa",
   "scope": "/portal/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],

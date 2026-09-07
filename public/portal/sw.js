@@ -1,4 +1,4 @@
-const CACHE_VERSION = "blackdomain-pwa-20260905.04";
+const CACHE_VERSION = "blackdomain-pwa-20260907.01";
 const APP_SHELL = [
   "/portal/",
   "/portal/index.html",
