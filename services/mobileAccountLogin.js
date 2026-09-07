@@ -56,6 +56,19 @@ function hasDirectAccess(user) {
   return Date.parse(user.expiresAt) > Date.now();
 }
 
+async function authenticateAccount(rawAccount, clientKey) {
+  const validation = validateAccount3A(rawAccount);
+  if (!validation.ok) return { ok: false, status: 400, error: validation.error };
+  const slot = takeRequestSlot(clientKey, validation.value);
+  if (!slot.ok) return { ok: false, status: 429, retryAfter: slot.retryAfter, error: `操作過於頻繁，請在 ${slot.retryAfter} 秒後再試。` };
+
+  const user = await vip.findVipUserBy3AAccount(validation.value);
+  if (!hasDirectAccess(user)) {
+    return { ok: false, status: 403, error: '此帳號目前沒有可用的分析權限，請聯絡管理員確認開通狀態。' };
+  }
+  return { ok: true, userId: user.lineUserId };
+}
+
 async function requestCode(rawAccount, clientKey) {
   const validation = validateAccount3A(rawAccount);
   if (!validation.ok) return { ok: false, status: 400, error: validation.error };
@@ -114,4 +127,4 @@ async function verifyCode(challengeId, code) {
   return { ok: true, userId: challenge.userId };
 }
 
-module.exports = { requestCode, verifyCode };
+module.exports = { authenticateAccount, requestCode, verifyCode };
