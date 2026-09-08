@@ -9,6 +9,7 @@ const HEARTBEAT_TIMEOUT_MS = 90 * 1000;
 const GAME_DATA_TIMEOUT_MS = 3 * 60 * 1000;
 const RELOAD_COOLDOWN_MS = 5 * 60 * 1000;
 const ATG_SOFT_REFRESH_COOLDOWN_MS = 30 * 1000;
+const ATG_TOKEN_RECOVERY_COOLDOWN_MS = 30 * 1000;
 const SESSION_NOTICE_COOLDOWN_MS = 60 * 1000;
 const RELAY_TABS = [
   { kind: "mb", url: "https://mbracing.cc/*" },
@@ -85,6 +86,8 @@ async function rememberHeartbeat(kind, tabId, dataAt = 0) {
       reloadDataAt: Number(previous.reloadDataAt) || 0,
       reloadAttempts: Number(previous.reloadAttempts) || 0,
       lastSoftRefreshAt: Number(previous.lastSoftRefreshAt) || 0,
+      lastTokenRecoveryAt: Number(previous.lastTokenRecoveryAt) || 0,
+      recoveryLobbyUrl: String(previous.recoveryLobbyUrl || ""),
       firstSeenAt: Number(previous.firstSeenAt) || Date.now(),
     },
   });
@@ -107,6 +110,36 @@ async function requestAtgSoftRefresh(tabId) {
       type: "BLACKDOMAIN_ATG_SOFT_REFRESH",
     });
     return Boolean(response?.ok);
+  } catch {
+    return false;
+  }
+}
+
+function validAtgRecoveryUrl(value, now) {
+  try {
+    const lobby = new URL(value);
+    if (lobby.hostname !== "play.godeebxp.com" || !lobby.pathname.includes("/egames/lobby/game/")) return "";
+    if (!lobby.searchParams.get("t")) return "";
+    lobby.searchParams.set("blackdomain_recovered_at", String(now));
+    return lobby.href;
+  } catch {
+    return "";
+  }
+}
+
+async function recoverAtgToken(tab, health, key, recoveryUrl = "") {
+  const now = Date.now();
+  if (now - Number(health.lastTokenRecoveryAt || 0) < ATG_TOKEN_RECOVERY_COOLDOWN_MS) return false;
+  const saved = await chrome.storage.local.get("blackdomainAtgRecoveryLobbyUrl");
+  const lobbyUrl = validAtgRecoveryUrl(recoveryUrl || saved.blackdomainAtgRecoveryLobbyUrl, now);
+  if (!lobbyUrl) return false;
+  await chrome.storage.local.set({
+    blackdomainAtgRecoveryLobbyUrl: lobbyUrl,
+    [key]: { ...health, kind: "electronic", lastTokenRecoveryAt: now, recoveryLobbyUrl: lobbyUrl },
+  });
+  try {
+    await chrome.tabs.update(tab.id, { url: lobbyUrl });
+    return true;
   } catch {
     return false;
   }
@@ -264,12 +297,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(async (saved) => {
         const health = saved[key] || {};
         const now = Date.now();
-        if (now - Number(health.lastSoftRefreshAt || 0) < ATG_SOFT_REFRESH_COOLDOWN_MS) {
-          return false;
-        }
-        await chrome.storage.local.set({
-          [key]: { ...health, kind: "electronic", lastSoftRefreshAt: now },
-        });
+        const recoveryUrl = validAtgRecoveryUrl(message.recoveryLobbyUrl, now);
+        if (recoveryUrl && await recoverAtgToken(tab, health, key, recoveryUrl)) return true;
+        if (now - Number(health.lastSoftRefreshAt || 0) < ATG_SOFT_REFRESH_COOLDOWN_MS) return false;
+        await chrome.storage.local.set({ [key]: { ...health, kind: "electronic", lastSoftRefreshAt: now } });
         return requestAtgSoftRefresh(tab.id);
       })
       .then((recovered) => sendResponse({ ok: Boolean(recovered) }))

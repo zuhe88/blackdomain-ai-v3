@@ -31,6 +31,7 @@
   const lastFullScans = new Map();
   let lobbySocket = null;
   let activeLobbyToken = "";
+  let recoveryLobbyUrl = "";
   let lobbyGames = [];
   let bootstrapPromise = null;
   let hostStartedAt = Date.now();
@@ -126,6 +127,7 @@
       if (!lobby) return null;
       const token = String(lobby.searchParams.get("t") || "").trim();
       if (!token || lobby.hostname !== current.hostname) return null;
+      recoveryLobbyUrl = lobby.href;
       return {
         token: activeLobbyToken || token,
         locale: String(lobby.searchParams.get("locale") || current.searchParams.get("locale") || "zh-TW"),
@@ -478,10 +480,61 @@
   }
 
   function findLobbyGame(games, target) {
-    return objectCandidates(games, 4).find((candidate) => (
-      String(candidate.checksum || candidate.gameId || candidate.id || "") === target.checksum
-      || String(candidate.code || candidate.gameCode || "").toLowerCase() === target.code
-    ));
+    const aliases = {
+      g1001: ["戰神賽特1", "戰神賽特 1", "egyptian mythology", "erase any times 1"],
+      g1005: ["戰神賽特2", "戰神賽特 2", "golden seth", "erase any times 2"],
+      g1007: ["古神巴風特", "hades", "erase cluster times 1"],
+      g1008: ["赤三國", "scarlet three kingdoms"],
+      g1009: ["虎小妹", "tiger princess"],
+    }[target.code] || [target.name];
+    return objectCandidates(games, 4).find((candidate) => {
+      const checksum = String(candidate.checksum || candidate.gameChecksum || candidate.game_checksum || candidate.gameId || candidate.id || "");
+      const code = String(candidate.code || candidate.gameCode || candidate.game_code || "").toLowerCase();
+      const label = [
+        candidate.name,
+        candidate.gameName,
+        candidate.game_name,
+        candidate.title,
+        candidate.displayName,
+        candidate.slug,
+        candidate.gameSlug,
+        candidate.path,
+        candidate.url,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const normalizedLabel = label.replace(/[^a-z0-9\u3400-\u9fff]+/g, "");
+      const sethOneByCurrentName = target.code === "g1001"
+        && normalizedLabel.includes("戰神賽特")
+        && !/(戰神賽特2|goldenseth|eraseanytimes2|g1005)/.test(normalizedLabel);
+      return checksum === target.checksum
+        || code === target.code
+        || sethOneByCurrentName
+        || aliases.some((alias) => normalizedLabel.includes(alias.toLowerCase().replace(/[^a-z0-9\u3400-\u9fff]+/g, "")));
+    });
+  }
+
+  function upstreamReason(label, response) {
+    const status = Number(response?.status) || 0;
+    const message = String(response?.message || response?.error || "").trim();
+    return `${label} rejected${status ? ` (${status}${message ? `: ${message}` : ""})` : ""}`;
+  }
+
+  function rememberLaunchLobby(redirect, context) {
+    try {
+      const rawLobbyUrl = redirect.searchParams.get("goback_url");
+      if (!rawLobbyUrl) return;
+      const lobby = new URL(rawLobbyUrl, redirect.href);
+      if (lobby.hostname !== window.location.hostname || !lobby.pathname.includes("/egames/lobby/game/")) return;
+      const token = String(lobby.searchParams.get("t") || "").trim();
+      if (!token) return;
+      recoveryLobbyUrl = lobby.href;
+      activeLobbyToken = token;
+      context.token = token;
+    } catch {
+      // A launch without a return URL can still use the response token.
+    }
   }
 
   async function initializeLobby(context) {
@@ -492,26 +545,29 @@
       token: lobbyToken,
       clientType: CLIENT_TYPE,
     }));
-    if (!initial || Number(initial.status) !== 200) throw new Error("lobbyInitial rejected");
+    if (!initial || Number(initial.status) !== 200) throw new Error(upstreamReason("lobbyInitial", initial));
     if (initial.token) lobbyToken = String(initial.token);
     activeLobbyToken = lobbyToken;
+    context.token = lobbyToken;
     lobbyGames = initial.content?.games ?? initial.games ?? initial.content ?? [];
   }
 
   async function createLaunch(target, context) {
     if (!lobbySocket?.connected) await initializeLobby(context);
     const game = findLobbyGame(lobbyGames, target);
-    const code = String(game?.code ?? game?.gameCode ?? target.code);
+    if (!game) throw new Error(`${target.name} unavailable in ATG lobby`);
+    const code = String(game.code ?? game.gameCode ?? target.code);
     const played = parsePlainResponse(await emitAck(lobbySocket, "lobbyPlay", {
       token: activeLobbyToken,
       clientType: CLIENT_TYPE,
       code,
     }));
     if (!played || Number(played.status) !== 200 || !played.redirectUrl) {
-      throw new Error(`${target.name} launch rejected`);
+      throw new Error(`${target.name} ${upstreamReason("launch", played)}`);
     }
     if (played.token) activeLobbyToken = String(played.token);
     const redirect = new URL(played.redirectUrl, window.location.href);
+    rememberLaunchLobby(redirect, context);
     const token = String(redirect.searchParams.get("t") || "").trim();
     if (!token) throw new Error(`${target.name} launch token missing`);
     return { target, token };
@@ -521,6 +577,9 @@
     let state = null;
     try {
       setHostStatus(target, "正在連線…");
+      // Lobby tickets rotate after launches. Start each target from the
+      // latest ticket so one rejected game cannot poison all later games.
+      await initializeLobby(context);
       const launch = await createLaunch(target, context);
       state = await connectGame(launch, context);
       const lastFullScanAt = Number(lastFullScans.get(target.name)) || 0;
@@ -548,6 +607,11 @@
         lobbySocket?.close();
         lobbySocket = null;
       }
+      if (/lobbyInitial rejected|launch rejected/i.test(String(error?.message || ""))) {
+        window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", {
+          detail: { reason: "lobby-ticket-rejected", recoveryLobbyUrl },
+        }));
+      }
     } finally {
       state?.socket?.close();
       gameStates.delete(target.name);
@@ -559,7 +623,6 @@
     bootstrapPromise = (async () => {
       const context = parsePageContext();
       if (!context) throw new Error("ATG lobby token unavailable");
-      await initializeLobby(context);
       console.info("[BLACKDOMAIN Packet] five-game ATG packet relay active");
       while (!stopping) {
         for (const target of GAME_TARGETS) {

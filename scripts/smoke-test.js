@@ -1583,7 +1583,7 @@ async function main() {
   for (const expected of ["blackdomain-floating-assistant", "attachShadow", "pointermove", "mobile-login?embed=1"]) {
     if (!assistantBookmarkletSource.includes(expected)) throw new Error(`Floating assistant bookmarklet is missing: ${expected}`);
   }
-  for (const expected of ["複製書籤程式", "iPhone Safari 設定", "/assistant/bookmarklet.js"]) {
+  for (const expected of ["複製書籤程式", "Android Chrome 設定與啟動", "帶有星號的書籤建議", "不可使用 LINE 內建瀏覽器", "iPhone Safari 設定", "/assistant/bookmarklet.js"]) {
     if (!assistantInstallSource.includes(expected)) throw new Error(`Floating assistant installer is missing: ${expected}`);
   }
   for (const expected of ['req.query?.embed === "1"', "frame-ancestors https:"]) {
@@ -1832,8 +1832,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.11.5") {
-    throw new Error("Electronic relay extension version must be 2.11.5");
+  if (electronicRelayManifest.version !== "2.11.7") {
+    throw new Error("Electronic relay extension version must be 2.11.7");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1855,6 +1855,9 @@ async function main() {
     "BLACKDOMAIN_RELAY_PING",
     "BLACKDOMAIN_ATG_SOFT_REFRESH",
     "requestAtgSoftRefresh",
+    "recoverAtgToken",
+    "validAtgRecoveryUrl",
+    "chrome.tabs.update(tab.id, { url: lobbyUrl })",
     "chrome.alarms.onAlarm",
     "chrome.tabs.reload",
     "GAME_DATA_TIMEOUT_MS",
@@ -1863,12 +1866,6 @@ async function main() {
     if (!relayBackgroundSource.includes(expected)) {
       throw new Error(`Relay background watchdog is missing: ${expected}`);
     }
-  }
-  if (
-    relayBackgroundSource.includes("recoverAtgToken")
-    || relayBackgroundSource.includes("chrome.tabs.update(tab.id, { url: lobbyUrl })")
-  ) {
-    throw new Error("ATG relay recovery must never reload or navigate the whole page");
   }
   for (const expected of [
     "clickAtgCanvas",
@@ -1900,6 +1897,11 @@ async function main() {
   for (const expected of [
     "lobbyInitial",
     "lobbyPlay",
+    "rememberLaunchLobby",
+    "upstreamReason",
+    "unavailable in ATG lobby",
+    "sethOneByCurrentName",
+    "candidate.game_code",
     "getSlotTables",
     "getSlotTableDetail",
     'crypto.subtle.decrypt(',
@@ -1934,11 +1936,7 @@ async function main() {
       throw new Error(`ATG five-game packet worker is missing: ${expected}`);
     }
   }
-  for (const unstableRetry of [
-    "TARGET_SCAN_MAX_ATTEMPTS",
-    "rememberLaunchLobby",
-    "lobby-ticket-rejected",
-  ]) {
+  for (const unstableRetry of ["TARGET_SCAN_MAX_ATTEMPTS"]) {
     if (packetWorkerSource.includes(unstableRetry)) {
       throw new Error(`ATG stable packet core must not retain: ${unstableRetry}`);
     }
