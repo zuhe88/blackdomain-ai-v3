@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920" viewBox="0 0 1080 1920">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1920" viewBox="0 0 1080 1920">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#07080d"/><stop offset=".5" stop-color="#11101d"/><stop offset="1" stop-color="#07141b"/></linearGradient>
     <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#171b28"/><stop offset="1" stop-color="#0b0e16"/></linearGradient>
@@ -12,12 +12,9 @@
   <rect width="1080" height="1920" fill="url(#bg)"/><rect width="1080" height="1920" fill="url(#grid)"/>
   <circle cx="890" cy="135" r="300" fill="#6749df" opacity=".09"/><circle cx="110" cy="1710" r="330" fill="#27bdd0" opacity=".06"/>
 
-  <circle cx="136" cy="124" r="57" fill="#090b11" stroke="#ef4058" stroke-width="3"/>
-  <circle cx="136" cy="124" r="45" fill="none" stroke="#765fe5" stroke-opacity=".7"/>
-  <path d="M108 111h17l11-18 11 18h17l-13 14 6 20-21-12-21 12 6-20z" fill="none" stroke="#ef5265" stroke-width="4" stroke-linejoin="round"/>
-  <text x="136" y="160" text-anchor="middle" font-size="14" font-weight="900" fill="#f4f5fa">AI</text>
-  <text x="220" y="98" class="kicker">BLACKDOMAIN MOBILE</text>
-  <text x="220" y="158" class="title">黑域 AI 手機助手</text>
+  <image x="69" y="56" width="142" height="142" href="../brand/blackdomain-ai-logo.png" xlink:href="../brand/blackdomain-ai-logo.png" filter="url(#glow)"/>
+  <text x="240" y="90" class="kicker">iPHONE・SAFARI</text>
+  <text x="240" y="158" class="title" font-size="54">黑域 AI 蘋果手機助手</text>
   <text x="78" y="225" class="lead">不用下載 App・首次設定一次・遊戲中隨時叫出</text>
   <rect x="78" y="263" width="924" height="5" rx="3" fill="url(#accent)" filter="url(#glow)"/>
 
