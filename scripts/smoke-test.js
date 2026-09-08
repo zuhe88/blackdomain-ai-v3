@@ -1583,7 +1583,7 @@ async function main() {
   for (const expected of ["blackdomain-floating-assistant", "attachShadow", "pointermove", "mobile-login?embed=1"]) {
     if (!assistantBookmarkletSource.includes(expected)) throw new Error(`Floating assistant bookmarklet is missing: ${expected}`);
   }
-  for (const expected of ["複製書籤程式", "Android Chrome 設定與啟動", "帶有星號的書籤建議", "不可使用 LINE 內建瀏覽器", "iPhone Safari 設定", "/assistant/bookmarklet.js"]) {
+  for (const expected of ["複製書籤程式", "Android Chrome 操作步驟", "帶有 ★ 的書籤建議", "不可使用 LINE 內建瀏覽器", "複製 Android 文字說明", "androidGuideText", "iPhone Safari 設定", "/assistant/bookmarklet.js"]) {
     if (!assistantInstallSource.includes(expected)) throw new Error(`Floating assistant installer is missing: ${expected}`);
   }
   for (const expected of ['req.query?.embed === "1"', "frame-ancestors https:"]) {
