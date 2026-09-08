@@ -27,17 +27,23 @@
   let moved = false;
   let dx = 0;
   let dy = 0;
+  let startX = 0;
+  let startY = 0;
+  const DRAG_THRESHOLD = 8;
 
   fab.addEventListener("pointerdown", (event) => {
     dragging = true;
     moved = false;
     const rect = fab.getBoundingClientRect();
+    startX = event.clientX;
+    startY = event.clientY;
     dx = event.clientX - rect.left;
     dy = event.clientY - rect.top;
     fab.setPointerCapture(event.pointerId);
   });
   fab.addEventListener("pointermove", (event) => {
     if (!dragging) return;
+    if (!moved && Math.hypot(event.clientX - startX, event.clientY - startY) < DRAG_THRESHOLD) return;
     moved = true;
     const left = Math.max(8, Math.min(innerWidth - fab.offsetWidth - 8, event.clientX - dx));
     const top = Math.max(8, Math.min(innerHeight - fab.offsetHeight - 8, event.clientY - dy));
@@ -46,6 +52,7 @@
     fab.style.right = "auto";
   });
   fab.addEventListener("pointerup", () => { dragging = false; });
+  fab.addEventListener("pointercancel", () => { dragging = false; moved = false; });
   fab.addEventListener("click", () => {
     if (moved) { moved = false; return; }
     if (!frame.src) frame.src = PORTAL;
