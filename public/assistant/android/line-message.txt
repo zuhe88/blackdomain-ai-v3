@@ -1,0 +1,11 @@
+【黑域 AI 安卓懸浮助手】
+
+下載安裝：
+https://blackdomain-ai-v3-production.up.railway.app/assistant/android/?openExternalBrowser=1
+
+1. 點連結後，按「下載 Android 安裝檔」並安裝。
+2. 開啟 App，按「啟動懸浮助手」，依提示允許懸浮視窗。
+3. 輸入已開通的 3A 帳號，按「縮小」後就能邊開遊戲、邊點浮球查看預測。
+
+若連結仍開在 LINE 裡，請複製連結到 Chrome 開啟。
+此版本僅適用 Android，iPhone 請使用原有 Safari 助手。
