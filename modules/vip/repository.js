@@ -29,8 +29,18 @@ function normalizeGlobalAiAccess(value) {
   };
 }
 
-async function getGlobalAiAccessState({ force = false } = {}) {
-  if (!isConnected()) return normalizeGlobalAiAccess(null);
+function accessUnavailable() {
+  const error = new Error("會員權限暫時無法確認，請稍後重試。");
+  error.status = 503;
+  error.code = "VIP_ACCESS_UNAVAILABLE";
+  return error;
+}
+
+async function getGlobalAiAccessState({ force = false, strict = false } = {}) {
+  if (!isConnected()) {
+    if (strict) throw accessUnavailable();
+    return normalizeGlobalAiAccess(null);
+  }
   if (!force && Date.now() < globalAiAccessCache.expiresAt) {
     return normalizeGlobalAiAccess(globalAiAccessCache);
   }
@@ -39,7 +49,11 @@ async function getGlobalAiAccessState({ force = false } = {}) {
     .select("*")
     .eq("key", GLOBAL_AI_ACCESS_SETTING_KEY)
     .maybeSingle();
-  const state = normalizeGlobalAiAccess(error ? null : data?.value);
+  if (error) {
+    if (strict) throw accessUnavailable();
+    return normalizeGlobalAiAccess(null);
+  }
+  const state = normalizeGlobalAiAccess(data?.value);
   globalAiAccessCache = { ...state, expiresAt: Date.now() + GLOBAL_AI_ACCESS_CACHE_MS };
   return state;
 }
@@ -140,14 +154,21 @@ function isActiveRequest(request) {
   return Boolean(request && ACTIVE_REQUEST_STATUSES.includes(request.status));
 }
 
-async function findVipUserByLineUserId(lineUserId) {
-  if (!isConnected() || !lineUserId) return normalizeUser(null);
+async function findVipUserByLineUserId(lineUserId, { strict = false } = {}) {
+  if (!isConnected()) {
+    if (strict) throw accessUnavailable();
+    return normalizeUser(null);
+  }
+  if (!lineUserId) return normalizeUser(null);
   const { data, error } = await supabase
     .from("vip_users")
     .select("*")
     .eq("line_user_id", lineUserId)
     .maybeSingle();
-  if (error) return normalizeUser(null);
+  if (error) {
+    if (strict) throw accessUnavailable();
+    return normalizeUser(null);
+  }
   return normalizeUser(data);
 }
 

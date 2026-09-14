@@ -644,11 +644,39 @@ async function main() {
     lastBet: 0,
   });
   if (
-    insufficientBetAnalysis.prediction !== "觀望"
+    insufficientBetAnalysis.prediction !== "莊"
     || insufficientBetAnalysis.bet !== 0
-    || insufficientBetAnalysis.analysis.reasonCode !== "INSUFFICIENT_BET_LIMIT"
+    || !insufficientBetAnalysis.session.fundingPaused
   ) {
-    throw new Error("Baccarat analysis must observe when no safe wager fits the configured limits");
+    throw new Error("Baccarat must preserve predictions when funding recommendations pause");
+  }
+  for (const mode of ["動態配注", "天門"]) {
+    const exhausted = nextBaccaratAnalysis({
+      mode, history: ["閒", "閒", "閒"],
+      results: { pass: 0, fail: 0, tie: 0, observe: 0 },
+      capital: 5700, startBankroll: 5700, bankroll: 100,
+      maxBet: 3100, lastPrediction: "莊", lastBet: 100,
+    }, "閒");
+    if (exhausted.session.bankroll !== 0 || !exhausted.session.fundingPaused
+      || exhausted.prediction !== "閒" || exhausted.bet !== 0) {
+      throw new Error("A loss exhausting bankroll must preserve the next prediction");
+    }
+    const continued = nextBaccaratAnalysis(exhausted.session, "閒");
+    if (continued.session.bankroll !== 0 || continued.session.results.pass !== 1
+      || continued.session.results.fail !== 1 || continued.bet !== 0) {
+      throw new Error("Funding pause must freeze bankroll but continue verdict statistics");
+    }
+    for (const compact of [true, false]) {
+      const card = baccaratAnalysisFlex({
+        session: continued.session, prediction: continued.prediction,
+        bet: continued.bet, reason: "", roomStats: {}, autoResult: true, compact,
+      });
+      const texts = collectText(card).join(" ");
+      if (texts.includes("目前本金") || texts.includes("目前獲利") || texts.includes("本金 0")) {
+        throw new Error("Paused funding must hide bankroll records on web and LINE cards");
+      }
+      assertIncludes([texts], "已停止推薦金額與本金紀錄", "Funding pause card notice");
+    }
   }
   const minimumTianmen = getTianmenRequirements(5700);
   const belowMinimumTianmen = getTianmenRequirements(5699);
@@ -705,12 +733,12 @@ async function main() {
     lastBet: 0,
   });
   if (
-    underfundedTianmen.prediction !== "觀望"
-    || underfundedTianmen.analysis.reasonCode !== "INSUFFICIENT_TIANMEN_BANKROLL"
-    || cappedTianmen.prediction !== "觀望"
-    || cappedTianmen.analysis.reasonCode !== "INSUFFICIENT_TIANMEN_MAX_BET"
+    underfundedTianmen.prediction !== "莊"
+    || !underfundedTianmen.session.fundingPaused
+    || cappedTianmen.prediction !== "莊"
+    || !cappedTianmen.session.fundingPaused
   ) {
-    throw new Error("Tianmen must report insufficient funding instead of silently observing");
+    throw new Error("Tianmen must pause funding while preserving predictions");
   }
   let firstRoundEvent = null;
   const stopFirstRoundListener = dgSource.onResult((result) => {
@@ -1562,7 +1590,7 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260907.06", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20260914.01", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
   for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.08"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
@@ -4022,10 +4050,10 @@ async function main() {
   }
   const fundingStopTexts = captured.pushes.at(-1).messages
     .flatMap((message) => collectText(message));
-  assertIncludes(fundingStopTexts, "資金條件不足，已停止分析", "Baccarat funding stop title");
-  assertIncludes(fundingStopTexts, "不會繼續回傳觀望", "Baccarat funding stop explanation");
-  if (hasActiveBaccaratSession(fundingStopUser)) {
-    throw new Error("Baccarat insufficient bankroll must remove the active room session");
+  assertIncludes(fundingStopTexts, "已停止推薦金額與本金紀錄", "Baccarat funding pause notice");
+  assertIncludes(fundingStopTexts, "預測持續更新", "Baccarat funding pause explanation");
+  if (!hasActiveBaccaratSession(fundingStopUser)) {
+    throw new Error("Baccarat insufficient bankroll must retain the active room session");
   }
   fundingStopRoad.push("莊");
   dgSource.ingestMessage({
@@ -4035,8 +4063,8 @@ async function main() {
     list: dgRoad(fundingStopRoad),
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
-  if (captured.pushes.length !== pushesBeforeFundingStop + 1) {
-    throw new Error("A stopped baccarat room must not keep pushing observe results");
+  if (captured.pushes.length !== pushesBeforeFundingStop + 2) {
+    throw new Error("A funding-paused baccarat room must continue predictions");
   }
 
   const repeatedCorrectionUser = "bound-user";

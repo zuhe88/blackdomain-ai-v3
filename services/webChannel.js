@@ -74,10 +74,14 @@ function authenticate(token) {
   return session?.kind === "session" ? session.userId : null;
 }
 function waitReply(token, timeoutMs = 90000) {
-  return new Promise((resolve, reject) => {
+  const pending = new Promise((resolve, reject) => {
     const timer = setTimeout(() => { replies.delete(token); reject(new Error("Command timeout")); }, timeoutMs);
     replies.set(token, (messages) => { clearTimeout(timer); replies.delete(token); resolve(messages); });
   });
+  // The command handler can still be awaiting the database when this expires.
+  // Observe rejection immediately; callers awaiting pending still receive it.
+  pending.catch(() => {});
+  return pending;
 }
 function remember(userId, messages, replayable = false) {
   const history = recentMessages.get(userId) || [];

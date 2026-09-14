@@ -54,6 +54,9 @@ function scheduleAccessExpiry(userId, expiresAt) {
       await clearExpiredUserSessions(userId);
     } catch (error) {
       console.error("[Web] Access expiry enforcement failed:", error.message);
+      const timer = setTimeout(enforce, 5000);
+      timer.unref();
+      accessExpiryTimers.set(userId, timer);
     }
   };
   const timer = setTimeout(enforce, Math.min(Math.max(0, expiresAt - Date.now()), MAX_TIMER_DELAY_MS));
@@ -196,6 +199,7 @@ function registerWebPortalRoutes(app) {
     return res.sendFile(path.join(__dirname, "..", "public", "portal", "index.html"));
   });
   app.get("/api/web/me", async (req, res, next) => {
+    res.setHeader("cache-control", "no-store");
     try {
     const userId = user(req);
     if (!userId) return res.json({ authenticated: false, accessAllowed: false, messages: [] });

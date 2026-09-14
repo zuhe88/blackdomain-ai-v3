@@ -47,11 +47,6 @@ const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
 const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
-const TERMINAL_FUNDING_REASON_CODES = new Set([
-  "INSUFFICIENT_TIANMEN_BANKROLL",
-  "INSUFFICIENT_TIANMEN_MAX_BET",
-  "INSUFFICIENT_BET_LIMIT",
-]);
 
 function roomsForPlatform(platform) {
   const configured = platform === "DG" ? DG_ROOMS : MT_ROOMS;
@@ -226,7 +221,7 @@ function captureSettlementState(session) {
 
 function restoreSettlementState(session, state = {}) {
   session.results = { ...(state.results || {}) };
-  session.bankroll = state.bankroll;
+  if (!session.fundingPaused) session.bankroll = state.bankroll;
   session.tianmenLevel = state.tianmenLevel;
   session.lastSettlement = state.lastSettlement ? { ...state.lastSettlement } : null;
   return session;
@@ -281,7 +276,7 @@ function reconcileReplacement(session, event) {
   const firstState = affected[0]?.stateBefore;
   if (affected.length && !firstState) {
     session.results = { pass: 0, fail: 0, tie: 0, observe: 0 };
-    session.bankroll = session.mode === "自由配注" ? null : session.startBankroll;
+    if (!session.fundingPaused) session.bankroll = session.mode === "自由配注" ? null : session.startBankroll;
     session.tianmenLevel = 1;
     session.lastSettlement = null;
     session.predictionAudit = [];
@@ -362,41 +357,8 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
   return true;
 }
 
-function hasTerminalFundingIssue(analysis) {
-  return TERMINAL_FUNDING_REASON_CODES.has(
-    String(analysis?.session?.lastPredictionMeta?.reasonCode || ""),
-  );
-}
-
-function fundingStopFlex(analysis) {
-  const session = analysis.session;
-  const bankroll = Number(session.bankroll || 0).toLocaleString("en-US");
-  return baccaratPromptFlex({
-    title: "資金條件不足，已停止分析",
-    lines: [
-      getReason(session),
-      `目前本金：${bankroll}`,
-      "本房自動分析已結束，不會繼續回傳觀望。",
-      "請重新選擇百家樂並設定足夠本金與單注上限。",
-    ],
-    quickReply: restartQuickReply(),
-  });
-}
-
 async function deliverLiveDecision(originalSession, analysis, event, notice = null) {
-  if (!hasTerminalFundingIssue(analysis)) {
-    return deliverLiveAnalysis(originalSession, analysis, event, notice);
-  }
-  if (!isSameActiveSession(originalSession)) return false;
-  const message = fundingStopFlex(analysis);
-  if (originalSession.deliveryChannel === "web") {
-    webChannel.publish(originalSession.userId, [message]);
-  } else {
-    await pushLineStrict(originalSession.userId, message);
-  }
-  if (!isSameActiveSession(originalSession)) return false;
-  await resetStoredSession(originalSession.userId);
-  return true;
+  return deliverLiveAnalysis(originalSession, analysis, event, notice);
 }
 
 async function settleLiveResult(platform, event, targetIdentity = null) {
@@ -816,19 +778,7 @@ async function handleBaccaratMessage(event) {
       }));
     }
     const result = nextAnalysis(session, value);
-    if (hasTerminalFundingIssue(result)) {
-      await resetBaccaratSession(userId);
-      return reply(token, fundingStopFlex(result));
-    }
     updateAfterRound(userId, result.session);
-    if (result.session.bankroll <= 0 && result.session.mode !== "自由配注") {
-      await resetBaccaratSession(userId);
-      return reply(token, baccaratPromptFlex({
-        title: "本金已歸零",
-        lines: ["請重新開始並輸入新的本金。"],
-        quickReply: restartQuickReply(),
-      }));
-    }
     return reply(token, baccaratAnalysisFlex({
       session: result.session,
       prediction: result.prediction,

@@ -269,6 +269,7 @@ function setRoom(userId, room) {
 function setCapital(userId, capital) {
   return setSession(userId, {
     capital,
+    fundingPaused: false,
     bankroll: capital,
     startBankroll: capital,
     step: "maxBet",
@@ -285,6 +286,7 @@ function setMaxBet(userId, maxBet) {
 function setMode(userId, mode) {
   return setSession(userId, {
     mode,
+    fundingPaused: false,
     capital: null,
     maxBet: null,
     bankroll: null,

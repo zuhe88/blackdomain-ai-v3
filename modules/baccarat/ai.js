@@ -309,7 +309,7 @@ function predict(history = []) {
 
 function calculateBet(session, prediction = session.lastPrediction) {
   if (prediction === OBSERVE) return 0;
-  if (session.mode === "自由配注") return 0;
+  if (session.mode === "自由配注" || session.fundingPaused) return 0;
   if (session.mode === "天門") return getHeavenBet(session);
   return clampBet(getBaseBet(session), getLimit(session));
 }
@@ -358,11 +358,11 @@ function applyResult(session, outcome) {
   };
   if (isWin) {
     session.results.pass += 1;
-    if (session.mode !== "自由配注") session.bankroll += outcome === "莊" ? lastBet * 0.95 : lastBet;
+    if (session.mode !== "自由配注" && !session.fundingPaused) session.bankroll += outcome === "莊" ? lastBet * 0.95 : lastBet;
     if (session.mode === "天門") session.tianmenLevel = 1;
   } else {
     session.results.fail += 1;
-    if (session.mode !== "自由配注") session.bankroll -= lastBet;
+    if (session.mode !== "自由配注" && !session.fundingPaused) session.bankroll -= lastBet;
     if (session.mode === "天門") session.tianmenLevel = Math.min(5, (session.tianmenLevel || 1) + 1);
   }
   return session;
@@ -373,63 +373,21 @@ function nextAnalysis(session, opened) {
   if (opened === "莊" || opened === "閒" || opened === "和") session.history.push(opened);
   if (session.history.length > 50) session.history.shift();
   session = applyResult(session, opened);
-  let analysis = analyzePrediction(session.history);
-  let prediction = analysis.prediction;
-  let bet = calculateBet(session, prediction);
-  const fundingIssue = getTianmenFundingIssue(session);
-  if (fundingIssue) {
-    prediction = OBSERVE;
-    bet = 0;
-    analysis = { ...analysis, prediction, ...fundingIssue };
-  } else if (!hasMinimumBetCapacity(session)) {
-    prediction = OBSERVE;
-    bet = 0;
-    analysis = {
-      ...analysis,
-      prediction,
-      reasonCode: "INSUFFICIENT_BET_LIMIT",
-    };
-  } else if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
-    prediction = OBSERVE;
-    bet = 0;
-    analysis = {
-      ...analysis,
-      prediction,
-      reasonCode: "INSUFFICIENT_BET_LIMIT",
-    };
-  }
-  session.lastPrediction = prediction;
-  session.lastPredictionMeta = analysis;
-  session.lastBet = bet;
-  return { session, prediction, bet, analysis };
+  return firstAnalysis(session);
 }
 
 function firstAnalysis(session) {
-  let analysis = analyzePrediction(session.history);
-  let prediction = analysis.prediction;
+  const analysis = analyzePrediction(session.history);
+  const prediction = analysis.prediction;
   let bet = calculateBet(session, prediction);
   const fundingIssue = getTianmenFundingIssue(session);
-  if (fundingIssue) {
-    prediction = OBSERVE;
-    bet = 0;
-    analysis = { ...analysis, prediction, ...fundingIssue };
-  } else if (!hasMinimumBetCapacity(session)) {
-    prediction = OBSERVE;
-    bet = 0;
-    analysis = {
-      ...analysis,
-      prediction,
-      reasonCode: "INSUFFICIENT_BET_LIMIT",
-    };
-  } else if (session.mode !== "自由配注" && prediction !== OBSERVE && bet <= 0) {
-    prediction = OBSERVE;
-    bet = 0;
-    analysis = {
-      ...analysis,
-      prediction,
-      reasonCode: "INSUFFICIENT_BET_LIMIT",
-    };
+  if (session.mode !== "自由配注" && (
+    fundingIssue || !hasMinimumBetCapacity(session)
+    || (prediction !== OBSERVE && bet <= 0)
+  )) {
+    session.fundingPaused = true;
   }
+  if (session.fundingPaused) bet = 0;
   session.lastPrediction = prediction;
   session.lastPredictionMeta = analysis;
   session.lastBet = bet;

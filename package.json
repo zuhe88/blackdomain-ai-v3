@@ -9,7 +9,7 @@
     "dev": "nodemon server.js",
     "mt-relay": "node scripts/mt-relay-client.js",
     "lint": "node scripts/lint.js",
-    "test": "node scripts/smoke-test.js"
+    "test": "node --test scripts/vip-access-resilience.test.js && node scripts/smoke-test.js"
   },
   "engines": {
     "node": ">=20"

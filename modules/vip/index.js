@@ -249,8 +249,8 @@ function hasAiPermission(user) {
 async function checkVipAccess(userId) {
   if (isAdminLineUserId(userId)) return { allowed: true, isAdmin: true, user: null };
   const [user, globalAccess] = await Promise.all([
-    findVipUserByLineUserId(userId),
-    getGlobalAiAccessState(),
+    findVipUserByLineUserId(userId, { strict: true }),
+    getGlobalAiAccessState({ strict: true }),
   ]);
   return {
     allowed: globalAccess.enabled || hasAiPermission(user),

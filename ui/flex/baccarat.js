@@ -599,10 +599,13 @@ function baccaratAnalysisFlex({
   quickReply,
 }) {
   const profit = session.mode === "自由配注" ? "-" : Math.round((session.bankroll - session.startBankroll) * 100) / 100;
-  const isFreeBet = session.mode === "自由配注";
+  const isFreeBet = session.mode === "自由配注" || session.fundingPaused;
+  if (session.fundingPaused) {
+    notice = ["資金條件不足，已停止推薦金額與本金紀錄；預測持續更新。", notice].filter(Boolean).join("；");
+  }
   const isObserve = prediction === "觀望";
   const betLabel = isFreeBet ? "配注方式" : "建議下注";
-  const betText = isFreeBet ? "玩家自行決定" : String(bet);
+  const betText = session.fundingPaused ? "已停止推薦金額" : isFreeBet ? "玩家自行決定" : String(bet);
   const displayReason = naturalReason(reason, { isFreeBet, isObserve });
   const results = {
     pass: session.results.pass || 0,
