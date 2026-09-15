@@ -7,6 +7,7 @@ const recentMessages = new Map();
 const usedLoginNonces = new Map();
 const CODE_TTL = 10 * 60 * 1000;
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
+const NONCE_PERSIST_TIMEOUT_MS = 4000;
 
 function randomToken(bytes = 24) { return crypto.randomBytes(bytes).toString("base64url"); }
 function secret() {
@@ -33,12 +34,29 @@ function issueSession(userId) {
   return sign({ kind: "session", userId, exp: Date.now() + SESSION_TTL });
 }
 let warnedNonceFallback = false;
+async function persistLoginNonce(record) {
+  if (!supabase) return null;
+  let timer = null;
+  try {
+    return await Promise.race([
+      supabase.from("lottery_settings").insert(record),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Login nonce persistence timed out")), NONCE_PERSIST_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (error) {
+    return { error };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function redeem(code) {
   const pending = verify(code);
   if (!pending || pending.kind !== "login" || usedLoginNonces.has(pending.nonce)) return null;
   const nonceHash = crypto.createHash("sha256").update(pending.nonce).digest("hex");
   if (supabase) {
-    const { error } = await supabase.from("lottery_settings").insert({
+    const { error } = await persistLoginNonce({
       key: `web_login_nonce:${nonceHash}`,
       value: {
         lineUserId: String(pending.userId || ""),
