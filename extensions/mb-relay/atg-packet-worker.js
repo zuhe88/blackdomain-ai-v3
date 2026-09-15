@@ -448,11 +448,14 @@
     state.socket.on("disconnect", () => { state.socket = null; });
     state.initialResponse = await gameRequestNow(state, "initial", {
       clientType: CLIENT_TYPE,
+      // These values are part of ATG's session contract, not presentation
+      // metadata. Some newer games derive their first encrypted response from
+      // this official web-client profile.
       deviceInfo: {
-        browser: { name: "Chrome", version: navigator.userAgent },
-        os: { name: "Windows" },
+        browser: { name: "chrome", version: "148.0.0.0" },
+        os: { name: "Windows", version: "", versionName: 0 },
         platform: { type: "DESKTOP_BROWSER" },
-        engine: { name: "blackdomain-packet-worker" },
+        engine: { name: "cocos creator 3.7.2" },
       },
     });
     gameStates.clear();
