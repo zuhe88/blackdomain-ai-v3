@@ -157,6 +157,18 @@
     }
   }
 
+  function storedGameTicket(redirectToken) {
+    // Newer ATG clients replace a URL ticket with the refreshed value kept
+    // under that URL ticket in same-origin storage. Mirror that official
+    // behavior without exporting or persisting any credential ourselves.
+    try {
+      const stored = String(window.localStorage.getItem(String(redirectToken || "")) || "").trim();
+      return /^[A-Za-z0-9_-]{16,256}$/.test(stored) ? stored : "";
+    } catch {
+      return "";
+    }
+  }
+
   function manualGameCaptureRequested() {
     try {
       const current = new URL(window.location.href);
@@ -308,6 +320,7 @@
     const response = await decodeGameResponse(packet, [
       requestToken,
       state.initialToken,
+      state.redirectToken,
       state.launchToken,
       state.lobbyToken,
       activeLobbyToken,
@@ -458,11 +471,12 @@
   async function connectGame(launch, context) {
     const state = {
       target: launch.target,
-      // ATG uses the redirect ticket to authenticate game requests. A
-      // lobbyPlay ticket is retained only as a decrypt fallback for games
-      // that rotate their response key during the hand-off.
+      // Match the official client: use a refreshed same-origin ticket when
+      // present, otherwise use the redirect ticket. The lobbyPlay ticket is
+      // retained only as a decrypt fallback during the hand-off.
       token: launch.token,
       initialToken: launch.token,
+      redirectToken: launch.redirectToken || launch.token,
       launchToken: launch.launchToken,
       lobbyToken: launch.lobbyToken || activeLobbyToken,
       locale: context.locale,
@@ -644,7 +658,14 @@
     rememberLaunchLobby(redirect, context);
     const token = String(redirect.searchParams.get("t") || "").trim();
     if (!token) throw new Error(`${target.name} launch token missing`);
-    return { target, token, launchToken, lobbyToken: activeLobbyToken };
+    const storedToken = storedGameTicket(token);
+    return {
+      target,
+      token: storedToken || token,
+      redirectToken: token,
+      launchToken,
+      lobbyToken: activeLobbyToken,
+    };
   }
 
   async function scanTarget(target, context, attempt = 0) {
