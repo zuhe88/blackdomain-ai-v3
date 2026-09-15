@@ -308,6 +308,7 @@
     const response = await decodeGameResponse(packet, [
       requestToken,
       state.initialToken,
+      state.redirectToken,
       state.lobbyToken,
       activeLobbyToken,
     ]);
@@ -434,8 +435,12 @@
   async function connectGame(launch, context) {
     const state = {
       target: launch.target,
-      token: launch.token,
-      initialToken: launch.token,
+      // lobbyPlay returns the ticket the game actually uses. The `t` in a
+      // redirect URL is only a storage key on newer ATG games, so preserve
+      // both values instead of letting the return-to-lobby URL overwrite it.
+      token: launch.launchToken || launch.token,
+      initialToken: launch.launchToken || launch.token,
+      redirectToken: launch.token,
       lobbyToken: launch.lobbyToken || activeLobbyToken,
       locale: context.locale,
       socket: null,
@@ -610,12 +615,13 @@
     if (!played || Number(played.status) !== 200 || !played.redirectUrl) {
       throw new Error(`${target.name} ${upstreamReason("launch", played)}`);
     }
-    if (played.token) activeLobbyToken = String(played.token);
+    const launchToken = String(played.token || "").trim();
+    if (launchToken) activeLobbyToken = launchToken;
     const redirect = new URL(played.redirectUrl, window.location.href);
     rememberLaunchLobby(redirect, context);
     const token = String(redirect.searchParams.get("t") || "").trim();
     if (!token) throw new Error(`${target.name} launch token missing`);
-    return { target, token, lobbyToken: activeLobbyToken };
+    return { target, token, launchToken, lobbyToken: activeLobbyToken };
   }
 
   async function scanTarget(target, context, attempt = 0) {
