@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "BLACKDOMAIN MT 賀哥轉發",
+  "version": "1.2.0",
+  "minimum_chrome_version": "120",
+  "description": "沿用目前 MT 大廳的連線，將百家樂桌況與牌路交給本機 BLACKDOMAIN 轉發器。",
+  "permissions": ["alarms", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "https://gsa.ofalive99.net/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://gsa.ofalive99.net/*"],
+      "js": ["capture.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://gsa.ofalive99.net/*"],
+      "js": ["relay.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

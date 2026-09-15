@@ -7,6 +7,8 @@ const root = path.resolve(__dirname, "..");
 const outputPath = path.join(root, ".tmp", "cloud-relay-bootstrap.ps1");
 const embeddedFiles = [
   ["scripts/mt-relay-client.js", "mt-relay-client.js"],
+  ["scripts/mt-relay-page.html", "mt-relay-page.html"],
+  ["scripts/lib/mt-browser-bridge.js", "lib/mt-browser-bridge.js"],
   ["extensions/mb-relay/manifest.json", "extension/manifest.json"],
   ["extensions/mb-relay/background.js", "extension/background.js"],
   ["extensions/mb-relay/bridge.js", "extension/bridge.js"],

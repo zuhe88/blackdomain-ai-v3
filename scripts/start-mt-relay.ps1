@@ -1,5 +1,9 @@
 $ErrorActionPreference = "Stop"
 
+# Codex runs PowerShell 7 and can pass its module path into Windows PowerShell
+# 5.1. Removing it lets Windows PowerShell load its own security module.
+Remove-Item Env:PSModulePath -ErrorAction SilentlyContinue
+
 $relayRoot = Join-Path $env:LOCALAPPDATA "BLACKDOMAIN"
 $relayConfigPath = Join-Path $relayRoot "mt-relay.json"
 $relayScriptPath = Join-Path $PSScriptRoot "mt-relay-client.js"

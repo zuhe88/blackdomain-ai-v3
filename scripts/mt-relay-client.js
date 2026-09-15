@@ -5,6 +5,7 @@ const http = require("http");
 const os = require("os");
 const path = require("path");
 const WebSocket = require("ws");
+const { createBrowserBridge, sanitizeTables } = require("./lib/mt-browser-bridge");
 
 const PORT = Number(process.env.MT_RELAY_PORT || 43128);
 const SOCKET_URL = process.env.MT_SOCKET_URL || "wss://a1.ofalive99.net/game/ws";
@@ -12,6 +13,8 @@ const ORIGIN = process.env.MT_ORIGIN || "https://gsa.ofalive99.net";
 const INGEST_URL = process.env.MT_INGEST_URL
   || "https://blackdomain-ai-v3-production.up.railway.app/api/mt/ingest";
 const TABLES_ACTION = "/api/v1/gametype/*/game/*/room/*/tables";
+const freshnessSetting = Number(process.env.MT_DATA_FRESHNESS_MS);
+const DATA_FRESHNESS_MS = Number.isFinite(freshnessSetting) && freshnessSetting >= 1000 ? freshnessSetting : 15000;
 
 let socket = null;
 let activeToken = "";
@@ -29,12 +32,21 @@ let tokenRejected = false;
 let lastHandshakeStatus = null;
 let lastCloseCode = null;
 let lastCloseReason = null;
+let transport = "direct";
+let browserDiagnostics = null;
+let browserWatchdog = null;
+const unconfiguredBridgeSecret = crypto.randomBytes(32).toString("hex");
 
 const PERSIST_CONFIG = process.platform === "win32" && process.env.MT_PERSIST_CONFIG !== "false";
 const CONFIG_PATH = process.env.MT_CONFIG_PATH
   || path.join(os.homedir(), "AppData", "Local", "BLACKDOMAIN", "mt-relay.json");
 
 function runConfigPowerShell(script, input = "") {
+  const powershellEnv = { ...process.env };
+  for (const key of Object.keys(powershellEnv)) {
+    if (key.toLowerCase() === "psmodulepath") delete powershellEnv[key];
+  }
+  powershellEnv.BLACKDOMAIN_MT_CONFIG_PATH = CONFIG_PATH;
   const result = childProcess.spawnSync("powershell.exe", [
     "-NoProfile",
     "-NonInteractive",
@@ -42,7 +54,7 @@ function runConfigPowerShell(script, input = "") {
     script,
   ], {
     encoding: "utf8",
-    env: { ...process.env, BLACKDOMAIN_MT_CONFIG_PATH: CONFIG_PATH },
+    env: powershellEnv,
     input,
     timeout: 10000,
     windowsHide: true,
@@ -108,27 +120,6 @@ function requestTables() {
   });
 }
 
-function sanitizeTables(value) {
-  return Object.values(value || {})
-    .filter((table) => table?.table_type === "BAC" || table?.table_type === "BAS")
-    .slice(0, 50)
-    .map((table) => ({
-      table_id: table.table_id,
-      table_name: table.table_name,
-      table_type: table.table_type,
-      game_sn: table.game_sn,
-      game_state: table.game_state,
-      shoe: table.shoe,
-      round: table.round,
-      trend: {
-        bead_plate2: table.trend?.bead_plate2,
-        total_round_banker: table.trend?.total_round_banker,
-        total_round_player: table.trend?.total_round_player,
-        total_round_tie: table.trend?.total_round_tie,
-      },
-    }));
-}
-
 function normalizeToken(value) {
   const input = String(value || "").trim();
   if (!input) return "";
@@ -143,7 +134,8 @@ function normalizeToken(value) {
 }
 
 async function forwardTables(tables) {
-  if (!tables.length || !activeToken) return;
+  if (!tables.length) throw new Error("No MT tables to forward.");
+  if (!activeToken && !activeRelayKey) throw new Error("MT forwarding credentials are missing.");
   const body = JSON.stringify({ tables });
   const signature = crypto.createHmac("sha256", activeToken).update(body).digest("hex");
   const authorization = activeRelayKey
@@ -201,6 +193,7 @@ function handleMessage(raw) {
 }
 
 function connect(token, relayKey = activeRelayKey) {
+  transport = "direct";
   activeToken = normalizeToken(token);
   activeRelayKey = String(relayKey || "").trim();
   if (activeToken.length < 16) throw new Error("MT token is invalid.");
@@ -258,9 +251,11 @@ function connect(token, relayKey = activeRelayKey) {
   nextSocket.on("unexpected-response", (_request, response) => {
     lastHandshakeStatus = Number(response?.statusCode) || null;
     lastError = `MT WebSocket handshake failed (${lastHandshakeStatus || "unknown"}).`;
+    response.resume();
+    nextSocket.terminate();
   });
   nextSocket.on("error", (error) => {
-    lastError = error.message || error.code || "MT WebSocket connection failed.";
+    if (!lastHandshakeStatus) lastError = error.message || error.code || "MT WebSocket connection failed.";
   });
   nextSocket.on("close", (code, reason) => {
     lastCloseCode = Number(code) || null;
@@ -272,18 +267,26 @@ function connect(token, relayKey = activeRelayKey) {
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         connect(activeToken);
-      }, 5000);
+      }, lastHandshakeStatus === 403 ? 60000 : 5000);
     }
   });
 }
 
 function publicStatus() {
-  const state = socket?.readyState === WebSocket.OPEN
+  const tablesFresh = Boolean(lastTablesAt) && Date.now() - Date.parse(lastTablesAt) < DATA_FRESHNESS_MS;
+  const forwardFresh = Boolean(lastForwardAt) && Date.now() - Date.parse(lastForwardAt) < DATA_FRESHNESS_MS;
+  const state = transport === "browser"
+    ? tablesFresh ? "connected" : "browser_waiting"
+    : socket?.readyState === WebSocket.OPEN
     ? connectedAt ? "connected" : "authenticating"
     : tokenRejected ? "token_rejected" : "disconnected";
   return {
     state,
-    healthy: state === "connected" && Boolean(lastTablesAt),
+    healthy: state === "connected" && tablesFresh && forwardFresh && !lastError,
+    transport,
+    freshnessMs: DATA_FRESHNESS_MS,
+    browserDiagnostics,
+    browserWatchdog,
     connectedAt,
     lastForwardAt,
     lastMessageAt,
@@ -296,40 +299,46 @@ function publicStatus() {
 }
 
 function html() {
-  return `<!doctype html>
-<html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BLACKDOMAIN MT Relay</title>
-<style>
-body{font-family:system-ui,sans-serif;max-width:560px;margin:40px auto;padding:20px;color:#171717}
-.status{border:1px solid #ddd;border-radius:12px;padding:16px;margin-bottom:22px;background:#fafafa}
-.state{font-size:20px;font-weight:700;margin-bottom:8px}.ok{color:#16803a}.bad{color:#c62828}.wait{color:#9a6700}
-.detail{line-height:1.7;color:#555}label{display:block;margin:14px 0 6px;font-weight:600}
-input{box-sizing:border-box;width:100%;padding:11px;border:1px solid #999;border-radius:6px}
-button{margin-top:14px;padding:11px 18px;border:0;border-radius:6px;background:#171717;color:white;font-weight:700}
-.hint{color:#666;font-size:14px;line-height:1.6}
-</style>
-<body>
-<h1>MT 背景轉發</h1>
-<section class="status"><div id="state" class="state wait">正在讀取狀態…</div><div id="detail" class="detail"></div></section>
-<form method="post"><label>MT 票證</label><input name="token" type="password" required autocomplete="off">
-<label>固定轉送密鑰</label><input name="relayKey" type="password" autocomplete="off">
-<button type="submit">更新票證並啟動</button></form>
-<p class="hint">票證只保留在本機記憶體，不會寫入檔案。此頁會每 2 秒自動更新；顯示「即時轉送中」才代表 MT 資料正常送出。</p>
-<script>
-const state = document.querySelector("#state");
-const detail = document.querySelector("#detail");
-function age(value) { if (!value) return "尚未收到"; const seconds = Math.max(0, Math.round((Date.now()-Date.parse(value))/1000)); return seconds < 60 ? seconds+" 秒前" : Math.floor(seconds/60)+" 分鐘前"; }
-async function refresh() { try { const value = await fetch("/status", { cache: "no-store" }).then(r => r.json());
-  const labels = { connected: ["即時轉送中","ok"], authenticating: ["正在驗證 MT 票證…","wait"], token_rejected: ["MT 票證已失效，請在下方貼上新票證","bad"], disconnected: ["MT 連線中斷，系統正在自動重連","bad"] };
-  const selected = labels[value.state] || labels.disconnected; state.textContent = selected[0]; state.className = "state "+selected[1];
-  detail.textContent = "最近收到房表："+age(value.lastTablesAt)+"｜最近成功轉送："+age(value.lastForwardAt)+(value.lastError ? "｜狀態："+value.lastError : "");
-} catch { state.textContent="無法讀取轉發器狀態"; state.className="state bad"; } }
-refresh(); setInterval(refresh, 2000);
-</script>
-</body></html>`;
+  return fs.readFileSync(path.join(__dirname, "mt-relay-page.html"), "utf8");
 }
 
-const server = http.createServer((req, res) => {
+const browserBridge = createBrowserBridge({
+  port: PORT,
+  onHealth: (health) => { browserWatchdog = health; },
+  getSecret: () => crypto.createHmac("sha256", activeRelayKey || activeToken || unconfiguredBridgeSecret)
+    .update("blackdomain-mt-browser-bridge-v1").digest("hex"),
+  onTables: async (tables, diagnostics) => {
+    if (transport !== "browser") {
+      transport = "browser";
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      stopTimers();
+      if (socket) {
+        socket.removeAllListeners();
+        socket.on("error", () => {});
+        socket.terminate();
+        socket = null;
+      }
+      connectedAt = new Date().toISOString();
+      lastHandshakeStatus = null;
+      lastCloseCode = null;
+      lastCloseReason = null;
+      tokenRejected = false;
+    }
+    lastMessageAt = new Date().toISOString();
+    lastTablesAt = lastMessageAt;
+    browserDiagnostics = diagnostics;
+    try {
+      await forwardTables(tables);
+    } catch (error) {
+      lastError = error.message;
+      throw error;
+    }
+  },
+});
+
+const server = http.createServer(async (req, res) => {
+  if (await browserBridge(req, res)) return;
   if (req.method === "GET" && req.url === "/status") {
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(JSON.stringify(publicStatus()));

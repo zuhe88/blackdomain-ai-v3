@@ -2412,12 +2412,16 @@ async function main() {
     path.join(root, "scripts", "mt-relay-client.js"),
     "utf8",
   );
+  const mtRelayPageSource = fs.readFileSync(
+    path.join(root, "scripts", "mt-relay-page.html"),
+    "utf8",
+  );
   for (const expected of [
     'tokenRejected ? "token_rejected" : "disconnected"',
     "MT 票證已失效，請在下方貼上新票證",
     'res.setHeader("location", "/")',
   ]) {
-    if (!mtRelayClientSource.includes(expected)) {
+    if (!(mtRelayClientSource + mtRelayPageSource).includes(expected)) {
       throw new Error(`MT relay status page is missing recovery behavior: ${expected}`);
     }
   }
