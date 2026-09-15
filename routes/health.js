@@ -1,5 +1,6 @@
 const { lineConfig } = require("../services/line");
 const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
+const { snapshotStartupRecovery } = require("../services/startupRecovery");
 const path = require("path");
 const express = require("express");
 
@@ -69,6 +70,7 @@ function registerHealthRoutes(app) {
         process.env.ATGX_LINE_CHANNEL_SECRET
         && (process.env.ATGX_LINE_CHANNEL_ACCESS_TOKEN || process.env.ATGX_LINE_CHANNEL_ID)
       ),
+      startupRecovery: snapshotStartupRecovery(),
     });
   });
 }
