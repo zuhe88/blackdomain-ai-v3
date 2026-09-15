@@ -337,9 +337,17 @@
 
   function tablePage(response) {
     for (const candidate of objectCandidates(response)) {
-      if (!Array.isArray(candidate.tables)) continue;
-      const tables = candidate.tables.map(normalizeTable).filter(Boolean);
-      if (candidate.tables.length && !tables.length) continue;
+      const sourceTables = candidate.tables
+        ?? candidate.slotTables
+        ?? candidate.tableList
+        ?? candidate.tableData
+        ?? candidate.list
+        ?? candidate.items;
+      if (!Array.isArray(sourceTables)) continue;
+      const tables = sourceTables.map(normalizeTable).filter(Boolean);
+      // Ignore unrelated response lists (players, notices, etc.). ATG's
+      // current games call their table collection `slotTables` or `list`.
+      if (sourceTables.length && !tables.length) continue;
       const metadata = [
         candidate.tableMeta,
         candidate.meta,
@@ -357,7 +365,7 @@
         Math.max(1, Number(
           metadata.tablePerPage
           ?? candidate.tablePerPage
-          ?? candidate.tables.length,
+          ?? sourceTables.length,
         )),
       );
       return {
@@ -384,24 +392,39 @@
   }
 
   function normalizeTable(table) {
-    const number = Number(table?.number ?? table?.roomNumber ?? table?.tableNumber);
-    const roomId = table?.roomId ?? table?.id;
-    const status = String(table?.status || "");
+    const source = table?.table ?? table?.data ?? table;
+    const number = Number(
+      source?.number
+      ?? source?.roomNumber
+      ?? source?.tableNumber
+      ?? source?.tableNo
+      ?? source?.no,
+    );
+    const roomId = source?.roomId ?? source?.room_id ?? source?.tableId ?? source?.id;
+    const rawStatus = source?.status ?? source?.tableStatus ?? source?.state;
+    const numericStatus = Number(rawStatus);
+    const status = numericStatus === 0
+      ? "Empty"
+      : numericStatus === 1
+        ? "Full"
+        : numericStatus === 2
+          ? "Locked"
+          : String(rawStatus || "");
     if (!Number.isInteger(number) || number <= 0 || roomId == null || !status) return null;
     return {
       roomId: String(roomId),
       number,
       status,
       occupied: status !== "Empty",
-      dayWin: table.dayWin,
-      dayBet: table.dayBet,
-      hourWin: table.hourWin,
-      hourBet: table.hourBet,
-      todayWin: table.todayWin,
-      todayBet: table.todayBet,
-      todayRtp: table.todayRtp ?? table.todayRate ?? table.todayScoreRate ?? table.hourRtp ?? table.hourRate,
-      dayRtp: table.dayRtp ?? table.dayRate ?? table.dayScoreRate ?? table.rtp ?? table.scoreRate,
-      mgCounts: Array.isArray(table.mgCounts) ? table.mgCounts.slice(0, 3) : undefined,
+      dayWin: source.dayWin,
+      dayBet: source.dayBet,
+      hourWin: source.hourWin,
+      hourBet: source.hourBet,
+      todayWin: source.todayWin,
+      todayBet: source.todayBet,
+      todayRtp: source.todayRtp ?? source.todayRate ?? source.todayScoreRate ?? source.hourRtp ?? source.hourRate,
+      dayRtp: source.dayRtp ?? source.dayRate ?? source.dayScoreRate ?? source.rtp ?? source.scoreRate,
+      mgCounts: Array.isArray(source.mgCounts) ? source.mgCounts.slice(0, 3) : undefined,
     };
   }
 
