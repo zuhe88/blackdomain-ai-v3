@@ -308,7 +308,7 @@
     const response = await decodeGameResponse(packet, [
       requestToken,
       state.initialToken,
-      state.redirectToken,
+      state.launchToken,
       state.lobbyToken,
       activeLobbyToken,
     ]);
@@ -458,12 +458,12 @@
   async function connectGame(launch, context) {
     const state = {
       target: launch.target,
-      // lobbyPlay returns the ticket the game actually uses. The `t` in a
-      // redirect URL is only a storage key on newer ATG games, so preserve
-      // both values instead of letting the return-to-lobby URL overwrite it.
-      token: launch.launchToken || launch.token,
-      initialToken: launch.launchToken || launch.token,
-      redirectToken: launch.token,
+      // ATG uses the redirect ticket to authenticate game requests. A
+      // lobbyPlay ticket is retained only as a decrypt fallback for games
+      // that rotate their response key during the hand-off.
+      token: launch.token,
+      initialToken: launch.token,
+      launchToken: launch.launchToken,
       lobbyToken: launch.lobbyToken || activeLobbyToken,
       locale: context.locale,
       socket: null,
