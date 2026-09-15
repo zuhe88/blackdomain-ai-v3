@@ -40,6 +40,26 @@
 
   const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+  // Socket.IO acknowledgements from ATG are not consistently Error objects.
+  // In particular, a rejected game ticket may arrive as a plain object (or as
+  // an empty DOMException).  Do not turn that useful upstream signal into the
+  // unhelpful "未知錯誤" shown in the relay console.
+  function describeError(error) {
+    if (error == null) return "未收到上游回覆";
+    if (typeof error === "string") return error.trim() || "上游回覆空白錯誤";
+    const message = String(error.message || error.reason || error.error || "").trim();
+    if (message) return message;
+    const name = String(error.name || "").trim();
+    if (name) return name;
+    try {
+      const serialized = JSON.stringify(error);
+      if (serialized && serialized !== "{}") return serialized;
+    } catch {
+      // Keep the original relay running even when the upstream object is cyclic.
+    }
+    return "上游未提供錯誤內容";
+  }
+
   function installExclusiveRelayHost() {
     setTimeout(() => {
       window.stop();
@@ -573,7 +593,7 @@
     return { target, token };
   }
 
-  async function scanTarget(target, context) {
+  async function scanTarget(target, context, attempt = 0) {
     let state = null;
     try {
       setHostStatus(target, "正在連線…");
@@ -601,13 +621,26 @@
       setHostStatus(target, `已同步 ${new Date().toLocaleTimeString("zh-TW", { hour12: false })}`, "ok");
       console.info(`[BLACKDOMAIN Packet] ${target.name} packet ${fullScanDue ? "full scan" : "RTP refresh"} complete`);
     } catch (error) {
-      setHostStatus(target, `失敗：${error?.message || "未知錯誤"}`, "error");
-      console.warn(`[BLACKDOMAIN Packet] ${target.name} packet scan failed`, error?.message || error);
+      const reason = describeError(error);
+      // A lobby ticket can expire while the five games are being traversed.
+      // Retry this target once with a fresh lobby session before marking it as
+      // unavailable; this prevents a transient rotation failure from leaving
+      // just one or two games stale for an entire scan cycle.
+      if (attempt === 0 && /timeout|socket|token|ticket|decrypt|response|upstream|未收到/i.test(reason)) {
+        console.warn(`[BLACKDOMAIN Packet] ${target.name} transient failure; retrying once`, reason);
+        state?.socket?.close();
+        lobbySocket?.close();
+        lobbySocket = null;
+        await delay(800);
+        return scanTarget(target, context, 1);
+      }
+      setHostStatus(target, `失敗：${reason}`, "error");
+      console.warn(`[BLACKDOMAIN Packet] ${target.name} packet scan failed`, reason, error);
       if (!state) {
         lobbySocket?.close();
         lobbySocket = null;
       }
-      if (/lobbyInitial rejected|launch rejected/i.test(String(error?.message || ""))) {
+      if (/lobbyInitial rejected|launch rejected/i.test(reason)) {
         window.dispatchEvent(new CustomEvent("BLACKDOMAIN_ELECTRONIC_SESSION_STALE", {
           detail: { reason: "lobby-ticket-rejected", recoveryLobbyUrl },
         }));
