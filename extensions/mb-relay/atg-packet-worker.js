@@ -6,6 +6,10 @@
 
   const SOCKET_ORIGIN = "https://socket.godeebxp.com";
   const CLIENT_TYPE = "web";
+  // Public CryptoTool.buildSalt() in ATG slotFramework
+  // 38b4f81e64eeca7e0d01634e3a7752866e921300 (verified 2026-09-15).
+  // Newer clients derive SHA-256(ticket + salt); older games use ticket only.
+  const RESPONSE_KEY_SALTS = ["1aabf663faf8", ""];
   const CYCLE_PAUSE_MS = 10 * 1000;
   const FULL_SCAN_INTERVAL_MS = 15 * 60 * 1000;
   // ATG now releases game sessions more slowly. Keep the original single-pass
@@ -249,11 +253,21 @@
       throw new Error("deflate decompression unavailable");
     }
     const stream = new DecompressionStream("deflate");
-    const writer = stream.writable.getWriter();
-    const completed = new Response(stream.readable).arrayBuffer();
-    await writer.write(bytes);
-    await writer.close();
-    return new Uint8Array(await completed);
+    return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+  }
+
+  async function decodeCompressedResponse(bytes) {
+    let uncompressed;
+    try {
+      uncompressed = await inflate(bytes);
+    } catch (cause) {
+      throw new Error("response decompression failed", { cause });
+    }
+    try {
+      return JSON.parse(decoder.decode(uncompressed));
+    } catch (cause) {
+      throw new Error("response JSON parsing failed", { cause });
+    }
   }
 
   async function decryptResponse(value, requestTokens) {
@@ -266,26 +280,30 @@
     ciphertextAndTag.set(ciphertext);
     ciphertextAndTag.set(tag, ciphertext.length);
     // The lobby and a launched game can rotate their tickets independently.
-    // Most ATG games use the request ticket, while Seth2 and Tiger Girl may
-    // encrypt a response with the still-valid launch/lobby ticket. Try only
-    // the current in-memory tickets; nothing is persisted or exposed.
+    // Try only current in-memory tickets with the two supported public key
+    // derivations. Credentials and derived keys are never persisted or exposed.
     const tokens = [...new Set((Array.isArray(requestTokens) ? requestTokens : [requestTokens])
       .map((token) => String(token || "").trim())
       .filter(Boolean))];
     let lastError = null;
     for (const token of tokens) {
-      try {
-        const digest = await crypto.subtle.digest("SHA-256", encoder.encode(token));
-        const key = await crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["decrypt"]);
-        const plaintext = await crypto.subtle.decrypt(
-          { name: "AES-GCM", iv, tagLength: 128 },
-          key,
-          ciphertextAndTag,
-        );
-        const uncompressed = await inflate(new Uint8Array(plaintext));
-        return JSON.parse(decoder.decode(uncompressed));
-      } catch (error) {
-        lastError = error;
+      for (const salt of RESPONSE_KEY_SALTS) {
+        let plaintext;
+        try {
+          const digest = await crypto.subtle.digest("SHA-256", encoder.encode(token + salt));
+          const key = await crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["decrypt"]);
+          plaintext = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv, tagLength: 128 },
+            key,
+            ciphertextAndTag,
+          );
+        } catch (error) {
+          lastError = error;
+          continue;
+        }
+        // Authentication succeeded. A compression or JSON failure cannot be
+        // fixed by another ticket and must retain its own diagnostic stage.
+        return decodeCompressedResponse(new Uint8Array(plaintext));
       }
     }
     throw new Error(`encrypted response could not be opened with ${tokens.length} active ticket${tokens.length === 1 ? "" : "s"}`, { cause: lastError });
@@ -294,8 +312,7 @@
   async function decodeGameResponse(value, requestTokens) {
     const zippedPayload = value?.zip === 1 ? value.data : null;
     if (zippedPayload) {
-      const uncompressed = await inflate(await bytesFrom(zippedPayload));
-      return JSON.parse(decoder.decode(uncompressed));
+      return decodeCompressedResponse(await bytesFrom(zippedPayload));
     }
     const binary = value instanceof ArrayBuffer
       || ArrayBuffer.isView(value)
@@ -317,14 +334,19 @@
       // redundant `request` field and require the normalized locale casing.
       locale: String(state.locale || "zh-tw").toLowerCase(),
     });
-    const response = await decodeGameResponse(packet, [
-      requestToken,
-      state.initialToken,
-      state.redirectToken,
-      state.launchToken,
-      state.lobbyToken,
-      activeLobbyToken,
-    ]);
+    let response;
+    try {
+      response = await decodeGameResponse(packet, [
+        requestToken,
+        state.initialToken,
+        state.redirectToken,
+        state.launchToken,
+        state.lobbyToken,
+        activeLobbyToken,
+      ]);
+    } catch (cause) {
+      throw new Error(`${eventName}: ${cause.message}`, { cause });
+    }
     if (response?.token) state.token = String(response.token);
     return response;
   }
@@ -488,18 +510,25 @@
     };
     state.socket = await connectSocket();
     state.socket.on("disconnect", () => { state.socket = null; });
-    state.initialResponse = await gameRequestNow(state, "initial", {
-      clientType: CLIENT_TYPE,
-      // These values are part of ATG's session contract, not presentation
-      // metadata. Some newer games derive their first encrypted response from
-      // this official web-client profile.
-      deviceInfo: {
-        browser: { name: "chrome", version: "148.0.0.0" },
-        os: { name: "Windows", version: "", versionName: 0 },
-        platform: { type: "DESKTOP_BROWSER" },
-        engine: { name: "cocos creator 3.7.2" },
-      },
-    });
+    try {
+      state.initialResponse = await gameRequestNow(state, "initial", {
+        clientType: CLIENT_TYPE,
+        // These values are part of ATG's session contract, not presentation
+        // metadata. Some newer games derive their first encrypted response from
+        // this official web-client profile.
+        deviceInfo: {
+          browser: { name: "chrome", version: "148.0.0.0" },
+          os: { name: "Windows", version: "", versionName: 0 },
+          platform: { type: "DESKTOP_BROWSER" },
+          engine: { name: "cocos creator 3.7.2" },
+        },
+      });
+    } catch (error) {
+      // The caller cannot see this state until connectGame resolves. Close
+      // here so a rejected initialization cannot leak a live game session.
+      state.socket?.close();
+      throw error;
+    }
     gameStates.clear();
     gameStates.set(state.target.name, state);
     return state;
