@@ -244,7 +244,7 @@
     return new Uint8Array(await completed);
   }
 
-  async function decryptResponse(value, requestToken) {
+  async function decryptResponse(value, requestTokens) {
     const encrypted = await bytesFrom(value);
     if (encrypted.length < 29) throw new Error("encrypted response is too short");
     const iv = encrypted.slice(0, 12);
@@ -253,18 +253,33 @@
     const ciphertextAndTag = new Uint8Array(ciphertext.length + tag.length);
     ciphertextAndTag.set(ciphertext);
     ciphertextAndTag.set(tag, ciphertext.length);
-    const digest = await crypto.subtle.digest("SHA-256", encoder.encode(requestToken));
-    const key = await crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["decrypt"]);
-    const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv, tagLength: 128 },
-      key,
-      ciphertextAndTag,
-    );
-    const uncompressed = await inflate(new Uint8Array(plaintext));
-    return JSON.parse(decoder.decode(uncompressed));
+    // The lobby and a launched game can rotate their tickets independently.
+    // Most ATG games use the request ticket, while Seth2 and Tiger Girl may
+    // encrypt a response with the still-valid launch/lobby ticket. Try only
+    // the current in-memory tickets; nothing is persisted or exposed.
+    const tokens = [...new Set((Array.isArray(requestTokens) ? requestTokens : [requestTokens])
+      .map((token) => String(token || "").trim())
+      .filter(Boolean))];
+    let lastError = null;
+    for (const token of tokens) {
+      try {
+        const digest = await crypto.subtle.digest("SHA-256", encoder.encode(token));
+        const key = await crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["decrypt"]);
+        const plaintext = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv, tagLength: 128 },
+          key,
+          ciphertextAndTag,
+        );
+        const uncompressed = await inflate(new Uint8Array(plaintext));
+        return JSON.parse(decoder.decode(uncompressed));
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new Error(`encrypted response could not be opened with ${tokens.length} active ticket${tokens.length === 1 ? "" : "s"}`, { cause: lastError });
   }
 
-  async function decodeGameResponse(value, requestToken) {
+  async function decodeGameResponse(value, requestTokens) {
     const zippedPayload = value?.zip === 1 ? value.data : null;
     if (zippedPayload) {
       const uncompressed = await inflate(await bytesFrom(zippedPayload));
@@ -274,7 +289,7 @@
       || ArrayBuffer.isView(value)
       || value instanceof Blob
       || (value?.type === "Buffer" && Array.isArray(value.data));
-    if (binary) return decryptResponse(value, requestToken);
+    if (binary) return decryptResponse(value, requestTokens);
     const plain = parsePlainResponse(value);
     if (plain) return plain;
     throw new Error("unexpected game response type");
@@ -290,7 +305,12 @@
       // redundant `request` field and require the normalized locale casing.
       locale: String(state.locale || "zh-tw").toLowerCase(),
     });
-    const response = await decodeGameResponse(packet, requestToken);
+    const response = await decodeGameResponse(packet, [
+      requestToken,
+      state.initialToken,
+      state.lobbyToken,
+      activeLobbyToken,
+    ]);
     if (response?.token) state.token = String(response.token);
     return response;
   }
@@ -415,6 +435,8 @@
     const state = {
       target: launch.target,
       token: launch.token,
+      initialToken: launch.token,
+      lobbyToken: launch.lobbyToken || activeLobbyToken,
       locale: context.locale,
       socket: null,
       queue: Promise.resolve(),
@@ -590,7 +612,7 @@
     rememberLaunchLobby(redirect, context);
     const token = String(redirect.searchParams.get("t") || "").trim();
     if (!token) throw new Error(`${target.name} launch token missing`);
-    return { target, token };
+    return { target, token, lobbyToken: activeLobbyToken };
   }
 
   async function scanTarget(target, context, attempt = 0) {
