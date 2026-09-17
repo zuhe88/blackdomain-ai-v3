@@ -9,7 +9,7 @@
     "dev": "nodemon server.js",
     "mt-relay": "node scripts/mt-relay-client.js",
     "lint": "node scripts/lint.js",
-    "test": "node --test scripts/startup-recovery.test.js && node --test scripts/vip-access-resilience.test.js && node --test scripts/atg-packet-worker.test.js && node scripts/smoke-test.js"
+    "test": "node --test scripts/startup-recovery.test.js && node --test scripts/vip-access-resilience.test.js && node --test scripts/atg-packet-worker.test.js && node --test scripts/portal-electronic-recovery.test.js && node scripts/smoke-test.js"
   },
   "engines": {
     "node": ">=20"
