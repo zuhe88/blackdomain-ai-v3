@@ -75,6 +75,7 @@ test("runtime access API preserves active analysis on lookup failure and enforce
     "../services/webChannel": { authenticate: () => "member", history: () => [] },
     "../modules/baccarat": { hasActiveBaccaratSession: () => state.cleared === 0, activeBaccaratPlatform: () => "DG" },
     "../modules/electronic/availability": { areAllElectronicGamesEnabled: () => true },
+    "../modules/baccarat/availability": { isMtEntryEnabled: () => false },
     "../config/admin": { isAdminLineUserId: () => false },
     "./webhook": { clearAllUserSessions: async () => { state.cleared++; } },
   });
@@ -93,6 +94,7 @@ test("runtime access API preserves active analysis on lookup failure and enforce
     const recovered = await (await fetch(url)).json();
     assert.equal(recovered.accessAllowed, true);
     assert.equal(recovered.activeBaccaratSession, true);
+    assert.equal(recovered.mtEntryEnabled, false);
     state.user.ai_permission = false;
     assert.equal((await (await fetch(url)).json()).accessAllowed, false);
     assert.equal(state.cleared, 1);

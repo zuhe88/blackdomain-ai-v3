@@ -3,6 +3,7 @@ const express = require("express");
 const web = require("../services/webChannel");
 const vip = require("../modules/vip");
 const baccarat = require("../modules/baccarat");
+const { isMtEntryEnabled } = require("../modules/baccarat/availability");
 const electronic = require("../modules/electronic");
 const electronicAvailability = require("../modules/electronic/availability");
 const featureAudit = require("../modules/electronic/featureAudit");
@@ -207,7 +208,7 @@ function registerWebPortalRoutes(app) {
     res.setHeader("cache-control", "no-store");
     try {
     const userId = user(req);
-    if (!userId) return res.json({ authenticated: false, accessAllowed: false, messages: [] });
+    if (!userId) return res.json({ authenticated: false, accessAllowed: false, mtEntryEnabled: isMtEntryEnabled(), messages: [] });
     const access = await vip.checkVipAccess(userId);
     const expiresAt = effectiveAccessExpiry(access);
     const accessExpired = Boolean(
@@ -229,6 +230,7 @@ function registerWebPortalRoutes(app) {
       accessExpired,
       accessExpiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
       allElectronicGamesEnabled: electronicAvailability.areAllElectronicGamesEnabled(),
+      mtEntryEnabled: isMtEntryEnabled(),
       activeBaccaratSession: baccarat.hasActiveBaccaratSession(userId),
       activeBaccaratPlatform: baccarat.activeBaccaratPlatform(userId),
       messages: web.history(userId),

@@ -45,6 +45,7 @@ const {
 const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
 const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
+const { isMtEntryEnabled, MT_PAUSE_REASON } = require("./availability");
 const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
 
@@ -594,6 +595,17 @@ async function handleBaccaratMessage(event) {
   if (value === "返回首頁") {
     await resetBaccaratSession(userId);
     return false;
+  }
+
+  if (!isMtEntryEnabled() && !isCancel(value) && !COMMANDS.includes(value)
+    && (/^MT(?:\d{1,2}A?)?$/i.test(value)
+      || (hasActiveSession(userId) && getSession(userId).platform === "MT"))) {
+    await resetBaccaratSession(userId);
+    return reply(token, baccaratPromptFlex({
+      title: MT_PAUSE_REASON,
+      lines: [MT_PAUSE_REASON],
+      quickReply: platformQuickReply(),
+    }));
   }
 
   if (value === "重新開始") {

@@ -8,6 +8,7 @@ const {
   COLORS,
 } = require("./premium");
 const { moduleImageUrl } = require("../../utils/moduleImage");
+const { isMtEntryEnabled, MT_PAUSE_REASON } = require("../../modules/baccarat/availability");
 
 function baccaratPromptFlex({ title, lines = [], quickReply }) {
   return bubble({
@@ -21,6 +22,7 @@ function baccaratPromptFlex({ title, lines = [], quickReply }) {
 }
 
 function platformImageBubble(actionText, title, imageName) {
+  const paused = actionText === "MT" && !isMtEntryEnabled();
   return {
     type: "bubble",
     size: "kilo",
@@ -35,17 +37,17 @@ function platformImageBubble(actionText, title, imageName) {
       size: "full",
       aspectRatio: "8:9",
       aspectMode: "cover",
-      action: { type: "message", text: actionText },
+      ...(!paused ? { action: { type: "message", text: actionText } } : {}),
     },
     body: {
       type: "box",
       layout: "vertical",
       spacing: "sm",
       paddingAll: "16px",
-      action: { type: "message", text: actionText },
+      ...(!paused ? { action: { type: "message", text: actionText } } : {}),
       contents: [
         text(title, { size: "lg", weight: "bold", color: COLORS.gold, align: "center" }),
-        text("點擊平台進入房間選擇", { size: "sm", color: COLORS.white, align: "center" }),
+        text(paused ? MT_PAUSE_REASON : "點擊平台進入房間選擇", { size: "sm", color: COLORS.white, align: "center" }),
       ],
     },
     footer: {

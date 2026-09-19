@@ -10,6 +10,7 @@ process.env.NODE_ENV = "test";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.DG_DISABLE_LIVE = "true";
 process.env.MT_DISABLE_LIVE = "true";
+process.env.MT_ENTRY_ENABLED = "true"; // Keep exercising MT internals while the public entry is paused.
 process.env.LINE_HTTP_TIMEOUT_MS = "4321";
 process.env.ELECTRONIC_PENDING_TIMEOUT_MS = "5000";
 
@@ -489,6 +490,23 @@ async function main() {
   }
   if (dgLive.getStatus().enabled) throw new Error("DG live connection must be disabled in smoke tests");
   if (mtLive.getStatus().enabled) throw new Error("MT live connection must be disabled in smoke tests");
+
+  delete process.env.MT_ENTRY_ENABLED;
+  const pausedPlatforms = await sendAndTexts("百家樂", "user-smoke");
+  assertIncludes(pausedPlatforms, "MT休息中", "MT platform card shows the pause reason");
+  const pausedCard = captured.replies[captured.replies.length - 1];
+  if (JSON.stringify(pausedCard).includes('"text":"MT"')) throw new Error("Paused MT card must not retain an entry action");
+  for (const command of ["MT", "MT01"]) {
+    assertIncludes(await sendAndTexts(command, "user-smoke"), "MT休息中", "Old MT commands must be blocked");
+  }
+  assertIncludes(await sendAndTexts("DG", "user-smoke"), "DG 房號選擇", "DG remains available while MT rests");
+  await sendAndTexts("百家樂", "user-smoke");
+  process.env.MT_ENTRY_ENABLED = "true";
+  await sendAndTexts("MT", "user-smoke");
+  delete process.env.MT_ENTRY_ENABLED;
+  assertIncludes(await sendAndTexts("重新開始", "user-smoke"), "MT休息中", "A previous MT session cannot reopen the paused entry");
+  await sendAndTexts("百家樂", "user-smoke");
+  process.env.MT_ENTRY_ENABLED = "true";
 
   dgSource.resetForTest();
   if (!dgSource.ingestFrame(dgSnapshotFrame())) throw new Error("DG protobuf snapshot must be accepted");
@@ -1590,7 +1608,7 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260917.01", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20260919.01", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
   for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.08"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {

@@ -1,9 +1,10 @@
 const { quickReply } = require("../../services/line");
+const { isMtEntryEnabled } = require("./availability");
 
 function platformQuickReply() {
   return quickReply([
     { label: "DG", text: "DG" },
-    { label: "MT", text: "MT" },
+    ...(isMtEntryEnabled() ? [{ label: "MT", text: "MT" }] : []),
     { label: "返回首頁", text: "返回首頁" },
   ]);
 }
