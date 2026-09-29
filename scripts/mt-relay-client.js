@@ -273,8 +273,13 @@ function connect(token, relayKey = activeRelayKey) {
 }
 
 function publicStatus() {
-  const tablesFresh = Boolean(lastTablesAt) && Date.now() - Date.parse(lastTablesAt) < DATA_FRESHNESS_MS;
-  const forwardFresh = Boolean(lastForwardAt) && Date.now() - Date.parse(lastForwardAt) < DATA_FRESHNESS_MS;
+  const now = Date.now();
+  const isFresh = (value) => {
+    const age = now - Date.parse(value);
+    return age >= 0 && age < DATA_FRESHNESS_MS;
+  };
+  const tablesFresh = isFresh(lastTablesAt);
+  const forwardFresh = isFresh(lastForwardAt);
   const state = transport === "browser"
     ? tablesFresh ? "connected" : "browser_waiting"
     : socket?.readyState === WebSocket.OPEN
@@ -326,7 +331,7 @@ const browserBridge = createBrowserBridge({
       tokenRejected = false;
     }
     lastMessageAt = new Date().toISOString();
-    lastTablesAt = lastMessageAt;
+    lastTablesAt = diagnostics ? diagnostics.capturedAt : lastMessageAt;
     browserDiagnostics = diagnostics;
     try {
       await forwardTables(tables);
@@ -341,6 +346,7 @@ const server = http.createServer(async (req, res) => {
   if (await browserBridge(req, res)) return;
   if (req.method === "GET" && req.url === "/status") {
     res.setHeader("content-type", "application/json; charset=utf-8");
+    res.setHeader("cache-control", "no-store");
     res.end(JSON.stringify(publicStatus()));
     return;
   }

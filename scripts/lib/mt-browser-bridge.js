@@ -103,6 +103,7 @@ function createBrowserBridge({ port, getSecret, onTables, onHealth = () => {} })
       }
       const diagnostics = payload.diagnostics && typeof payload.diagnostics === "object" ? {
         version: String(payload.diagnostics.version || "").slice(0, 20),
+        browserMode: payload.diagnostics.browserMode === "headless" ? "headless" : "extension",
         capturedAt: Number.isFinite(Date.parse(payload.diagnostics.capturedAt)) ? new Date(payload.diagnostics.capturedAt).toISOString() : null,
         visibility: ["hidden", "visible"].includes(payload.diagnostics.visibility) ? payload.diagnostics.visibility : "unknown",
         pollingActive: payload.diagnostics.pollingActive === true,

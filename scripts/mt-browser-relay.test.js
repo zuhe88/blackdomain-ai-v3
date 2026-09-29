@@ -7,6 +7,24 @@ const vm = require("node:vm");
 const { spawn } = require("node:child_process");
 
 const root = path.resolve(__dirname, "..");
+test("status requires both timestamps within the freshness window", () => {
+  const source = fs.readFileSync(path.join(root, "scripts/mt-relay-client.js"), "utf8");
+  const statusFunction = source.slice(source.indexOf("function publicStatus()"), source.indexOf("function html()"));
+  const now = Date.now();
+  class TestDate extends Date { static now() { return now; } }
+  const stamp = (age) => new Date(now - age).toISOString();
+  for (const tables of [stamp(0), stamp(14999), stamp(15000), stamp(16000), stamp(-1000), null, "invalid"]) {
+    for (const forward of [stamp(0), stamp(14999), stamp(15000), stamp(16000), stamp(-1000), null, "invalid"]) {
+      const context = vm.createContext({ Date: TestDate, DATA_FRESHNESS_MS: 15000,
+        lastTablesAt: tables, lastForwardAt: forward, transport: "browser", lastError: null,
+        browserDiagnostics: null, browserWatchdog: null, connectedAt: null, lastMessageAt: null,
+        lastHandshakeStatus: null, lastCloseCode: null, lastCloseReason: null });
+      const result = vm.runInContext(`${statusFunction}\npublicStatus()`, context);
+      const fresh = (value) => value === stamp(0) || value === stamp(14999);
+      assert.equal(result.healthy, fresh(tables) && fresh(forward), `${tables} / ${forward}`);
+    }
+  }
+});
 const { recoveryDecision } = require("../extensions/mt-browser-relay/watchdog");
 test("recovery respects stale duration, foreground, login, local failure and reload limits", () => {
   const now = 10000000;
@@ -217,7 +235,12 @@ test("live local bridge authenticates, reports upstream failures, forwards filte
     assert.equal(failed.healthy, false);
     assert.match(failed.lastError, /503/);
     failForward = false;
+    for (const capturedAt of [new Date(Date.now() - 60000).toISOString(), new Date(Date.now() + 60000).toISOString(), "invalid"]) {
+      assert.equal((await post({ tables: [table], diagnostics: { version: "1.2.0", capturedAt } })).status, 202);
+      assert.equal((await status()).healthy, false, "forwarding delayed or invalid captures must not restore health");
+    }
     assert.equal((await post({ tables: [table] })).status, 202);
+    assert.equal((await fetch(`${base}/status`)).headers.get("cache-control"), "no-store");
     const healthy = await status();
     assert.equal(healthy.healthy, true);
     assert.equal(healthy.lastHandshakeStatus, null);
