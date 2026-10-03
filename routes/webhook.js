@@ -22,6 +22,8 @@ const CANCEL_COMMANDS = new Set(["取消", "退出", "返回首頁"]);
 const VIP_COMMANDS = new Set(["VIP", "vip", "VIP中心", "VIP查詢", "我的VIP", "會員", "查VIP", "會員中心", "綁定", "綁定3A"]);
 const ADMIN_COMMANDS = new Set([
   "管理指令",
+  "解除綁定",
+  "更換綁定",
   "開啟LINE預測",
   "僅用網站",
   "查詢預測模式",
@@ -92,6 +94,8 @@ async function clearAllUserSessions(userId) {
 function isAdminCommand(text) {
   return (
     ADMIN_COMMANDS.has(text) ||
+    text.startsWith("解除綁定 ") ||
+    text.startsWith("更換綁定 ") ||
     text.startsWith("開通 ") ||
     text.startsWith("查會員 ") ||
     text.startsWith("取消VIP ") ||

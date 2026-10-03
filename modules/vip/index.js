@@ -30,6 +30,7 @@ const {
 
 const AI_FEATURES = "百家樂AI / ATG AI / 彩票AI / 體育AI";
 const { isLineWebsiteOnlyMode, setLineWebsiteOnlyMode } = require("../../config/lineWebsiteMode");
+const { changeVipBinding } = require("./bindingAdmin");
 
 function isVipCommand(text) {
   const value = String(text || "").trim();
@@ -485,6 +486,8 @@ function adminHelpFlex(globalAccessEnabled = false, electronicAllEnabled = areAl
       infoLine("扣天數", "扣天數 abc123 10"),
       infoLine("永久VIP", "永久VIP abc123"),
       infoLine("會員列表", "列出所有會員"),
+      infoLine("解除綁定", "解除綁定 舊帳號（移除原權限，可重新申請）"),
+      infoLine("更換綁定", "更換綁定 舊帳號 新帳號（保留權限與到期日）"),
       infoLine("更新房間數據", "強制重掃電子房間與統計"),
       button("全部開放權限", "全部開放權限"),
       button("恢復原權限", "恢復原權限", "secondary"),
@@ -527,6 +530,33 @@ async function handleAdminCommand(event) {
   if (text === "管理指令" || text === "管理員指令") {
     const state = await getGlobalAiAccessState({ force: true });
     return reply(event.replyToken, adminHelpFlex(state.enabled, areAllElectronicGamesEnabled()));
+  }
+
+  const bindingParts = text.split(/\s+/).filter(Boolean);
+  if (["解除綁定", "更換綁定"].includes(bindingParts[0])) {
+    const unlink = bindingParts[0] === "解除綁定";
+    if (bindingParts.length !== (unlink ? 2 : 3)) {
+      return reply(event.replyToken, adminResultFlex("指令格式", [["用法", unlink ? "解除綁定 舊帳號" : "更換綁定 舊帳號 新帳號"]], false));
+    }
+    const result = await changeVipBinding(bindingParts[1], unlink ? null : bindingParts[2], userId);
+    let cleanupFailed = false;
+    if (result.ok) {
+      require("../../utils/sessionStore").clearUser(result.lineUserId);
+      const cleanup = await Promise.allSettled([
+        Promise.resolve().then(() => electronic.resetElectronicSession(result.lineUserId)),
+        Promise.resolve().then(() => require("../baccarat").resetBaccaratSession(result.lineUserId)),
+        Promise.resolve().then(() => require("../mb").resetMbSession(result.lineUserId)),
+      ]);
+      cleanupFailed = cleanup.some((outcome) => outcome.status === "rejected");
+    }
+    return reply(event.replyToken, adminResultFlex(bindingParts[0], [
+      ["原帳號", bindingParts[1]],
+      ...(!unlink ? [["新帳號", bindingParts[2]]] : []),
+      ...(cleanupFailed ? [["提醒", "綁定已更新，但部分分析狀態清理失敗，請會員返回首頁。"]] : []),
+      ["處理結果", result.ok
+        ? (unlink ? "已解除綁定並移除原會員權限。會員可輸入「綁定」重新申請。" : "已更換綁定，原會員權限與到期日保留，請重新進入分析。")
+        : result.error],
+    ], result.ok));
   }
 
   if (["開啟LINE預測", "僅用網站", "查詢預測模式"].includes(text)) {

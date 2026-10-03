@@ -2470,6 +2470,11 @@ async function main() {
   assertIncludes(websiteLoginValues, "網站登入連結", "Website login command");
   assertIncludes(websiteLoginValues, "LINE 與網站版皆可使用", "Website login must describe both available channels");
   process.env.LINE_WEBSITE_ONLY_MODE = "true";
+  for (const command of ["解除綁定 old123", "更換綁定 old123 new123"]) {
+    assertIncludes(await sendAndTexts(command, "non-admin-binding"), "無權限使用此功能", "Binding commands must reject non-admins even in website-only mode");
+  }
+  assertIncludes(await sendAndTexts("解除綁定", "Uaf293ee976e5170d4e8672d2c12b3f76"), "解除綁定 舊帳號", "Admin unlink usage must bypass website redirect");
+  assertIncludes(await sendAndTexts("更換綁定 old123", "Uaf293ee976e5170d4e8672d2c12b3f76"), "更換綁定 舊帳號 新帳號", "Admin change usage must bypass website redirect");
   const websiteOnlyValues = await sendAndTexts("百家樂", "website-only-user");
   assertIncludes(websiteOnlyValues, "LINE 分析功能暫時改由網站版提供", "LINE website access redirect");
   if (websiteOnlyValues.some((value) => String(value).includes("DG 百家樂AI"))) {

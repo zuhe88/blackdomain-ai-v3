@@ -11,7 +11,7 @@
     "mt-headless": "powershell.exe -NoProfile -File scripts/start-mt-headless.ps1",
     "test:mt": "node --test scripts/mt-browser-relay.test.js scripts/mt-headless.test.js",
     "lint": "node scripts/lint.js",
-    "test": "node --test scripts/line-website-mode.test.js && node --test scripts/startup-recovery.test.js && node --test scripts/vip-access-resilience.test.js && node --test scripts/atg-packet-worker.test.js && node --test scripts/portal-electronic-recovery.test.js && node scripts/smoke-test.js"
+    "test": "node --test scripts/vip-binding-admin.test.js && node --test scripts/line-website-mode.test.js && node --test scripts/startup-recovery.test.js && node --test scripts/vip-access-resilience.test.js && node --test scripts/atg-packet-worker.test.js && node --test scripts/portal-electronic-recovery.test.js && node scripts/smoke-test.js"
   },
   "engines": {
     "node": ">=20"
@@ -29,6 +29,7 @@
     "ws": "^8.18.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "nodemon": "^3.1.10"
   }
 }
