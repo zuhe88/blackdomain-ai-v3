@@ -2468,6 +2468,7 @@ async function main() {
   }
   const websiteLoginValues = await sendAndTexts("網站登入", "website-login-user");
   assertIncludes(websiteLoginValues, "網站登入連結", "Website login command");
+  assertIncludes(websiteLoginValues, "LINE 與網站版皆可使用", "Website login must describe both available channels");
   process.env.LINE_WEBSITE_ONLY_MODE = "true";
   const websiteOnlyValues = await sendAndTexts("百家樂", "website-only-user");
   assertIncludes(websiteOnlyValues, "LINE 分析功能暫時改由網站版提供", "LINE website access redirect");

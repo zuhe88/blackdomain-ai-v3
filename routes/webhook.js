@@ -103,8 +103,11 @@ function websiteAccessReply(event) {
   const base = String(
     process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app",
   ).replace(/\/$/, "");
+  const availability = isLineWebsiteOnlyMode()
+    ? "黑域AI LINE 分析功能暫時改由網站版提供"
+    : "黑域AI LINE 與網站版皆可使用，請選擇習慣的方式進行分析。";
   return reply(event.replyToken, textMessage(
-    `黑域AI LINE 分析功能暫時改由網站版提供\n\n網站登入連結（10 分鐘內有效）：\n${base}/portal/login?code=${code}\n\n請點擊連結進入分析中心，請勿轉傳。`,
+    `${availability}\n\n網站登入連結（10 分鐘內有效）：\n${base}/portal/login?code=${code}\n\n請點擊連結進入分析中心，請勿轉傳。`,
   ));
 }
 
