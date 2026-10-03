@@ -14,11 +14,12 @@ function worker(io) {
   };
   const context = vm.createContext({
     window, URL, TextEncoder, TextDecoder, Uint8Array, ArrayBuffer, Blob,
-    Response, DecompressionStream, crypto: webcrypto, setTimeout, clearTimeout,
+    Response, DecompressionStream, crypto: webcrypto, setTimeout, clearTimeout, WebAssembly, atob,
     console: { info() {}, warn() {} },
   });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "../extensions/mb-relay/vendor/atg-crypto-v1.js"), "utf8"), context);
   const source = fs.readFileSync(path.join(__dirname, "../extensions/mb-relay/atg-packet-worker.js"), "utf8");
-  vm.runInContext(source.replace(/\}\(\)\);\s*$/, "window.testApi = { decryptResponse, decodeGameResponse, connectGame }; }());"), context);
+  vm.runInContext(source.replace(/\}\(\)\);\s*$/, "window.testApi = { decryptResponse, decodeGameResponse, connectGame, emitAck, createCodec: window.blackdomainCreateAtgCodec }; }());"), context);
   return window.testApi;
 }
 
@@ -71,6 +72,7 @@ test("failed initialization closes its socket before connectGame rejects", async
     connected: true,
     once(event, callback) { if (event === "connect") queueMicrotask(callback); },
     on() {},
+    off() {},
     close() { closes += 1; this.connected = false; },
     emit(event, payload, callback) { callback(new Uint8Array(40)); },
   };
@@ -78,4 +80,45 @@ test("failed initialization closes its socket before connectGame rejects", async
   await assert.rejects(api.connectGame({ target: { name: "test" }, token: "fixture-ticket" }, { locale: "zh-tw" }), /initial: encrypted response/);
   assert.equal(closes, 1);
   assert.equal(socket.connected, false);
+});
+
+test("kid=1 official codec decodes its binary wire fixture with a rotated ticket", async () => {
+  const api = worker();
+  const codec = await api.createCodec();
+  assert.equal(codec.kid, 1);
+  const packet = Uint8Array.from(Buffer.from("Acvzvw4Cw2qwcWRnmEoggBtGBOHHpj1SpYvNVewYdtzY+T3Ey3SsbYOUEYb7hldlMRvr5Pm+02qLVuywol6+W/GB", "base64"));
+  const response = await api.decodeGameResponse(packet, ["old-ticket", "fixture-ticket"], codec);
+  assert.equal(response.status, 200);
+  assert.equal(response.tables[0].number, 23);
+  await assert.rejects(api.decodeGameResponse(packet, ["wrong-ticket"], codec), /kid=1 response could not be decoded/);
+  // A failed ticket must not poison a later valid request.
+  assert.equal((await api.decodeGameResponse(packet, ["fixture-ticket"], codec)).status, 200);
+});
+
+test("new games send kid on initialization while legacy games keep the old payload", async () => {
+  for (const code of ["g1001", "g1005", "g1007", "g1008", "g1009"]) {
+    let initial;
+    const socket = {
+      connected: true,
+      once(event, cb) { if (event === "connect") queueMicrotask(cb); },
+      on() {}, off() {}, close() {},
+      emit(event, payload, cb) { initial = payload; cb({ status: 200 }); },
+    };
+    await worker(() => socket).connectGame({ target: { code }, token: "fixture-ticket" }, { locale: "zh-TW" });
+    assert.equal(initial.kid, ["g1005", "g1009"].includes(code) ? 1 : undefined);
+    assert.equal(initial.locale, "zh-tw");
+  }
+});
+
+test("server disconnect rejects immediately and removes the pending listener", async () => {
+  const listeners = new Map();
+  let lateAck;
+  const socket = {
+    on(event, cb) { listeners.set(event, cb); },
+    off(event) { listeners.delete(event); },
+    emit(event, payload, cb) { lateAck = cb; listeners.get("disconnect")("io server disconnect"); },
+  };
+  await assert.rejects(worker().emitAck(socket, "initial", {}), /initial: socket disconnected before response/);
+  assert.equal(listeners.size, 0);
+  assert.doesNotThrow(() => lateAck({ status: 200 }));
 });

@@ -223,11 +223,23 @@
 
   function emitAck(socket, eventName, payload) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`${eventName} timeout`)), REQUEST_TIMEOUT_MS);
-      socket.emit(eventName, payload, (response) => {
+      let settled = false;
+      const finish = (error, response) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
-        resolve(response);
-      });
+        socket.off("disconnect", disconnected);
+        if (error) reject(error);
+        else resolve(response);
+      };
+      const disconnected = () => finish(new Error(`${eventName}: socket disconnected before response`));
+      const timer = setTimeout(() => finish(new Error(`${eventName} timeout`)), REQUEST_TIMEOUT_MS);
+      socket.on("disconnect", disconnected);
+      try {
+        socket.emit(eventName, payload, (response) => finish(null, response));
+      } catch (error) {
+        finish(error);
+      }
     });
   }
 
@@ -309,7 +321,7 @@
     throw new Error(`encrypted response could not be opened with ${tokens.length} active ticket${tokens.length === 1 ? "" : "s"}`, { cause: lastError });
   }
 
-  async function decodeGameResponse(value, requestTokens) {
+  async function decodeGameResponse(value, requestTokens, codec = null) {
     const zippedPayload = value?.zip === 1 ? value.data : null;
     if (zippedPayload) {
       return decodeCompressedResponse(await bytesFrom(zippedPayload));
@@ -318,6 +330,18 @@
       || ArrayBuffer.isView(value)
       || value instanceof Blob
       || (value?.type === "Buffer" && Array.isArray(value.data));
+    if (binary && codec) {
+      const tokens = [...new Set(requestTokens.filter(Boolean))];
+      const bytes = await bytesFrom(value);
+      for (const token of tokens) {
+        try {
+          return await decodeCompressedResponse(codec.decrypt(bytes, token));
+        } catch {
+          // A launch can rotate its ticket. Never expose tickets or raw frames.
+        }
+      }
+      throw new Error(`ATG kid=${codec.kid} response could not be decoded`);
+    }
     if (binary) return decryptResponse(value, requestTokens);
     const plain = parsePlainResponse(value);
     if (plain) return plain;
@@ -333,6 +357,7 @@
       // Match ATG's official sender byte-for-byte. Legacy games reject the
       // redundant `request` field and require the normalized locale casing.
       locale: String(state.locale || "zh-tw").toLowerCase(),
+      ...(eventName === "initial" && state.codec ? { kid: state.codec.kid } : {}),
     });
     let response;
     try {
@@ -343,7 +368,7 @@
         state.launchToken,
         state.lobbyToken,
         activeLobbyToken,
-      ]);
+      ], state.codec);
     } catch (cause) {
       throw new Error(`${eventName}: ${cause.message}`, { cause });
     }
@@ -507,6 +532,9 @@
       tablesByNumber: new Map(tableCatalogs.get(launch.target.name) || []),
       scanInFlight: false,
       detailCursor: 0,
+      codec: ["g1005", "g1009"].includes(launch.target.code)
+        ? await window.blackdomainCreateAtgCodec()
+        : null,
     };
     state.socket = await connectSocket();
     state.socket.on("disconnect", () => { state.socket = null; });

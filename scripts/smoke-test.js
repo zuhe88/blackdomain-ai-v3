@@ -1881,8 +1881,8 @@ async function main() {
     throw new Error("Electronic watched-room route is not registered");
   }
   const electronicRelayManifest = require("../extensions/mb-relay/manifest.json");
-  if (electronicRelayManifest.version !== "2.11.8") {
-    throw new Error("Electronic relay extension version must be 2.11.8");
+  if (electronicRelayManifest.version !== "2.11.9") {
+    throw new Error("Electronic relay extension version must be 2.11.9");
   }
   if (!electronicRelayManifest.permissions.includes("alarms")) {
     throw new Error("Relay extension must enable the independent background watchdog alarm");
@@ -1938,7 +1938,7 @@ async function main() {
   const atgMainScripts = electronicRelayManifest.content_scripts.find((entry) => (
     entry.world === "MAIN" && entry.matches.includes("https://play.godeebxp.com/egames/*")
   ))?.js || [];
-  for (const requiredScript of ["vendor/socket.io.js", "atg-packet-worker.js", "atg-bridge.js"]) {
+  for (const requiredScript of ["vendor/socket.io.js", "vendor/atg-crypto-v1.js", "atg-packet-worker.js", "atg-bridge.js"]) {
     if (!atgMainScripts.includes(requiredScript)) {
       throw new Error(`ATG main-world packet stack is missing: ${requiredScript}`);
     }
