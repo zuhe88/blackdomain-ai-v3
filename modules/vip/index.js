@@ -29,6 +29,7 @@ const {
 } = require("./repository");
 
 const AI_FEATURES = "百家樂AI / ATG AI / 彩票AI / 體育AI";
+const { isLineWebsiteOnlyMode, setLineWebsiteOnlyMode } = require("../../config/lineWebsiteMode");
 
 function isVipCommand(text) {
   const value = String(text || "").trim();
@@ -56,6 +57,9 @@ function vipQuickReply(isAdmin = false) {
 
 function adminQuickReply() {
   return quickReply([
+    { label: "開啟LINE預測", text: "開啟LINE預測" },
+    { label: "僅用網站", text: "僅用網站" },
+    { label: "查詢預測模式", text: "查詢預測模式" },
     { label: "全部開放", text: "全部開放權限" },
     { label: "恢復權限", text: "恢復原權限" },
     { label: "開放電子", text: "開放全部電子遊戲" },
@@ -464,6 +468,10 @@ function adminHelpFlex(globalAccessEnabled = false, electronicAllEnabled = areAl
     footer: "BLACKDOMAIN VIP ADMIN",
     contents: [
       infoLine("全線權限", globalAccessEnabled ? "臨時開放中" : "依會員原設定"),
+      infoLine("預測模式", isLineWebsiteOnlyMode() ? "僅用網站" : "LINE 與網站皆可使用"),
+      infoLine("LINE額度用完", "點選「僅用網站」暫停 LINE 預測與推播，網站持續開放"),
+      button("開啟LINE預測", "開啟LINE預測"),
+      button("僅用網站", "僅用網站", "secondary"),
       infoLine("全部開放權限", "所有使用者暫時可使用全部 AI"),
       infoLine("恢復原權限", "回到每位會員原本的權限狀態"),
       infoLine("電子遊戲", electronicAllEnabled ? "全部遊戲開放中" : "目前僅開放戰神賽特2"),
@@ -519,6 +527,17 @@ async function handleAdminCommand(event) {
   if (text === "管理指令" || text === "管理員指令") {
     const state = await getGlobalAiAccessState({ force: true });
     return reply(event.replyToken, adminHelpFlex(state.enabled, areAllElectronicGamesEnabled()));
+  }
+
+  if (["開啟LINE預測", "僅用網站", "查詢預測模式"].includes(text)) {
+    const result = text === "查詢預測模式"
+      ? { ok: true }
+      : await setLineWebsiteOnlyMode(text === "僅用網站", userId);
+    return reply(event.replyToken, adminResultFlex(text, [
+      ["預測模式", isLineWebsiteOnlyMode() ? "僅用網站" : "LINE 與網站皆可使用"],
+      ["網站版", "持續開放"],
+      ["處理結果", result.ok ? (text === "查詢預測模式" ? "目前模式" : "已更新並永久保存") : result.error],
+    ], result.ok));
   }
 
   if (text === "開放全部電子遊戲" || text === "僅開放賽特2") {

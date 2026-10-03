@@ -1,6 +1,9 @@
 const COMMANDS = ["VIP", "vip", "VIP中心", "VIP查詢", "我的VIP", "會員", "查VIP", "會員中心", "👑 VIP中心"];
 const BIND_COMMANDS = ["綁定", "綁定3A"];
 const ADMIN_COMMANDS = [
+  "開啟LINE預測",
+  "僅用網站",
+  "查詢預測模式",
   "管理指令",
   "管理員指令",
   "待審核",

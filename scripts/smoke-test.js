@@ -169,7 +169,7 @@ function makeSupabaseTable(table) {
           resolve({ data: [], error: null });
           return;
         }
-        if (insertedKey.startsWith("electronic_")) {
+        if (insertedKey.startsWith("electronic_") || insertedKey === "line_website_only_mode") {
           const row = { ...inserted, id: insertedKey };
           mockElectronicRows.set(insertedKey, row);
           resolve({ data: [row], error: null });
@@ -2673,6 +2673,26 @@ async function main() {
     values = await sendAndTexts(league, "non-vip-sports-user");
     assertIncludes(values, "需要開通權限", `Non-VIP is blocked on the ${league} sports card`);
   }
+
+  values = await sendAndTexts("僅用網站", "regular-mode-user");
+  assertIncludes(values, "無權限使用此功能", "Only admins may restrict LINE");
+  values = await sendAndTexts("僅用網站", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "已更新並永久保存", "Admin mode restriction is persisted");
+  values = await sendAndTexts("百家樂", "mode-restricted-user");
+  assertIncludes(values, "網站登入連結", "Restricted LINE prediction redirects to website");
+  const modePushCount = captured.pushes.length;
+  await pushLineStrict("mode-restricted-user", "prediction");
+  if (captured.pushes.length !== modePushCount) throw new Error("Website-only mode must suppress LINE pushes");
+  const modeWebToken = "web:mode-admin-test:prediction";
+  const modeWebPending = webChannel.waitReply(modeWebToken, 1000);
+  await handleEvent({ type: "message", replyToken: modeWebToken, source: { userId: "mode-admin-test" }, message: { type: "text", text: "百家樂" } });
+  assertIncludes((await modeWebPending).flatMap((message) => collectText(message)), "DG", "Website prediction remains available after admin restriction");
+  values = await sendAndTexts("開啟LINE預測", "regular-mode-user");
+  assertIncludes(values, "無權限使用此功能", "Members cannot reopen restricted LINE");
+  values = await sendAndTexts("開啟LINE預測", "Uaf293ee976e5170d4e8672d2c12b3f76");
+  assertIncludes(values, "LINE 與網站皆可使用", "Admin can reopen LINE while restricted");
+  values = await sendAndTexts("百家樂", "mode-reopened-user");
+  assertIncludes(values, "DG", "Reopened LINE reaches prediction menu");
 
   values = await sendAndTexts("全部開放權限", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "臨時開放中", "Admin global access enable");

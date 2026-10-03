@@ -12,7 +12,7 @@ const mb = require("../modules/mb");
 const vip = require("../modules/vip");
 const official = require("../modules/official");
 const { isAdminLineUserId } = require("../config/admin");
-const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
+const { isLineWebsiteOnlyMode, refreshLineWebsiteMode } = require("../config/lineWebsiteMode");
 const { clearUser, updateSession } = require("../utils/sessionStore");
 const webChannel = require("../services/webChannel");
 const { text: textMessage } = require("../services/line");
@@ -22,6 +22,9 @@ const CANCEL_COMMANDS = new Set(["取消", "退出", "返回首頁"]);
 const VIP_COMMANDS = new Set(["VIP", "vip", "VIP中心", "VIP查詢", "我的VIP", "會員", "查VIP", "會員中心", "綁定", "綁定3A"]);
 const ADMIN_COMMANDS = new Set([
   "管理指令",
+  "開啟LINE預測",
+  "僅用網站",
+  "查詢預測模式",
   "管理員指令",
   "待審核",
   "會員列表",
@@ -151,6 +154,7 @@ async function handleEvent(event) {
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
   const isWebsiteCommand = String(event.replyToken || "").startsWith("web:");
+  await refreshLineWebsiteMode();
 
   if (["網站登入", "網頁登入"].includes(text)) return websiteAccessReply(event);
 

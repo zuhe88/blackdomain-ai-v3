@@ -60,6 +60,7 @@ function registerHealthRoutes(app) {
       time: new Date().toISOString(),
       lineConfigured: Boolean(lineConfig.channelAccessToken && lineConfig.channelSecret),
       lineWebsiteOnlyMode: isLineWebsiteOnlyMode(),
+      lineModeAdminControls: "20261003.01",
       websiteCommandsBypassLineRedirect: true,
       websiteMonitoringLifecycle: "server-session-v2",
       portalDirectReplyRendering: "unfiltered-v2",

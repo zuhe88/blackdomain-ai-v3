@@ -14,6 +14,7 @@ async function start() {
   const { startStartupRecovery } = require("./services/startupRecovery");
 
   startStartupRecovery({
+    lineWebsiteMode: require("./config/lineWebsiteMode").refreshLineWebsiteMode,
     electronicGameAccess: hydrateElectronicGameAccess,
     baccaratSessions: async () => {
       const restored = await hydrateSessions();
