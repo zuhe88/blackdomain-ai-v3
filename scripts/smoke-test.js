@@ -2958,6 +2958,26 @@ async function main() {
     throw new Error("Seth 2 must persist the updated recommendation rotation history");
   }
   electronicSource.resetForTest();
+  for (const gameName of electronicSource.GAME_NAMES) {
+    if (electronic.getNextRecommendRoom("missing-data-user", gameName) !== null) {
+      throw new Error(`${gameName} must not invent a recommendation without live data`);
+    }
+    const { electronicRecommendFlex } = require("../ui/flex/electronicResult");
+    const freshRoom = {
+      status: "Empty", occupied: false, detailUpdatedAt: new Date().toISOString(),
+      detail: { todayRtp: 98, dayRtp: 97 },
+    };
+    for (const invalidRoom of [null, 1259, {}, { ...freshRoom, detail: {} },
+      { ...freshRoom, detailUpdatedAt: new Date(Date.now() - 180000).toISOString() },
+      { ...freshRoom, occupied: true }, { ...freshRoom, status: "Full" }]) {
+      const output = collectText(electronicRecommendFlex(gameName, "1259", "15:30", null, invalidRoom));
+      if (output.some(value => /推薦房號|可進場|1259/.test(String(value)))) {
+        throw new Error(`${gameName} must suppress rooms and entry signals without usable data`);
+      }
+    }
+    const validOutput = collectText(electronicRecommendFlex(gameName, "1259", "15:30", null, freshRoom));
+    assertIncludes(validOutput, "98.00%", `${gameName} valid data remains visible`);
+  }
   values = await sendAndTexts("AI推薦房", "user-smoke");
   assertIncludes(values, "房間數據整理中", "Seth 1 must wait for live RTP data");
   assertIncludes(values, "正在掃描房間中並計算 RTP", "Seth 1 RTP requirement");
@@ -2981,7 +3001,6 @@ async function main() {
     "const PENDING_RECOMMEND_RETRY_MS = 5000",
     "const RECOMMEND_PROBE_BATCH_SIZE = 12",
     "const RECOMMEND_HISTORY_LIMIT = 500",
-    "const FALLBACK_ROOM_HISTORY_LIMIT = 100",
     "probe-cursor",
     "await pushRecommendation(",
     "handleElectronicDataReady(gameName)",

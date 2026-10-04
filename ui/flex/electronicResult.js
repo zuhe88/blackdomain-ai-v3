@@ -113,7 +113,24 @@ function betSummary(detail = {}) {
   };
 }
 
-function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomData = null, options = {}) {
+function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomData = null) {
+  const source = require("../../modules/electronic/source");
+  const data = roomData?.detail;
+  const validRate = (value, win, bet) => (
+    value != null && String(value).trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0
+  ) || (
+    win != null && String(win).trim() !== "" && Number.isFinite(Number(win)) && Number(win) >= 0
+    && bet != null && Number.isFinite(Number(bet)) && Number(bet) > 0
+  );
+  if (!roomData || roomData.status !== "Empty" || roomData.occupied === true
+    || !source.hasFreshRoomDetail(roomData)
+    || !(validRate(data?.todayRtp, data?.todayWin ?? data?.hourWin, data?.todayBet ?? data?.hourBet)
+      || validRate(data?.dayRtp, data?.dayWin, data?.dayBet))) {
+    return bubble({
+      altText: "本次推薦已停止", title: "本次推薦已停止", subtitle: gameName, quickReply,
+      contents: [note("目前沒有足夠的即時空房與 RTP 資料，請稍後再試。")],
+    });
+  }
   const signal = entrySignal(`${gameName}:${room}`, "green");
   const detail = roomData?.detail || null;
   return bubble({
@@ -123,11 +140,9 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomDat
     quickReply,
     footer: "BLACKDOMAIN ELECTRONIC AI",
     contents: [
-      metric("推薦房號", room, options.requiresRoomConfirmation ? "房況請確認" : "即時空房"),
+      metric("推薦房號", room, "即時空房"),
       section([
-        infoLine("房間狀態", roomData ? "🟢 空房" : (
-          options.requiresRoomConfirmation ? "請進房確認" : "等待房況"
-        )),
+        infoLine("房間狀態", "🟢 空房"),
         infoLine("進場燈號", signal.text),
         infoLine("更新時間", updateTime),
       ]),

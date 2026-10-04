@@ -51,7 +51,6 @@ const RECOMMEND_PROBE_BATCH_SIZE = 12;
 const BACKGROUND_PROBE_OWNER = "electronic-background-pool";
 const BACKGROUND_PROBE_ROTATE_MS = 45 * 1000;
 const RECOMMEND_HISTORY_LIMIT = 500;
-const FALLBACK_ROOM_HISTORY_LIMIT = 100;
 const recommendHistoryHydrated = new Set();
 const backgroundProbeSeededAt = new Map();
 
@@ -1044,35 +1043,6 @@ function leaseRecommendedRoom(userId, gameName, roomNumber) {
 function getNextRecommendRoom(userId, gameName) {
   pruneRoomRecommendationLeases();
   releaseRoomRecommendationLeases(userId, gameName);
-  if (
-    gameName === electronicSource.GAME_NAMES[0]
-    && !electronicSource.hasReadyData(gameName)
-  ) {
-    const config = GAME_CONFIG[gameName];
-    const key = `${userId || "guest"}:${gameName}:room-pool`;
-    const existing = recommendCursorStore.get(key);
-    const recentRooms = Array.isArray(existing?.recentRooms) ? existing.recentRooms : [];
-    let room = crypto.randomInt(config.min, config.max + 1);
-    for (
-      let attempt = 0;
-      attempt < 50 && (
-        recentRooms.includes(room)
-        || roomIsLeasedByAnotherUser(userId, gameName, room)
-      );
-      attempt += 1
-    ) {
-      room = crypto.randomInt(config.min, config.max + 1);
-    }
-    if (roomIsLeasedByAnotherUser(userId, gameName, room)) return null;
-    recommendCursorStore.set(key, {
-      recentRooms: [room, ...recentRooms.filter((value) => value !== room)]
-        .slice(0, FALLBACK_ROOM_HISTORY_LIMIT),
-      updatedAt: Date.now(),
-    });
-    persistRecommendHistory(userId, gameName, recommendCursorStore.get(key).recentRooms);
-    leaseRecommendedRoom(userId, gameName, room);
-    return room;
-  }
   if (electronicSource.SUPPORTED_GAMES.has(gameName)) {
     const emptyRooms = electronicSource.getEmptyRooms(gameName);
     if (!emptyRooms.length) return null;
@@ -1110,25 +1080,7 @@ function getNextRecommendRoom(userId, gameName) {
     leaseRecommendedRoom(userId, gameName, selected.number);
     return selected;
   }
-  const cycle = getGameCycle(gameName);
-  if (!Array.isArray(cycle.recommendRooms) || cycle.recommendRooms.length === 0) {
-    const config = GAME_CONFIG[gameName];
-    return config?.min || 1;
-  }
-  const key = `${userId || "guest"}:${gameName}:${cycle.cycleKey}`;
-  const existing = recommendCursorStore.get(key);
-  const initialCursor = hashScore(`START:${key}`, cycle.recommendRooms.length);
-  const cursor = Number.isInteger(existing?.cursor) ? existing.cursor : initialCursor;
-  const availableRooms = cycle.recommendRooms.filter((candidate) => (
-    !roomIsLeasedByAnotherUser(userId, gameName, candidate)
-  ));
-  if (!availableRooms.length) return null;
-  const room = availableRooms[cursor % availableRooms.length];
-
-  recommendCursorStore.set(key, { cursor: cursor + 1, updatedAt: Date.now() });
-  leaseRecommendedRoom(userId, gameName, room);
-
-  return Number.isInteger(room) ? room : GAME_CONFIG[gameName]?.min || 1;
+  return null;
 }
 
 function electronicModeQuickReply() {
@@ -1340,8 +1292,6 @@ async function performRecommendRoom(event) {
   session.waitingCustomRoom = false;
   session.updatedAt = Date.now();
   electronicSessions.set(userId, session);
-  const requiresRoomConfirmation = session.gameName === electronicSource.GAME_NAMES[0]
-    && !electronicSource.hasReadyData(session.gameName);
   let selected = getNextRecommendRoom(userId, session.gameName);
   if (!selected) {
     if (
@@ -1453,7 +1403,6 @@ async function performRecommendRoom(event) {
     getUpdateTimeText(),
     afterRecommendQuickReply(),
     typeof selected === "object" ? selected : null,
-    { requiresRoomConfirmation },
   ));
   if (!delivered || event.recommendationRequest?.cancelled) return false;
   rememberLiveWatch(watch);
