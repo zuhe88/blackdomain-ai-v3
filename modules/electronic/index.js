@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const {
   reply,
   pushStrict,
+  pushLineStrict,
   quickReply,
 } = require("../../services/line");
 const { COLORS, bubble, button, note, section, text } = require("../../ui/flex/premium");
@@ -340,7 +341,7 @@ async function pushRecommendation(userId, message, deliveryChannel = "line") {
     webChannel.publish(userId, [message]);
     return;
   }
-  await pushStrict(userId, message);
+  await pushLineStrict(userId, message);
 }
 
 function persistPendingRecommendation(pending) {

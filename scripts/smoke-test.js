@@ -3053,7 +3053,13 @@ async function main() {
     },
   }), 10);
   const automaticRecommendationPushCount = captured.pushes.length;
-  const automaticRecommendationCount = await electronic.handleElectronicDataReady("戰神賽特2");
+  const unsubscribeElectronicPortal = webChannel.subscribe("user-smoke", { write() {} });
+  let automaticRecommendationCount;
+  try {
+    automaticRecommendationCount = await electronic.handleElectronicDataReady("戰神賽特2");
+  } finally {
+    unsubscribeElectronicPortal();
+  }
   if (automaticRecommendationCount !== 1) {
     throw new Error(`Electronic data-ready flow returned ${automaticRecommendationCount} automatic recommendations`);
   }
