@@ -10,6 +10,8 @@ const OFFICIAL_WEBSITE_URL = String(
 const ADMIN_LINE_URL = "https://line.me/ti/p/@893jrweh";
 
 const WEBSITE_COMMANDS = ["官網", "黑域官網", "🌐 黑域官網"];
+const ASSISTANT_COMMANDS = ["懸浮助手", "懸浮助手教學", "助手教學"];
+const ASSISTANT_URL = "https://blackdomain-ai-v3-production.up.railway.app/assistant/";
 const CONTACT_COMMANDS = ["管理員", "客服", "聯繫管理員", "📞 聯繫管理員"];
 const ADMIN_INFO_COMMANDS = [
   "admin",
@@ -29,7 +31,7 @@ const ADMIN_INFO_COMMANDS = [
 
 function isOfficialCommand(text) {
   const value = String(text || "").trim();
-  return WEBSITE_COMMANDS.includes(value) || CONTACT_COMMANDS.includes(value) || ADMIN_INFO_COMMANDS.includes(value);
+  return ASSISTANT_COMMANDS.includes(value) || WEBSITE_COMMANDS.includes(value) || CONTACT_COMMANDS.includes(value) || ADMIN_INFO_COMMANDS.includes(value);
 }
 
 function commonQuickReply() {
@@ -108,6 +110,22 @@ function adminDeniedFlex() {
 
 async function handleOfficialMessage(event) {
   const text = event.message.text.trim();
+
+  if (ASSISTANT_COMMANDS.includes(text)) {
+    return reply(event.replyToken, bubble({
+      altText: "懸浮助手教學｜Android App・iPhone Safari",
+      title: "懸浮助手教學",
+      subtitle: "請依手機選擇安裝方式",
+      quickReply: commonQuickReply(),
+      contents: [
+        infoLine("Android 安卓", "安裝 App，開啟懸浮權限"),
+        infoLine("Apple／iPhone", "使用 Safari 建立助手書籤"),
+        uriButton("Android App 教學", `${ASSISTANT_URL}?openExternalBrowser=1#android`),
+        uriButton("iPhone 書籤教學", `${ASSISTANT_URL}?openExternalBrowser=1#iphone`, "secondary"),
+        note("請用 Android Chrome 或 iPhone Safari 開啟。若仍在 LINE 內，請複製教學網址到對應瀏覽器。"),
+      ],
+    }));
+  }
 
   if (WEBSITE_COMMANDS.includes(text)) {
     return reply(event.replyToken, websiteFlex());

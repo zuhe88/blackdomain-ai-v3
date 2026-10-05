@@ -2639,6 +2639,11 @@ async function main() {
   values = await sendAndTexts("綁定", "global-command-user");
   assertIncludes(values, "請輸入", "Global command bind prompt");
   values = await sendAndTexts("黑域官網", "global-command-user");
+  for (const command of ["懸浮助手", "懸浮助手教學", "助手教學"]) {
+    const assistantTexts = await sendAndTexts(command, "global-command-user");
+    assertIncludes(assistantTexts, "Android App 教學", "Assistant Android entry");
+    assertIncludes(assistantTexts, "iPhone 書籤教學", "Assistant iPhone entry");
+  }
   assertIncludes(values, "BLACKDOMAIN AI 全新官方入口", "Official website command overrides binding session");
   const officialModuleSource = fs.readFileSync(path.join(root, "modules", "official", "index.js"), "utf8");
   if (!officialModuleSource.includes("https://blackdomain-ai-v3-production.up.railway.app/")) {

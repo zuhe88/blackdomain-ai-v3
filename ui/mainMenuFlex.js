@@ -198,6 +198,7 @@ function mainMenuFlex() {
               utilityButton("聯繫管理員", "聯繫管理員", COLORS.gray),
             ],
           },
+          utilityButton("懸浮助手教學", "懸浮助手教學"),
         ],
       },
       footer: {
