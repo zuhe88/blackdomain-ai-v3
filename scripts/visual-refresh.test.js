@@ -39,3 +39,12 @@ test('legacy compact cards and untrusted text are handled safely',()=>{
   const html=context.baccaratResultCard({texts:['DG RB03','下一局建議','閒','建議下注','100','本金 3100','獲利 -2600','本房牌路統計','莊','15','閒','18','和','4','總','37','同步提示：<img src=x onerror=alert(1)>']},[]);
   assert.ok(html.includes('3,100'));assert.ok(html.includes('-2,600'));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('<img'));
 });
+test('home only offers resume for an active supported session',()=>{
+  const start=source.indexOf('function renderHome(){');
+  const end=source.indexOf('\n}',start)+2;
+  const home=vm.createContext({view:{innerHTML:''},escapeHtml:context.escapeHtml,accessAllowed:true,resumeBaccaratSession:false,resumeBaccaratPlatform:'DG',categoryOrder:['baccarat','atg','lottery','sports'],categories:Object.fromEntries(['baccarat','atg','lottery','sports'].map(key=>[key,{image:'/test.png',items:key==='baccarat'?[{id:'dg',command:'DG',name:'DG'}]:[]}]))});
+  vm.runInContext(source.slice(start,end),home);
+  home.renderHome();assert.ok(!home.view.innerHTML.includes('繼續 DG'));
+  home.resumeBaccaratSession=true;home.renderHome();assert.ok(home.view.innerHTML.includes('繼續 DG'));assert.ok(home.view.innerHTML.includes('/portal/baccarat/dg/analyze'));
+  home.categories.baccarat.items[0].disabled=true;home.renderHome();assert.ok(!home.view.innerHTML.includes('繼續 DG'));
+});
