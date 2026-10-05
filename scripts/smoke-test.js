@@ -1629,7 +1629,7 @@ async function main() {
   for (const expected of ["blackdomain-floating-assistant", "attachShadow", "pointermove", "DRAG_THRESHOLD", "Math.hypot", "pointercancel", "mobile-login?embed=1"]) {
     if (!assistantBookmarkletSource.includes(expected)) throw new Error(`Floating assistant bookmarklet is missing: ${expected}`);
   }
-  for (const expected of ["複製書籤程式", "Android 手機｜Chrome 操作步驟", "帶有 ★ 的書籤建議", "不可使用 LINE 內建瀏覽器", "蘋果手機｜iPhone Safari 操作步驟", "/assistant/bookmarklet.js"]) {
+  for (const expected of ["複製書籤程式", "安卓手機：安裝懸浮助手 App", "不可使用 LINE 內建瀏覽器", "蘋果手機｜iPhone Safari 操作步驟", "/assistant/guide.js"]) {
     if (!assistantInstallSource.includes(expected)) throw new Error(`Floating assistant installer is missing: ${expected}`);
   }
   for (const removed of ["複製 Android 文字說明", "androidGuideText", "copyAndroid"]) {
