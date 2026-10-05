@@ -1,12 +1,12 @@
-const CACHE_VERSION = "blackdomain-pwa-20261005.04";
+const CACHE_VERSION = "blackdomain-pwa-20261005.05";
 const APP_SHELL = [
-  "/blackdomain-theme.css?v=20261005.04",
+  "/blackdomain-theme.css?v=20261005.05",
   "/portal/",
   "/portal/index.html",
   "/portal/styles.css?v=20260907.06",
   "/portal/mobile.css?v=20260907.06",
   "/portal/admin.css?v=20260907.06",
-  "/portal/app.js?v=20261005.04",
+  "/portal/app.js?v=20261005.05",
   "/portal/manifest.webmanifest",
   "/portal/icons/icon-192.png",
   "/portal/icons/icon-512.png",
