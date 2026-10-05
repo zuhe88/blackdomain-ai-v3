@@ -76,8 +76,8 @@ function rtpSummary(detail = {}) {
     spacing: "sm",
     paddingAll: "12px",
     cornerRadius: "14px",
-    backgroundColor: "#11100E",
-    borderColor: "#4C3C1E",
+    backgroundColor: "#171B21",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       statCell("今日得分率", displayRtp(
@@ -103,8 +103,8 @@ function betSummary(detail = {}) {
     spacing: "sm",
     paddingAll: "12px",
     cornerRadius: "14px",
-    backgroundColor: "#11100E",
-    borderColor: "#4C3C1E",
+    backgroundColor: "#171B21",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       statCell("今日總下注額", formatAmount(detail.todayBet ?? detail.hourBet), COLORS.green),
@@ -225,7 +225,7 @@ function rankCard(room, index, updateTime) {
     paddingAll: "14px",
     cornerRadius: "18px",
     backgroundColor: index === 0 ? "#171814" : COLORS.panel,
-    borderColor: index === 0 ? COLORS.gold : "#6D5728",
+    borderColor: index === 0 ? COLORS.gold : "#353A43",
     borderWidth: "1px",
     contents: [
       {

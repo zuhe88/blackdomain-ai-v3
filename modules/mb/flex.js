@@ -73,7 +73,7 @@ function trackButton(track) {
     paddingAll: "13px",
     cornerRadius: "16px",
     backgroundColor: COLORS.glass,
-    borderColor: "#6D5728",
+    borderColor: "#353A43",
     borderWidth: "1px",
     action: { type: "message", text: `MB ${track.name}` },
     contents: [
@@ -156,7 +156,7 @@ function historyRank(label, number) {
     flex: 1,
     alignItems: "center",
     contents: [
-      text(label, { size: "xxs", color: "#F0D58A", flex: 0, wrap: false }),
+      text(label, { size: "xxs", color: "#E3CFA9", flex: 0, wrap: false }),
       numberChip(number, true),
     ],
   };
@@ -165,7 +165,7 @@ function historyRank(label, number) {
 function recentResultContents(records) {
   const contents = [text("最近 3 場開獎", { size: "sm", weight: "bold", color: COLORS.gold })];
   records.forEach((record, index) => {
-    if (index > 0) contents.push({ type: "separator", color: "#4C3C1E" });
+    if (index > 0) contents.push({ type: "separator", color: "#30353E" });
     contents.push(recordRow(record));
   });
   return contents;
@@ -229,15 +229,15 @@ function predictionRow(row) {
     spacing: compact ? "xs" : "md",
     paddingAll: "10px",
     cornerRadius: "12px",
-    backgroundColor: "#11100E",
-    borderColor: "#4C3C1E",
+    backgroundColor: "#171B21",
+    borderColor: "#30353E",
     borderWidth: "1px",
     alignItems: "center",
     contents: [
       text(`${row.label}推薦`, {
         size: "sm",
         weight: "bold",
-        color: "#F0D58A",
+        color: "#E3CFA9",
         flex: compact ? 2 : 3,
         wrap: false,
       }),

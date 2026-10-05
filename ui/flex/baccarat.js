@@ -161,7 +161,7 @@ function verificationNotice() {
     paddingAll: "14px",
     backgroundColor: "#15130E",
     cornerRadius: "16px",
-    borderColor: "#6D5728",
+    borderColor: "#353A43",
     borderWidth: "1px",
     contents: [
       {
@@ -271,9 +271,9 @@ function roomStatsPanel(stats) {
     layout: "vertical",
     spacing: "sm",
     paddingAll: "12px",
-    backgroundColor: "#11100E",
+    backgroundColor: "#171B21",
     cornerRadius: "14px",
-    borderColor: "#4C3C1E",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       text("本房牌路統計", {
@@ -333,9 +333,9 @@ function performancePanel(results, hitRate) {
     layout: "vertical",
     spacing: "sm",
     paddingAll: "12px",
-    backgroundColor: "#11100E",
+    backgroundColor: "#171B21",
     cornerRadius: "14px",
-    borderColor: "#4C3C1E",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       {
@@ -372,7 +372,7 @@ function performancePanel(results, hitRate) {
       },
       {
         type: "separator",
-        color: "#4C3C1E",
+        color: "#30353E",
       },
       {
         type: "box",
@@ -435,9 +435,9 @@ function compactPerformancePanel(results) {
     layout: "vertical",
     spacing: "sm",
     paddingAll: "10px",
-    backgroundColor: "#11100E",
+    backgroundColor: "#171B21",
     cornerRadius: "12px",
-    borderColor: "#4C3C1E",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       {
@@ -463,129 +463,49 @@ function compactPerformancePanel(results) {
   };
 }
 
-function baccaratLiveUpdateFlex({
-  session,
-  prediction,
-  betText,
-  betLabel,
-  isFreeBet,
-  isObserve,
-  profit,
-  results,
-  tableStats,
-  notice,
-  quickReply,
-}) {
-  const predictionColor = prediction === "莊"
-    ? "#F06060"
-    : prediction === "閒"
-      ? "#65A7FF"
-      : prediction === "和"
-        ? COLORS.green
-        : COLORS.gold;
-  const altParts = ["分析中", `${session.platform} ${session.room}`, prediction];
-  if (!isObserve) altParts.push(isFreeBet ? "自行配注" : `${betLabel} ${betText}`);
-  const message = {
-    type: "flex",
-    altText: altParts.join("｜").slice(0, 400),
-    contents: {
-      type: "bubble",
-      size: "mega",
-      styles: {
-        body: { backgroundColor: COLORS.black },
-      },
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        paddingAll: "14px",
-        backgroundColor: COLORS.black,
-        contents: [
-          {
-            type: "box",
-            layout: "horizontal",
-            alignItems: "center",
-            contents: [
-              {
-                type: "box",
-                layout: "vertical",
-                flex: 1,
-                contents: [
-                  text("黑域AI", { size: "xxs", weight: "bold", color: COLORS.gold, wrap: false }),
-                  text(`${session.platform} ${session.room}`, { size: "sm", weight: "bold", color: COLORS.white, wrap: false }),
-                ],
-              },
-              {
-                type: "box",
-                layout: "vertical",
-                flex: 0,
-                paddingStart: "9px",
-                paddingEnd: "9px",
-                paddingTop: "5px",
-                paddingBottom: "5px",
-                backgroundColor: "#153323",
-                cornerRadius: "12px",
-                contents: [text("分析中", { size: "xxs", weight: "bold", color: COLORS.green, wrap: false })],
-              },
-            ],
-          },
-          {
-            type: "box",
-            layout: "horizontal",
-            spacing: "sm",
-            paddingAll: "13px",
-            backgroundColor: COLORS.glass,
-            cornerRadius: "16px",
-            borderColor: "#6D5728",
-            borderWidth: "1px",
-            alignItems: "center",
-            contents: [
-              {
-                type: "box",
-                layout: "vertical",
-                flex: 3,
-                contents: [
-                  text(isObserve ? "本局策略" : "下一局建議", { size: "xxs", color: COLORS.blueSoft, wrap: false }),
-                  text(prediction, { size: "xxl", weight: "bold", color: predictionColor, wrap: false }),
-                ],
-              },
-              ...(!isObserve ? [{
-                type: "box",
-                layout: "vertical",
-                flex: 2,
-                contents: [
-                  text(betLabel, { size: "xxs", color: COLORS.muted, align: "end", wrap: false }),
-                  text(betText, { size: "lg", weight: "bold", color: COLORS.white, align: "end", wrap: false, adjustMode: "shrink-to-fit" }),
-                ],
-              }] : []),
-            ],
-          },
-          ...(!isFreeBet ? [{
-            type: "box",
-            layout: "horizontal",
-            spacing: "md",
-            paddingStart: "4px",
-            paddingEnd: "4px",
-            contents: [
-              text(`本金 ${session.bankroll}`, { size: "xxs", color: COLORS.gray, flex: 1, wrap: false, adjustMode: "shrink-to-fit" }),
-              text(`獲利 ${profit}`, { size: "xxs", color: Number(profit) >= 0 ? COLORS.green : COLORS.red, align: "end", flex: 1, wrap: false, adjustMode: "shrink-to-fit" }),
-            ],
-          }] : []),
-          roomStatsPanel(tableStats),
-          compactPerformancePanel(results),
-          ...(notice ? [text(`同步提示：${notice}`, {
-            size: "xxs",
-            color: COLORS.red,
-            align: "center",
-            wrap: true,
-          })] : []),
-          text("請核對莊、閒、和、總數是否與平台一致", { size: "xxs", color: COLORS.gold, align: "center" }),
-          button("結束並返回遊戲選單", "首頁", "danger"),
-        ],
-      },
-    },
-  };
+function baccaratLiveUpdateFlex({ session, prediction, betText, betLabel, isFreeBet, isObserve, profit, results, tableStats, notice, quickReply }) {
+  const muted = "#9CA3AF", gold = "#E2C18D", white = "#F2F3F5";
+  const value = amount => Number(amount).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const stat = (label, amount, color = white) => ({ type: "box", layout: "vertical", flex: 1, spacing: "sm", contents: [
+    text(label, { size: "xxs", color: muted, wrap: true }),
+    text(amount, { size: "xl", color, weight: "bold", wrap: true, adjustMode: "shrink-to-fit" }),
+  ] });
+  const divider = { type: "separator", color: "#30343B", margin: "md" };
+  const message = { type: "flex", altText: ["分析中", session.platform + " " + session.room, prediction, isObserve ? "" : betLabel + " " + betText].filter(Boolean).join("｜"), contents: {
+    type: "bubble", size: "mega", styles: { body: { backgroundColor: "#14171C" } },
+    body: { type: "box", layout: "vertical", paddingAll: "22px", spacing: "lg", contents: [
+      { type: "box", layout: "horizontal", alignItems: "center", contents: [
+        text(session.platform + " " + session.room, { size: "md", color: white, weight: "bold", flex: 1, wrap: true }),
+        text("分析中", { size: "xxs", color: "#84C7AA", align: "end", flex: 0 }),
+      ] }, divider,
+      { type: "box", layout: "horizontal", spacing: "lg", contents: [
+        stat(isObserve ? "本局策略" : "下一局建議", prediction, prediction === "莊" ? "#EF8B83" : prediction === "閒" ? "#83AFE5" : gold),
+        ...(!isObserve ? [stat(betLabel, betText, gold)] : []),
+      ] },
+      ...(!isFreeBet ? [divider, { type: "box", layout: "horizontal", spacing: "md", contents: [
+        stat("剩餘模擬本金", value(session.bankroll)),
+        stat("累計模擬盈虧", (Number(profit) > 0 ? "+" : "") + value(profit), Number(profit) < 0 ? "#EF8B83" : gold),
+      ] }, text("依建議金額模擬計算", { size: "xxs", color: muted })] : []),
+      divider, roomStatsPanel(tableStats), compactPerformancePanel(results),
+      ...(notice ? [text("同步提示：" + notice, { size: "xs", color: "#EF8B83", wrap: true })] : []),
+      text("請核對莊、閒、和、總數是否與平台一致", { size: "xxs", color: muted, wrap: true }),
+      { type: "box", layout: "vertical", paddingAll: "12px", cornerRadius: "10px", borderWidth: "1px", borderColor: "#897656", action: { type: "message", label: "結束分析", text: "首頁" }, contents: [text("結束分析", { size: "sm", color: gold, align: "center", weight: "bold" })] },
+    ] },
+  } };
   if (quickReply) message.quickReply = quickReply;
+  return softenBaccaratCard(message);
+}
+
+function softenBaccaratCard(message) {
+  const colors = { "#171B21": "#14171C", "#181612": "#1B1F25", "#30353E": "#30343B", "#353A43": "#30343B", "#D71920": "#9B514E", "#1464D2": "#3C618C", "#278A18": "#3B715B", "#9A6728": "#76654B" };
+  function visit(node) {
+    if (!node || typeof node !== "object") return;
+    for (const [key, value] of Object.entries(node)) {
+      if (typeof value === "string" && colors[value]) node[key] = colors[value];
+      else if (typeof value === "object") visit(value);
+    }
+  }
+  visit(message);
   return message;
 }
 
@@ -654,8 +574,8 @@ function baccaratAnalysisFlex({
         metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
       ] : []),
       ...(!isFreeBet ? [
-        infoLine("目前本金", String(session.bankroll)),
-        infoLine("目前獲利", String(profit)),
+        infoLine("剩餘模擬本金", String(session.bankroll)),
+        infoLine("累計模擬盈虧", String(profit)),
       ] : []),
       roomStatsPanel(tableStats),
       verificationNotice(),

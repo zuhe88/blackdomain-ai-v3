@@ -43,9 +43,9 @@ function predictionPanel(analysis, hasHistory) {
     layout: "vertical",
     spacing: "md",
     paddingAll: "18px",
-    backgroundColor: "#171511",
+    backgroundColor: "#1B1F26",
     cornerRadius: "20px",
-    borderColor: "#8B6F2C",
+    borderColor: "#75674F",
     borderWidth: "1px",
     contents: [
       {
@@ -62,7 +62,7 @@ function predictionPanel(analysis, hasHistory) {
             paddingEnd: "10px",
             paddingTop: "5px",
             paddingBottom: "5px",
-            backgroundColor: "#2A2112",
+            backgroundColor: "#292722",
             cornerRadius: "12px",
             contents: [text(analysis.date, { size: "xxs", color: COLORS.blueSoft, wrap: false })],
           },
@@ -115,9 +115,9 @@ function trendPanel(analysis) {
     layout: "vertical",
     spacing: "sm",
     paddingAll: "14px",
-    backgroundColor: "#11100E",
+    backgroundColor: "#171B21",
     cornerRadius: "18px",
-    borderColor: "#4C3C1E",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       text("趨勢參考", { size: "xs", weight: "bold", color: COLORS.gold }),
@@ -134,9 +134,9 @@ function recentDrawPanel(record) {
     layout: "vertical",
     spacing: "sm",
     paddingAll: "14px",
-    backgroundColor: "#11100E",
+    backgroundColor: "#171B21",
     cornerRadius: "18px",
-    borderColor: "#4C3C1E",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       {

@@ -1,11 +1,12 @@
-const CACHE_VERSION = "blackdomain-pwa-20260919.01";
+const CACHE_VERSION = "blackdomain-pwa-20261005.02";
 const APP_SHELL = [
+  "/blackdomain-theme.css?v=20261005.02",
   "/portal/",
   "/portal/index.html",
   "/portal/styles.css?v=20260907.06",
   "/portal/mobile.css?v=20260907.06",
   "/portal/admin.css?v=20260907.06",
-  "/portal/app.js?v=20260919.01",
+  "/portal/app.js?v=20261005.02",
   "/portal/manifest.webmanifest",
   "/portal/icons/icon-192.png",
   "/portal/icons/icon-512.png",
@@ -58,6 +59,7 @@ self.addEventListener("fetch", (event) => {
   }
   if (
     url.pathname.startsWith("/portal/")
+    || url.pathname === "/blackdomain-theme.css"
     || url.pathname.startsWith("/brand/")
     || url.pathname.startsWith("/images/")
   ) {

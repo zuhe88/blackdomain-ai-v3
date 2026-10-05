@@ -1,7 +1,7 @@
 const GOLD = "#D6B46A";
 const BLACK = "#050505";
 const CARD = "#111111";
-const WHITE = "#FFFFFF";
+const WHITE = "#F2F3F5";
 const GRAY = "#A8A8A8";
 const DARK_GRAY = "#777777";
 

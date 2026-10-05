@@ -59,7 +59,7 @@ function welcomeFlex() {
           {
             type: "separator",
             margin: "sm",
-            color: "#5C4823",
+            color: "#353A43",
           },
           text("百家樂  ·  電子  ·  體育  ·  539", {
             size: "xs",

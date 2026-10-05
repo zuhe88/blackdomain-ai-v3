@@ -1608,7 +1608,7 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20260919.01", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20261005.02", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
   for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.08"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
@@ -3855,7 +3855,7 @@ async function main() {
   assertIncludes(values, "請核對莊、閒、和、總數是否與平台一致", "Baccarat platform verification notice");
   assertIncludes(values, "分析中", "Baccarat compact analysis status");
   assertIncludes(values, "玩家自行決定", "Baccarat free-bet direction");
-  assertIncludes(values, "結束並返回遊戲選單", "Baccarat persistent exit button");
+  assertIncludes(values, "結束分析", "Baccarat persistent exit button");
   const dgAutoMessage = captured.replies[captured.replies.length - 1].messages[0];
   const dgAutoJson = JSON.stringify(dgAutoMessage);
   if (dgAutoJson.includes("莊家數學基準")) {
@@ -3864,7 +3864,7 @@ async function main() {
   if (!collectActions(dgAutoMessage).some((action) => action.text === "首頁")) {
     throw new Error("Baccarat exit button must return to the main game menu");
   }
-  for (const color of ["#D71920", "#1464D2", "#278A18", "#9A6728"]) {
+  for (const color of ["#9B514E", "#3C618C", "#3B715B", "#76654B"]) {
     if (!dgAutoJson.includes(color)) throw new Error(`Baccarat room statistics missing color ${color}`);
   }
   const longRoomStatsMessage = baccaratAnalysisFlex({

@@ -11,7 +11,7 @@ function gameCard({ title, subtitle, image, actionText, maintenance = false }) {
           paddingAll: "8px",
           backgroundColor: "#6B2020",
           cornerRadius: "12px",
-          borderColor: "#D65A5A",
+          borderColor: "#DF8A84",
           borderWidth: "1px",
           contents: [
             text("系統維護中", {

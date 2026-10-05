@@ -1,17 +1,17 @@
 const COLORS = {
-  black: "#090909",
-  deep: "#0D0D0D",
-  panel: "#12110F",
-  glass: "#171511",
-  blue: "#D6B45F",
-  blueSoft: "#F0D58A",
-  blueDark: "#2A2112",
-  gold: "#D4AF37",
-  white: "#FFFFFF",
-  gray: "#D8D3C8",
-  muted: "#9B927E",
-  red: "#D65A5A",
-  green: "#43D18C",
+  black: "#101216",
+  deep: "#14171C",
+  panel: "#191D23",
+  glass: "#1B1F26",
+  blue: "#D9BD8E",
+  blueSoft: "#E3CFA9",
+  blueDark: "#292722",
+  gold: "#DEC398",
+  white: "#F2F3F5",
+  gray: "#CDD1D8",
+  muted: "#A1A8B3",
+  red: "#DF8A84",
+  green: "#8AC9AC",
 };
 
 function text(value, options = {}) {
@@ -27,7 +27,7 @@ function separator(margin = "md") {
   return {
     type: "separator",
     margin,
-    color: "#17304A",
+    color: "#30353E",
   };
 }
 
@@ -36,38 +36,11 @@ function divider(margin = "md") {
 }
 
 function header(title, subtitle = "AI 即時分析中心") {
-  return {
-    type: "box",
-    layout: "vertical",
-    spacing: "md",
-    paddingAll: "22px",
-    backgroundColor: "#0E0D0B",
-    cornerRadius: "22px",
-    borderColor: "#6D5728",
-    borderWidth: "1px",
-    contents: [
-      {
-        type: "separator",
-        color: "#D4AF37",
-      },
-      {
-        type: "box",
-        layout: "vertical",
-        spacing: "xs",
-        paddingTop: "8px",
-        paddingBottom: "8px",
-        contents: [
-          text("BLACKDOMAIN AI", { size: "xs", weight: "bold", color: COLORS.gold, align: "center", wrap: false }),
-          text(title, { size: "xl", weight: "bold", color: COLORS.white, align: "center" }),
-          text(subtitle, { size: "xs", color: COLORS.gray, align: "center" }),
-        ],
-      },
-      {
-        type: "separator",
-        color: "#D4AF37",
-      },
-    ],
-  };
+  return { type: "box", layout: "vertical", spacing: "sm", paddingTop: "6px", paddingBottom: "14px", contents: [
+    text("BLACKDOMAIN AI", { size: "xxs", color: COLORS.gold, wrap: false }),
+    text(title, { size: "xl", weight: "bold", color: COLORS.white }),
+    text(subtitle, { size: "xs", color: COLORS.muted }),
+  ] };
 }
 
 function infoLine(label, value) {
@@ -76,9 +49,9 @@ function infoLine(label, value) {
     layout: "horizontal",
     spacing: "md",
     paddingAll: "10px",
-    backgroundColor: "#11100E",
+    backgroundColor: "#171B21",
     cornerRadius: "12px",
-    borderColor: "#4C3C1E",
+    borderColor: "#30353E",
     borderWidth: "1px",
     contents: [
       text(label, { size: "sm", color: COLORS.blueSoft, flex: 2 }),
@@ -98,8 +71,8 @@ function metric(label, value, note) {
     layout: "vertical",
     spacing: "sm",
     backgroundColor: COLORS.glass,
-    cornerRadius: "18px",
-    borderColor: "#6D5728",
+    cornerRadius: "10px",
+    borderColor: "#353A43",
     borderWidth: "1px",
     paddingAll: "16px",
     contents,
@@ -114,8 +87,8 @@ function card(title, subtitle, actionText) {
     margin: "sm",
     paddingAll: "14px",
     backgroundColor: COLORS.glass,
-    cornerRadius: "18px",
-    borderColor: "#6D5728",
+    cornerRadius: "10px",
+    borderColor: "#353A43",
     borderWidth: "1px",
     action: { type: "message", text: actionText },
     contents: [
@@ -126,34 +99,34 @@ function card(title, subtitle, actionText) {
 }
 
 function button(label, actionText, style = "primary") {
-  const color = style === "danger" ? COLORS.red : "#0F0E0C";
+  const color = style === "primary" ? "#DEC398" : "#20252D";
   return {
     type: "box",
     layout: "vertical",
     margin: "sm",
     paddingAll: "12px",
     backgroundColor: color,
-    cornerRadius: "18px",
-    borderColor: style === "secondary" ? "#6D5728" : COLORS.gold,
+    cornerRadius: "10px",
+    borderColor: style === "danger" ? "#79504F" : "#353A43",
     borderWidth: "1px",
     action: { type: "message", text: actionText },
-    contents: [text(label, { size: "sm", weight: "bold", color: COLORS.white, align: "center" })],
+    contents: [text(label, { size: "sm", weight: "bold", color: style === "primary" ? "#17191D" : style === "danger" ? COLORS.red : COLORS.white, align: "center" })],
   };
 }
 
 function uriButton(label, uri, style = "primary") {
-  const color = style === "danger" ? COLORS.red : "#0F0E0C";
+  const color = style === "primary" ? "#DEC398" : "#20252D";
   return {
     type: "box",
     layout: "vertical",
     margin: "sm",
     paddingAll: "12px",
     backgroundColor: color,
-    cornerRadius: "18px",
-    borderColor: style === "secondary" ? "#6D5728" : COLORS.gold,
+    cornerRadius: "10px",
+    borderColor: style === "danger" ? "#79504F" : "#353A43",
     borderWidth: "1px",
     action: { type: "uri", uri },
-    contents: [text(label, { size: "sm", weight: "bold", color: COLORS.white, align: "center" })],
+    contents: [text(label, { size: "sm", weight: "bold", color: style === "primary" ? "#17191D" : style === "danger" ? COLORS.red : COLORS.white, align: "center" })],
   };
 }
 
@@ -163,8 +136,8 @@ function section(contents = []) {
     layout: "vertical",
     spacing: "sm",
     backgroundColor: COLORS.panel,
-    cornerRadius: "18px",
-    borderColor: "#6D5728",
+    cornerRadius: "10px",
+    borderColor: "#353A43",
     borderWidth: "1px",
     paddingAll: "14px",
     contents,
