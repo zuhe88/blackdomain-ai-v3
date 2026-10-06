@@ -66,6 +66,7 @@ function registerHealthRoutes(app) {
       lineWebsiteOnlyMode: isLineWebsiteOnlyMode(),
       lineModeAdminControls: "20261003.01",
       vipBindingAdminControls: "20261003.01",
+      vipLineTransferControls: "20261006.01",
       electronicRecommendationPolicy: "live-room-rtp-required-v1",
       visualBuild: "20261006.02",
       websiteCommandsBypassLineRedirect: true,

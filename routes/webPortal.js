@@ -127,6 +127,16 @@ if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWor
 }
 
 function registerWebPortalRoutes(app) {
+  app.use("/api/web", async (req, res, next) => {
+    try {
+      const id = user(req);
+      if (id && await require("../modules/vip/lineTransfer").isLineRevoked(id)) {
+        res.clearCookie("blackdomain_web", { path: "/" });
+        return res.status(401).json({ error: "權限已轉移至新的LINE，請使用新LINE登入。" });
+      }
+      return next();
+    } catch (error) { return next(error); }
+  });
   app.use("/portal", express.static(path.join(__dirname, "..", "public", "portal"), {
     etag: false,
     lastModified: false,
@@ -307,7 +317,12 @@ function registerWebPortalRoutes(app) {
         console.error("[Web] Baccarat reconnect reconciliation failed:", error.message);
       });
     });
-    const heartbeat = setInterval(() => res.write(": keep-alive\n\n"), 15000);
+    const heartbeat = setInterval(async () => {
+      try {
+        if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) return res.end();
+        res.write(": keep-alive\n\n");
+      } catch { res.end(); }
+    }, 15000);
     req.on("close", () => {
       clearInterval(heartbeat);
       unsubscribe();

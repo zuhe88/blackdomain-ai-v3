@@ -173,6 +173,7 @@ async function pushLine(userId, messages) {
 async function pushStrict(userId, messages) {
   await refreshLineWebsiteMode();
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
+  if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) return;
   const normalized = normalizeMessages(messages);
   if (isLineWebsiteOnlyMode()) {
     webChannel.publish(userId, normalized);
@@ -188,6 +189,7 @@ async function pushStrict(userId, messages) {
 async function pushLineStrict(userId, messages) {
   await refreshLineWebsiteMode();
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
+  if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) return;
   const normalized = normalizeMessages(messages);
   if (isLineWebsiteOnlyMode()) {
     webChannel.publish(userId, normalized);

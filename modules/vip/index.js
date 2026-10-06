@@ -31,12 +31,14 @@ const {
 const AI_FEATURES = "百家樂AI / ATG AI / 彩票AI / 體育AI";
 const { isLineWebsiteOnlyMode, setLineWebsiteOnlyMode } = require("../../config/lineWebsiteMode");
 const { changeVipBinding } = require("./bindingAdmin");
+const lineTransfer = require("./lineTransfer");
 
 function isVipCommand(text) {
   const value = String(text || "").trim();
   return (
     COMMANDS.includes(value) ||
     BIND_COMMANDS.includes(value) ||
+    value === "申請轉移LINE" || value.startsWith("申請轉移LINE ") ||
     ADMIN_COMMANDS.some((cmd) => value === cmd || value.startsWith(`${cmd} `))
   );
 }
@@ -50,6 +52,7 @@ function vipQuickReply(isAdmin = false) {
   const items = [
     { label: "刷新VIP", text: "VIP" },
     { label: "綁定3A", text: "綁定" },
+    { label: "更換LINE", text: "申請轉移LINE" },
     { label: "返回首頁", text: "首頁" },
   ];
   if (isAdmin) items.unshift({ label: "管理指令", text: "管理指令" });
@@ -253,6 +256,7 @@ function hasAiPermission(user) {
 
 async function checkVipAccess(userId) {
   if (isAdminLineUserId(userId)) return { allowed: true, isAdmin: true, user: null };
+  if (await lineTransfer.isLineRevoked(userId)) return { allowed: false, isAdmin: false, user: null, transferred: true };
   const [user, globalAccess] = await Promise.all([
     findVipUserByLineUserId(userId, { strict: true }),
     getGlobalAiAccessState({ strict: true }),
@@ -359,7 +363,7 @@ function pendingBindFlex(account3A) {
 function accountTakenFlex() {
   return simpleFlex({
     title: "3A帳號無法申請",
-    rows: [["提醒", "此 3A帳號已被綁定或申請中，請聯繫管理員確認。"]],
+    rows: [["提醒", "此 3A帳號已被綁定或申請中，請聯繫管理員確認。"], ["更換LINE", "同一3A帳號換LINE，請用新LINE私訊：申請轉移LINE 3A帳號"]],
   });
 }
 
@@ -488,6 +492,9 @@ function adminHelpFlex(globalAccessEnabled = false, electronicAllEnabled = areAl
       infoLine("會員列表", "列出所有會員"),
       infoLine("解除綁定", "解除綁定 舊帳號（移除原權限，可重新申請）"),
       infoLine("更換綁定", "更換綁定 舊帳號 新帳號（保留權限與到期日）"),
+      infoLine("換LINE", "新LINE輸入：申請轉移LINE 3A帳號；管理員輸入：待轉移LINE"),
+      infoLine("審核轉移", "查轉移LINE 申請編號；核對本人後：核准轉移LINE 申請編號 3A帳號"),
+      infoLine("拒絕轉移", "拒絕轉移LINE 申請編號 3A帳號"),
       infoLine("更新房間數據", "強制重掃電子房間與統計"),
       button("全部開放權限", "全部開放權限"),
       button("恢復原權限", "恢復原權限", "secondary"),
@@ -533,6 +540,38 @@ async function handleAdminCommand(event) {
   }
 
   const bindingParts = text.split(/\s+/).filter(Boolean);
+  if (["待轉移LINE", "查轉移LINE", "核准轉移LINE", "拒絕轉移LINE"].includes(bindingParts[0])) {
+    const command = bindingParts[0];
+    const reviewing = command === "核准轉移LINE" || command === "拒絕轉移LINE";
+    const expected = reviewing ? 3 : command === "查轉移LINE" ? 2 : 1;
+    if (bindingParts.length !== expected) return reply(event.replyToken, adminResultFlex("指令格式", [["用法", reviewing ? `${command} 申請編號 3A帳號` : `${command}${expected === 2 ? " 申請編號" : ""}`]], false));
+    if (!reviewing) {
+      const result = await lineTransfer.listTransfers(userId, bindingParts[1]);
+      const rows = result.ok ? result.rows.flatMap(r => [
+        ["申請編號", r.id], ["3A／狀態", `${r.three_a_account}／${r.status}`],
+        ["原LINE", `${r.old_line_name || "未取得"} (${r.old_line_user_id})`],
+        ["新LINE", `${r.new_line_name || "未取得"} (${r.new_line_user_id})`],
+      ]) : [["原因", result.error]];
+      rows.push(["提醒", "請先核對原會員本人與新LINE；僅知道3A帳號不代表本人。核准會保留原到期日並停用舊LINE。"]);
+      return reply(event.replyToken, adminResultFlex(command, rows, result.ok));
+    }
+    const result = await lineTransfer.reviewTransfer(bindingParts[1], bindingParts[2], userId, command === "核准轉移LINE");
+    let cleanupFailed = false;
+    if (result.ok && result.status === "approved") {
+      const ids = [result.oldLineUserId, result.newLineUserId];
+      const cleanup = await Promise.allSettled(ids.map(async id => {
+        require("../../services/webChannel").disconnectUser(id);
+        require("../../utils/sessionStore").clearUser(id);
+        await Promise.all([
+          Promise.resolve().then(() => electronic.resetElectronicSession(id)),
+          Promise.resolve().then(() => require("../baccarat").resetBaccaratSession(id)),
+          Promise.resolve().then(() => require("../mb").resetMbSession(id)),
+        ]);
+      }));
+      cleanupFailed = cleanup.some(r => r.status === "rejected");
+    }
+    return reply(event.replyToken, adminResultFlex(command, [["處理結果", result.ok ? (result.status === "approved" ? "已轉移，原3A帳號、權限及到期日保留。請新LINE輸入VIP確認，再重新登入網站。" : "已拒絕，原權限未變更。") : result.error], ...(cleanupFailed ? [["提醒", "舊LINE已停用，部分分析狀態清理失敗，請返回首頁再進入。"]] : [])], result.ok));
+  }
   if (["解除綁定", "更換綁定"].includes(bindingParts[0])) {
     const unlink = bindingParts[0] === "解除綁定";
     if (bindingParts.length !== (unlink ? 2 : 3)) {
@@ -766,6 +805,13 @@ async function handleVipMessage(event) {
   const text = event.message.text.trim();
   const session = getSession("vip", lineUserId) || {};
 
+  if (text === "申請轉移LINE" || text.startsWith("申請轉移LINE ")) {
+    if (String(event.replyToken || "").startsWith("web:") || event.source.type === "group" || event.source.type === "room") return reply(event.replyToken, simpleFlex({ title: "轉移LINE", rows: [["操作方式", "請用新的LINE私訊官方帳號：申請轉移LINE 3A帳號"]] }));
+    const parts = text.split(/\s+/);
+    const result = parts.length === 2 ? await lineTransfer.requestTransfer(parts[1], lineUserId, await getLineName(lineUserId)) : { ok: false, error: "請輸入：申請轉移LINE 3A帳號" };
+    updateSession("vip", lineUserId, { binding3A: false });
+    return reply(event.replyToken, simpleFlex({ title: "轉移LINE申請", rows: result.ok ? [["申請編號", result.id], ["下一步", "請將申請編號交給管理員核對本人，24小時內核准。核准前原權限不變，請勿解除綁定。"]] : [["原因", result.error]] }));
+  }
   if (ADMIN_COMMANDS.some((cmd) => text === cmd || text.startsWith(`${cmd} `))) return handleAdminCommand(event);
   if (BIND_COMMANDS.includes(text)) return handleBindCommand(event);
   if (session.binding3A) return handleBindInput(event);

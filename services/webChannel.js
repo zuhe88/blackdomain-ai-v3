@@ -54,6 +54,7 @@ async function persistLoginNonce(record) {
 async function redeem(code) {
   const pending = verify(code);
   if (!pending || pending.kind !== "login" || usedLoginNonces.has(pending.nonce)) return null;
+  if (await require("../modules/vip/lineTransfer").isLineRevoked(pending.userId)) return null;
   const nonceHash = crypto.createHash("sha256").update(pending.nonce).digest("hex");
   if (supabase) {
     const { error } = await persistLoginNonce({
@@ -147,5 +148,12 @@ function publish(userId, messages) {
   return set.size > 0;
 }
 function history(userId) { return [...(recentMessages.get(userId) || [])]; }
+function disconnectUser(userId) {
+  for (const response of clients.get(userId) || []) {
+    try { response.end(); } catch { /* Continue closing other clients. */ }
+  }
+  clients.delete(userId);
+  recentMessages.delete(userId);
+}
 
-module.exports = { authenticate, cancelReply, connected, history, issue, issueSession, publish, redeem, resolveReply, subscribe, waitReply };
+module.exports = { authenticate, cancelReply, connected, disconnectUser, history, issue, issueSession, publish, redeem, resolveReply, subscribe, waitReply };

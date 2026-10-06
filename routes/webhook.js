@@ -215,7 +215,7 @@ async function handleEvent(event) {
     return replyHome(event);
   }
 
-  if (VIP_COMMANDS.has(text) || isAdminCommand(text)) {
+  if (VIP_COMMANDS.has(text) || isAdminCommand(text) || vip.isVipCommand(text)) {
     await clearAllUserSessions(userId);
     return vip.handleVipMessage(event);
   }
