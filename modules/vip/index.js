@@ -2,7 +2,7 @@ const { lineClient, pushLine, pushLineStrict, quickReply, reply } = require("../
 const { adminLineUserIds, isAdminLineUserId } = require("../../config/admin");
 const { getSession, updateSession } = require("../../utils/sessionStore");
 const { bubble, button, infoLine, metric, note, text, uriButton } = require("../../ui/flex/premium");
-const { COMMANDS, BIND_COMMANDS, ADMIN_COMMANDS, STATUSES } = require("./constants");
+const { COMMANDS, ADMIN_COMMANDS, STATUSES } = require("./constants");
 const { validateAccount3A } = require("./validator");
 const electronic = require("../electronic");
 const {
@@ -33,11 +33,16 @@ const { isLineWebsiteOnlyMode, setLineWebsiteOnlyMode } = require("../../config/
 const { changeVipBinding } = require("./bindingAdmin");
 const lineTransfer = require("./lineTransfer");
 
+function parseBindCommand(value) {
+  const match = String(value || "").trim().match(/^綁定(?:\s*3A(?=$|[\s:：]))?[\s:：]*(.*)$/i);
+  return match ? { account: match[1].trim() } : null;
+}
+
 function isVipCommand(text) {
   const value = String(text || "").trim();
   return (
     COMMANDS.includes(value) ||
-    BIND_COMMANDS.includes(value) ||
+    Boolean(parseBindCommand(value)) ||
     value === "申請轉移LINE" || value.startsWith("申請轉移LINE ") ||
     ADMIN_COMMANDS.some((cmd) => value === cmd || value.startsWith(`${cmd} `))
   );
@@ -738,7 +743,7 @@ async function handleAdminCommand(event) {
   return reply(event.replyToken, adminHelpFlex(false, areAllElectronicGamesEnabled()));
 }
 
-async function handleBindCommand(event) {
+async function handleBindCommand(event, account = "") {
   const lineUserId = event.source.userId || "";
   const existingUser = await findVipUserByLineUserId(lineUserId);
   if (existingUser.account3A) {
@@ -757,6 +762,7 @@ async function handleBindCommand(event) {
   }
 
   updateSession("vip", lineUserId, { binding3A: true, lastUpdated: Date.now() });
+  if (account) return handleBindInput({ ...event, message: { ...event.message, text: account } });
   return reply(event.replyToken, bindPromptFlex());
 }
 
@@ -813,7 +819,8 @@ async function handleVipMessage(event) {
     return reply(event.replyToken, simpleFlex({ title: "轉移LINE申請", rows: result.ok ? [["申請編號", result.id], ["下一步", "請將申請編號交給管理員核對本人，24小時內核准。核准前原權限不變，請勿解除綁定。"]] : [["原因", result.error]] }));
   }
   if (ADMIN_COMMANDS.some((cmd) => text === cmd || text.startsWith(`${cmd} `))) return handleAdminCommand(event);
-  if (BIND_COMMANDS.includes(text)) return handleBindCommand(event);
+  const bindCommand = parseBindCommand(text);
+  if (bindCommand) return handleBindCommand(event, bindCommand.account);
   if (session.binding3A) return handleBindInput(event);
 
   const isAdmin = isAdminLineUserId(lineUserId);

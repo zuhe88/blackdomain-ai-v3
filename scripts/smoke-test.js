@@ -2601,10 +2601,22 @@ async function main() {
   values = await sendAndTexts("綁定", "bound-user");
   assertIncludes(values, "您已綁定 3A帳號", "Already bound");
   assertIncludes(values, "bound3a", "Already bound");
+  values = await sendAndTexts("綁定other123", "bound-user");
+  assertIncludes(values, "您已綁定 3A帳號", "Inline bind must not replace an existing member");
+  for (const [index, command] of ["綁定inline101", "綁定 inline102", "綁定：inline103", "綁定3A inline104", "綁定　inline105"].entries()) {
+    values = await sendAndTexts(command, `inline-bind-user-${index}`);
+    assertIncludes(values, "已收到您的3A帳號綁定申請", "Inline bind formats reach registration before access checks");
+  }
+  values = await sendAndTexts("綁定abc 123", "inline-invalid-user");
+  assertIncludes(values, "帳號格式不正確", "Malformed inline binding gives account guidance");
+  values = await sendAndTexts("inline106", "inline-invalid-user");
+  assertIncludes(values, "已收到您的3A帳號綁定申請", "Malformed inline binding permits account retry");
 
   values = await sendAndTexts("綁定", "pending-user");
   assertIncludes(values, "您已有綁定申請待審核", "Pending bind");
   assertIncludes(values, "abc123", "Pending bind");
+  values = await sendAndTexts("綁定abc123", "pending-user");
+  assertIncludes(values, "您已有綁定申請待審核", "Repeated inline request stays pending");
 
   values = await sendAndTexts("開通 abc123 15 分鐘", "Uaf293ee976e5170d4e8672d2c12b3f76");
   assertIncludes(values, "15分鐘", "Minute VIP approval duration");
