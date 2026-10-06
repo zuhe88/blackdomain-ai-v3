@@ -8,7 +8,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261006.01";
+const PORTAL_BUILD="20261006.02";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -163,7 +163,7 @@ function baccaratResultCard(data,actions){
   const notice=valueAfter(texts,"同步狀態",null)||texts.find(text=>text.startsWith("同步提示："));
   const adviceClass=advice==="莊"?"advice-banker":advice==="閒"?"advice-player":"advice-observe";
   const amountMarkup=advice==="觀望"?"":'<div><span>'+escapeHtml(betLabel)+'</span><strong class="'+(betLabel==='配注方式'?'bet-description':'bet-amount')+'">'+escapeHtml(formatAmount(bet))+'</strong></div>';
-  return '<article class="result-card baccarat-result-card"><div class="result-head"><div><p>BLACKDOMAIN · BACCARAT</p><h2>'+escapeHtml(room)+'</h2></div><span class="ready">分析中</span></div><section class="baccarat-decision"><div><span>'+(advice==="觀望"?'本局策略':'下一局建議')+'</span><strong class="'+adviceClass+'">'+escapeHtml(advice)+'</strong></div>'+amountMarkup+'</section>'+
+  return '<article class="result-card baccarat-result-card"><div class="result-head"><div><p>BLACKDOMAIN · BACCARAT</p><h2>'+escapeHtml(room)+'</h2></div><span class="ready">分析中</span></div><section class="baccarat-decision"><div class="prediction-glow '+adviceClass+'"><span>'+(advice==="觀望"?'本局策略':'下一局建議')+'</span><strong class="'+adviceClass+'">'+escapeHtml(advice)+'</strong></div>'+amountMarkup+'</section>'+
   (bankroll!==null||profit!==null?'<div class="finance-grid"><div><span>剩餘模擬本金</span><strong>'+escapeHtml(formatAmount(bankroll))+'</strong></div><div><span>累計模擬盈虧</span><strong class="'+(profitNumber<0?'profit-negative':'profit-positive')+'">'+escapeHtml((profitNumber>0?'+':'')+formatAmount(profit))+'</strong></div></div><p class="simulation-note">依建議金額模擬計算，並非遊戲帳戶餘額</p>':'')+
   '<section class="road-section"><div class="metric-title"><b>本房牌路統計</b></div><div class="road-grid">'+[['banker','莊',banker],['player','閒',player],['tie','和',tie],['total','總',total]].map(([cls,label,value])=>'<div class="'+cls+'"><span>'+label+'</span><strong>'+escapeHtml(value)+'</strong></div>').join('')+'</div></section>'+baccaratPerformance(texts)+
   (notice?'<p class="simulation-note">'+escapeHtml(notice)+'</p>':'')+'<div class="baccarat-notice"><span>請核對莊、閒、和、總數是否與平台一致</span></div>'+(updated?'<div class="baccarat-updated">最後更新 '+escapeHtml(updated)+'</div>':'')+actionMarkup(actions)+'</article>';
