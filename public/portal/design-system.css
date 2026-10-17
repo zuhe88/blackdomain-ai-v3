@@ -152,8 +152,11 @@ body:not(.is-authenticated) .app-shell { padding-left:32px; }
 .feature-game-stack img:nth-child(1) { top:10px;left:0;transform:rotate(-12deg);opacity:.65; }
 .feature-game-stack img:nth-child(2) { top:-8px;left:49px;z-index:2; }
 .feature-game-stack img:nth-child(3) { top:12px;right:0;transform:rotate(12deg);opacity:.65; }
-.feature-atg .feature-copy { max-width:calc(100% - 140px); }
-.feature-atg .ui-feature-tags { max-width:100%; }
+.feature-game-stack[data-covers="2"] img:nth-child(1) { left:18px;top:9px;transform:rotate(-12deg); }
+.feature-game-stack[data-covers="2"] img:nth-child(2) { left:72px;top:-3px;transform:rotate(9deg); }
+.feature-game-stack img.cover-paused { filter:grayscale(.65) brightness(.75) drop-shadow(0 8px 12px #0008); }
+.has-artwork .feature-copy { max-width:calc(100% - 140px); }
+.has-artwork .ui-feature-tags { max-width:100%; }
 .ui-badge { display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:6px;background:#1c293b;color:#acb9cc;font-size:12px;line-height:1.6;white-space:normal; }
 .ui-badge i { width:5px;height:5px;flex:none;border-radius:50%;background:currentColor; }
 .ui-badge[data-tone=success] { color:#6cddba;background:#0f2c29; }
@@ -216,30 +219,69 @@ body:not(.is-authenticated) .app-shell { padding-left:32px; }
 .status-grid strong,.metric-grid strong,.bet-grid strong,.info-card-grid strong { font-size:18px;font-weight:550;overflow-wrap:anywhere; }
 .metric-title b { font-weight:600;font-size:15px; }.metric-title span { font-size:12px;color:var(--muted);letter-spacing:0; }
 .metric-section,.road-section,.performance-section { border-color:var(--line);background:none; }
-.baccarat-result-card .baccarat-decision { padding:24px;gap:16px;border:0; }
-.baccarat-result-card .baccarat-decision>div { border:1px solid var(--line);border-radius:12px;background:var(--panel2);box-shadow:none; }
+.baccarat-result-card { background:#0e1929; }
+.baccarat-result-card .result-head { padding:20px 24px;background:linear-gradient(110deg,#1b354b,#101d2e); }
+.baccarat-room-identity { display:flex;align-items:center;gap:12px; }
+.room-platform { display:grid;place-items:center;width:46px;height:46px;border:1px solid #3d617c;border-radius:10px;background:#142a40;color:#b3e5fa;font-size:16px;font-weight:600; }
+.baccarat-result-card .result-head h2 { font-size:24px;letter-spacing:.02em; }
+.baccarat-result-card .result-head p { font-size:12px;margin-bottom:2px;color:#86a5bc; }
+.baccarat-result-card .ready { display:flex;align-items:center;gap:7px;background:#0b2b2c;color:#84d9bc;border-color:#285047; }
+.baccarat-result-card .ready i { width:5px;height:5px;background:#65d8ae;border-radius:50%; }
+.baccarat-console { display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.7fr);gap:24px;padding:24px;border-bottom:1px solid #25394e;align-items:stretch; }
+.baccarat-result-card .baccarat-decision { display:grid;grid-template-columns:1fr;gap:10px;padding:0;margin:0;border:0;background:none; }
+.baccarat-result-card .baccarat-decision>div { margin:0;min-height:0;border:1px solid #304a64;border-radius:12px;background:#142336;box-shadow:none;padding:16px 18px; }
+.baccarat-result-card .prediction-glow { position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;min-height:130px; }
 .baccarat-result-card .prediction-glow:before,.baccarat-result-card .prediction-glow:after { display:none; }
-.baccarat-result-card .baccarat-decision strong { font-size:32px;font-weight:600;text-shadow:none;filter:none;animation:none; }
-.baccarat-result-card .baccarat-decision>div:first-child strong { font-size:48px; }
-.baccarat-result-card .baccarat-decision .advice-banker { color:#f19aa8; }
-.baccarat-result-card .baccarat-decision .advice-player { color:#8fbaf6; }
-.baccarat-result-card .baccarat-decision .advice-observe { color:var(--muted); }
-.baccarat-result-card .baccarat-decision>.prediction-glow.advice-banker { border-color:#b45b7080;background:radial-gradient(ellipse at 50% 0,#af39582b,transparent 85%),#182131;box-shadow:inset 0 1px #ffb5c51c,0 0 22px #d4436910; }
-.baccarat-result-card .baccarat-decision>.prediction-glow.advice-player { border-color:#4e9ed080;background:radial-gradient(ellipse at 50% 0,#2479b52b,transparent 85%),#152437;box-shadow:inset 0 1px #b5e7ff1c,0 0 22px #389fff10; }
-.baccarat-result-card .prediction-glow.advice-banker strong { color:#ffafbf;text-shadow:0 0 20px #ff729e26; }
-.baccarat-result-card .prediction-glow.advice-player strong { color:#9fdcff;text-shadow:0 0 20px #51baff26; }
-.baccarat-result-card .finance-grid strong { font-size:26px;font-weight:550; }
-.baccarat-result-card .finance-grid .profit-positive { color:var(--green); }
-.baccarat-result-card .finance-grid .profit-negative { color:var(--red); }
-.road-grid span { box-shadow:none;background:none; }
-.road-grid strong,.performance-grid strong { font-size:24px;font-weight:550; }
+.baccarat-result-card .baccarat-decision span { font-size:13px;color:#9db5c9; }
+.baccarat-result-card .baccarat-decision strong { font-size:30px;font-weight:600;text-shadow:none;filter:none;animation:none;line-height:1.2; }
+.baccarat-result-card .baccarat-decision>div:first-child strong { font-size:54px;letter-spacing:.06em; }
+.baccarat-result-card .prediction-glow small { font-size:11px;color:#718da6; }
+.baccarat-result-card .baccarat-decision .decision-amount { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px; }
+.baccarat-result-card .baccarat-decision .advice-banker { color:#ffb1bd; }
+.baccarat-result-card .baccarat-decision .advice-player { color:#9ddcff; }
+.baccarat-result-card .baccarat-decision .advice-observe { color:#b8c9dd; }
+.baccarat-result-card .baccarat-decision>.prediction-glow.advice-banker { border-color:#b5576f88;background:radial-gradient(ellipse at 50% 0,#c93c5930,transparent 85%),#201c2b;box-shadow:inset 0 1px #ffb5c51c,0 0 22px #d4436910; }
+.baccarat-result-card .baccarat-decision>.prediction-glow.advice-player { border-color:#4e9ed088;background:radial-gradient(ellipse at 50% 0,#2479b538,transparent 85%),#12283c;box-shadow:inset 0 1px #b5e7ff1c,0 0 22px #389fff10; }
+.baccarat-result-card .prediction-glow.advice-banker strong { text-shadow:0 0 20px #ff729e26; }
+.baccarat-result-card .prediction-glow.advice-player strong { text-shadow:0 0 20px #51baff26; }
+.baccarat-result-card .road-section { display:flex;flex-direction:column;justify-content:center;min-width:0;margin:0;padding:0;border:0;border-radius:0;background:none; }
+.baccarat-result-card .metric-title { display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 14px;padding:0; }
+.baccarat-result-card .metric-title b { font-size:15px;color:#d9e9f7;font-weight:600; }
+.baccarat-result-card .metric-title>span { font-size:11px;color:#718ea8; }
+.baccarat-result-card .road-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0; }
+.baccarat-result-card .road-grid>div { --road-accent:#bdd0e9;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:10px;min-width:0;min-height:150px;padding:16px 8px;border:1px solid #34495e;border-radius:12px;background:linear-gradient(160deg,#1d3044,#142234);text-align:center; }
+.baccarat-result-card .road-grid>div.banker { --road-accent:#ff899c;background:linear-gradient(160deg,#542835,#251c2b);border-color:#88475b; }
+.baccarat-result-card .road-grid>div.player { --road-accent:#79c9ff;background:linear-gradient(160deg,#163f61,#14263c);border-color:#38668b; }
+.baccarat-result-card .road-grid>div.tie { --road-accent:#64dbb3;background:linear-gradient(160deg,#164a42,#132b2c);border-color:#337565; }
+.baccarat-result-card .road-grid>div>span { display:grid;place-items:center;width:42px;height:42px;margin:0;padding:0;border:1px solid color-mix(in srgb,var(--road-accent) 55%,transparent);border-radius:10px;background:color-mix(in srgb,var(--road-accent) 12%,transparent);box-shadow:inset 0 1px #ffffff0a;color:var(--road-accent);font-size:24px;font-weight:600;line-height:1; }
+.baccarat-result-card .road-grid strong { display:block;color:#f4f8ff;font:600 40px/1.1 var(--font-ui);font-variant-numeric:tabular-nums; }
+.baccarat-result-card .road-grid small { font-size:11px;color:var(--road-accent);opacity:.7; }
+.baccarat-secondary { display:grid;grid-template-columns:1fr;gap:20px;padding:20px 24px; }
+.baccarat-secondary.has-finance { grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); }
+.baccarat-result-card .bankroll-summary,.baccarat-result-card .performance-section { min-width:0;margin:0;padding:0;border:0;border-radius:0;background:none; }
+.baccarat-result-card .finance-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0;padding:0; }
+.baccarat-result-card .finance-grid>div { margin:0;padding:12px 0;border:0;border-radius:0;background:none; }
+.baccarat-result-card .finance-grid>div+div { padding-left:16px;border-left:1px solid #2b4056; }
+.baccarat-result-card .finance-grid span { display:block;font-size:12px;color:#8ca7be; }
+.baccarat-result-card .finance-grid strong { display:block;font-size:26px;font-weight:550;margin-top:6px; }
+.baccarat-result-card .finance-grid .profit-positive { color:#69d9b6; }
+.baccarat-result-card .finance-grid .profit-negative { color:#ff899c; }
+.baccarat-result-card .performance-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;padding:0;border:1px solid #2c4259;border-radius:10px;overflow:hidden; }
+.baccarat-result-card .performance-grid>div { min-width:0;padding:12px 8px;text-align:center;border:0;border-right:1px solid #2c4259;border-radius:0;background:#132236; }
+.baccarat-result-card .performance-grid>div:last-child { border:0; }
+.baccarat-result-card .performance-grid span { display:block;font-size:12px;color:#809bb3; }
+.baccarat-result-card .performance-grid strong { display:block;font-size:23px;font-weight:550;line-height:1.3;margin-top:6px; }
+.baccarat-result-card .simulation-note { margin:8px 0 0;padding:0;color:#718ba3;font-size:11px;line-height:1.7; }
+.baccarat-result-card .sync-notice { margin:0;padding:0 24px 12px; }
+.baccarat-footer-meta { display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 24px;border-top:1px solid #24374a;background:#0c1725; }
+.baccarat-result-card .baccarat-notice { display:block;margin:0;padding:0;background:none;border:0;box-shadow:none; }
+.baccarat-result-card .baccarat-notice span { display:block;white-space:normal;overflow-wrap:break-word;color:#7f9bb2;font-size:12px; }
+.baccarat-result-card .baccarat-updated { margin:0;padding:0;font-size:11px;white-space:nowrap;color:#7f9bb2; }
+.baccarat-result-card .result-actions { display:flex;justify-content:flex-end;flex-wrap:wrap;gap:10px;padding:16px 24px;background:#0e1b2c; }
+.baccarat-result-card .result-actions .operation-button { min-height:44px;min-width:120px;justify-content:center;padding:10px 18px; }
 .baccarat-notice,.round-update,.mb-period-notice,.mb-settlement { background:#102b29;border:1px solid #21433c;border-radius:10px;box-shadow:none;animation:none; }
 .baccarat-notice i,.round-update i,.mb-period-notice i { box-shadow:none;animation:none; }
 .baccarat-notice,.simulation-note,.baccarat-updated,.mb-disclaimer { font-size:12px;line-height:1.8; }
-.baccarat-result-card .baccarat-notice { display:block; }
-.baccarat-result-card .baccarat-notice span { display:block;white-space:normal;overflow-wrap:break-word; }
-.baccarat-result-card .baccarat-decision>div:only-child { grid-column:1/-1; }
-.baccarat-result-card .road-grid>div>span { width:auto;height:auto;padding:0;background:none;border:0;border-radius:0;box-shadow:none;color:var(--muted);font-size:13px; }
 .automatic-round-update .baccarat-result-card,.automatic-round-update .baccarat-decision strong { animation:none; }
 .room-button-grid { padding:24px;gap:10px;grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); }
 .room-button-grid .operation-button.primary { background:var(--panel2);border-color:var(--line);color:var(--text); }
@@ -316,6 +358,17 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
 .admin-watch-actions button { background:var(--cyan);border-radius:9px;color:#06202a;font-weight:600; }.admin-watch-actions button.secondary { background:var(--panel2);border-color:var(--line);color:var(--text); }
 .health-pill,.audit-pill { box-shadow:none;font-size:12px;font-weight:500; }
 .mobile-dock { display:none; }
+.core-visual .ring-outer {animation:core-orbit 32s linear infinite}
+.core-visual .ring-inner {animation:core-orbit 18s linear infinite}
+.core-visual .ring-track {animation:core-orbit 26s linear infinite reverse}
+.core-circuit-light {animation:core-packets 4s linear infinite}
+.core-brand:after {content:"";position:absolute;inset:-8px;pointer-events:none;border:1px solid #57dcff55;border-radius:50%;animation:core-breathe 5s ease-in-out infinite}
+.core-motion-toggle {position:absolute;right:12px;top:8px;z-index:3;min-height:36px;padding:4px 10px;border:1px solid #31536b;border-radius:6px;background:#0c1b2a;color:#749ab5;font-size:11px}
+.core-motion-toggle:hover {color:#bceaff;border-color:#62bbd3}
+.v4-hero[data-core-paused] .core-ring,.v4-hero[data-core-paused] .core-circuit-light,.v4-hero[data-core-paused] .core-brand:after,body[data-core-background] .core-ring,body[data-core-background] .core-circuit-light,body[data-core-background] .core-brand:after {animation-play-state:paused}
+@keyframes core-orbit {from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes core-packets {from{stroke-dashoffset:0}to{stroke-dashoffset:-144}}
+@keyframes core-breathe {0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.08);opacity:.65}}
 @keyframes v4-enter { from { opacity:0;transform:translateY(4px); } to { opacity:1;transform:none; } }
 @keyframes v4-loading { 0% { transform:translateX(-100%); } 100% { transform:translateX(300%); } }
 @keyframes v4-skeleton { 0%,100% { opacity:.45; } 50% { opacity:.85; } }
@@ -344,6 +397,12 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
   .ui-stats { gap:0;padding:4px;margin-bottom:24px; }.ui-stat {padding:14px 12px;min-height:128px}.ui-stat>.ui-icon{right:12px;top:16px;width:15px;height:15px}.ui-stat>span{font-size:12px;padding-right:18px;margin-bottom:10px}.ui-stat>strong{font-size:17px}.ui-stat>small{font-size:12px;line-height:1.6}
   .ui-feature-grid {grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:24px}.ui-feature,.ui-feature.feature-baccarat,.ui-feature.feature-atg,.ui-feature.feature-lottery,.ui-feature.feature-sports {grid-column:auto;grid-row:auto;min-height:236px;padding:18px 16px}.ui-feature.feature-atg {grid-column:1/-1;grid-row:1;min-height:236px}.ui-feature.feature-baccarat {grid-column:1/-1;min-height:220px}.ui-feature-top {margin-bottom:16px;gap:8px}.ui-feature-icon{width:32px;height:32px;border-radius:8px}.ui-feature-icon .ui-icon{width:18px;height:18px}.ui-feature .ui-badge {font-size:10px;padding:3px 6px;gap:4px}.ui-feature h3{font-size:18px}.feature-copy{max-width:100%}.feature-copy>p:last-child{font-size:12px;margin-bottom:12px}.feature-kicker{font-size:10px}.ui-feature-tags{gap:4px;margin-bottom:16px;max-width:100%}.ui-feature-tags span{font-size:10px;padding:2px 5px}.ui-feature-link{font-size:12px;padding-top:12px;min-height:44px}.feature-atg .feature-copy{max-width:calc(100% - 106px)}.feature-atg h3,.feature-baccarat h3{font-size:22px}.feature-game-stack{width:144px;right:10px;top:62px}.feature-game-stack img{width:72px;height:100px}.feature-game-stack img:nth-child(2){left:36px}.feature-emblem{width:70px;height:70px;right:-12px;top:75px;opacity:.12}.feature-baccarat .feature-emblem{width:100px;height:100px;right:28px;top:68px;opacity:.27}.feature-baccarat .feature-copy{max-width:74%}.feature-baccarat .ui-feature-tags{max-width:78%}.feature-emblem>.ui-icon{width:34px;height:34px}.feature-baccarat .feature-emblem>.ui-icon{width:45px;height:45px}.ui-section-header h2{font-size:21px}.ui-section-header>span{display:none}
   .ui-member { padding:20px; }.ui-member header { align-items:flex-start;flex-direction:column;gap:12px; }.ui-member dl { gap:20px;margin:20px 0; }.ui-member h2 { font-size:19px; }
+  .ui-feature.has-artwork { grid-column:1/-1;min-height:236px; }
+  .ui-feature.has-artwork h3 { font-size:22px; }
+  .ui-feature.has-artwork .feature-copy { max-width:calc(100% - 106px); }
+  .ui-feature.has-artwork .ui-feature-tags { max-width:100%; }
+  .feature-game-stack[data-covers="2"] img:nth-child(1) { left:9px; }
+  .feature-game-stack[data-covers="2"] img:nth-child(2) { left:57px; }
   .ui-resume { padding:16px;align-items:flex-start;flex-direction:column;gap:4px; }
   .selection-grid,.category-screen .selection-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }.selection-card .image-frame,.category-screen .selection-card .image-frame { height:112px;padding:16px; }.selection-copy,.category-screen .selection-copy { display:block;padding:14px;min-height:136px; }.selection-copy h2,.category-screen .selection-copy h2 { font-size:18px; }.selection-copy p,.category-screen .selection-copy p { font-size:13px; }.selection-copy>span { display:block;margin-top:12px;font-size:12px; }
   .game-identity { grid-template-columns:90px 1fr; }.game-image { height:112px;padding:12px; }.game-identity h2 { font-size:21px; }.game-identity p,.game-identity span { font-size:13px; }.operation-panel { padding:20px; }
@@ -351,8 +410,7 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
   .result-head,.vip-member-head,.lottery539-head { padding:20px; }.result-head h2,.vip-member-head h2 { font-size:20px; }.result-head .ready { font-size:12px; }
   .result-actions { padding:20px;gap:10px; }.result-actions .operation-button { font-size:14px;min-height:48px; }
   .status-grid,.metric-grid,.bet-grid,.finance-grid,.info-card-grid { grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }.status-grid>div:last-child:nth-child(odd) { grid-column:1/-1; }.status-grid>div,.metric-grid>div,.bet-grid>div,.info-card-grid>div { padding:14px 12px; }.status-grid strong,.metric-grid strong { font-size:17px; }
-  .baccarat-result-card .baccarat-decision { padding:20px;gap:10px; }.baccarat-result-card .baccarat-decision strong { font-size:26px; }.baccarat-result-card .baccarat-decision>div:first-child strong { font-size:40px; }.baccarat-result-card .baccarat-decision span { font-size:12px; }.finance-grid { padding:0 20px; }.baccarat-result-card .finance-grid strong { font-size:23px; }
-  .road-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.road-grid strong { font-size:23px; }.road-grid>div { padding:14px; }
+  .baccarat-result-card .result-head {padding:16px}.baccarat-result-card .result-head h2{font-size:21px}.room-platform{width:38px;height:38px;font-size:14px}.baccarat-console{grid-template-columns:1fr;padding:16px;gap:20px}.baccarat-result-card .baccarat-decision{grid-template-columns:1fr 1fr;padding:0;gap:10px}.baccarat-result-card .baccarat-decision>.prediction-glow:only-child{grid-column:1/-1;flex-direction:row;justify-content:space-between;gap:12px;min-height:92px;padding:16px}.baccarat-result-card .prediction-glow:only-child small{display:none}.baccarat-result-card .prediction-glow{min-height:122px;padding:14px 10px}.baccarat-result-card .baccarat-decision>div:first-child strong{font-size:44px}.baccarat-result-card .baccarat-decision .decision-amount{flex-direction:column;justify-content:center;padding:14px 10px;gap:8px}.baccarat-result-card .baccarat-decision strong{font-size:28px}.baccarat-result-card .baccarat-decision span{font-size:12px}.baccarat-result-card .prediction-glow small{font-size:10px}.baccarat-result-card .road-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.baccarat-result-card .road-grid>div{min-height:134px;padding:14px 5px;gap:10px;border-radius:10px}.baccarat-result-card .road-grid>div>span{width:36px;height:36px;font-size:23px;border-radius:9px}.baccarat-result-card .road-grid strong{font-size:32px}.baccarat-result-card .road-grid small{font-size:10px}.baccarat-result-card .metric-title{margin-bottom:12px}.baccarat-result-card .metric-title b{font-size:14px}.baccarat-result-card .metric-title>span{font-size:11px}.baccarat-secondary,.baccarat-secondary.has-finance{grid-template-columns:1fr;padding:16px;gap:20px}.baccarat-result-card .finance-grid{padding:0;gap:12px}.baccarat-result-card .finance-grid strong{font-size:25px}.baccarat-result-card .performance-grid>div{padding:12px 4px}.baccarat-result-card .performance-grid strong{font-size:24px}.baccarat-footer-meta{align-items:flex-start;flex-direction:column;padding:12px 16px;gap:6px}.baccarat-result-card .result-actions{padding:14px 16px}.baccarat-result-card .result-actions .operation-button{flex:1;min-width:0}.baccarat-result-card .sync-notice{padding:0 16px 12px}
   .room-button-grid { padding:20px;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px; }.room-button-grid .operation-button { padding:12px 6px;font-size:14px; }
   .baccarat-input-form { padding:0 20px 20px; }.baccarat-input-form>div { display:grid;grid-template-columns:1fr;gap:12px; }.baccarat-input-form button { width:100%; }
   .baccarat-room-form { padding:0 20px 20px; }.baccarat-room-form>div { grid-template-columns:1fr; }.result-actions:has(.mode-choice) { grid-template-columns:1fr; }
@@ -365,6 +423,7 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
   .toast-region { top:76px; }.ui-settings-list { padding:4px 20px; }
 }
 @media(prefers-reduced-motion:reduce) {
+  .core-motion-toggle {display:none}
   *,*:before,*:after { animation:none!important;transition:none!important;scroll-behavior:auto!important; }
   .progress-line i { width:100%;transform:none; }.vip-skeleton>div { opacity:.65; }
 }
