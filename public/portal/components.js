@@ -31,6 +31,9 @@
   function stat(label, value, detail, name) {
     return `<article class="ui-stat">${icon(name)}<span>${escape(label)}</span><strong>${escape(value)}</strong><small>${escape(detail)}</small></article>`;
   }
+  function hero() {
+    return `<section class="v4-hero"><div class="hero-copy"><p class="eyebrow"><span class="hero-sigil" aria-hidden="true"></span>數據分析工作台</p><h1>黑域AI</h1><h2>智慧數據分析系統</h2><p class="hero-description">整合多平台數據，<br class="hero-mobile-break">提供更直覺的智慧分析體驗。</p><div class="hero-controls"><a href="#homeFeatures" class="hero-enter">選擇分析功能 ${icon("arrow")}</a><button data-go="/portal/vip/status" class="hero-member">會員權限 ${icon("arrow")}</button></div><div class="hero-process"><span>資料同步</span><i aria-hidden="true"></i><span>狀態辨識</span><i aria-hidden="true"></i><span>分析呈現</span></div></div><div class="core-visual" aria-hidden="true"><div class="core-grid"></div><svg class="core-circuits" viewBox="0 0 420 300" fill="none"><path d="M210 150H140L104 73H45M210 150h70l36-77h59M210 150h-70l-36 77H45M210 150h70l36 77h59"/><path class="core-circuit-light" d="M45 73h59l36 77h140l36 77h59"/><circle cx="45" cy="73" r="3"/><circle cx="375" cy="73" r="3"/><circle cx="45" cy="227" r="3"/><circle cx="375" cy="227" r="3"/></svg><span class="core-ring ring-outer"></span><span class="core-ring ring-inner"></span><span class="core-ring ring-track"></span><div class="core-brand"><img src="/brand/blackdomain-ai-logo.png" alt="" width="112" height="112"></div><span class="core-node node-baccarat">${icon("baccarat")}百家樂</span><span class="core-node node-atg">${icon("atg")}電子遊戲</span><span class="core-node node-lottery">${icon("lottery")}彩票</span><span class="core-node node-sports">${icon("sports")}體育</span><span class="core-caption">多平台分析架構</span></div></section>`;
+  }
   function member(profile = {}, allowed, expired) {
     const label = expired ? "會員權限已到期" : allowed ? "會員權限有效" : "尚未開通使用權限";
     return `<article class="ui-member"><header><div><p class="eyebrow">會員資訊</p><h2>你的使用權限</h2></div>${badge(label, expired ? "warning" : allowed ? "success" : "neutral")}</header><dl><div><dt>綁定帳號</dt><dd>${escape(profile.account || "暫無資料")}</dd></div><div><dt>有效期限</dt><dd>${escape(expiry(profile))}</dd></div><div><dt>已開通功能</dt><dd>${escape(Array.isArray(profile.features) && profile.features.length ? profile.features.join("、") : "尚未開通")}</dd></div></dl><button class="ui-text-button" data-go="/portal/vip/status">查看會員權限 ${icon("arrow")}</button></article>`;
@@ -38,7 +41,8 @@
   function feature(key, title, description, items, allowed) {
     const active = items.filter(item => !item.disabled);
     const state = !active.length ? "暫停開放" : allowed ? "可使用" : "需開通權限";
-    return `<article class="ui-feature"><div class="ui-feature-top"><span class="ui-feature-icon">${icon(key)}</span>${badge(state, allowed && active.length ? "success" : "neutral")}</div><h3>${escape(title)}</h3><p>${escape(description)}</p><div class="ui-feature-tags">${items.map(item => `<span>${escape(item.fullName || item.name)}${item.disabled ? "・" + escape(item.disabledLabel || "暫停開放") : ""}</span>`).join("")}</div><button class="ui-feature-link" data-go="/portal/${escape(key)}">進入${escape(title)} ${icon("arrow")}</button></article>`;
+    const artwork = key === "atg" ? `<div class="feature-game-stack" aria-hidden="true">${items.slice(0,3).map(item=>`<img src="${escape(item.image || "")}" alt="" width="96" height="112" loading="lazy">`).join("")}</div>` : `<div class="feature-emblem" aria-hidden="true">${icon(key)}<span></span></div>`;
+    return `<article class="ui-feature feature-${escape(key)}" data-feature="${escape(key)}"><div class="feature-surface" aria-hidden="true"></div><div class="ui-feature-top"><span class="ui-feature-icon">${icon(key)}</span>${badge(state, allowed && active.length ? "success" : "neutral")}</div>${artwork}<div class="feature-copy"><p class="feature-kicker">${escape(({atg:"房況數據",baccarat:"牌路分析",lottery:"號碼資訊",sports:"賽事情報"})[key] || "數據分析")}</p><h3>${escape(title)}</h3><p>${escape(description)}</p></div><div class="ui-feature-tags">${items.map(item => `<span>${escape(item.fullName || item.name)}${item.disabled ? "・" + escape(item.disabledLabel || "暫停開放") : ""}</span>`).join("")}</div><button class="ui-feature-link" data-go="/portal/${escape(key)}">進入分析 ${icon("arrow")}</button></article>`;
   }
   // This is a source health summary, never an analysis or recommendation result.
   function sourceSummary(games, now = Date.now()) {
@@ -51,5 +55,5 @@
     const fresh = valid.filter(game => now-Date.parse(game.updatedAt) <= 120000 && Number(game.freshDetailCount) > 0 && game.ready === true);
     return {latest, count:fresh.length, total:sources.length, label:!valid.length ? "暫無資料" : fresh.length === sources.length && sources.length ? "資料已更新" : "資料未齊備", tone:fresh.length === sources.length && sources.length ? "success" : "warning"};
   }
-  root.PortalUI = Object.freeze({escape,icon,badge,date,expiry,stat,member,feature,sourceSummary});
+  root.PortalUI = Object.freeze({escape,icon,badge,date,expiry,stat,member,feature,hero,sourceSummary});
 })(typeof window !== "undefined" ? window : globalThis);

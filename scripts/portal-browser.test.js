@@ -12,7 +12,7 @@ function flex(title,texts,actions=[]){return {type:"flex",altText:title,contents
 
 test("portal at six widths: routes, truthful empty states, navigation, inputs, errors and reduced motion",{timeout:180000},async()=>{
   const app=express();app.use(express.json());
-  const state={authenticated:true,allowed:true,expired:false,failMe:false,failData:false,commands:[],amount:null};
+  const state={authenticated:true,allowed:true,expired:false,failMe:false,failData:false,commands:[],amount:null,prediction:'觀望'};
   let accessCalls=0;
   app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:false,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
   app.get('/health',(_req,res)=>res.json({ok:true}));
@@ -24,7 +24,7 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     if(value==='DG')messages=[baccaratRoomFlex('DG',['RB01','RB02','RB03'])];
     else if(value==='RB01')messages=[baccaratPromptFlex({title:'輸入本金',lines:['本機測試，非即時資料']})];
     else if(/^\d+$/.test(value)&&value!=='539'){state.amount=value;messages=[flex('選擇配注模式',['百家樂','選擇配注模式'],['AI配注','天門','自由配注'])];}
-    else if(['AI配注','天門','自由配注'].includes(value))messages=[baccaratAnalysisFlex({session:{platform:'DG',room:'RB01',mode:value,bankroll:Number(state.amount),startBankroll:Number(state.amount),results:{}},prediction:'觀望',bet:0,roomStats:{},notice:'本機測試，非即時資料'})];
+    else if(['AI配注','天門','自由配注'].includes(value))messages=[baccaratAnalysisFlex({session:{platform:'DG',room:'RB01',mode:value,bankroll:Number(state.amount),startBankroll:Number(state.amount),results:{}},prediction:state.prediction,bet:state.prediction==='觀望'?0:100,roomStats:{},notice:'本機測試，非即時資料'})];
     else if(value==='AI推薦房')messages=[flex('房間數據整理中',['戰神賽特2','房間數據整理中'])];
     else if(value==='取消推薦')messages=[flex('已取消推薦',['戰神賽特2','已取消推薦'])];
     else if(value==='VIP')messages=[flex('VIP中心',['VIP狀態','本機版面測試','LINE名稱','暫無資料','3A帳號','暫無資料','AI權限','百家樂AI / ATG AI / 彩票AI / 體育AI','到期時間','暫無資料','剩餘時間','暫無資料','最後更新時間','暫無資料'])];
@@ -49,9 +49,10 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   if(capture)fs.mkdirSync(capture,{recursive:true});
   async function open(route){await page.goto(base+route);await page.locator('#view h1').first().waitFor();}
   async function fit(label){const sizes=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth}));assert.ok(sizes.width<=sizes.viewport,`${label} overflows: ${JSON.stringify(sizes)}`);}
-  async function screenshot(name){if(!capture)return;await page.evaluate(()=>{const marker=document.createElement('div');marker.id='test-marker';marker.textContent='本機版面測試・非即時分析資料';marker.style.cssText='position:fixed;bottom:76px;right:12px;z-index:999;background:#253247;color:#f1f5f9;border:1px solid #94a3b8;padding:5px 10px;font:12px system-ui;border-radius:6px';document.body.append(marker);});await page.screenshot({path:path.join(capture,name+'.png'),fullPage:true,animations:'disabled'});await page.locator('#test-marker').evaluate(node=>node.remove());}
+  async function screenshot(name){if(!capture)return;await page.evaluate(()=>{const marker=document.createElement('div');marker.id='test-marker';marker.textContent='本機版面測試・非即時分析資料';marker.style.cssText='position:fixed;bottom:76px;right:12px;z-index:999;background:#253247;color:#f1f5f9;border:1px solid #94a3b8;padding:5px 10px;font:12px system-ui;border-radius:6px';document.body.append(marker);});await page.screenshot({path:path.join(capture,name+'.png'),fullPage:true,animations:'disabled'});if(name.startsWith('home-'))await page.screenshot({path:path.join(capture,name+'-viewport.png'),fullPage:false,animations:'disabled'});await page.locator('#test-marker').evaluate(node=>node.remove());}
   try{
     for(const width of [375,390,430,768,1024,1440]){
+      state.prediction=width===390?'閒':width===1440?'莊':'觀望';
       await page.setViewportSize({width,height:900});
       for(const route of ['/portal/','/portal/baccarat','/portal/atg','/portal/lottery','/portal/sports','/portal/settings','/portal/more','/portal/vip/status']){
         await open(route);await fit(`${width} ${route}`);
@@ -70,7 +71,8 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
       await page.getByLabel('本金',{exact:true}).fill('1000');await page.getByRole('button',{name:'確認本金',exact:true}).click();
       await page.getByRole('button',{name:/^天門/}).click();await page.locator('.baccarat-result-card').waitFor();await fit(`${width} baccarat result`);
       const notice=page.locator('.baccarat-notice span');assert.ok(await notice.evaluate(node=>node.getBoundingClientRect().width)>200);
-      if(width===390)await screenshot('baccarat-390');
+      if(state.prediction!=='觀望')assert.notEqual(await page.locator('.prediction-glow').evaluate(node=>getComputedStyle(node).boxShadow),'none');
+      if([390,1440].includes(width))await screenshot(`baccarat-${width}`);
       await open('/portal/atg/set2/recommend');await page.getByRole('heading',{name:'房間數據整理中',exact:true}).waitFor();await fit(`${width} electronic waiting`);
       assert.equal(await page.locator('#analysisStage').count(),1);
       await page.getByRole('button',{name:'取消推薦',exact:true}).click();await page.getByRole('heading',{name:'已取消推薦',exact:true}).waitFor();
