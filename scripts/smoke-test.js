@@ -1608,10 +1608,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20261006.02", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20261017.04", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20260907.08"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261017.04"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -1650,7 +1650,7 @@ async function main() {
   for (const expected of ['url.pathname.startsWith("/api/")', 'url.pathname.startsWith("/portal/login")', 'networkFirst(request, "/portal/index.html")']) {
     if (!webServiceWorkerSource.includes(expected)) throw new Error(`Web portal PWA cache safety is missing: ${expected}`);
   }
-  for (const expected of ["智能分析中心", "id=\"view\"", "/portal/vip/status"]) {
+  for (const expected of ["智慧數據分析系統", "id=\"view\"", "/portal/vip/status"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Web portal is missing feature: ${expected}`);
   }
   for (const expected of ["new EventSource(eventStreamUrl())", "authorization", "blackdomain_session", "fetch(\"/api/web/command\"", "baccarat:{", "atg:{", "lottery:{", "sports:{", "history.pushState"]){
@@ -1868,12 +1868,11 @@ async function main() {
   for (const expected of [".road-grid", ".baccarat-decision", ".finance-grid"]) {
     if (!webPortalStylesSource.includes(expected)) throw new Error(`Web baccarat result styling is missing: ${expected}`);
   }
-  for (const expected of ["--cursor-x", "repeating-linear-gradient", "tech-field-scan", "tech-trace-drift", "prefers-reduced-motion"]) {
-    if (!webPortalStylesSource.includes(expected)) throw new Error(`Interactive portal atmosphere is missing: ${expected}`);
+  const designSystemSource = fs.readFileSync(path.join(__dirname, "..", "public", "portal", "design-system.css"), "utf8");
+  for (const expected of ["prefers-reduced-motion", ".desktop-sidebar", ".ui-feature", ".ui-stats"]) {
+    if (!designSystemSource.includes(expected)) throw new Error(`Portal design system is missing: ${expected}`);
   }
-  for (const expected of ['addEventListener("pointermove"', 'requestAnimationFrame', '"--cursor-x"', '"--cursor-y"']) {
-    if (!webPortalAppSource.includes(expected)) throw new Error(`Pointer-reactive portal background is missing: ${expected}`);
-  }
+  if (webPortalAppSource.includes('addEventListener("pointermove"')) throw new Error("Portal must not run decorative pointer animations");
   if (!captured.routes.get.some((route) => route.route === "/api/mb/status")) {
     throw new Error("MB status route is not registered");
   }

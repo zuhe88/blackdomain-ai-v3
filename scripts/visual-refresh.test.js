@@ -42,7 +42,8 @@ test('legacy compact cards and untrusted text are handled safely',()=>{
 test('home only offers resume for an active supported session',()=>{
   const start=source.indexOf('function renderHome(){');
   const end=source.indexOf('\n}',start)+2;
-  const home=vm.createContext({view:{innerHTML:''},escapeHtml:context.escapeHtml,accessAllowed:true,resumeBaccaratSession:false,resumeBaccaratPlatform:'DG',categoryOrder:['baccarat','atg','lottery','sports'],categories:Object.fromEntries(['baccarat','atg','lottery','sports'].map(key=>[key,{image:'/test.png',items:key==='baccarat'?[{id:'dg',command:'DG',name:'DG'}]:[]}]))});
+  const home=vm.createContext({view:{innerHTML:''},escapeHtml:context.escapeHtml,memberProfile:{},accessExpired:false,refreshOverview(){},accessAllowed:true,resumeBaccaratSession:false,resumeBaccaratPlatform:'DG',categoryOrder:['baccarat','atg','lottery','sports'],categories:Object.fromEntries(['baccarat','atg','lottery','sports'].map(key=>[key,{image:'/test.png',items:key==='baccarat'?[{id:'dg',command:'DG',name:'DG'}]:[]}]))});
+  vm.runInContext(fs.readFileSync(require.resolve('../public/portal/components.js'),'utf8'),home);
   vm.runInContext(source.slice(start,end),home);
   home.renderHome();assert.ok(!home.view.innerHTML.includes('繼續 DG'));
   home.resumeBaccaratSession=true;home.renderHome();assert.ok(home.view.innerHTML.includes('繼續 DG'));assert.ok(home.view.innerHTML.includes('/portal/baccarat/dg/analyze'));

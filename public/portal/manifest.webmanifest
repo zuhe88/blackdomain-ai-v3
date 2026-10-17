@@ -1,16 +1,16 @@
 {
   "id": "/portal/",
-  "name": "黑域AI 智能分析系統",
+  "name": "黑域AI 智慧數據分析系統",
   "short_name": "黑域AI",
-  "description": "黑域AI 即時數據與智能分析系統",
+  "description": "黑域AI 即時數據與智慧數據分析系統",
   "lang": "zh-Hant-TW",
   "start_url": "/portal/mobile-login?source=pwa",
   "scope": "/portal/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "any",
-  "background_color": "#07080c",
-  "theme_color": "#07080c",
+  "background_color": "#080d16",
+  "theme_color": "#080d16",
   "categories": ["utilities", "entertainment"],
   "icons": [
     {
@@ -39,7 +39,7 @@
       "url": "/portal/baccarat"
     },
     {
-      "name": "ATG AI 選房",
+      "name": "電子遊戲分析",
       "short_name": "ATG",
       "url": "/portal/atg"
     },

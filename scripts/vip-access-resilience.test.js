@@ -73,6 +73,7 @@ test("runtime access API preserves active analysis on lookup failure and enforce
   const { registerWebPortalRoutes } = load("routes/webPortal.js", {
     path, express,
     "../modules/vip": vip,
+    "../services/portalProfile": require("../services/portalProfile"),
     "../modules/vip/lineTransfer": { isLineRevoked: async () => state.transferred === true },
     "../services/webChannel": { authenticate: () => "member", history: () => [] },
     "../modules/baccarat": { hasActiveBaccaratSession: () => state.cleared === 0, activeBaccaratPlatform: () => "DG" },
