@@ -679,7 +679,17 @@ async function main() {
       || exhausted.prediction !== "閒" || exhausted.bet !== 0) {
       throw new Error("A loss exhausting bankroll must preserve the next prediction");
     }
+    if (exhausted.session.fundingAnalysisCount !== 1 || exhausted.session.fundingAnalysisClosed) {
+      throw new Error("Funding pause must allow the first analysis");
+    }
+    firstBaccaratAnalysis(exhausted.session, false);
+    if (exhausted.session.fundingAnalysisCount !== 1) {
+      throw new Error("Snapshot reconciliation must not consume a funding analysis round");
+    }
     const continued = nextBaccaratAnalysis(exhausted.session, "閒");
+    if (continued.session.fundingAnalysisCount !== 2 || !continued.session.fundingAnalysisClosed) {
+      throw new Error("Funding pause must close after two analyses");
+    }
     if (continued.session.bankroll !== 0 || continued.session.results.pass !== 1
       || continued.session.results.fail !== 1 || continued.bet !== 0) {
       throw new Error("Funding pause must freeze bankroll but continue verdict statistics");
@@ -4140,7 +4150,7 @@ async function main() {
   const fundingStopTexts = captured.pushes.at(-1).messages
     .flatMap((message) => collectText(message));
   assertIncludes(fundingStopTexts, "已停止推薦金額與本金紀錄", "Baccarat funding pause notice");
-  assertIncludes(fundingStopTexts, "預測持續更新", "Baccarat funding pause explanation");
+  assertIncludes(fundingStopTexts, "第 1／2 場", "Baccarat funding pause explanation");
   if (!hasActiveBaccaratSession(fundingStopUser)) {
     throw new Error("Baccarat insufficient bankroll must retain the active room session");
   }
@@ -4154,6 +4164,17 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 0));
   if (captured.pushes.length !== pushesBeforeFundingStop + 2) {
     throw new Error("A funding-paused baccarat room must continue predictions");
+  }
+  if (hasActiveBaccaratSession(fundingStopUser)) {
+    throw new Error("Funding pause must end the active session after the second analysis");
+  }
+  assertIncludes(captured.pushes.at(-1).messages.flatMap((message) => collectText(message)),
+    "本房分析已自動關閉", "Funding analysis limit notice");
+  fundingStopRoad.push("閒");
+  dgSource.ingestMessage({ cmd: 1004, tableId: 303, shoeId: 3030, list: dgRoad(fundingStopRoad) });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== pushesBeforeFundingStop + 2) {
+    throw new Error("Closed funding session must not push a third analysis");
   }
 
   const repeatedCorrectionUser = "bound-user";

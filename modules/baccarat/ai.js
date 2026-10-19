@@ -376,7 +376,7 @@ function nextAnalysis(session, opened) {
   return firstAnalysis(session);
 }
 
-function firstAnalysis(session) {
+function firstAnalysis(session, countFundingRound = true) {
   const analysis = analyzePrediction(session.history);
   const prediction = analysis.prediction;
   let bet = calculateBet(session, prediction);
@@ -387,7 +387,11 @@ function firstAnalysis(session) {
   )) {
     session.fundingPaused = true;
   }
-  if (session.fundingPaused) bet = 0;
+  if (session.fundingPaused) {
+    bet = 0;
+    if (countFundingRound) session.fundingAnalysisCount = (Number(session.fundingAnalysisCount) || 0) + 1;
+    session.fundingAnalysisClosed = session.fundingAnalysisCount >= 2;
+  }
   session.lastPrediction = prediction;
   session.lastPredictionMeta = analysis;
   session.lastBet = bet;

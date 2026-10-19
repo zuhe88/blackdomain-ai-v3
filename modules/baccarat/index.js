@@ -354,7 +354,8 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
     await pushLineStrict(originalSession.userId, message);
   }
   if (!isSameActiveSession(originalSession)) return false;
-  updateAfterRound(originalSession.userId, analysis.session);
+  if (analysis.session.fundingAnalysisClosed) await resetStoredSession(originalSession.userId);
+  else updateAfterRound(originalSession.userId, analysis.session);
   return true;
 }
 
@@ -388,7 +389,7 @@ async function settleLiveResult(platform, event, targetIdentity = null) {
     }
     if (!isExpectedNextEvent(session, event)) {
       const reconciliation = reconcileReplacement(candidate, event);
-      const analysis = firstAnalysis(hydrateFromLiveEvent(candidate, event));
+      const analysis = firstAnalysis(hydrateFromLiveEvent(candidate, event), false);
       return deliverLiveDecision(
         session,
         analysis,
@@ -790,7 +791,8 @@ async function handleBaccaratMessage(event) {
       }));
     }
     const result = nextAnalysis(session, value);
-    updateAfterRound(userId, result.session);
+    if (result.session.fundingAnalysisClosed) await resetStoredSession(userId);
+    else updateAfterRound(userId, result.session);
     return reply(token, baccaratAnalysisFlex({
       session: result.session,
       prediction: result.prediction,

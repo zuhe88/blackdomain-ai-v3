@@ -270,6 +270,8 @@ function setCapital(userId, capital) {
   return setSession(userId, {
     capital,
     fundingPaused: false,
+    fundingAnalysisCount: 0,
+    fundingAnalysisClosed: false,
     bankroll: capital,
     startBankroll: capital,
     step: "maxBet",
@@ -287,6 +289,8 @@ function setMode(userId, mode) {
   return setSession(userId, {
     mode,
     fundingPaused: false,
+    fundingAnalysisCount: 0,
+    fundingAnalysisClosed: false,
     capital: null,
     maxBet: null,
     bankroll: null,
