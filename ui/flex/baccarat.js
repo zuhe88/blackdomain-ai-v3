@@ -485,7 +485,7 @@ function baccaratLiveUpdateFlex({ session, prediction, betText, betLabel, isFree
         ...(!isObserve ? [stat(betLabel, betText, gold)] : []),
       ] },
       ...(!isFreeBet ? [divider, { type: "box", layout: "horizontal", spacing: "md", contents: [
-        stat("剩餘模擬本金", value(session.bankroll)),
+        stat("剩餘本金", value(session.bankroll)),
         stat("累計模擬盈虧", (Number(profit) > 0 ? "+" : "") + value(profit), Number(profit) < 0 ? "#EF8B83" : gold),
       ] }, text("依建議金額模擬計算", { size: "xxs", color: muted })] : []),
       divider, roomStatsPanel(tableStats), compactPerformancePanel(results),
@@ -580,7 +580,7 @@ function baccaratAnalysisFlex({
         metric(betLabel, betText, isFreeBet ? null : `上限 ${formatMoney(session.maxBet, session.currency)}`),
       ] : []),
       ...(!isFreeBet ? [
-        infoLine("剩餘模擬本金", formatMoney(session.bankroll, session.currency)),
+        infoLine("剩餘本金", formatMoney(session.bankroll, session.currency)),
         infoLine("累計模擬盈虧", formatMoney(profit, session.currency)),
       ] : []),
       roomStatsPanel(tableStats),

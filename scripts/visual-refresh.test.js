@@ -21,7 +21,7 @@ function render(overrides={}, prediction='莊', compact=true) {
 test('compact and full LINE cards preserve actual values in web display',()=>{
   for (const compact of [true,false]) {
     const {html}=render({},'莊',compact);
-    for(const text of ['莊','6,045','NT$ 345','剩餘模擬本金','累計模擬盈虧','16','18','38']) assert.ok(html.includes(text),text);
+    for(const text of ['莊','6,045','NT$ 345','剩餘本金','累計模擬盈虧','16','18','38']) assert.ok(html.includes(text),text);
     assert.ok(!html.includes('NaN'));
   }
 });
