@@ -131,9 +131,32 @@ function matchesFlex(league, matches) {
   return message;
 }
 
+function dataUnavailableFlex(league) {
+  return bubble({
+    altText: `${league} 賽程資料暫時無法讀取`,
+    title: "賽程資料暫時無法讀取",
+    subtitle: `${league} 體育AI`,
+    quickReply: quickReply([{ label: "重新查詢", text: league }, { label: "返回首頁", text: "首頁" }]),
+    contents: [infoLine("資料狀態", "賽程來源暫時連線失敗，無法確認可分析賽事。"),
+      note("請稍後重新查詢；目前無法判定是否有賽事。")],
+  });
+}
+
+async function fetchLeagueMatches(league, userId) {
+  try {
+    return await loadAvailableMatches(league);
+  } catch (error) {
+    console.error(`[Sports] ${league} schedule unavailable:`, error.message);
+    updateSession("sport", userId, { currentPage: `${league} AI`, league,
+      date: null, match: null, analysis: null, matches: [], lastUpdated: Date.now() });
+    return null;
+  }
+}
+
 async function replyLeague(event, league) {
   const userId = event.source.userId || "";
-  const matches = await loadAvailableMatches(league);
+  const matches = await fetchLeagueMatches(league, userId);
+  if (matches === null) return reply(event.replyToken, dataUnavailableFlex(league));
   const first = matches[0] || null;
 
   updateSession("sport", userId, {
@@ -153,7 +176,8 @@ async function replyLeague(event, league) {
 async function pushLeagueAfterLoading(event, league) {
   const userId = event.source.userId || "";
   await reply(event.replyToken, "AI分析中，請稍候。\nAI預測勝方、比分、讓分與大小分正在整理。");
-  const matches = await loadAvailableMatches(league);
+  const matches = await fetchLeagueMatches(league, userId);
+  if (matches === null) return push(userId, dataUnavailableFlex(league));
   const first = matches[0] || null;
 
   updateSession("sport", userId, {

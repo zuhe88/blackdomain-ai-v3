@@ -2709,6 +2709,18 @@ async function main() {
     values = await sendAndTexts(league, "non-vip-sports-user");
     assertIncludes(values, "需要開通權限", `Non-VIP is blocked on the ${league} sports card`);
   }
+  await send("NBA");
+  values = captured.pushes.at(-1).messages.flatMap((message) => collectText(message));
+  assertIncludes(values, "賽程資料暫時無法讀取", "NBA upstream failures must show a retryable data error");
+  if (values.some((value) => value.includes("目前尚無可分析賽事"))) {
+    throw new Error("NBA connection failures must not be presented as an empty schedule");
+  }
+  const nbaWebToken = "web:user-smoke:nba-source-failure";
+  const nbaWebReply = webChannel.waitReply(nbaWebToken, 1000);
+  await handleEvent({ type: "message", replyToken: nbaWebToken,
+    source: { userId: "user-smoke" }, message: { type: "text", text: "NBA" } });
+  assertIncludes((await nbaWebReply).flatMap((message) => collectText(message)),
+    "賽程資料暫時無法讀取", "Website NBA failures must remain distinguishable from empty schedules");
 
   values = await sendAndTexts("僅用網站", "regular-mode-user");
   assertIncludes(values, "無權限使用此功能", "Only admins may restrict LINE");

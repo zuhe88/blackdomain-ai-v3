@@ -1,5 +1,6 @@
 const { askSportsAI, askSportsPredictionAI } = require("../../services/openai");
 const { MLB_TEAMS_ZH, NBA_TEAMS_ZH } = require("./constants");
+const { loadNbaSchedule, dateInZone } = require("./nbaSchedule");
 
 const REQUEST_TIMEOUT = 3000;
 const NO_DATA_TEXT = "目前尚無可分析賽事";
@@ -417,20 +418,10 @@ function parseNbaRecord(record) {
 }
 
 async function loadNbaMatches() {
-  const today = taiwanNow();
-  let games = [];
-  for (let offset = 0; offset <= 14 && !games.length; offset += 1) {
-    const date = formatDate(addDays(today, offset)).replace(/-/g, "");
-    const data = await requestJson(`https://cdn.nba.com/static/json/liveData/scoreboard/scoreboard_${date}.json`, {}, {
-      Accept: "application/json",
-      Referer: "https://www.nba.com/",
-      "User-Agent": "Mozilla/5.0",
-    }).catch(() => null);
-    games = data?.scoreboard?.games || [];
-  }
+  const games = await loadNbaSchedule(requestJson);
 
   return games
-    .filter((game) => game.gameStatus === 1)
+    .filter((game) => Number(game.gameStatus) === 1)
     .slice(0, MAX_MATCHES)
     .map((game) => {
       const homeRecord = parseNbaRecord(`${game.homeTeam?.wins || 0}-${game.homeTeam?.losses || 0}`);
@@ -443,7 +434,7 @@ async function loadNbaMatches() {
 
       return applyHomeAwayScore({
         league: "NBA",
-        date: formatDate(taiwanNow()),
+        date: dateInZone(game.gameTimeUTC, "Asia/Taipei"),
         home: home.name,
         away: away.name,
         startTime: formatTaiwanTime(game.gameTimeUTC),
@@ -451,7 +442,7 @@ async function loadNbaMatches() {
         spread: spreadAdvice("NBA", pick.winner, pick.stronger, seed),
         total: score.totalAdvice,
         updatedAt: formatTaiwanTime(new Date().toISOString()),
-        teamData: { home, away, stronger: pick.stronger },
+        teamData: { home, away, stronger: pick.stronger, source: game.source, gameId: game.gameId },
       }, score);
     });
 }
@@ -464,6 +455,7 @@ async function loadAvailableMatches(league) {
     if (league === "NBA") matches = await loadNbaMatches();
     return await Promise.all(matches.slice(0, MAX_MATCHES).map(attachPreview));
   } catch (error) {
+    if (league === "NBA") throw error;
     return [];
   }
 }
