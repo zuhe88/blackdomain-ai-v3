@@ -1,4 +1,5 @@
 const MAX_RISK_RATIO = 0.2;
+const { currencyFor, normalizeStakeSession } = require("./currency");
 const PREDICTION_MODEL_VERSION = "baccarat-recent-road-v4";
 const OBSERVE = "觀望";
 const PREDICTION_WINDOW = 8;
@@ -6,20 +7,20 @@ const MIN_SETTLED_ROUNDS = 2;
 const MIN_ALTERNATION_RUN = 3;
 const MIN_WEIGHTED_MARGIN_RATIO = 0.18;
 const TIANMEN_MULTIPLIERS = [1, 3, 7, 15, 31];
-const MIN_BET_UNIT = 100;
+const MIN_BET_UNIT = 50;
 const TIANMEN_TOTAL_MULTIPLIER = TIANMEN_MULTIPLIERS.reduce((sum, value) => sum + value, 0);
 const MIN_TIANMEN_BANKROLL = TIANMEN_TOTAL_MULTIPLIER * MIN_BET_UNIT;
 
 function roundBet(amount) {
   const numeric = Number(amount);
-  if (!Number.isFinite(numeric) || numeric < 100) return 0;
-  const unit = numeric > 10000 ? 1000 : 100;
+  if (!Number.isFinite(numeric) || numeric < MIN_BET_UNIT) return 0;
+  const unit = numeric > 10000 ? 1000 : MIN_BET_UNIT;
   return Math.floor(numeric / unit) * unit;
 }
 
 function clampBet(amount, maxBet) {
   const limit = Number(maxBet);
-  if (!Number.isFinite(limit) || limit < 100) return 0;
+  if (!Number.isFinite(limit) || limit < MIN_BET_UNIT) return 0;
   return Math.max(0, Math.min(roundBet(amount), roundBet(limit), limit));
 }
 
@@ -34,7 +35,7 @@ function getBaseBetAmount(capital) {
   if (capital >= 3000) return 500;
   if (capital >= 2000) return 300;
   if (capital >= 1000) return 200;
-  return roundBet(Math.max(100, capital * 0.15));
+  return roundBet(Math.max(MIN_BET_UNIT, capital * 0.15));
 }
 
 function getRiskLimit(capital) {
@@ -84,7 +85,13 @@ function getHeavenLimit(session) {
   return Math.max(0, Math.min(maxBet, bankroll));
 }
 
-function getTianmenRequirements(capital) {
+function getTianmenRequirements(capital, currency = "TWD") {
+  const scale = currencyFor(currency).scale;
+  if (scale !== 1) {
+    const requirements = getTianmenRequirements(Number(capital) * scale);
+    return { ...requirements, minBankroll: requirements.minBankroll / scale,
+      baseBet: requirements.baseBet / scale, requiredMaxBet: requirements.requiredMaxBet / scale };
+  }
   const bankroll = Math.max(0, Number(capital) || 0);
   const baseBet = roundBet(bankroll / TIANMEN_TOTAL_MULTIPLIER);
   return {
@@ -98,7 +105,7 @@ function getTianmenRequirements(capital) {
 function getTianmenFundingIssue(session) {
   if (session.mode !== "天門") return null;
   const startingCapital = Number(session.startBankroll ?? session.capital ?? getBankroll(session)) || 0;
-  const requirements = getTianmenRequirements(startingCapital);
+  const requirements = getTianmenRequirements(startingCapital, session.currency);
   if (!requirements.sufficientBankroll) {
     return { reasonCode: "INSUFFICIENT_TIANMEN_BANKROLL", ...requirements, startingCapital };
   }
@@ -110,6 +117,7 @@ function getTianmenFundingIssue(session) {
 }
 
 function hasMinimumBetCapacity(session) {
+  session = normalizeStakeSession(session);
   if (session.mode === "自由配注") return true;
   const limit = session.mode === "天門" ? getHeavenLimit(session) : getLimit(session);
   return limit >= MIN_BET_UNIT;
@@ -308,10 +316,14 @@ function predict(history = []) {
 }
 
 function calculateBet(session, prediction = session.lastPrediction) {
+  const original = session;
+  const scale = currencyFor(session.currency).scale;
+  session = normalizeStakeSession(session);
   if (prediction === OBSERVE) return 0;
   if (session.mode === "自由配注" || session.fundingPaused) return 0;
-  if (session.mode === "天門") return getHeavenBet(session);
-  return clampBet(getBaseBet(session), getLimit(session));
+  const bet = session.mode === "天門" ? getHeavenBet(session) : clampBet(getBaseBet(session), getLimit(session));
+  if (session.lastBetMeta) original.lastBetMeta = { ...session.lastBetMeta, baseBet: session.lastBetMeta.baseBet / scale };
+  return bet / scale;
 }
 
 function applyResult(session, outcome) {

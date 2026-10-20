@@ -17,6 +17,7 @@ const {
   setMaxBet,
   setMode,
   setDeliveryChannel,
+  setSession,
   updateAfterRound,
 } = require("./session");
 const {
@@ -31,6 +32,7 @@ const {
 const {
   platformQuickReply,
   modeQuickReply,
+  currencyQuickReply,
   resultQuickReply,
   restartQuickReply,
 } = require("./quickReply");
@@ -40,9 +42,9 @@ const {
   getReason,
   applyResult,
   getTianmenRequirements,
-  MIN_TIANMEN_BANKROLL,
 } = require("./ai");
 const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
+const { currencyFor, parseCurrency, formatMoney } = require("./currency");
 const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("./availability");
@@ -554,24 +556,26 @@ mtSource.onResult((event) => {
   });
 });
 
-function capitalPrompt(mode = "") {
+function capitalPrompt(mode = "", currency = "TWD") {
+  const minimum = getTianmenRequirements(0, currency).minBankroll;
   const tianmenLines = mode === "天門"
-    ? [`天門五關最低本金：${MIN_TIANMEN_BANKROLL.toLocaleString("en-US")}`, "本金不足時不會開始推薦，請重新設定足夠本金。"]
+    ? [`天門五關最低本金：${formatMoney(minimum, currency)}`, "本金不足時不會開始推薦，請重新設定足夠本金。"]
     : [];
   return baccaratPromptFlex({
     title: "請輸入本金",
     lines: [
+      `使用幣別：${currencyFor(currency).label}；最低下注：${formatMoney(currencyFor(currency).minBet, currency)}`,
       ...tianmenLines,
       "本金只能輸入整數，不可為 0、負數、小數或文字。",
-      mode === "天門" ? "範例：5700、10000" : "範例：1000、3000",
+      mode === "天門" ? `範例：${minimum}、${minimum * 2}` : currency === "MYR" ? "範例：100、300" : "範例：1000、3000",
     ],
   });
 }
 
-function maxBetPrompt(capital) {
+function maxBetPrompt(capital, currency = "TWD") {
   return baccaratPromptFlex({
     title: "請輸入單注上限",
-    lines: [`目前本金：${capital}`, "單注上限只能輸入整數，AI建議金額不會超過此上限。"],
+    lines: [`目前本金：${formatMoney(capital, currency)}`, `最低下注：${formatMoney(currencyFor(currency).minBet, currency)}`, "單注上限只能輸入整數，AI建議金額不會超過此上限。"],
   });
 }
 
@@ -580,10 +584,19 @@ function modePrompt(session) {
     title: "請選擇分析模式",
     lines: [
       `平台／房號：${session.platform} ${session.room}`,
+      `使用幣別：${currencyFor(session.currency).label}`,
       `模式：${MODES.join("、")}`,
       "自由配注可直接開始，不需輸入本金與單注上限。",
     ],
     quickReply: modeQuickReply(),
+  });
+}
+
+function currencyPrompt() {
+  return baccaratPromptFlex({
+    title: "請選擇幣別",
+    lines: ["台幣 TWD：最低下注 NT$ 50", "令吉 MYR：最低下注 RM 10", "請依遊戲帳戶使用的幣別選擇，本金與配注皆以所選幣別計算。"],
+    quickReply: currencyQuickReply(),
   });
 }
 
@@ -672,7 +685,14 @@ async function handleBaccaratMessage(event) {
         quickReply: restartQuickReply(),
       }));
     }
-    const updated = setRoom(userId, room);
+    setRoom(userId, room);
+    return reply(token, currencyPrompt());
+  }
+
+  if (session.step === "currency") {
+    const currency = parseCurrency(value);
+    if (!currency) return reply(token, currencyPrompt());
+    const updated = setSession(userId, { currency, step: "mode" });
     return reply(token, modePrompt(updated));
   }
 
@@ -684,19 +704,20 @@ async function handleBaccaratMessage(event) {
         lines: ["請輸入正整數本金。", "範例：1000、3000"],
       }));
     }
-    if (session.mode === "天門" && capital < MIN_TIANMEN_BANKROLL) {
-      const shortage = MIN_TIANMEN_BANKROLL - capital;
+    const minimum = getTianmenRequirements(capital, session.currency).minBankroll;
+    if (session.mode === "天門" && capital < minimum) {
+      const shortage = minimum - capital;
       return reply(token, baccaratPromptFlex({
         title: "天門本金不足",
         lines: [
-          `天門五關最低本金：${MIN_TIANMEN_BANKROLL.toLocaleString("en-US")}`,
-          `目前本金：${capital.toLocaleString("en-US")}，尚差 ${shortage.toLocaleString("en-US")}`,
+          `天門五關最低本金：${formatMoney(minimum, session.currency)}`,
+          `目前本金：${formatMoney(capital, session.currency)}，尚差 ${formatMoney(shortage, session.currency)}`,
           "本金不足時不會產生推薦，請重新輸入本金。",
         ],
       }));
     }
     setCapital(userId, capital);
-    return reply(token, maxBetPrompt(capital));
+    return reply(token, maxBetPrompt(capital, session.currency));
   }
 
   if (session.step === "maxBet") {
@@ -714,13 +735,13 @@ async function handleBaccaratMessage(event) {
       }));
     }
     if (session.mode === "天門") {
-      const requirements = getTianmenRequirements(session.capital);
+      const requirements = getTianmenRequirements(session.capital, session.currency);
       if (maxBet < requirements.requiredMaxBet) {
         return reply(token, baccaratPromptFlex({
           title: "天門單注上限不足",
           lines: [
-            `依目前本金，單注上限至少需為 ${requirements.requiredMaxBet.toLocaleString("en-US")}`,
-            `目前設定：${maxBet.toLocaleString("en-US")}`,
+            `依目前本金，單注上限至少需為 ${formatMoney(requirements.requiredMaxBet, session.currency)}`,
+            `目前設定：${formatMoney(maxBet, session.currency)}`,
             "此門檻用於完整執行天門五關，請重新輸入單注上限。",
           ],
         }));
@@ -755,7 +776,7 @@ async function handleBaccaratMessage(event) {
     }
     const updated = setMode(userId, value);
     if (updated.mode !== "自由配注") {
-      return reply(token, capitalPrompt(updated.mode));
+      return reply(token, capitalPrompt(updated.mode, updated.currency));
     }
     if (!liveDataIsFresh(updated)) {
       const waiting = waitForFreshLiveData(userId, updated);
@@ -814,6 +835,13 @@ function isBaccaratCommand(value) {
     ...DG_ROOMS,
     ...MT_ROOMS,
     ...MODES,
+    "台幣 TWD",
+    "令吉 MYR",
+    "TWD",
+    "MYR",
+    "台幣",
+    "令吉",
+    "RM",
     "閒",
     "和",
     "莊",

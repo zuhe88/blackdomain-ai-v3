@@ -6,6 +6,7 @@ const path=require("node:path");
 const express=require("express");
 const {chromium}=require("playwright-core");
 const {baccaratRoomFlex,baccaratPromptFlex,baccaratAnalysisFlex}=require("../ui/flex/baccarat");
+const {currencyQuickReply,modeQuickReply}=require("../modules/baccarat/quickReply");
 const {registerImageRoutes}=require("../routes/images");
 const root=path.join(__dirname,"..");
 function flex(title,texts,actions=[]){return {type:"flex",altText:title,contents:{type:"bubble",body:{type:"box",layout:"vertical",contents:texts.map(text=>({type:"text",text}))}},quickReply:{items:actions.map(text=>({type:"action",action:{type:"message",label:text,text}}))}};}
@@ -22,9 +23,13 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   app.post('/api/web/command',(req,res)=>{
     const value=req.body.text;state.commands.push(value);let messages=[];
     if(value==='DG')messages=[baccaratRoomFlex('DG',['RB01','RB02','RB03'])];
-    else if(value==='RB01')messages=[baccaratPromptFlex({title:'輸入本金',lines:['本機測試，非即時資料']})];
-    else if(/^\d+$/.test(value)&&value!=='539'){state.amount=value;messages=[flex('選擇配注模式',['百家樂','選擇配注模式'],['AI配注','天門','自由配注'])];}
-    else if(['AI配注','天門','自由配注'].includes(value))messages=[baccaratAnalysisFlex({session:{platform:'DG',room:'RB01',mode:state.modeOverride||value,bankroll:Number(state.amount),startBankroll:Number(state.amount),results:{pass:3,fail:2,tie:1,observe:2}},prediction:state.prediction,bet:state.prediction==='觀望'?0:100,roomStats:{banker:18,player:11,tie:2,total:31},notice:'本機測試，非即時資料'})];
+    else if(value==='RB01')messages=[baccaratPromptFlex({title:'請選擇幣別',lines:['台幣 TWD：最低下注 NT$ 50','令吉 MYR：最低下注 RM 10'],quickReply:currencyQuickReply()})];
+    else if(['台幣 TWD','令吉 MYR'].includes(value)){state.currency=value.includes('MYR')?'MYR':'TWD';messages=[baccaratPromptFlex({title:'請選擇分析模式',lines:[`使用幣別：${value}`],quickReply:modeQuickReply()})];}
+    else if(['AI配注','天門'].includes(value)){state.mode=value;state.inputStep='capital';messages=[baccaratPromptFlex({title:'請輸入本金',lines:[`使用幣別：${state.currency}`]})];}
+    else if(/^\d+$/.test(value)&&value!=='539'){
+      if(state.inputStep==='capital'){state.amount=value;state.inputStep='maxBet';messages=[baccaratPromptFlex({title:'請輸入單注上限',lines:[`使用幣別：${state.currency}`]})];}
+      else messages=[baccaratAnalysisFlex({session:{currency:state.currency,platform:'DG',room:'RB01',mode:state.modeOverride||state.mode,bankroll:Number(state.amount),startBankroll:Number(state.amount),maxBet:Number(value),results:{pass:3,fail:2,tie:1,observe:2}},prediction:state.prediction,bet:state.prediction==='觀望'?0:state.currency==='MYR'?10:50,roomStats:{banker:18,player:11,tie:2,total:31},notice:'本機測試，非即時資料'})];
+    }
     else if(value==='AI推薦房')messages=[flex('房間數據整理中',['戰神賽特2','房間數據整理中'])];
     else if(value==='取消推薦')messages=[flex('已取消推薦',['戰神賽特2','已取消推薦'])];
     else if(value==='VIP')messages=[flex('VIP中心',['VIP狀態','本機版面測試','LINE名稱','暫無資料','3A帳號','暫無資料','AI權限','百家樂AI / ATG AI / 彩票AI / 體育AI','到期時間','暫無資料','剩餘時間','暫無資料','最後更新時間','暫無資料'])];
@@ -81,9 +86,16 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
         }
       }
       await open('/portal/baccarat/dg/analyze');await page.getByRole('button',{name:'RB01',exact:true}).waitFor();await fit(`${width} rooms`);
-      await page.getByLabel('手動輸入房號',{exact:true}).fill('rb01');await page.getByRole('button',{name:'確認房間',exact:true}).click();await page.getByLabel('本金',{exact:true}).waitFor();
-      await page.getByLabel('本金',{exact:true}).fill('1000');await page.getByRole('button',{name:'確認本金',exact:true}).click();
-      await page.getByRole('button',{name:/^天門/}).click();await page.locator('.baccarat-result-card').waitFor();await fit(`${width} baccarat result`);
+      await page.getByLabel('手動輸入房號',{exact:true}).fill('rb01');await page.getByRole('button',{name:'確認房間',exact:true}).click();
+      await page.getByRole('heading',{name:'請選擇幣別',exact:true}).waitFor();await fit(`${width} currency selection`);
+      if(width===390)await screenshot('currency-390');
+      const useMyr=[390,768,1440].includes(width);
+      await page.getByRole('button',{name:useMyr?'令吉 MYR':'台幣 TWD',exact:true}).click();
+      await page.getByRole('button',{name:/^天門/}).click();await page.getByLabel('本金',{exact:true}).waitFor();
+      await page.getByLabel('本金',{exact:true}).fill(useMyr?'570':'2850');await page.getByRole('button',{name:'確認本金',exact:true}).click();
+      await page.getByLabel('單注上限',{exact:true}).fill(useMyr?'310':'1550');await page.getByRole('button',{name:'確認單注上限',exact:true}).click();
+      await page.locator('.baccarat-result-card').waitFor();await fit(`${width} baccarat result`);
+      assert.ok((await page.locator('.baccarat-result-card').innerText()).includes(useMyr?'令吉 MYR':'台幣 TWD'));
       const notice=page.locator('.baccarat-notice span');assert.ok(await notice.evaluate(node=>node.getBoundingClientRect().width)>200);
       assert.deepEqual(await page.locator('.road-grid strong').allTextContents(),['18','11','2','31']);
       const labels=await page.locator('.road-grid>div>span').evaluateAll(nodes=>nodes.map(node=>({font:parseFloat(getComputedStyle(node).fontSize),color:getComputedStyle(node).color,top:node.getBoundingClientRect().top})));

@@ -18,6 +18,14 @@ function modeQuickReply() {
   ]);
 }
 
+function currencyQuickReply() {
+  return quickReply([
+    { label: "台幣 TWD", text: "台幣 TWD" },
+    { label: "令吉 MYR", text: "令吉 MYR" },
+    { label: "返回首頁", text: "返回首頁" },
+  ]);
+}
+
 function resultQuickReply() {
   return quickReply([
     { label: "重新開始", text: "重新開始" },
@@ -36,6 +44,7 @@ function restartQuickReply() {
 module.exports = {
   platformQuickReply,
   modeQuickReply,
+  currencyQuickReply,
   resultQuickReply,
   restartQuickReply,
 };

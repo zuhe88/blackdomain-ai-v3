@@ -333,6 +333,11 @@ function followEvent(userId = "new-follower") {
 }
 
 async function send(text, userId = "user-smoke") {
+  // Existing scenarios use TWD; exercise the new selection explicitly before choosing a mode.
+  if (["動態配注", "AI配注", "天門", "自由配注"].includes(text)
+    && getBaccaratSession(userId).step === "currency") {
+    await handleEvent(event("台幣 TWD", userId));
+  }
   await handleEvent(event(text, userId));
   return captured.replies[captured.replies.length - 1];
 }
@@ -707,7 +712,7 @@ async function main() {
     }
   }
   const minimumTianmen = getTianmenRequirements(5700);
-  const belowMinimumTianmen = getTianmenRequirements(5699);
+  const belowMinimumTianmen = getTianmenRequirements(2849);
   if (
     !minimumTianmen.sufficientBankroll
     || minimumTianmen.baseBet !== 100
@@ -740,10 +745,10 @@ async function main() {
     mode: "天門",
     history: Array(12).fill("莊"),
     results: { pass: 0, fail: 0, tie: 0, observe: 0 },
-    bankroll: 5000,
-    capital: 5000,
-    maxBet: 5000,
-    startBankroll: 5000,
+    bankroll: 2800,
+    capital: 2800,
+    maxBet: 2800,
+    startBankroll: 2800,
     tianmenLevel: 1,
     lastPrediction: null,
     lastBet: 0,
@@ -1618,10 +1623,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20261017.08", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20261020.01", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261017.08"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261020.01"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -4177,6 +4182,29 @@ async function main() {
     throw new Error("Closed funding session must not push a third analysis");
   }
 
+  const currencyUser = "bound-user";
+  await send("百家樂", currencyUser);
+  await send("DG", currencyUser);
+  values = await sendAndTexts("RB03", currencyUser);
+  assertIncludes(values, "請選擇幣別", "Baccarat currency choice");
+  values = await sendAndTexts("美元", currencyUser);
+  assertIncludes(values, "請選擇幣別", "Unsupported currency must not advance");
+  await send("令吉 MYR", currencyUser);
+  values = await sendAndTexts("天門", currencyUser);
+  assertIncludes(values, "RM 570", "MYR five-stage bankroll minimum");
+  values = await sendAndTexts("569", currencyUser);
+  assertIncludes(values, "天門本金不足", "MYR bankroll minimum enforcement");
+  await send("570", currencyUser);
+  values = await sendAndTexts("309", currencyUser);
+  assertIncludes(values, "RM 310", "MYR five-stage max bet requirement");
+  values = await sendAndTexts("310", currencyUser);
+  assertIncludes(values, "令吉 MYR", "MYR analysis identifies its currency");
+  if (getBaccaratSession(currencyUser).currency !== "MYR"
+    || getBaccaratSession(currencyUser).bankroll !== 570) {
+    throw new Error("Baccarat must store native MYR amounts and selected currency");
+  }
+  await send("返回首頁", currencyUser);
+
   const repeatedCorrectionUser = "bound-user";
   const repeatedRoad = ["莊", "莊", "莊"];
   dgSource.ingestMessage({
@@ -4406,6 +4434,8 @@ async function main() {
   values = await sendAndTexts("MT", "user-smoke");
   assertIncludes(values, "MT01", "MT baccarat rooms");
   values = await sendAndTexts("MT01", "user-smoke");
+  assertIncludes(values, "請選擇幣別", "MT baccarat currency flow");
+  values = await sendAndTexts("台幣 TWD", "user-smoke");
   assertIncludes(values, "請選擇分析模式", "MT baccarat mode flow");
   assertIncludes(values, "自由配注", "MT baccarat mode flow");
   values = await sendAndTexts("自由配注", "user-smoke");

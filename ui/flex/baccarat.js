@@ -9,6 +9,7 @@ const {
 } = require("./premium");
 const { moduleImageUrl } = require("../../utils/moduleImage");
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("../../modules/baccarat/availability");
+const { currencyFor, formatMoney } = require("../../modules/baccarat/currency");
 
 function baccaratPromptFlex({ title, lines = [], quickReply }) {
   return bubble({
@@ -465,7 +466,7 @@ function compactPerformancePanel(results) {
 
 function baccaratLiveUpdateFlex({ session, prediction, betText, betLabel, isFreeBet, isObserve, profit, results, tableStats, notice, quickReply }) {
   const muted = "#9CA3AF", gold = "#E2C18D", white = "#F2F3F5";
-  const value = amount => Number(amount).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const value = amount => formatMoney(amount, session.currency);
   const stat = (label, amount, color = white) => ({ type: "box", layout: "vertical", flex: 1, spacing: "sm", contents: [
     text(label, { size: "xxs", color: muted, wrap: true }),
     text(amount, { size: "xl", color, weight: "bold", wrap: true, adjustMode: "shrink-to-fit" }),
@@ -478,6 +479,7 @@ function baccaratLiveUpdateFlex({ session, prediction, betText, betLabel, isFree
         text(session.platform + " " + session.room, { size: "md", color: white, weight: "bold", flex: 1, wrap: true }),
         text("分析中", { size: "xxs", color: "#84C7AA", align: "end", flex: 0 }),
       ] }, divider,
+      text(`使用幣別：${currencyFor(session.currency).label}`, { size: "xs", color: muted }),
       { type: "box", layout: "horizontal", spacing: "lg", contents: [
         stat(isObserve ? "本局策略" : "下一局建議", prediction, prediction === "莊" ? "#EF8B83" : prediction === "閒" ? "#83AFE5" : gold),
         ...(!isObserve ? [stat(betLabel, betText, gold)] : []),
@@ -530,7 +532,7 @@ function baccaratAnalysisFlex({
   }
   const isObserve = prediction === "觀望";
   const betLabel = isFreeBet ? "配注方式" : "建議下注";
-  const betText = session.fundingPaused ? "已停止推薦金額" : isFreeBet ? "玩家自行決定" : String(bet);
+  const betText = session.fundingPaused ? "已停止推薦金額" : isFreeBet ? "玩家自行決定" : formatMoney(bet, session.currency);
   const displayReason = naturalReason(reason, { isFreeBet, isObserve });
   const results = {
     pass: session.results.pass || 0,
@@ -572,13 +574,14 @@ function baccaratAnalysisFlex({
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
     contents: [
+      infoLine("使用幣別", currencyFor(session.currency).label),
       metric(isObserve ? "本局策略" : "建議", prediction, displayReason),
       ...(!isObserve ? [
-        metric(betLabel, betText, isFreeBet ? null : `上限 ${session.maxBet}`),
+        metric(betLabel, betText, isFreeBet ? null : `上限 ${formatMoney(session.maxBet, session.currency)}`),
       ] : []),
       ...(!isFreeBet ? [
-        infoLine("剩餘模擬本金", String(session.bankroll)),
-        infoLine("累計模擬盈虧", String(profit)),
+        infoLine("剩餘模擬本金", formatMoney(session.bankroll, session.currency)),
+        infoLine("累計模擬盈虧", formatMoney(profit, session.currency)),
       ] : []),
       roomStatsPanel(tableStats),
       verificationNotice(),

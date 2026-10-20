@@ -116,6 +116,7 @@ function createSession(userId) {
     capital: null,
     maxBet: null,
     mode: null,
+    currency: null,
     step: "platform",
     history: [],
     results: {
@@ -262,7 +263,8 @@ function setPlatform(userId, platform) {
 function setRoom(userId, room) {
   return setSession(userId, {
     room,
-    step: "mode",
+    currency: null,
+    step: "currency",
   });
 }
 
