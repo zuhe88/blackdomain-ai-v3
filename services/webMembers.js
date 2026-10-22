@@ -13,7 +13,7 @@ function memberId(row) { return `${PREFIX}${row.id}@${row.auth_version}`; }
 function isMember(id) { return typeof id === "string" && id.startsWith(PREFIX); }
 function allowed(row) { return Boolean(row?.enabled && Date.parse(row.expires_at) > Date.now()); }
 function profile(row) {
-  return row ? { lineUserId: memberId(row), account3A: row.account, lineName: "網站會員", vipStatus: "approved", aiPermission: row.enabled === true, expiresAt: row.expires_at, isAdmin: false } : null;
+  return row ? { lineUserId: memberId(row), account3A: row.account, accountPlatform: "OFA", lineName: "OFA 網站會員", vipStatus: "approved", aiPermission: row.enabled === true, expiresAt: row.expires_at, isAdmin: false } : null;
 }
 async function lookup(field, value) {
   if (!db) throw unavailable();

@@ -407,6 +407,23 @@ async function notifyAdminsBind({ lineUserId, lineName, account3A }) {
 }
 
 function vipCenterFlex(user, isAdmin = false, globalAccessEnabled = false) {
+  if (String(user?.lineUserId || "").startsWith("webmember_")) {
+    return bubble({
+      altText: "網站會員權限", title: "網站會員權限", subtitle: "BLACKDOMAIN OFA",
+      quickReply: quickReply([{ label: "刷新權限", text: "VIP" }, { label: "返回首頁", text: "首頁" }]),
+      contents: [
+        metric("VIP狀態", vipStatusText(user), "OFA 網站會員"),
+        infoLine("會員類型", "OFA 網站會員"),
+        infoLine("OFA帳號", user.account3A),
+        infoLine("AI權限", hasAiPermission(user) ? AI_FEATURES : "尚未開通"),
+        infoLine("到期時間", formatDateTime(user.expiresAt)),
+        infoLine("剩餘時間", remainingTimeText(user.expiresAt)),
+        infoLine("最後更新時間", new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false })),
+        note("延長期限或重設 AI 專用密碼，請聯絡提供服務的管理員。"),
+        button("返回首頁", "首頁"),
+      ],
+    });
+  }
   if (isAdmin) {
     return bubble({
       altText: "VIP中心",
@@ -490,6 +507,7 @@ function adminHelpFlex(globalAccessEnabled = false, electronicAllEnabled = areAl
       infoLine("僅開放賽特2", "關閉其他電子遊戲並取消相關等待"),
       infoLine("待審核", "列出所有 pending"),
       infoLine("查會員", "查會員 abc123"),
+      infoLine("OFA網站會員", "傳送「網站會員」或「OFA會員」取得獨立會員管理入口"),
       infoLine("開通", "開通 abc123 30分鐘 / 7天 / 永久"),
       infoLine("取消VIP", "取消VIP abc123"),
       infoLine("延長VIP", "延長VIP abc123 30分鐘 / 7天"),
@@ -538,6 +556,21 @@ async function handleAdminCommand(event) {
   const text = event.message.text.trim();
   if (!isAdminLineUserId(userId)) {
     return reply(event.replyToken, adminResultFlex("權限不足", [["狀態", "無權限使用此功能。"]], false));
+  }
+
+  if (text === "網站會員" || text === "OFA會員") {
+    const base = String(process.env.PUBLIC_SITE_URL || "https://blackdomain-ai-v3-production.up.railway.app").replace(/\/$/, "");
+    return reply(event.replyToken, bubble({
+      altText: "OFA網站會員管理", title: "OFA網站會員管理", subtitle: "BLACKDOMAIN ADMIN",
+      contents: [
+        note("請先在同一個瀏覽器完成管理員網站登入，再開啟管理後台。"),
+        infoLine("開通會員", "填 OFA 帳號、AI 專用密碼、期限，狀態選開通後儲存。"),
+        infoLine("延長／停用", "填相同 OFA 帳號，更新期限或狀態；密碼留空保留原密碼。"),
+        infoLine("重設密碼", "填相同 OFA 帳號與新的 AI 專用密碼，儲存後請會員重新登入。"),
+        uriButton("開啟會員管理", `${base}/portal/admin/web-members`),
+        uriButton("OFA會員登入網址", `${base}/portal/member-login`),
+      ],
+    }));
   }
 
   if (text === "管理指令" || text === "管理員指令") {

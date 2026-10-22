@@ -80,6 +80,7 @@ test("website identities use shared VIP checks and website delivery without call
   const login = await service.login("myuser", password, "ip");
   const vip = load("modules/vip/index.js", { "../../services/webMembers": service });
   assert.equal((await vip.checkVipAccess(login.userId)).allowed, true);
+  assert.equal((await vip.checkVipAccess(login.userId)).user.accountPlatform, "OFA");
   const delivered = [];
   const line = load("services/line.js", {
     "./webMembers": service,
@@ -94,6 +95,23 @@ test("website identities use shared VIP checks and website delivery without call
   web.resolveReply(token, [{ type: "text", text: "analysis" }]);
   await pending;
   assert.equal(web.history(login.userId).length, 1);
+});
+test("OFA admin entry commands require admin and expose the two correct URLs", async () => {
+  let result;
+  const vip = load("modules/vip/index.js", {
+    "../../services/line": { reply: async (token, message) => { result = message; }, quickReply: items => items },
+    "../../config/admin": { isAdminLineUserId: id => id === "admin" },
+    "../../utils/sessionStore": { getSession: () => ({}) },
+    "./constants": require("../modules/vip/constants"),
+    "../../ui/flex/premium": { bubble: value => value, note: value => value, button: (label, text) => ({ label, text }), metric: (label, value) => ({ label, value }), infoLine: (label, value) => ({ label, value }), uriButton: (label, uri) => ({ label, uri }) },
+  });
+  assert.equal(vip.isVipCommand("網站會員"), true);
+  assert.equal(vip.isVipCommand("OFA會員"), true);
+  await vip.handleVipMessage({ source: { userId: "admin" }, message: { text: "OFA會員" }, replyToken: "test" });
+  assert.equal(result.contents.filter(item => item.uri).length, 2);
+  assert.equal(result.contents.some(item => item.uri?.endsWith("/portal/admin/web-members")), true);
+  await vip.handleVipMessage({ source: { userId: "ordinary-member" }, message: { text: "網站會員" }, replyToken: "test" });
+  assert.equal(result.title, "權限不足");
 });
 test("browser login and admin form at mobile/desktop widths, with actual CSRF middleware", { skip: !browserPath && "Chrome/Edge unavailable" }, async () => {
   const { service, state } = fixture();
@@ -136,6 +154,7 @@ test("browser login and admin form at mobile/desktop widths, with actual CSRF mi
     for (const width of [375, 430, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(base + "/portal/member-login");
+      assert.equal(await page.getByLabel("OFA 帳號", { exact: true }).count(), 1);
       assert.equal(await page.locator("img").evaluate(img => img.complete && img.naturalWidth > 0), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       if (process.env.WEB_MEMBER_CAPTURE_DIR) await page.screenshot({ path: path.join(process.env.WEB_MEMBER_CAPTURE_DIR, `web-member-login-${width}.png`), fullPage: true });

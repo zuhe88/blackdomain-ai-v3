@@ -73,8 +73,8 @@ function registerHealthRoutes(app) {
       websiteMonitoringLifecycle: "server-session-v2",
       portalDirectReplyRendering: "unfiltered-v2",
       lineMemberBindingPreserved: true,
-      portalBuild: "20261023.01",
-      webMemberLoginBuild: "20261023.01",
+      portalBuild: "20261023.02",
+      webMemberLoginBuild: "20261023.02",
       atgXBuild: "20260906.20",
       atgXLineConfigured: Boolean(
         process.env.ATGX_LINE_CHANNEL_SECRET

@@ -6,6 +6,7 @@ function portalProfile(access, expiresAt) {
     : member && !member.expiresAt && member.aiPermission === true ? "permanent" : "member";
   return {
     account: member?.account3A || null,
+    accountPlatform: member?.accountPlatform || "3A",
     accessType,
     expiresAt: expiresAt ? new Date(expiresAt).toISOString() : member?.expiresAt || null,
     features: allowed ? ["百家樂分析", "電子遊戲分析", "彩票分析", "體育數據"] : [],
