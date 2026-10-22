@@ -260,6 +260,7 @@ function hasAiPermission(user) {
 }
 
 async function checkVipAccess(userId) {
+  if (String(userId || "").startsWith("webmember_")) return require("../../services/webMembers").access(userId);
   if (isAdminLineUserId(userId)) return { allowed: true, isAdmin: true, user: null };
   if (await lineTransfer.isLineRevoked(userId)) return { allowed: false, isAdmin: false, user: null, transferred: true };
   const [user, globalAccess] = await Promise.all([
@@ -820,11 +821,14 @@ async function handleVipMessage(event) {
   }
   if (ADMIN_COMMANDS.some((cmd) => text === cmd || text.startsWith(`${cmd} `))) return handleAdminCommand(event);
   const bindCommand = parseBindCommand(text);
+  if (String(lineUserId).startsWith("webmember_") && bindCommand) {
+    return reply(event.replyToken, simpleFlex({ title: "網站會員", rows: [["帳號管理", "網站會員帳號由管理員維護，無需綁定 LINE。"]] }));
+  }
   if (bindCommand) return handleBindCommand(event, bindCommand.account);
   if (session.binding3A) return handleBindInput(event);
 
   const isAdmin = isAdminLineUserId(lineUserId);
-  const globalAccess = isAdmin ? { enabled: false } : await getGlobalAiAccessState();
+  const globalAccess = isAdmin || String(lineUserId).startsWith("webmember_") ? { enabled: false } : await getGlobalAiAccessState();
   const user = isAdmin
     ? { lineName: await getLineName(lineUserId), account3A: "管理員", vipStatus: STATUS.APPROVED, aiPermission: true, expiresAt: null, isAdmin: true }
     : await findVipUserByLineUserId(lineUserId);

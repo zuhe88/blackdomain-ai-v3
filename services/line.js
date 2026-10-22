@@ -171,6 +171,11 @@ async function pushLine(userId, messages) {
 }
 
 async function pushStrict(userId, messages) {
+  if (String(userId || "").startsWith("webmember_")) {
+    const access = await require("./webMembers").access(userId);
+    if (access.allowed) webChannel.publish(userId, normalizeMessages(messages));
+    return;
+  }
   await refreshLineWebsiteMode();
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
   if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) return;
@@ -187,6 +192,11 @@ async function pushStrict(userId, messages) {
 }
 
 async function pushLineStrict(userId, messages) {
+  if (String(userId || "").startsWith("webmember_")) {
+    const access = await require("./webMembers").access(userId);
+    if (access.allowed) webChannel.publish(userId, normalizeMessages(messages));
+    return;
+  }
   await refreshLineWebsiteMode();
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
   if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) return;

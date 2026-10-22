@@ -155,6 +155,10 @@ function isActiveRequest(request) {
 }
 
 async function findVipUserByLineUserId(lineUserId, { strict = false } = {}) {
+  if (String(lineUserId || "").startsWith("webmember_")) {
+    const access = await require("../../services/webMembers").access(lineUserId);
+    return access.user || normalizeUser(null);
+  }
   if (!isConnected()) {
     if (strict) throw accessUnavailable();
     return normalizeUser(null);

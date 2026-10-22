@@ -8,6 +8,7 @@ const electronic = require("../modules/electronic");
 const electronicAvailability = require("../modules/electronic/availability");
 const featureAudit = require("../modules/electronic/featureAudit");
 const mobileAccountLogin = require("../services/mobileAccountLogin");
+const webMembers = require("../services/webMembers");
 const { isAdminLineUserId } = require("../config/admin");
 const { getSystemHealth } = require("../services/systemHealth");
 const accessExpiryTimers = new Map();
@@ -130,7 +131,15 @@ if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWor
 function registerWebPortalRoutes(app) {
   app.use("/api/web", async (req, res, next) => {
     try {
+      if (req.path === "/member/login") return next();
       const id = user(req);
+      if (String(id || "").startsWith("webmember_") && req.path !== "/member/login") {
+        const access = await webMembers.access(id);
+        if (!access.sessionValid || (!access.allowed && req.path !== "/me" && req.path !== "/stop")) {
+          return res.status(401).json({ error: "網站會員權限已變更或到期，請重新登入。" });
+        }
+        return next();
+      }
       if (id && await require("../modules/vip/lineTransfer").isLineRevoked(id)) {
         res.clearCookie("blackdomain_web", { path: "/" });
         return res.status(401).json({ error: "權限已轉移至新的LINE，請使用新LINE登入。" });
@@ -147,6 +156,34 @@ function registerWebPortalRoutes(app) {
       response.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
     },
   }));
+  app.post("/api/web/member/login", express.json({ limit: "4kb" }), async (req, res, next) => {
+    res.setHeader("cache-control", "no-store");
+    try {
+      const result = await webMembers.login(req.body?.account, req.body?.password, req.ip);
+      if (!result.ok) return res.status(result.status).json({ error: result.error });
+      const token = web.issueSession(result.userId);
+      res.setHeader("set-cookie", `blackdomain_web=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`);
+      return res.json({ ok: true });
+    } catch (error) { return next(error); }
+  });
+  app.get("/portal/member-login", (req, res) => {
+    res.setHeader("cache-control", "no-store");
+    return res.sendFile(path.join(__dirname, "..", "public", "web-members", "login.html"));
+  });
+  app.get("/portal/admin/web-members", (req, res) => {
+    res.setHeader("cache-control", "no-store");
+    if (!isAdminLineUserId(user(req))) return res.status(403).send("僅限管理員操作。");
+    return res.sendFile(path.join(__dirname, "..", "public", "web-members", "admin.html"));
+  });
+  app.post("/api/web/admin/web-members", express.json({ limit: "4kb" }), async (req, res, next) => {
+    res.setHeader("cache-control", "no-store");
+    const adminId = user(req);
+    if (!isAdminLineUserId(adminId)) return res.status(403).json({ error: "僅限管理員操作。" });
+    try {
+      const result = await webMembers.save(adminId, req.body);
+      return res.status(result.status || 200).json(result);
+    } catch (error) { return next(error); }
+  });
   app.get("/portal/login", (req, res) => {
     res.setHeader("cache-control", "no-store");
     res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
@@ -321,6 +358,7 @@ function registerWebPortalRoutes(app) {
     });
     const heartbeat = setInterval(async () => {
       try {
+        if (String(userId).startsWith("webmember_") && !(await webMembers.access(userId)).allowed) return res.end();
         if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) return res.end();
         res.write(": keep-alive\n\n");
       } catch { res.end(); }
@@ -375,7 +413,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20261020.02",
+        portalBuild: "20261023.01",
       });
     } catch (error) { return next(error); }
   });
