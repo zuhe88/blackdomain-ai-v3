@@ -20,9 +20,13 @@ function render(overrides={}, prediction='莊', compact=true) {
 }
 test('compact and full LINE cards preserve actual values in web display',()=>{
   for (const compact of [true,false]) {
-    const {html}=render({},'莊',compact);
-    for(const text of ['莊','6,045','NT$ 345','剩餘本金','累計模擬盈虧','16','18','38']) assert.ok(html.includes(text),text);
+    const {html,data}=render({},'莊',compact);
+    for(const text of ['莊','6,045','NT$ 345','剩餘本金','累計盈虧','16','18','38']) assert.ok(html.includes(text),text);
     assert.ok(!html.includes('NaN'));
+    const legacy=JSON.parse(JSON.stringify(data).replaceAll('累計盈虧','累計模擬盈虧'));
+    const legacyHtml=context.baccaratResultCard(context.walk(legacy.contents),[]);
+    assert.ok(legacyHtml.includes('NT$ 345'));
+    assert.ok(legacyHtml.includes('<span>累計盈虧</span>'));
   }
 });
 test('free mode and funding pause hide simulation figures without losing warning',()=>{
