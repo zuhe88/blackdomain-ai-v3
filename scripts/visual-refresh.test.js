@@ -24,11 +24,30 @@ test('compact and full LINE cards preserve actual values in web display',()=>{
     for(const text of ['莊','6,045','NT$ 345','剩餘本金','累計盈虧','16','18','38']) assert.ok(html.includes(text),text);
     assert.ok(!html.includes('NaN'));
     assert.ok(!html.includes('模擬'));
-    const legacy=JSON.parse(JSON.stringify(data).replaceAll('累計盈虧','累計模擬盈虧'));
+    const legacy=JSON.parse(JSON.stringify(data).replaceAll('目前獲利','累計模擬盈虧'));
     const legacyHtml=context.baccaratResultCard(context.walk(legacy.contents),[]);
     assert.ok(legacyHtml.includes('NT$ 345'));
     assert.ok(legacyHtml.includes('<span>累計盈虧</span>'));
     assert.ok(!legacyHtml.includes('模擬'));
+    assert.ok(!html.includes('並非遊戲帳戶餘額'));
+  }
+});
+
+test('new live cards keep profit readable by pages opened before the label rename',()=>{
+  // Reproduce the profit reader shipped before the display-label change.
+  const legacySource=source.replace(/const profit=valueAfter\(texts,[^\n]+;/,'const profit=valueAfter(texts,"累計模擬盈虧",valueAfter(texts,"目前獲利",legacyValue("獲利")));');
+  const legacyContext=vm.createContext({escapeHtml:context.escapeHtml,actionMarkup:()=>''});
+  for(const name of ['valueAfter','valueBefore','roomStatsFromTexts','baccaratPerformance','baccaratResultCard']){
+    const start=legacySource.indexOf(`function ${name}(`);
+    const end=name==='baccaratResultCard'?legacySource.indexOf('\n}',start)+2:legacySource.indexOf('\n',start);
+    vm.runInContext(legacySource.slice(start,end),legacyContext);
+  }
+  for(const compact of [true,false]){
+    for(const [bankroll,profit] of [[114827.5,'NT$ 14,827.5'],[100000,'NT$ 0'],[98000,'NT$ -2,000']]){
+      const {data}=render({bankroll,startBankroll:100000},'莊',compact);
+      const html=legacyContext.baccaratResultCard(context.walk(data.contents),[]);
+      assert.ok(html.includes(profit),`${compact}/${bankroll}: missing ${profit}`);
+    }
   }
 });
 test('free mode and funding pause hide simulation figures without losing warning',()=>{

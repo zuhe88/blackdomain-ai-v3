@@ -486,8 +486,8 @@ function baccaratLiveUpdateFlex({ session, prediction, betText, betLabel, isFree
       ] },
       ...(!isFreeBet ? [divider, { type: "box", layout: "horizontal", spacing: "md", contents: [
         stat("剩餘本金", value(session.bankroll)),
-        stat("累計盈虧", (Number(profit) > 0 ? "+" : "") + value(profit), Number(profit) < 0 ? "#EF8B83" : gold),
-      ] }, text("依建議金額計算", { size: "xxs", color: muted })] : []),
+        stat("目前獲利", (Number(profit) > 0 ? "+" : "") + value(profit), Number(profit) < 0 ? "#EF8B83" : gold),
+      ] }] : []),
       divider, roomStatsPanel(tableStats), compactPerformancePanel(results),
       ...(notice ? [text("同步提示：" + notice, { size: "xs", color: "#EF8B83", wrap: true })] : []),
       text("請核對莊、閒、和、總數是否與平台一致", { size: "xxs", color: muted, wrap: true }),
@@ -581,7 +581,7 @@ function baccaratAnalysisFlex({
       ] : []),
       ...(!isFreeBet ? [
         infoLine("剩餘本金", formatMoney(session.bankroll, session.currency)),
-        infoLine("累計盈虧", formatMoney(profit, session.currency)),
+        infoLine("目前獲利", formatMoney(profit, session.currency)),
       ] : []),
       roomStatsPanel(tableStats),
       verificationNotice(),
