@@ -69,6 +69,7 @@ function registerHealthRoutes(app) {
       vipLineTransferControls: "20261006.01",
       electronicRecommendationPolicy: "live-room-rtp-required-v1",
       visualBuild: "20261006.02",
+      baccaratStakeRounding: "native-hundreds-20261024.01",
       websiteCommandsBypassLineRedirect: true,
       websiteMonitoringLifecycle: "server-session-v2",
       portalDirectReplyRendering: "unfiltered-v2",

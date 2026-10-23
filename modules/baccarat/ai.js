@@ -1,5 +1,5 @@
 const MAX_RISK_RATIO = 0.2;
-const { currencyFor, normalizeStakeSession } = require("./currency");
+const { currencyFor, normalizeStakeSession, roundRecommendedStake } = require("./currency");
 const PREDICTION_MODEL_VERSION = "baccarat-recent-road-v4";
 const OBSERVE = "觀望";
 const PREDICTION_WINDOW = 8;
@@ -322,8 +322,13 @@ function calculateBet(session, prediction = session.lastPrediction) {
   if (prediction === OBSERVE) return 0;
   if (session.mode === "自由配注" || session.fundingPaused) return 0;
   const bet = session.mode === "天門" ? getHeavenBet(session) : clampBet(getBaseBet(session), getLimit(session));
-  if (session.lastBetMeta) original.lastBetMeta = { ...session.lastBetMeta, baseBet: session.lastBetMeta.baseBet / scale };
-  return bet / scale;
+  const recommendation = roundRecommendedStake(bet / scale, original.currency);
+  if (session.lastBetMeta) original.lastBetMeta = {
+    ...session.lastBetMeta,
+    baseBet: roundRecommendedStake(session.lastBetMeta.baseBet / scale, original.currency),
+    riskLevel: riskLevelForBet(recommendation, getBankroll(original)),
+  };
+  return recommendation;
 }
 
 function applyResult(session, outcome) {

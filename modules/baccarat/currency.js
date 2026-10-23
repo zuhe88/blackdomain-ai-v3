@@ -18,6 +18,16 @@ function formatMoney(value, currency) {
   return `${currencyFor(currency).symbol} ${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
+// Apply denomination rules to the final native-currency recommendation.
+// Always round down so a suggestion cannot exceed bankroll or the user's cap.
+function roundRecommendedStake(value, currency) {
+  const amount = Number(value);
+  const minimum = currencyFor(currency).minBet;
+  if (!Number.isFinite(amount) || amount < minimum) return 0;
+  const unit = amount >= 10000 ? 1000 : amount >= 1000 ? 100 : minimum;
+  return Math.floor(amount / unit) * unit;
+}
+
 // Scale the existing stake schedule by minimum chip size, without currency conversion.
 function normalizeStakeSession(session) {
   const scale = currencyFor(session.currency).scale;
@@ -31,4 +41,4 @@ function normalizeStakeSession(session) {
   return normalized;
 }
 
-module.exports = { currencyFor, parseCurrency, formatMoney, normalizeStakeSession };
+module.exports = { currencyFor, parseCurrency, formatMoney, normalizeStakeSession, roundRecommendedStake };
