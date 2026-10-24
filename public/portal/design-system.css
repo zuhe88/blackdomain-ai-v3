@@ -430,7 +430,6 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
   .toast-region { top:76px; }.ui-settings-list { padding:4px 20px; }
 }
 @media(prefers-reduced-motion:reduce) {
-  .core-motion-toggle {display:none}
   *,*:before,*:after { animation:none!important;transition:none!important;scroll-behavior:auto!important; }
   .progress-line i { width:100%;transform:none; }.vip-skeleton>div { opacity:.65; }
 }
@@ -490,3 +489,11 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
   .ui-feature-grid .ui-feature-link { margin:4px -18px 0;padding:13px 17px;min-height:54px; }
   .feature-category-label strong { font-size:14px;letter-spacing:.07em; }
 }
+
+/* Explicit play also works when the device requests reduced motion. */
+.v4-hero[data-core-motion-enabled] .ring-outer {animation:core-orbit 32s linear infinite!important}
+.v4-hero[data-core-motion-enabled] .ring-inner {animation:core-orbit 18s linear infinite!important}
+.v4-hero[data-core-motion-enabled] .ring-track {animation:core-orbit 26s linear infinite reverse!important}
+.v4-hero[data-core-motion-enabled] .core-circuit-light {animation:core-packets 4s linear infinite!important}
+.v4-hero[data-core-motion-enabled] .core-brand:after {animation:core-breathe 5s ease-in-out infinite!important}
+.v4-hero[data-core-paused] .core-ring,.v4-hero[data-core-paused] .core-circuit-light,.v4-hero[data-core-paused] .core-brand:after,body[data-core-background] .core-ring,body[data-core-background] .core-circuit-light,body[data-core-background] .core-brand:after {animation-play-state:paused!important}

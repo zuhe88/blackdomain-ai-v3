@@ -114,6 +114,18 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     await page.setViewportSize({width:390,height:844});await open('/portal/');await page.locator('#mobileDock').getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('heading',{name:'更多功能',exact:true}).waitFor();await page.getByRole('button',{name:'帳號設定',exact:true}).last().click();await page.getByRole('heading',{name:'帳號設定',exact:true}).waitFor();
     await page.getByRole('button',{name:/安裝黑域AI/}).click();await page.getByRole('dialog').waitFor({state:'visible'});await fit('install dialog');await page.getByRole('button',{name:'了解',exact:true}).click();
     await page.emulateMedia({reducedMotion:'reduce'});await open('/portal/');assert.equal(await page.locator('.screen').evaluate(node=>getComputedStyle(node).animationName),'none');assert.equal(await page.locator('.ring-inner').evaluate(node=>getComputedStyle(node).animationName),'none');
+    // Reduced-motion users can explicitly play, pause and resume the core.
+    const ring=page.locator('.ring-inner');
+    const transform=()=>ring.evaluate(node=>getComputedStyle(node).transform);
+    await page.getByRole('button',{name:'播放核心動畫',exact:true}).click();
+    assert.equal(await ring.evaluate(node=>getComputedStyle(node).animationName),'core-orbit');
+    let before=await transform();await page.waitForTimeout(150);assert.notEqual(await transform(),before);
+    await page.getByRole('button',{name:'暫停核心動畫',exact:true}).click();
+    before=await transform();await page.waitForTimeout(150);assert.equal(await transform(),before);
+    await page.getByRole('button',{name:'播放核心動畫',exact:true}).click();
+    before=await transform();await page.waitForTimeout(150);assert.notEqual(await transform(),before);
+    await page.emulateMedia({reducedMotion:'no-preference'});await open('/portal/');
+    before=await transform();await page.waitForTimeout(150);assert.notEqual(await transform(),before);
     state.allowed=false;state.expired=true;await open('/portal/baccarat/dg/analyze');await page.getByRole('heading',{name:'會員權限已到期',exact:true}).waitFor();await fit('expired');
     state.expired=false;await open('/portal/atg/set2/recommend');await page.getByRole('heading',{name:'需要開通權限',exact:true}).waitFor();
     state.authenticated=false;await open('/portal/');await page.getByRole('heading',{name:'登入黑域AI',exact:true}).waitFor();await fit('login');await screenshot('login-390');
