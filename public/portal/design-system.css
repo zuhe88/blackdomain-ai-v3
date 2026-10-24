@@ -370,9 +370,6 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
 .core-visual .ring-track {animation:core-orbit 26s linear infinite reverse}
 .core-circuit-light {animation:core-packets 4s linear infinite}
 .core-brand:after {content:"";position:absolute;inset:-8px;pointer-events:none;border:1px solid #57dcff55;border-radius:50%;animation:core-breathe 5s ease-in-out infinite}
-.core-motion-toggle {position:absolute;right:12px;top:8px;z-index:3;min-height:36px;padding:4px 10px;border:1px solid #31536b;border-radius:6px;background:#0c1b2a;color:#749ab5;font-size:11px}
-.core-motion-toggle:hover {color:#bceaff;border-color:#62bbd3}
-.v4-hero[data-core-paused] .core-ring,.v4-hero[data-core-paused] .core-circuit-light,.v4-hero[data-core-paused] .core-brand:after,body[data-core-background] .core-ring,body[data-core-background] .core-circuit-light,body[data-core-background] .core-brand:after {animation-play-state:paused}
 @keyframes core-orbit {from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
 @keyframes core-packets {from{stroke-dashoffset:0}to{stroke-dashoffset:-144}}
 @keyframes core-breathe {0%,100%{transform:scale(1);opacity:.3}50%{transform:scale(1.08);opacity:.65}}
@@ -490,10 +487,11 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
   .feature-category-label strong { font-size:14px;letter-spacing:.07em; }
 }
 
-/* Explicit play also works when the device requests reduced motion. */
-.v4-hero[data-core-motion-enabled] .ring-outer {animation:core-orbit 32s linear infinite!important}
-.v4-hero[data-core-motion-enabled] .ring-inner {animation:core-orbit 18s linear infinite!important}
-.v4-hero[data-core-motion-enabled] .ring-track {animation:core-orbit 26s linear infinite reverse!important}
-.v4-hero[data-core-motion-enabled] .core-circuit-light {animation:core-packets 4s linear infinite!important}
-.v4-hero[data-core-motion-enabled] .core-brand:after {animation:core-breathe 5s ease-in-out infinite!important}
-.v4-hero[data-core-paused] .core-ring,.v4-hero[data-core-paused] .core-circuit-light,.v4-hero[data-core-paused] .core-brand:after,body[data-core-background] .core-ring,body[data-core-background] .core-circuit-light,body[data-core-background] .core-brand:after {animation-play-state:paused!important}
+/* Keep the requested home core animation running on all devices. */
+.v4-hero .ring-outer {animation:core-orbit 32s linear infinite!important}
+.v4-hero .ring-inner {animation:core-orbit 18s linear infinite!important}
+.v4-hero .ring-track {animation:core-orbit 26s linear infinite reverse!important}
+.v4-hero .core-circuit-light {animation:core-packets 4s linear infinite!important}
+.v4-hero .core-brand:after {animation:core-breathe 5s ease-in-out infinite!important}
+
+body[data-core-background] .core-ring,body[data-core-background] .core-circuit-light,body[data-core-background] .core-brand:after {animation-play-state:paused!important}
