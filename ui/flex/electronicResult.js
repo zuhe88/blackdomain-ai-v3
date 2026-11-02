@@ -1,4 +1,27 @@
 const { COLORS, bubble, button, infoLine, metric, note, text, section } = require("./premium");
+const symbolLessons = require("../../public/portal/symbol-lessons");
+const { publicBaseUrl } = require("../../utils/moduleImage");
+
+function symbolLessonSection(gameName) {
+  const lesson = symbolLessons.forGame(gameName);
+  if (!lesson) return [];
+  return [section([
+    text(lesson.title, { size: "sm", weight: "bold", color: COLORS.gold }),
+    note(lesson.description),
+    ...lesson.examples.map((example) => ({
+      type: "box", layout: "vertical", spacing: "xs", contents: [
+        text(example.label, { size: "xxs", color: COLORS.muted }),
+        { type: "box", layout: "horizontal", spacing: "sm", contents: example.symbols.map((symbol) => ({
+          type: "box", layout: "vertical", flex: 1, contents: [
+            { type: "image", url: `${publicBaseUrl()}${symbol.image}`, size: "xs", aspectMode: "fit", aspectRatio: "1:1" },
+            text(`${symbol.label} ×${symbol.count}`, { size: "xs", wrap: true, align: "center" }),
+          ],
+        })) },
+      ],
+    })),
+    note(lesson.note),
+  ])];
+}
 
 function score(seed = "") {
   let score = 0;
@@ -157,6 +180,7 @@ function electronicRecommendFlex(gameName, room, updateTime, quickReply, roomDat
           wrap: true,
         }),
       ])] : []),
+      ...symbolLessonSection(gameName),
       note("本分析由 BLACKDOMAIN AI 生成，僅供參考。"),
       button("結束該房間", `結束房間監控 ${gameName} ${room}`, "danger"),
     ],
