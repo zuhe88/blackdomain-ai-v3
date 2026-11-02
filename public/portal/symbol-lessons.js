@@ -13,25 +13,36 @@
     blue: ["藍寶石", "extracted/blue.png"],
     green: ["綠寶石", "extracted/green.png"],
   };
-  // Fixed teaching examples from ATG X. Never use room statistics to select one
-  // as a current symbol signal, purchase instruction or outcome prediction.
-  const examples = {
-    戰神賽特1: [[["scatter", 3]], [["blade", 5], ["red", 3]], [["eye", 6], ["yellow", 2]], [["staff", 4], ["purple", 4]], [["bow", 5], ["blue", 3]], [["yellow", 4], ["green", 4]]],
-    戰神賽特2: [[["scatter", 3]], [["scatter", 2], ["awakening", 1]], [["blade", 5], ["red", 3]], [["eye", 6], ["yellow", 2]], [["staff", 5], ["blue", 3]], [["bow", 4], ["green", 4]]],
-  };
-  function forGame(gameName) {
-    if (!Object.prototype.hasOwnProperty.call(examples, gameName)) return null;
-    return {
-      title: "圖案觀察教學",
-      description: "固定圖案組合範例，請自行對照遊戲盤面；不代表目前房間已出現，也不代表下一轉結果或購買時機。",
-      note: "數量僅供辨識與記錄；不同圖案不能相加視為同符號消除，實際觸發與賠付以遊戲規則為準。",
-      examples: examples[gameName].map((group, index) => ({
-        label: `教學組合 ${index + 1}`,
-        symbols: group.map(([id, count]) => ({ id, count, label: symbols[id][0], image: `/atg-x/assets/symbols/${symbols[id][1]}` })),
-      })),
-    };
+  function catalog(gameName) {
+    if (gameName !== "戰神賽特1" && gameName !== "戰神賽特2") return [];
+    return Object.entries(symbols).filter(([id]) => gameName === "戰神賽特2" || id !== "awakening")
+      .map(([id, [label, image]]) => ({ id, label, image: `/atg-x/assets/symbols/${image}` }));
   }
-  const api = { forGame };
+  // Draw once on the server per recommendation. The client reads that exact
+  // group from the delivered message; redisplaying history must not redraw it.
+  function forGame(gameName, random = Math.random) {
+    const pool = catalog(gameName);
+    if (!pool.length) return null;
+    const size = random() < 0.5 ? 1 : 2;
+    const group = [];
+    for (let i = 0; i < size; i += 1) {
+      const index = Math.min(pool.length - 1, Math.max(0, Math.floor(random() * pool.length)));
+      const symbol = pool.splice(index, 1)[0];
+      group.push({ ...symbol, count: 1 + Math.min(5, Math.max(0, Math.floor(random() * 6))) });
+    }
+    return { title: "推薦訊號", symbols: group };
+  }
+  function fromTexts(gameName, texts) {
+    if (!texts.includes("推薦訊號")) return null;
+    const group = catalog(gameName).flatMap(symbol => {
+      for (let count = 1; count <= 6; count += 1) {
+        if (texts.includes(`${symbol.label} ×${count}`)) return [{ ...symbol, count }];
+      }
+      return [];
+    });
+    return group.length >= 1 && group.length <= 2 ? { title: "推薦訊號", symbols: group } : null;
+  }
+  const api = { forGame, catalog, fromTexts };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.BlackdomainSymbolLessons = api;
 })(typeof globalThis === "object" ? globalThis : this);

@@ -9,34 +9,38 @@ const { electronicRecommendFlex } = require("../ui/flex/electronicResult");
 const root = path.join(__dirname, "..");
 const room = () => ({ status: "Empty", occupied: false, detailUpdatedAt: new Date().toISOString(), detail: { todayBet: 100000, todayWin: 90000, todayRtp: 90, dayBet: 3000000, dayWin: 2800000 } });
 
-test("fixed lessons preserve game-specific combinations and real local image files", () => {
+test("one random group uses distinct game-specific symbols and valid images", () => {
   for (const game of ["戰神賽特1", "戰神賽特2"]) {
-    const lesson = lessons.forGame(game);
-    assert.equal(lesson.examples.length, 6);
-    assert.deepEqual(lesson, lessons.forGame(game));
-    assert.match(lesson.description, /不代表目前房間已出現/);
-    assert.match(lesson.note, /不同圖案不能相加/);
-    for (const example of lesson.examples) for (const symbol of example.symbols) {
+    for (const value of [0, 0.49, 0.5, 0.99]) {
+    const lesson = lessons.forGame(game, () => value);
+    assert.equal(lesson.symbols.length, value < 0.5 ? 1 : 2);
+    assert.equal(new Set(lesson.symbols.map(s => s.id)).size, lesson.symbols.length);
+    assert.deepEqual(lesson, lessons.forGame(game, () => value));
+    for (const symbol of lesson.symbols) {
       assert.ok(fs.existsSync(path.join(root, "public", symbol.image)));
-      assert.ok(Number.isInteger(symbol.count) && symbol.count > 0);
+      assert.ok(Number.isInteger(symbol.count) && symbol.count >= 1 && symbol.count <= 6);
       if (game === "戰神賽特1") assert.notEqual(symbol.id, "awakening");
     }
-    lesson.examples[0].symbols[0].count = 100;
-    assert.equal(lessons.forGame(game).examples[0].symbols[0].count, 3);
+    const texts = [lesson.title, ...lesson.symbols.map(s => `${s.label} ×${s.count}`)];
+    const recovered = lessons.fromTexts(game, texts);
+    assert.deepEqual(recovered.symbols.map(s => `${s.id}:${s.count}`).sort(), lesson.symbols.map(s => `${s.id}:${s.count}`).sort());
+    }
   }
   for (const game of ["虎小妹", "古神巴風特", "赤三國", "toString", "__proto__"]) assert.equal(lessons.forGame(game), null);
 });
 
-test("teaching stays behind valid room and RTP gates and does not create a signal", () => {
+test("random group stays behind valid room and RTP gates", () => {
   for (const data of [null, { ...room(), occupied: true }, { ...room(), detailUpdatedAt: "2000-01-01" }, { ...room(), detail: {} }]) {
     const message = electronicRecommendFlex("戰神賽特2", "1165", "12:00", null, data);
     assert.equal(message.altText, "本次推薦已停止");
-    assert.ok(!JSON.stringify(message).includes("圖案觀察教學"));
+    assert.ok(!JSON.stringify(message).includes("推薦訊號"));
   }
   for (const game of ["戰神賽特1", "戰神賽特2", "虎小妹"]) {
     const message = electronicRecommendFlex(game, "1165", "12:00", null, room());
     assert.equal(message.altText, "AI推薦房");
-    assert.equal(JSON.stringify(message).includes("圖案觀察教學"), game !== "虎小妹");
+    assert.equal(JSON.stringify(message).includes("推薦訊號"), game !== "虎小妹");
+    assert.ok(!JSON.stringify(message).includes("圖案組合僅供參考，非即時盤面偵測"));
+    assert.ok(!/教學|查看 6|固定圖案/.test(JSON.stringify(message)));
     assert.ok(!JSON.stringify(message).includes("訊號出現後推薦購買"));
   }
 });
@@ -58,8 +62,11 @@ test("portal renders lessons and all images at mobile and desktop widths", { tim
         const message = electronicRecommendFlex(game, "1165", "12:00", null, room());
         await page.evaluate(message => { const data = walk(message.contents); document.querySelector("#view").innerHTML = recommendationCard(data, []); }, message);
         if (game === "虎小妹") { assert.equal(await page.locator(".symbol-lesson").count(), 0); continue; }
-        await page.locator(".symbol-lesson summary").click();
-        assert.equal(await page.locator(".symbol-lesson-example").count(), 6);
+        assert.equal(await page.locator(".symbol-lesson").count(), 1);
+        assert.equal(await page.locator(".symbol-lesson-combo").count(), 1);
+        assert.equal(await page.locator(".symbol-lesson details").count(), 0);
+        const count = await page.locator(".symbol-lesson-symbol").count();
+        assert.ok(count === 1 || count === 2);
         await page.locator(".symbol-lesson").scrollIntoViewIfNeeded();
         await page.waitForFunction(() => [...document.querySelectorAll(".symbol-lesson img")].every(i => i.complete && i.naturalWidth > 0));
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -68,7 +75,11 @@ test("portal renders lessons and all images at mobile and desktop widths", { tim
           await page.locator(".symbol-lesson").screenshot({ path: path.join(process.env.SYMBOL_LESSON_CAPTURE_DIR, `seth${game.endsWith("1") ? 1 : 2}-${width}.png`) });
         }
         const again = await page.evaluate(message => recommendationCard(walk(message.contents), []), message);
-        assert.match(again, /固定教學範例/);
+        assert.match(again, /推薦訊號/);
+        assert.ok(!again.includes("圖案組合僅供參考，非即時盤面偵測"));
+        assert.ok(!again.includes("隨機搭配"));
+        assert.ok(!/教學|summary|details/.test(again));
+        assert.equal(await page.evaluate(message => recommendationCard(walk(message.contents), []), message), again);
       }
     }
     assert.deepEqual(errors, []);
