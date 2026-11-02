@@ -15,6 +15,7 @@ test("one random group uses distinct game-specific symbols and valid images", ()
     const lesson = lessons.forGame(game, () => value);
     assert.equal(lesson.symbols.length, value < 0.5 ? 1 : 2);
     assert.equal(new Set(lesson.symbols.map(s => s.id)).size, lesson.symbols.length);
+    assert.ok(lesson.symbols.filter(s => ["scatter", "awakening"].includes(s.id)).reduce((sum, s) => sum + s.count, 0) <= 3);
     assert.deepEqual(lesson, lessons.forGame(game, () => value));
     for (const symbol of lesson.symbols) {
       assert.ok(fs.existsSync(path.join(root, "public", symbol.image)));
@@ -27,6 +28,17 @@ test("one random group uses distinct game-specific symbols and valid images", ()
     }
   }
   for (const game of ["虎小妹", "古神巴風特", "赤三國", "toString", "__proto__"]) assert.equal(lessons.forGame(game), null);
+});
+
+test("standard and purple SCATTER share a maximum of three, including restored results", () => {
+  const draws = [0.9, 0, 0.5, 0, 0.99];
+  const group = lessons.forGame("戰神賽特2", () => draws.shift());
+  assert.deepEqual(group.symbols.map(s => [s.id, s.count]), [["scatter", 2], ["awakening", 1]]);
+  assert.match(group.symbols[1].image, /scatter-awakening.png$/);
+  for (const texts of [["SCATTER ×4"], ["覺醒 SCATTER ×6"], ["SCATTER ×2", "覺醒 SCATTER ×2"]]) {
+    assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", ...texts]), null);
+  }
+  assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", "覺醒 SCATTER ×3"]).symbols[0].count, 3);
 });
 
 test("random group stays behind valid room and RTP gates", () => {

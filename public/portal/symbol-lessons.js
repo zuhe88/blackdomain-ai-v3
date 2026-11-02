@@ -18,6 +18,7 @@
     return Object.entries(symbols).filter(([id]) => gameName === "戰神賽特2" || id !== "awakening")
       .map(([id, [label, image]]) => ({ id, label, image: `/atg-x/assets/symbols/${image}` }));
   }
+  function isScatter(symbol) { return symbol.id === "scatter" || symbol.id === "awakening"; }
   // Draw once on the server per recommendation. The client reads that exact
   // group from the delivered message; redisplaying history must not redraw it.
   function forGame(gameName, random = Math.random) {
@@ -26,9 +27,13 @@
     const size = random() < 0.5 ? 1 : 2;
     const group = [];
     for (let i = 0; i < size; i += 1) {
-      const index = Math.min(pool.length - 1, Math.max(0, Math.floor(random() * pool.length)));
-      const symbol = pool.splice(index, 1)[0];
-      group.push({ ...symbol, count: 1 + Math.min(5, Math.max(0, Math.floor(random() * 6))) });
+      const scatterCount = group.filter(isScatter).reduce((sum, symbol) => sum + symbol.count, 0);
+      const candidates = pool.filter(symbol => !isScatter(symbol) || scatterCount < 3);
+      const index = Math.min(candidates.length - 1, Math.max(0, Math.floor(random() * candidates.length)));
+      const symbol = candidates[index];
+      pool.splice(pool.findIndex(item => item.id === symbol.id), 1);
+      const maximum = isScatter(symbol) ? 3 - scatterCount : 6;
+      group.push({ ...symbol, count: 1 + Math.min(maximum - 1, Math.max(0, Math.floor(random() * maximum))) });
     }
     return { title: "推薦訊號", symbols: group };
   }
@@ -40,6 +45,7 @@
       }
       return [];
     });
+    if (group.filter(isScatter).reduce((sum, symbol) => sum + symbol.count, 0) > 3) return null;
     return group.length >= 1 && group.length <= 2 ? { title: "推薦訊號", symbols: group } : null;
   }
   const api = { forGame, catalog, fromTexts };
