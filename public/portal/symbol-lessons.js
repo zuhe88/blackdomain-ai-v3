@@ -24,7 +24,7 @@
   function forGame(gameName, random = Math.random) {
     const pool = catalog(gameName);
     if (!pool.length) return null;
-    const size = random() < 0.5 ? 1 : 2;
+    const size = 1 + Math.min(2, Math.max(0, Math.floor(random() * 3)));
     const group = [];
     for (let i = 0; i < size; i += 1) {
       const scatterCount = group.filter(isScatter).reduce((sum, symbol) => sum + symbol.count, 0);
@@ -46,7 +46,7 @@
       return [];
     });
     if (group.filter(isScatter).reduce((sum, symbol) => sum + symbol.count, 0) > 3) return null;
-    return group.length >= 1 && group.length <= 2 ? { title: "推薦訊號", symbols: group } : null;
+    return group.length >= 1 && group.length <= 3 ? { title: "推薦訊號", symbols: group } : null;
   }
   const api = { forGame, catalog, fromTexts };
   if (typeof module === "object" && module.exports) module.exports = api;
