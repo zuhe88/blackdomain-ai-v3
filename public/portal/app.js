@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261104.01";
+const PORTAL_BUILD="20261104.02";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -161,7 +161,7 @@ function symbolLessonPanel(game,texts){const group=globalThis.BlackdomainSymbolL
 function recommendationCard(data,actions){const texts=data.texts.map(String).map(text=>text.trim()).filter(Boolean);const room=valueAfter(texts,"推薦房號");const game=texts.find(text=>/戰神|古神|虎小妹|赤三國/.test(text))||"ATG 電子";const status=valueAfter(texts,"房間狀態","暫無資料");const entry=valueAfter(texts,"進場燈號","暫無資料");const updated=valueAfter(texts,"更新時間");const todayRtp=valueAfter(texts,"今日得分率");const monthRtp=valueAfter(texts,"近30天得分率");const confidence=valueAfter(texts,"可信度");const todayBet=valueAfter(texts,"今日總下注額");const monthBet=valueAfter(texts,"近30天總下注額");return `<article class="result-card recommendation-card"><div class="result-head"><div><p>AI推薦結果</p><h2>AI推薦房</h2></div><span class="ready">推薦資料</span></div><section class="room-hero"><span>${escapeHtml(game)}</span><strong>${escapeHtml(room)}</strong><small>${escapeHtml(status)} ・ ${escapeHtml(entry)}</small></section><div class="status-grid"><div><span>房間狀態</span><strong>${escapeHtml(status)}</strong></div><div><span>進場燈號</span><strong>${escapeHtml(entry)}</strong></div><div><span>更新時間</span><strong>${escapeHtml(updated)}</strong></div></div>${todayRtp!=="—"||monthRtp!=="—"?`<section class="metric-section"><div class="metric-title"><b>RTP 評估</b><span>平台房間統計</span></div><div class="metric-grid"><div><span>今日得分率</span><strong>${escapeHtml(todayRtp)}</strong></div><div><span>近30天得分率</span><strong>${escapeHtml(monthRtp)}</strong></div><div><span>可信度</span><strong>${escapeHtml(confidence)}</strong></div></div>${todayBet!=="—"||monthBet!=="—"?`<div class="bet-grid"><div><span>今日總下注額</span><strong>${escapeHtml(todayBet)}</strong></div><div><span>近30天總下注額</span><strong>${escapeHtml(monthBet)}</strong></div></div>`:""}</section>`:""}${symbolLessonPanel(game,texts)}${actionMarkup(actions)}</article>`;}
 function baccaratResultCard(data,actions){
   const texts=data.texts.map(String).map(text=>text.trim()).filter(Boolean);
-  const room=texts.find(text=>/^(?:DG|MT)\s*[A-Z0-9]+$/i.test(text))||"百家樂";
+  const room=texts.find(text=>/^(?:DG|MT)\s*[A-Z0-9]+(?:-L)?$/i.test(text))||"百家樂";
   const advice=valueAfter(texts,"下一局建議",valueAfter(texts,"建議",valueAfter(texts,"本局策略","—")));
   const betLabel=texts.includes("建議下注")?"建議下注":"配注方式";
   const bet=valueAfter(texts,betLabel,"—");
