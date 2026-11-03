@@ -10,7 +10,7 @@ process.env.NODE_ENV = "test";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 process.env.DG_DISABLE_LIVE = "true";
 process.env.MT_DISABLE_LIVE = "true";
-process.env.MT_ENTRY_ENABLED = "true"; // Keep exercising MT internals while the public entry is paused.
+process.env.MT_ENTRY_ENABLED = "true";
 process.env.LINE_HTTP_TIMEOUT_MS = "4321";
 process.env.ELECTRONIC_PENDING_TIMEOUT_MS = "5000";
 
@@ -497,6 +497,8 @@ async function main() {
   if (mtLive.getStatus().enabled) throw new Error("MT live connection must be disabled in smoke tests");
 
   delete process.env.MT_ENTRY_ENABLED;
+  if (!require("../modules/baccarat/availability").isMtEntryEnabled()) throw new Error("MT entry must be open by default");
+  process.env.MT_ENTRY_ENABLED = "false";
   const pausedPlatforms = await sendAndTexts("百家樂", "user-smoke");
   assertIncludes(pausedPlatforms, "MT休息中", "MT platform card shows the pause reason");
   const pausedCard = captured.replies[captured.replies.length - 1];
@@ -508,7 +510,7 @@ async function main() {
   await sendAndTexts("百家樂", "user-smoke");
   process.env.MT_ENTRY_ENABLED = "true";
   await sendAndTexts("MT", "user-smoke");
-  delete process.env.MT_ENTRY_ENABLED;
+  process.env.MT_ENTRY_ENABLED = "false";
   assertIncludes(await sendAndTexts("重新開始", "user-smoke"), "MT休息中", "A previous MT session cannot reopen the paused entry");
   await sendAndTexts("百家樂", "user-smoke");
   process.env.MT_ENTRY_ENABLED = "true";
