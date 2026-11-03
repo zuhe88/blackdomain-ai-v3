@@ -32,7 +32,7 @@
       const index = Math.min(candidates.length - 1, Math.max(0, Math.floor(random() * candidates.length)));
       const symbol = candidates[index];
       pool.splice(pool.findIndex(item => item.id === symbol.id), 1);
-      const maximum = isScatter(symbol) ? 3 - scatterCount : 6;
+      const maximum = symbol.id === "awakening" ? 1 : isScatter(symbol) ? 3 - scatterCount : 6;
       group.push({ ...symbol, count: 1 + Math.min(maximum - 1, Math.max(0, Math.floor(random() * maximum))) });
     }
     return { title: "推薦訊號", symbols: group };
@@ -45,6 +45,7 @@
       }
       return [];
     });
+    if (group.some(symbol => symbol.id === "awakening" && symbol.count > 1)) return null;
     if (group.filter(isScatter).reduce((sum, symbol) => sum + symbol.count, 0) > 3) return null;
     return group.length >= 1 && group.length <= 3 ? { title: "推薦訊號", symbols: group } : null;
   }

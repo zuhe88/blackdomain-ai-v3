@@ -21,6 +21,7 @@ test("one random group uses distinct game-specific symbols and valid images", ()
       assert.ok(fs.existsSync(path.join(root, "public", symbol.image)));
       assert.ok(Number.isInteger(symbol.count) && symbol.count >= 1 && symbol.count <= 6);
       if (game === "戰神賽特1") assert.notEqual(symbol.id, "awakening");
+      if (symbol.id === "awakening") assert.equal(symbol.count, 1);
     }
     const texts = [lesson.title, ...lesson.symbols.map(s => `${s.label} ×${s.count}`)];
     const recovered = lessons.fromTexts(game, texts);
@@ -39,7 +40,16 @@ test("standard and purple SCATTER share a maximum of three, including restored r
   for (const texts of [["SCATTER ×4"], ["覺醒 SCATTER ×6"], ["SCATTER ×2", "覺醒 SCATTER ×2"]]) {
     assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", ...texts]), null);
   }
-  assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", "覺醒 SCATTER ×3"]).symbols[0].count, 3);
+  assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", "覺醒 SCATTER ×1"]).symbols[0].count, 1);
+  for (const count of [2, 3, 4, 5, 6]) {
+    assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", `覺醒 SCATTER ×${count}`]), null);
+  }
+  assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", "SCATTER ×3"]).symbols[0].count, 3);
+  const awakeningOnly = lessons.forGame("戰神賽特2", (() => {
+    const draws = [0, 0.1, 0.99];
+    return () => draws.shift();
+  })());
+  assert.deepEqual(awakeningOnly.symbols.map(s => [s.id, s.count]), [["awakening", 1]]);
 });
 
 test("random group stays behind valid room and RTP gates", () => {
