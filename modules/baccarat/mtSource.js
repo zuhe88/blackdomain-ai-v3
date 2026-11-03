@@ -21,12 +21,24 @@ function isTimestampFresh(value, now = Date.now(), maxAgeMs = freshnessMs()) {
     && now - timestamp <= maxAgeMs;
 }
 
-function roomFromName(value) {
+function roomFromName(value, tableId = "") {
   const normalized = String(value || "").toUpperCase().replace(/\s+/g, "");
+  // Live MT packets reuse B01/B02/B03 names for the LIVE tables.
+  // Only their stable table IDs distinguish the -L rooms shown in the lobby.
+  const identity = String(tableId).toUpperCase().match(/^BAV(\d{2}A?)(_LIVE)?$/);
+  if (identity) {
+    const room = `B${identity[1]}${identity[2] ? "-L" : ""}`;
+    return MT_ROOMS.includes(room) ? room : null;
+  }
+  const named = normalized.match(/(?:^|[^A-Z0-9])B(\d{2}A?)(-L)?$/);
+  if (named) {
+    const room = `B${named[1]}${named[2] || ""}`;
+    return MT_ROOMS.includes(room) ? room : null;
+  }
   const explicit = normalized.match(/\bMT(13A|3A|\d{1,2})\b/);
   const code = explicit?.[1] || normalized.match(/(?:^|[^0-9])(13A|3A|\d{1,2})(?:[^0-9A-Z]|$)/)?.[1];
   if (!code) return null;
-  const room = code.endsWith("A") ? `MT${code}` : `MT${code.padStart(2, "0")}`;
+  const room = code.endsWith("A") ? `B${code.slice(0, -1).padStart(2, "0")}A` : `B${code.padStart(2, "0")}`;
   return MT_ROOMS.includes(room) ? room : null;
 }
 
@@ -328,7 +340,7 @@ function mergeTable(incoming) {
     return false;
   }
 
-  const incomingRoom = roomFromName(incoming.table_name ?? incoming.tableName);
+  const incomingRoom = roomFromName(incoming.table_name ?? incoming.tableName, tableId);
   const current = hadCurrent ? storedCurrent : { tableId, history: [] };
   const previousHistory = current.history || [];
   const room = incomingRoom || current.room || null;

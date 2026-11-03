@@ -11,11 +11,8 @@ function normalizeRoom(platform, room) {
   }
 
   if (platform === "MT") {
-    if (value === "3A") return "MT3A";
-    if (value === "13A") return "MT13A";
-    if (/^MT\d+A$/.test(value)) return `MT${parseInt(value.replace("MT", "").replace("A", ""), 10)}A`;
-    if (/^MT\d+$/.test(value)) return `MT${String(parseInt(value.replace("MT", ""), 10)).padStart(2, "0")}`;
-    if (/^\d+$/.test(value)) return `MT${String(parseInt(value, 10)).padStart(2, "0")}`;
+    const match = value.match(/^B?(\d{1,2})(A|-L)?$/);
+    if (match) return `B${match[1].padStart(2, "0")}${match[2] || ""}`;
   }
 
   return value;

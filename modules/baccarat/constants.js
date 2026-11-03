@@ -20,23 +20,9 @@ const DG_ROOMS = [
 ];
 
 const MT_ROOMS = [
-  "MT01",
-  "MT02",
-  "MT03",
-  "MT3A",
-  "MT05",
-  "MT06",
-  "MT07",
-  "MT08",
-  "MT09",
-  "MT10",
-  "MT11",
-  "MT12",
-  "MT13",
-  "MT13A",
-  "MT15",
-  "MT16",
-  "MT17",
+  "B01-L", "B02-L", "B03-L",
+  "B01", "B02", "B03", "B03A",
+  "B05", "B06", "B07", "B08", "B09", "B10",
 ];
 
 module.exports = {

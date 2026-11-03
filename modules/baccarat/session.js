@@ -99,6 +99,8 @@ async function hydrateSessions() {
   for (const row of data || []) {
     const session = row?.value;
     if (session?.cancelled || session?.cancelledAt) continue;
+    // Legacy MT labels merged LIVE and international tables. Require reselection.
+    if (session?.platform === "MT" && /^MT/i.test(session.room || "")) continue;
     if (!session?.userId || now() - Number(session.updatedAt || 0) > SESSION_TIMEOUT) continue;
     session.sessionEpoch ||= sessionEpoch();
     sessions.set(session.userId, session);

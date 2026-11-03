@@ -612,7 +612,7 @@ async function handleBaccaratMessage(event) {
   }
 
   if (!isMtEntryEnabled() && !isCancel(value) && !COMMANDS.includes(value)
-    && (/^MT(?:\d{1,2}A?)?$/i.test(value)
+    && (/^(?:MT(?:\d{1,2}A?)?|B\d{2}(?:A|-L)?)$/i.test(value)
       || (hasActiveSession(userId) && getSession(userId).platform === "MT"))) {
     await resetBaccaratSession(userId);
     return reply(token, baccaratPromptFlex({

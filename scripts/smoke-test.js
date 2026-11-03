@@ -503,7 +503,7 @@ async function main() {
   assertIncludes(pausedPlatforms, "MT休息中", "MT platform card shows the pause reason");
   const pausedCard = captured.replies[captured.replies.length - 1];
   if (JSON.stringify(pausedCard).includes('"text":"MT"')) throw new Error("Paused MT card must not retain an entry action");
-  for (const command of ["MT", "MT01"]) {
+  for (const command of ["MT", "B01"]) {
     assertIncludes(await sendAndTexts(command, "user-smoke"), "MT休息中", "Old MT commands must be blocked");
   }
   assertIncludes(await sendAndTexts("DG", "user-smoke"), "DG 房號選擇", "DG remains available while MT rests");
@@ -1073,7 +1073,7 @@ async function main() {
   mtSource.resetForTest();
   let mtFirstRoundEvent = null;
   const stopMtListener = mtSource.onResult((result) => {
-    if (result.room === "MT01") mtFirstRoundEvent = result;
+    if (result.room === "B01") mtFirstRoundEvent = result;
   });
   if (!mtSource.ingestTables({
     1: {
@@ -1108,7 +1108,7 @@ async function main() {
     },
   })) throw new Error("MT baccarat table snapshot must be accepted");
   stopMtListener();
-  const mtTable = mtSource.getTableByRoom("MT01");
+  const mtTable = mtSource.getTableByRoom("B01");
   if (!mtTable || mtTable.history.map((record) => record.result).join("") !== "閒莊和") {
     throw new Error("MT baccarat bead plate must normalize player, banker, and tie");
   }
@@ -1127,7 +1127,7 @@ async function main() {
   ) {
     throw new Error("MT initial snapshot must emit a metadata-rich resync event");
   }
-  const mtStats = mtSource.getRoomStats("MT01");
+  const mtStats = mtSource.getRoomStats("B01");
   if (mtStats.banker !== 1 || mtStats.player !== 1 || mtStats.tie !== 1 || mtStats.total !== 3) {
     throw new Error("MT room statistics must use the current baccarat table totals");
   }
@@ -1146,13 +1146,13 @@ async function main() {
       total_round_tie: 0,
     },
   }]);
-  if (mtSource.getTableByRoom("MT01")?.history.length !== 1) {
+  if (mtSource.getTableByRoom("B01")?.history.length !== 1) {
     throw new Error("MT new shoe must replace the previous shoe road history");
   }
   process.env.MT_DATA_FRESHNESS_MS = "1000";
   mtSource.ingestTables([{
     table_id: 99,
-    table_name: "百家樂 15",
+    table_name: "B01-L",
     table_type: "BAC",
     shoe: "stale-recovery-shoe",
     trend: { bead_plate2: "01020102010201020102" },
@@ -1160,17 +1160,17 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 1100));
   if (!mtSource.ingestTables([{
     table_id: 99,
-    table_name: "百家樂 15",
+    table_name: "B01-L",
     table_type: "BAC",
     shoe: "stale-recovery-shoe",
     trend: { bead_plate2: "0201" },
-  }]) || mtSource.getTableByRoom("MT15")?.history.length !== 2) {
+  }]) || mtSource.getTableByRoom("B01-L")?.history.length !== 2) {
     throw new Error("MT must rebase a stale room from the latest full table snapshot");
   }
   delete process.env.MT_DATA_FRESHNESS_MS;
   const mtOrderingEvents = [];
   const stopMtOrderingListener = mtSource.onResult((result) => {
-    if (result.room === "MT02") mtOrderingEvents.push(result);
+    if (result.room === "B02") mtOrderingEvents.push(result);
   });
   mtSource.ingestTables([{
     table_id: 22,
@@ -1239,7 +1239,7 @@ async function main() {
   const oldMtShoe = ["莊", "閒", "莊", "莊", "閒", "閒", "莊", "閒", "莊", "閒", "莊", "閒"];
   const mtImplicitEvents = [];
   const stopMtImplicitListener = mtSource.onResult((result) => {
-    if (result.room === "MT03") mtImplicitEvents.push(result);
+    if (result.room === "B03") mtImplicitEvents.push(result);
   });
   mtSource.ingestTables([{
     table_id: 33,
@@ -1275,13 +1275,13 @@ async function main() {
     rejectedDelayedMtShoe !== false
     || mtImplicitResetEvent?.resyncReason !== "shoe_changed"
     || mtImplicitResetEvent?.isContinuous !== false
-    || mtSource.getTableByRoom("MT03")?.history.length !== 2
+    || mtSource.getTableByRoom("B03")?.history.length !== 2
   ) {
     throw new Error("MT implicit matching-prefix shoe resets must reject delayed old-shoe snapshots");
   }
   const mtCorrectionEvents = [];
   const stopMtCorrectionListener = mtSource.onResult((result) => {
-    if (result.room === "MT05" || result.room === "MT06") mtCorrectionEvents.push(result);
+    if (result.room === "B05" || result.room === "B06") mtCorrectionEvents.push(result);
   });
   mtSource.ingestTables([{
     table_id: 55,
@@ -1320,11 +1320,11 @@ async function main() {
   }
   const mtRollingEvents = [];
   const stopMtRollingListener = mtSource.onResult((result) => {
-    if (result.room === "MT08") mtRollingEvents.push(result);
+    if (result.room === "B08") mtRollingEvents.push(result);
   });
   mtSource.ingestTables([{
     table_id: 88,
-    table_name: "MT08",
+    table_name: "B08",
     table_type: "BAC",
     shoe: "mt-rolling-300",
     round: 200,
@@ -1333,7 +1333,7 @@ async function main() {
   mtRollingEvents.length = 0;
   const acceptedMtRollingWindow = mtSource.ingestTables([{
     table_id: 88,
-    table_name: "MT08",
+    table_name: "B08",
     table_type: "BAC",
     shoe: "mt-rolling-300",
     round: 201,
@@ -1341,14 +1341,14 @@ async function main() {
   }]);
   const rejectedMtRollingPredecessor = mtSource.ingestTables([{
     table_id: 88,
-    table_name: "MT08",
+    table_name: "B08",
     table_type: "BAC",
     shoe: "mt-rolling-300",
     round: 200,
     trend: { bead_plate2: mtBead(rollingPattern.slice(0, 200)) },
   }]);
   stopMtRollingListener();
-  const mtRollingTable = mtSource.getTableByRoom("MT08");
+  const mtRollingTable = mtSource.getTableByRoom("B08");
   if (
     !acceptedMtRollingWindow
     || rejectedMtRollingPredecessor !== false
@@ -1365,12 +1365,12 @@ async function main() {
   }
   const mtIdenticalRollingEvents = [];
   const stopMtIdenticalRollingListener = mtSource.onResult((result) => {
-    if (result.room === "MT09") mtIdenticalRollingEvents.push(result);
+    if (result.room === "B09") mtIdenticalRollingEvents.push(result);
   });
   const identicalMtRoad = Array(200).fill("莊");
   mtSource.ingestTables([{
     table_id: 89,
-    table_name: "MT09",
+    table_name: "B09",
     table_type: "BAC",
     shoe: "mt-rolling-301",
     round: 200,
@@ -1379,7 +1379,7 @@ async function main() {
   mtIdenticalRollingEvents.length = 0;
   const acceptedIdenticalMtWindow = mtSource.ingestTables([{
     table_id: 89,
-    table_name: "MT09",
+    table_name: "B09",
     table_type: "BAC",
     shoe: "mt-rolling-301",
     round: 201,
@@ -1396,12 +1396,12 @@ async function main() {
   }
   const mtMarkerFirstEvents = [];
   const stopMtMarkerFirstListener = mtSource.onResult((result) => {
-    if (result.room === "MT10") mtMarkerFirstEvents.push(result);
+    if (result.room === "B10") mtMarkerFirstEvents.push(result);
   });
   const mtMarkerFirstRoad = ["莊", "閒"];
   mtSource.ingestTables([{
     table_id: 90,
-    table_name: "MT10",
+    table_name: "B10",
     table_type: "BAC",
     shoe: "mt-marker-first",
     round: 2,
@@ -1410,7 +1410,7 @@ async function main() {
   mtMarkerFirstEvents.length = 0;
   const acceptedMtMarkerOnly = mtSource.ingestTables([{
     table_id: 90,
-    table_name: "MT10",
+    table_name: "B10",
     table_type: "BAC",
     shoe: "mt-marker-first",
     round: 3,
@@ -1418,14 +1418,14 @@ async function main() {
   }]);
   const acceptedMtMarkerResult = mtSource.ingestTables([{
     table_id: 90,
-    table_name: "MT10",
+    table_name: "B10",
     table_type: "BAC",
     shoe: "mt-marker-first",
     round: 3,
     trend: { bead_plate2: mtBead([...mtMarkerFirstRoad, "和"]) },
   }]);
   stopMtMarkerFirstListener();
-  const mtMarkerFirstTable = mtSource.getTableByRoom("MT10");
+  const mtMarkerFirstTable = mtSource.getTableByRoom("B10");
   if (
     !acceptedMtMarkerOnly
     || !acceptedMtMarkerResult
@@ -1625,10 +1625,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20261103.02", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20261104.01", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261103.02"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261104.01"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -4446,8 +4446,8 @@ async function main() {
 
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("MT", "user-smoke");
-  assertIncludes(values, "MT01", "MT baccarat rooms");
-  values = await sendAndTexts("MT01", "user-smoke");
+  assertIncludes(values, "B01", "MT baccarat rooms");
+  values = await sendAndTexts("B01", "user-smoke");
   assertIncludes(values, "請選擇幣別", "MT baccarat currency flow");
   values = await sendAndTexts("台幣 TWD", "user-smoke");
   assertIncludes(values, "請選擇分析模式", "MT baccarat mode flow");
