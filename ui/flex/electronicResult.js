@@ -7,12 +7,15 @@ function symbolLessonSection(gameName) {
   if (!lesson) return [];
   return [section([
     text(lesson.title, { size: "sm", weight: "bold", color: COLORS.gold }),
-        { type: "box", layout: "horizontal", spacing: "sm", contents: lesson.symbols.map((symbol) => ({
+        { type: "box", layout: "horizontal", spacing: "sm", alignItems: "center", contents: lesson.symbols.flatMap((symbol, index) => [
+          ...(index > 0 ? [text("＋", { size: "md", weight: "bold", color: COLORS.gold, flex: 0, align: "center" })] : []),
+          {
           type: "box", layout: "vertical", flex: 1, contents: [
             { type: "image", url: `${publicBaseUrl()}${symbol.image}`, size: "xs", aspectMode: "fit", aspectRatio: "1:1" },
             text(`${symbol.label} ×${symbol.count}`, { size: "xs", wrap: true, align: "center" }),
           ],
-        })) },
+          },
+        ]) },
   ])];
 }
 
