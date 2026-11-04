@@ -24,7 +24,7 @@
   function forGame(gameName, random = Math.random) {
     const pool = catalog(gameName);
     if (!pool.length) return null;
-    const size = 1 + Math.min(2, Math.max(0, Math.floor(random() * 3)));
+    const size = 2;
     const group = [];
     for (let i = 0; i < size; i += 1) {
       const scatterCount = group.filter(isScatter).reduce((sum, symbol) => sum + symbol.count, 0);

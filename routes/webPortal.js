@@ -413,7 +413,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20261104.02",
+        portalBuild: "20261105.01",
       });
     } catch (error) { return next(error); }
   });

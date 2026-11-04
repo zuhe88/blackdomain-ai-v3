@@ -13,7 +13,7 @@ test("one random group uses distinct game-specific symbols and valid images", ()
   for (const game of ["戰神賽特1", "戰神賽特2"]) {
     for (const value of [0, 0.49, 0.5, 0.99]) {
     const lesson = lessons.forGame(game, () => value);
-    assert.equal(lesson.symbols.length, 1 + Math.floor(value * 3));
+    assert.equal(lesson.symbols.length, 2);
     assert.equal(new Set(lesson.symbols.map(s => s.id)).size, lesson.symbols.length);
     assert.ok(lesson.symbols.filter(s => ["scatter", "awakening"].includes(s.id)).reduce((sum, s) => sum + s.count, 0) <= 3);
     assert.deepEqual(lesson, lessons.forGame(game, () => value));
@@ -33,7 +33,7 @@ test("one random group uses distinct game-specific symbols and valid images", ()
 });
 
 test("standard and purple SCATTER share a maximum of three, including restored results", () => {
-  const draws = [0.5, 0, 0.5, 0, 0.99];
+  const draws = [0, 0.5, 0, 0.99];
   const group = lessons.forGame("戰神賽特2", () => draws.shift());
   assert.deepEqual(group.symbols.map(s => [s.id, s.count]), [["scatter", 2], ["awakening", 1]]);
   assert.match(group.symbols[1].image, /scatter-awakening.png$/);
@@ -46,10 +46,10 @@ test("standard and purple SCATTER share a maximum of three, including restored r
   }
   assert.equal(lessons.fromTexts("戰神賽特2", ["推薦訊號", "SCATTER ×3"]).symbols[0].count, 3);
   const awakeningOnly = lessons.forGame("戰神賽特2", (() => {
-    const draws = [0, 0.1, 0.99];
+    const draws = [0.1, 0.99, 0, 0.99];
     return () => draws.shift();
   })());
-  assert.deepEqual(awakeningOnly.symbols.map(s => [s.id, s.count]), [["awakening", 1]]);
+  assert.deepEqual(awakeningOnly.symbols.map(s => [s.id, s.count]), [["awakening", 1], ["scatter", 2]]);
 });
 
 test("random group stays behind valid room and RTP gates", () => {
@@ -89,7 +89,7 @@ test("portal renders lessons and all images at mobile and desktop widths", { tim
         assert.equal(await page.locator(".symbol-lesson-combo").count(), 1);
         assert.equal(await page.locator(".symbol-lesson details").count(), 0);
         const count = await page.locator(".symbol-lesson-symbol").count();
-        assert.ok(count >= 1 && count <= 3);
+        assert.equal(count, 2);
         await page.locator(".symbol-lesson").scrollIntoViewIfNeeded();
         await page.waitForFunction(() => [...document.querySelectorAll(".symbol-lesson img")].every(i => i.complete && i.naturalWidth > 0));
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
