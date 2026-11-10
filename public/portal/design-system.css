@@ -251,6 +251,14 @@ body:not(.is-authenticated) .app-shell { padding-left:32px; }
 .decision-amount>span:before { content:"";width:3px;height:16px;background:#5b9abc;border-radius:2px; }
 .baccarat-result-card .decision-amount .bet-description { font-size:clamp(17px,1.65vw,23px);font-weight:500;color:#e0edf8;line-height:1.5;text-align:right; }
 .baccarat-result-card .decision-amount .bet-amount { font-size:30px;font-weight:600;color:#e4f3ff; }
+.baccarat-result-card .bead-road { min-width:0;padding:0 clamp(16px,4vw,24px) 16px; }
+.bead-road-scroll { overflow-x:auto;max-width:100%;border:1px solid #3a526a;border-radius:8px;background:#edf3f8; }
+.bead-road-grid { display:grid;grid-template-rows:repeat(6,24px);grid-auto-flow:column;grid-auto-columns:24px;width:max-content;min-width:100%; }
+.bead-cell { display:grid;place-items:center;border-right:1px solid #cbd5e1;border-bottom:1px solid #cbd5e1; }
+.bead-cell b { display:grid;place-items:center;width:19px;height:19px;border-radius:50%;color:white;font-size:11px;line-height:1; }
+.bead-cell .banker { background:#bf303f; }
+.bead-cell .player { background:#1169bc; }
+.bead-cell .tie { background:#16813f; }
 .baccarat-result-card .road-section { display:flex;flex-direction:column;justify-content:center;min-width:0;margin:0;padding:0;border:0;border-radius:0;background:none; }
 .baccarat-result-card .metric-title { display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 14px;padding:0; }
 .baccarat-result-card .metric-title b { font-size:15px;color:#d9e9f7;font-weight:600; }

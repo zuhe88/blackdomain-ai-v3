@@ -95,6 +95,20 @@ function roomStatsFor(session) {
   return source.getRoomStats(session.room);
 }
 
+function analysisMessage(options, eventHistory) {
+  const message = baccaratAnalysisFlex(options);
+  const { session } = options;
+  if (session.deliveryChannel !== "web") return message;
+
+  const history = eventHistory
+    ?? sources.get(session.platform)?.getTableByRoom(session.room)?.history
+    ?? [];
+  message.baccaratRoad = history
+    .map((record) => typeof record === "string" ? record : record.result)
+    .filter((result) => ["莊", "閒", "和"].includes(result));
+  return message;
+}
+
 function liveDataIsFresh(session) {
   const source = sources.get(session.platform);
   return source.isRoomFresh(session.room);
@@ -374,7 +388,7 @@ function reconcileReplacement(session, event) {
 
 async function deliverLiveAnalysis(originalSession, analysis, event, notice = null) {
   if (!isSameActiveSession(originalSession)) return false;
-  const message = baccaratAnalysisFlex({
+  const message = analysisMessage({
     session: analysis.session,
     prediction: analysis.prediction,
     bet: analysis.bet,
@@ -383,7 +397,7 @@ async function deliverLiveAnalysis(originalSession, analysis, event, notice = nu
     notice,
     compact: originalSession.deliveryChannel !== "web",
     ...liveResultOptions(),
-  });
+  }, event.history);
   if (originalSession.deliveryChannel === "web") {
     webChannel.publish(originalSession.userId, [message]);
   } else {
@@ -819,7 +833,7 @@ async function handleBaccaratMessage(event) {
     const first = firstAnalysis(hydrateLiveHistory(updated));
     first.session.waitingForFreshData = false;
     updateAfterRound(userId, first.session);
-    return reply(token, baccaratAnalysisFlex({
+    return reply(token, analysisMessage({
       session: first.session,
       prediction: first.prediction,
       bet: first.bet,
@@ -849,7 +863,7 @@ async function handleBaccaratMessage(event) {
     const first = firstAnalysis(hydrateLiveHistory(updated));
     first.session.waitingForFreshData = false;
     updateAfterRound(userId, first.session);
-    return reply(token, baccaratAnalysisFlex({
+    return reply(token, analysisMessage({
       session: first.session,
       prediction: first.prediction,
       bet: first.bet,
@@ -878,7 +892,7 @@ async function handleBaccaratMessage(event) {
     const result = nextAnalysis(session, value);
     if (result.session.fundingAnalysisClosed) await resetStoredSession(userId);
     else updateAfterRound(userId, result.session);
-    return reply(token, baccaratAnalysisFlex({
+    return reply(token, analysisMessage({
       session: result.session,
       prediction: result.prediction,
       bet: result.bet,

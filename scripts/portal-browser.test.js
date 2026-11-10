@@ -41,6 +41,7 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     else if(value==='VIP')messages=[flex('VIP中心',['VIP狀態','本機版面測試','LINE名稱','暫無資料','3A帳號','暫無資料','AI權限','百家樂AI / ATG AI / 彩票AI / 體育AI','到期時間','暫無資料','剩餘時間','暫無資料','最後更新時間','暫無資料'])];
     else if(value==='539')messages=[flex('539AI',['AI預測','暫無資料','預測日期','暫無資料','熱號','暫無資料','冷號','暫無資料'])];
     else if(['NBA','MLB','CPBL'].includes(value))messages=[flex(value+' 賽事資料',[value,'資料狀態','暫無資料','開賽時間','暫無資料']),flex(value+' 賽事資料',[value,'資料狀態','暫無資料'])];
+    if (value === "自由配注" && state.abRoom === "Q501") messages[0].baccaratRoad = ["莊","閒","和","莊","莊","閒","和"];
     res.json({messages});
   });
   registerImageRoutes(app);
@@ -143,6 +144,12 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     const abBadge=page.locator('.room-platform');
     assert.equal(await abBadge.innerText(),'歐博');
     assert.ok(await abBadge.evaluate(element=>element.scrollWidth<=element.clientWidth&&element.scrollHeight<=element.clientHeight));
+    const beads=page.locator('.bead-cell b');
+    assert.deepEqual(await beads.allTextContents(),['莊','閒','和','莊','莊','閒','和']);
+    const positions=await beads.evaluateAll(cells=>cells.map(cell=>({x:cell.offsetLeft,y:cell.offsetTop})));
+    assert.equal(positions[0].x,positions[5].x);
+    assert.equal(positions[0].y,positions[6].y);
+    assert.ok(positions[6].x>positions[0].x);
     await fit('ALLBET room result');
     // The core always animates, including devices with reduced motion enabled.
     const ring=page.locator('.ring-inner');
