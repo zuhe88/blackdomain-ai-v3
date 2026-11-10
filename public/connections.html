@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>連線監控｜BLACKDOMAIN AI</title>
+  <style>
+    :root { color-scheme:dark; font:16px/1.5 system-ui,sans-serif; color:#e9f3fd; background:#0c1421; }
+    body { margin:0; }
+    main { max-width:960px; margin:auto; padding:32px 16px; }
+    header { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+    h1,h2,p { margin:0; }
+    h1 { font-size:clamp(24px,5vw,36px); }
+    .eyebrow { color:#84d7ed; font-size:13px; letter-spacing:.12em; }
+    #summary { margin:16px 0; color:#afc4da; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    article { padding:18px; border:1px solid #324b66; border-radius:14px; background:#132237; }
+    h2 { font-size:20px; }
+    .badge { color:#afc4da; font-size:14px; }
+    .badge[data-state="healthy"] { color:#86e0b7; }
+    .badge[data-state="stale"],.badge[data-state="degraded"] { color:#ffcf82; }
+    .badge[data-state="offline"],.badge[data-state="error"] { color:#ffa7a9; }
+    .metrics { margin:14px 0 4px; font-weight:650; }
+    .updated,.help,li { color:#afc4da; font-size:14px; }
+    .help { margin:12px 0 0; }
+    ul { padding-left:20px; }
+    a,button { color:#a0e9ff; }
+    a { display:inline-block; margin-top:8px; }
+    button { cursor:pointer; font:inherit; padding:8px 12px; border:1px solid #41627c; border-radius:8px; background:#132237; }
+    button:disabled { cursor:wait; opacity:.65; }
+    @media (max-width:620px) { .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><p class="eyebrow">BLACKDOMAIN AI</p><h1>連線監控</h1></div>
+      <button id="refresh" type="button">立即更新</button>
+    </header>
+    <p id="summary" role="status">正在讀取連線狀態…</p>
+    <section class="grid" aria-label="平台狀態">
+      <article id="dg">
+        <header><h2>DG</h2><span class="badge">讀取中</span></header>
+        <p class="metrics"></p><p class="updated"></p>
+        <p class="help">DG 直連會自動更新訪客票證。</p>
+      </article>
+      <article id="mt">
+        <header><h2>MT</h2><span class="badge">讀取中</span></header>
+        <p class="metrics"></p><p class="updated"></p>
+        <p class="help">票證遭拒時，請在中繼電腦開啟更新頁。</p>
+        <a href="http://127.0.0.1:43128/" target="_blank" rel="noopener noreferrer">更新 MT 票證</a>
+      </article>
+      <article id="ab">
+        <header><h2>歐博</h2><span class="badge">讀取中</span></header>
+        <p class="metrics"></p><p class="updated"></p>
+        <p class="help">登入到期時，從賀哥的 3A 分頁重新進入歐博大廳。</p>
+        <a href="/api/ab/status" target="_blank" rel="noopener noreferrer">查看逐桌狀態</a>
+      </article>
+      <article id="electronic">
+        <header><h2>ATG</h2><span class="badge">讀取中</span></header>
+        <p class="metrics"></p><p class="updated"></p>
+        <ul aria-label="ATG 遊戲狀態"></ul>
+      </article>
+    </section>
+  </main>
+  <script>
+    const labels = { healthy:"有即時資料", degraded:"部分遊戲可用", stale:"等待新資料", offline:"尚無資料", error:"無法確認" };
+    const ids = ["dg","mt","ab","electronic"];
+    const button = document.querySelector("#refresh");
+    const summary = document.querySelector("#summary");
+    const taipei = new Intl.DateTimeFormat("zh-TW", { timeZone:"Asia/Taipei", dateStyle:"short", timeStyle:"medium" });
+
+    function setBadge(card, state) {
+      const badge = card.querySelector(".badge");
+      badge.dataset.state = state;
+      badge.textContent = labels[state] || labels.error;
+    }
+
+    function render(card, provider) {
+      setBadge(card, provider.state);
+      const metrics = provider.metrics;
+      card.querySelector(".metrics").textContent = provider.id === "electronic"
+        ? `${metrics.readyGames} / ${provider.games.length} 款遊戲可用`
+        : `${metrics.freshTables} / ${metrics.tables} 張已收到的桌況為即時資料`;
+      card.querySelector(".updated").textContent = provider.lastUpdatedAt
+        ? `最後收到資料 ${taipei.format(new Date(provider.lastUpdatedAt))}`
+        : "尚未收到資料";
+      if (provider.id === "electronic") {
+        card.querySelector("ul").replaceChildren(...provider.games.map(game => {
+          const item = document.createElement("li");
+          item.textContent = `${game.gameName} · ${labels[game.state] || labels.error}`;
+          return item;
+        }));
+      }
+    }
+
+    async function refresh() {
+      if (button.disabled) return;
+      button.disabled = true;
+      try {
+        const response = await fetch("/api/connections", { cache:"no-store", signal:AbortSignal.timeout(8000) });
+        if (!response.ok) throw new Error("Status unavailable");
+        const data = await response.json();
+        for (const id of ids) {
+          const provider = data.providers.find(item => item.id === id);
+          if (!provider) throw new Error("Provider unavailable");
+          render(document.getElementById(id), provider);
+        }
+        summary.textContent = `最近檢查 ${taipei.format(new Date(data.generatedAt))}（台北時間） · 每 10 秒更新`;
+      } catch {
+        for (const id of ids) {
+          const card = document.getElementById(id);
+          setBadge(card, "error");
+          card.querySelector(".metrics").textContent = "";
+          card.querySelector(".updated").textContent = "";
+          card.querySelector("ul")?.replaceChildren();
+        }
+        summary.textContent = "暫時無法讀取狀態，稍後會自動重試。";
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    button.addEventListener("click", refresh);
+    refresh();
+    setInterval(() => { if (!document.hidden) refresh(); }, 10000);
+  </script>
+</body>
+</html>

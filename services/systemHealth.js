@@ -78,7 +78,7 @@ function getSystemHealth() {
   const providers = [
     baccaratProvider("dg", "DG 百家樂", dgSource),
     baccaratProvider("mt", "MT 百家樂", mtSource),
-    baccaratProvider("ab", "?????", abSource),
+    baccaratProvider("ab", "歐博百家樂", abSource),
     electronicProvider(),
     mbProvider(),
   ];

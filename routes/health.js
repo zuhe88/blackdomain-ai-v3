@@ -3,12 +3,23 @@ const { isLineWebsiteOnlyMode } = require("../config/lineWebsiteMode");
 const { snapshotStartupRecovery } = require("../services/startupRecovery");
 const path = require("path");
 const express = require("express");
+const { getSystemHealth } = require("../services/systemHealth");
 
 const PUBLIC_SITE_URL = String(
   process.env.PUBLIC_SITE_URL || "https://blackdomain-ai-v3-production.up.railway.app",
 ).replace(/\/$/, "");
 
 function registerHealthRoutes(app) {
+  app.get("/connections", (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    res.sendFile(path.join(__dirname, "..", "public", "connections.html"));
+  });
+
+  app.get("/api/connections", (_req, res) => {
+    const { generatedAt, providers } = getSystemHealth();
+    res.set("Cache-Control", "no-store");
+    res.json({ generatedAt, providers: providers.filter(({ id }) => id !== "mb") });
+  });
   app.get("/blackdomain-theme.css", (_req, res) => {
     res.set("Cache-Control", "public, max-age=0, must-revalidate");
     res.sendFile(path.join(__dirname, "..", "public", "blackdomain-theme.css"));
