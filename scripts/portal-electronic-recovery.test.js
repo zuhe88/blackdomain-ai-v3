@@ -29,7 +29,7 @@ function fixture() {
     querySelector: selector => selector === "h2" ? heading : copy,
     remove() { state.stagePresent = false; },
   };
-  const target = { innerHTML: "", querySelectorAll: () => [], scrollIntoView() {} };
+  const target = { innerHTML: "", querySelector: () => null, querySelectorAll: () => [], scrollIntoView() {} };
   const context = vm.createContext({
     console, Date: { now: () => state.now }, authenticated: true,
     electronicRecoveryInFlight: false, ELECTRONIC_CLIENT_TIMEOUT_MS: 95_000,

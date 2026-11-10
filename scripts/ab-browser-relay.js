@@ -7,7 +7,7 @@ const browserEndpoint = process.env.AB_BROWSER_CDP_URL;
 const ingestUrl = process.env.AB_INGEST_URL;
 const relayKey = process.env.AB_RELAY_KEY;
 const gameOrigin = "https://www.ab88.games:8888";
-const socketEndpoint = "wss://sfs2c.51shengce.com:8843/websocket";
+const providerSocket = /^wss:\/\/sfs\d+[a-z]\.(?:51shengce\.com|maofeiyan\.com)(?::8843)?\/websocket$/i;
 
 async function run() {
   if (!browserEndpoint || !ingestUrl || !relayKey) {
@@ -20,7 +20,7 @@ async function run() {
 
   function watch(page) {
     page.on("websocket", (connection) => {
-      if (connection.url() !== socketEndpoint || !page.url().startsWith(gameOrigin + "/")) return;
+      if (!providerSocket.test(connection.url()) || !page.url().startsWith(gameOrigin + "/")) return;
       socket = connection;
       pending.clear();
       const ingest = createTableFeed();

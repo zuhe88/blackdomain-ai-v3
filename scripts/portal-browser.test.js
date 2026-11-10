@@ -131,14 +131,14 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     assert.equal(await page.getByRole('button',{name:'B601',exact:true}).count(),0);
     await page.getByRole('button',{name:'Q702',exact:true}).click();
     await page.getByRole('button',{name:'台幣 TWD',exact:true}).click();
-    await page.getByRole('button',{name:'自由配注',exact:true}).click();
+    await page.getByRole('button',{name:/^自由配注/}).click();
     await page.getByRole('heading',{name:'歐博等待即時桌況',exact:true}).waitFor();
     assert.equal(await page.getByText('分析完成',{exact:true}).count(),0);
     await open('/portal/baccarat/ab/analyze');
     await page.getByRole('button',{name:'急速百家樂',exact:true}).click();
     await page.getByRole('button',{name:'Q501',exact:true}).click();
     await page.getByRole('button',{name:'台幣 TWD',exact:true}).click();
-    await page.getByRole('button',{name:'自由配注',exact:true}).click();
+    await page.getByRole('button',{name:/^自由配注/}).click();
     await page.getByRole('heading',{name:'歐博 Q501',exact:true}).waitFor();
     const abBadge=page.locator('.room-platform');
     assert.equal(await abBadge.innerText(),'歐博');
