@@ -1,16 +1,16 @@
-const CACHE_VERSION = "blackdomain-pwa-20261110.08";
+const CACHE_VERSION = "blackdomain-pwa-20261110.09";
 const APP_SHELL = [
-  "/portal/symbol-lessons.css?v=20261110.08",
-  "/portal/symbol-lessons.js?v=20261110.08",
-  "/portal/design-system.css?v=20261110.08",
-  "/portal/components.js?v=20261110.08",
+  "/portal/symbol-lessons.css?v=20261110.09",
+  "/portal/symbol-lessons.js?v=20261110.09",
+  "/portal/design-system.css?v=20261110.09",
+  "/portal/components.js?v=20261110.09",
   "/portal/access.css?v=20261017.08",
   "/portal/",
   "/portal/index.html",
   "/portal/styles.css?v=20260907.06",
   "/portal/mobile.css?v=20260907.06",
   "/portal/admin.css?v=20260907.06",
-  "/portal/app.js?v=20261110.08",
+  "/portal/app.js?v=20261110.09",
   "/portal/manifest.webmanifest",
   "/portal/icons/icon-192.png",
   "/portal/icons/icon-512.png",

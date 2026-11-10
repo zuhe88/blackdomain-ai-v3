@@ -19,15 +19,17 @@ function stateFor(updatedAt, available, freshSeconds) {
   return age <= freshSeconds ? "healthy" : "stale";
 }
 
-function baccaratProvider(id, label, snapshot) {
+function baccaratProvider(id, label, source) {
+  const snapshot = source.getSnapshot();
   const tables = Array.isArray(snapshot?.tables) ? snapshot.tables : [];
+  const freshTables = tables.filter((table) => source.isRoomFresh(table.room)).length;
   return {
     id,
     label,
-    state: stateFor(snapshot?.updatedAt, tables.length > 0, 45),
+    state: freshTables ? "healthy" : snapshot?.updatedAt ? "stale" : "offline",
     lastUpdatedAt: snapshot?.updatedAt || null,
     ageSeconds: ageSeconds(snapshot?.updatedAt),
-    metrics: { tables: tables.length, roomsWithHistory: tables.filter((table) => table.historyCount > 0).length },
+    metrics: { tables: tables.length, freshTables, roomsWithHistory: tables.filter((table) => table.historyCount > 0).length },
   };
 }
 
@@ -37,17 +39,22 @@ function electronicProvider() {
     gameName: game.gameName,
     state: electronicSource.hasReadyData(game.gameName)
       ? "healthy"
-      : stateFor(game.updatedAt, Boolean(game.updatedAt), 120),
+      : game.updatedAt ? "stale" : "offline",
     lastUpdatedAt: game.updatedAt || null,
     ageSeconds: ageSeconds(game.updatedAt),
     tables: game.tables.length,
     emptyRooms: game.tables.filter((table) => table.status === "Empty" && table.occupied !== true).length,
     pagesCovered: Number(game.sourcePagesCovered) || 0,
   }));
+  const newest = details.map((game) => game.lastUpdatedAt).filter(Boolean).sort().at(-1) || null;
+  const readyGames = details.filter((game) => game.state === "healthy").length;
   return {
     id: "electronic",
     label: "ATG 電子",
-    state: details.some((game) => game.gameName === "戰神賽特2" && game.state === "healthy") ? "healthy" : "stale",
+    state: readyGames === details.length && readyGames > 0 ? "healthy" : readyGames ? "degraded" : newest ? "stale" : "offline",
+    lastUpdatedAt: newest,
+    ageSeconds: ageSeconds(newest),
+    metrics: { readyGames },
     allGamesEnabled: electronicAvailability.areAllElectronicGamesEnabled(),
     games: details,
   };
@@ -69,9 +76,9 @@ function mbProvider() {
 
 function getSystemHealth() {
   const providers = [
-    baccaratProvider("dg", "DG 百家樂", dgSource.getSnapshot()),
-    baccaratProvider("mt", "MT 百家樂", mtSource.getSnapshot()),
-    ...(process.env.AB_RELAY_KEY ? [baccaratProvider("ab", "歐博百家樂", abSource.getSnapshot())] : []),
+    baccaratProvider("dg", "DG 百家樂", dgSource),
+    baccaratProvider("mt", "MT 百家樂", mtSource),
+    baccaratProvider("ab", "?????", abSource),
     electronicProvider(),
     mbProvider(),
   ];
