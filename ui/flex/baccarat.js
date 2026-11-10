@@ -36,7 +36,7 @@ function platformImageBubble(actionText, title, imageName) {
       type: "image",
       url: moduleImageUrl(imageName),
       size: "full",
-      aspectRatio: "8:9",
+      aspectRatio: "1:1",
       aspectMode: "cover",
       ...(!paused ? { action: { type: "message", text: actionText } } : {}),
     } } : {}),
@@ -68,9 +68,9 @@ function baccaratPlatformFlex(quickReply) {
     contents: {
       type: "carousel",
       contents: [
-        platformImageBubble("DG", "DG 百家樂AI", "dg.png"),
-        platformImageBubble("MT", "MT 百家樂AI", "mt.png"),
-        platformImageBubble("歐博", "歐博百家樂AI"),
+        platformImageBubble("DG", "DG 百家樂AI", "dg-baccarat.png"),
+        platformImageBubble("MT", "MT 百家樂AI", "mt-baccarat.png"),
+        platformImageBubble("歐博", "歐博百家樂AI", "allbet-baccarat.png"),
       ],
     },
   };
@@ -108,10 +108,11 @@ function chunk(list, size) {
   return rows;
 }
 
-function baccaratRoomFlex(platform, rooms, quickReply) {
+function baccaratRoomFlex(platform, rooms, quickReply, variant) {
+  const title = `${platform}${variant ? " " + variant : ""} 房號選擇`;
   return bubble({
-    altText: `${platform} 房號選擇`,
-    title: `${platform} 房號選擇`,
+    altText: title,
+    title: title,
     subtitle: "BLACKDOMAIN 百家樂AI",
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
@@ -122,7 +123,7 @@ function baccaratRoomFlex(platform, rooms, quickReply) {
         layout: "horizontal",
         spacing: "sm",
         contents: [
-          ...row.map((room) => roomButton(room, platform === "歐博" ? abRoomLabel(room) : null)),
+          ...row.map((room) => roomButton(room, platform === "歐博" && !variant ? abRoomLabel(room) : null)),
           ...Array.from({ length: 3 - row.length }, () => ({ type: "box", layout: "vertical", flex: 1, contents: [] })),
         ],
       })),

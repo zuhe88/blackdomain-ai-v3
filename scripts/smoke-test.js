@@ -1625,10 +1625,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20261110.01", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20261110.03", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261110.01"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261110.03"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -4518,12 +4518,30 @@ async function main() {
   const abSource = require("../modules/baccarat/abSource");
   const { normalizeTable } = require("../modules/baccarat/abProtocol");
   const abRoads = ["077000400000", "269080300000", "224002500000"];
-  const abTable = (roads) => normalizeTable({ room: "B505", tableId: 157, roads });
+  const abTable = (roads) => normalizeTable({ room: "B601", tableId: 157, roads });
   abSource.ingestTables([abTable(abRoads)]);
   await send("百家樂", "user-smoke");
   values = await sendAndTexts("歐博", "user-smoke");
-  assertIncludes(values, "B505", "ALLBET room selection");
-  values = await sendAndTexts("B505", "user-smoke");
+  assertIncludes(values, "歐博選擇遊戲", "ALLBET game menu");
+  values = await sendAndTexts("歐博百家樂", "user-smoke");
+  assertIncludes(values, "歐博百家樂選擇玩法", "ALLBET baccarat variant menu");
+  values = await sendAndTexts("急速百家樂", "user-smoke");
+  assertIncludes(values, "Q702", "ALLBET rapid room selection");
+  if (values.includes("B601") || values.includes("B501")) throw new Error("ALLBET rapid menu mixed room types");
+  values = await sendAndTexts("Q702", "user-smoke");
+  assertIncludes(values, "歐博等待即時桌況", "ALLBET waiting state");
+  const abWaitingPushes = captured.pushes.length;
+  abSource.ingestTables([normalizeTable({ room: "Q702", tableId: 900, roads: abRoads })]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  if (captured.pushes.length !== abWaitingPushes + 1 || getBaccaratSession("user-smoke").waitingForFreshData) {
+    throw new Error("ALLBET must leave the waiting state when the selected table sends its first road");
+  }
+  values = await sendAndTexts("返回房號", "user-smoke");
+  assertIncludes(values, "Q702", "ALLBET returns to the selected variant");
+  await send("歐博百家樂", "user-smoke");
+  values = await sendAndTexts("一般百家樂", "user-smoke");
+  assertIncludes(values, "B601", "ALLBET room selection");
+  values = await sendAndTexts("B601", "user-smoke");
   assertIncludes(values, "觀望", "ALLBET first road analysis");
   const abPushes = captured.pushes.length;
   abSource.ingestTables([abTable([...abRoads, "160040H00300"])]);

@@ -24,8 +24,11 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   app.post('/api/web/command',(req,res)=>{
     const value=req.body.text;state.commands.push(value);let messages=[];
     if(value==='DG')messages=[baccaratRoomFlex('DG',['RB01','RB02','RB03'])];
-    else if(value==='歐博')messages=[baccaratRoomFlex('歐博',['B501','IB801','Q702','C501'])];
-    else if(value==='IB801')messages=[baccaratPromptFlex({title:'歐博即時資料同步中',lines:['IB801 目前尚未收到新的即時桌況']})];
+    else if(value==='歐博')messages=[flex('歐博選擇遊戲',[],['歐博百家樂','歐博牛牛','歐博推筒子'])];
+    else if(value==='歐博百家樂')messages=[flex('歐博百家樂選擇玩法',[],['一般百家樂','急速百家樂'])];
+    else if(value==='一般百家樂')messages=[baccaratRoomFlex('歐博',['B601'],undefined,'一般百家樂')];
+    else if(value==='急速百家樂')messages=[baccaratRoomFlex('歐博',['Q702'],undefined,'急速百家樂')];
+    else if(value==='Q702')messages=[baccaratPromptFlex({title:'歐博等待即時桌況',lines:['Q702 尚未收到最新桌況。']})];
     else if(value==='RB01')messages=[baccaratPromptFlex({title:'請選擇幣別',lines:['台幣 TWD：最低下注 NT$ 50','令吉 MYR：最低下注 RM 10'],quickReply:currencyQuickReply()})];
     else if(['台幣 TWD','令吉 MYR'].includes(value)){state.currency=value.includes('MYR')?'MYR':'TWD';messages=[baccaratPromptFlex({title:'請選擇分析模式',lines:[`使用幣別：${value}`],quickReply:modeQuickReply()})];}
     else if(['AI配注','天門'].includes(value)){state.mode=value;state.inputStep='capital';messages=[baccaratPromptFlex({title:'請輸入本金',lines:[`使用幣別：${state.currency}`]})];}
@@ -114,8 +117,8 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     }
     await page.setViewportSize({width:390,height:844});await open('/portal/');await page.locator('#mobileDock').getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('heading',{name:'更多功能',exact:true}).waitFor();await page.getByRole('button',{name:'帳號設定',exact:true}).last().click();await page.getByRole('heading',{name:'帳號設定',exact:true}).waitFor();
     await page.getByRole('button',{name:/安裝黑域AI/}).click();await page.getByRole('dialog').waitFor({state:'visible'});await fit('install dialog');await page.getByRole('button',{name:'了解',exact:true}).click();
-    await open('/portal/baccarat');
-    await page.getByRole('button',{name:'歐博玩法與本金風險',exact:true}).click();
+    await open('/portal/baccarat/ab/analyze');
+    await page.getByRole('button',{name:'玩法與本金風險',exact:true}).click();
     await page.getByText('即時桌況：BB701',{exact:true}).waitFor();
     await page.getByText('目前未收到即時桌況。',{exact:true}).waitFor();
     await page.locator('select[name=multiplier]').selectOption('11');
@@ -127,8 +130,19 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     assert.match(await page.locator('output').innerText(),/每筆試算上限 30.3/);
     await fit('ALLBET risk calculator at 390px');
     await open('/portal/baccarat/ab/analyze');
-    await page.getByRole('button',{name:'IB801 保險',exact:true}).click();
-    await page.getByRole('heading',{name:'歐博即時資料同步中',exact:true}).waitFor();
+    await page.getByRole('button',{name:'歐博牛牛',exact:true}).click();
+    await page.getByRole('heading',{name:'歐博 牛牛',exact:true}).waitFor();
+    assert.equal(await page.getByRole('heading',{name:'推筒子',exact:true}).count(),0);
+    await open('/portal/baccarat/ab/analyze');
+    await page.getByRole('button',{name:'歐博推筒子',exact:true}).click();
+    await page.getByRole('heading',{name:'歐博 推筒子',exact:true}).waitFor();
+    await open('/portal/baccarat/ab/analyze');
+    await page.getByRole('button',{name:'歐博百家樂',exact:true}).click();
+    await page.getByRole('button',{name:'急速百家樂',exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:'B601',exact:true}).count(),0);
+    await page.getByRole('button',{name:'Q702',exact:true}).click();
+    await page.getByRole('heading',{name:'歐博等待即時桌況',exact:true}).waitFor();
+    assert.equal(await page.getByText('分析完成',{exact:true}).count(),0);
     // The core always animates, including devices with reduced motion enabled.
     const ring=page.locator('.ring-inner');
     const transform=()=>ring.evaluate(node=>getComputedStyle(node).transform);

@@ -43,7 +43,7 @@ const {
   applyResult,
   getTianmenRequirements,
 } = require("./ai");
-const { COMMANDS, MODES, PLATFORMS, DG_ROOMS, MT_ROOMS, AB_ROOMS } = require("./constants");
+const { COMMANDS, MODES, PLATFORMS, DG_ROOMS, MT_ROOMS, AB_ROOMS, AB_BACCARAT_VARIANTS } = require("./constants");
 const { currencyFor, parseCurrency, formatMoney } = require("./currency");
 const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
@@ -51,6 +51,9 @@ const abSource = require("./abSource");
 const sources = new Map([["DG", dgSource], ["MT", mtSource], ["歐博", abSource]]);
 const rooms = new Map([["DG", DG_ROOMS], ["MT", MT_ROOMS], ["歐博", AB_ROOMS]]);
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("./availability");
+const { quickReply } = require("../../services/line");
+const { publicBaseUrl } = require("../../utils/moduleImage");
+const abGames = ["歐博百家樂", "歐博牛牛", "歐博推筒子"];
 const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
 
@@ -72,6 +75,23 @@ function roomPrompt(platform) {
   return baccaratRoomFlex(platform, roomsForPlatform(platform));
 }
 
+function abMenu(title, choices) {
+  return baccaratPromptFlex({
+    title,
+    lines: [],
+    quickReply: quickReply(choices.map((text) => ({ label: text === "歐博遊戲" ? "返回遊戲" : text.replace(/^歐博/, ""), text }))),
+  });
+}
+
+function abRoomPrompt(variant) {
+  const configured = AB_BACCARAT_VARIANTS[variant];
+  const fresh = configured.filter((room) => abSource.isRoomFresh(room));
+  return baccaratRoomFlex("歐博", fresh.length ? fresh : configured, quickReply([
+    { label: "返回玩法", text: "歐博百家樂" },
+    { label: "返回遊戲", text: "歐博遊戲" },
+  ]), variant);
+}
+
 function roomStatsFor(session) {
   const source = sources.get(session.platform);
   return source.getRoomStats(session.room);
@@ -83,6 +103,19 @@ function liveDataIsFresh(session) {
 }
 
 function liveSyncPrompt(session) {
+  if (session.platform === "歐博") {
+    return baccaratPromptFlex({
+      title: "歐博等待即時桌況",
+      lines: [
+        `${session.room} 尚未收到最新桌況。`,
+        "歐博中繼送達新資料後，這裡會自動更新。",
+      ],
+      quickReply: quickReply([
+        { label: "返回房號", text: "返回房號" },
+        { label: "返回遊戲", text: "歐博遊戲" },
+      ]),
+    });
+  }
   return baccaratPromptFlex({
     title: `${session.platform} 即時資料同步中`,
     lines: [
@@ -626,6 +659,10 @@ async function handleBaccaratMessage(event) {
     await resetBaccaratSession(userId);
     if (!platform) return reply(token, baccaratPlatformFlex(platformQuickReply()));
     setPlatform(userId, platform);
+    if (platform === "歐博") {
+      setSession(userId, { step: "abGame", deliveryChannel });
+      return reply(token, abMenu("歐博選擇遊戲", abGames));
+    }
     return reply(token, roomPrompt(platform));
   }
 
@@ -646,9 +683,17 @@ async function handleBaccaratMessage(event) {
   }
 
   if (value === "返回房號" && session.platform) {
-    const platform = session.platform;
+    const { platform, abVariant = Object.keys(AB_BACCARAT_VARIANTS).find((variant) => AB_BACCARAT_VARIANTS[variant].includes(session.room)) } = session;
     await resetBaccaratSession(userId);
+    if (platform === "歐博" && Object.hasOwn(AB_BACCARAT_VARIANTS, abVariant)) {
+      setSession(userId, { platform, step: "room", abVariant, deliveryChannel });
+      return reply(token, abRoomPrompt(abVariant));
+    }
     setPlatform(userId, platform);
+    if (platform === "歐博") {
+      setSession(userId, { step: "abGame", deliveryChannel });
+      return reply(token, abMenu("歐博選擇遊戲", abGames));
+    }
     return reply(token, roomPrompt(platform));
   }
 
@@ -662,18 +707,55 @@ async function handleBaccaratMessage(event) {
       }));
     }
     setPlatform(userId, platform);
+    if (platform === "歐博") {
+      setSession(userId, { step: "abGame", deliveryChannel });
+      return reply(token, abMenu("歐博選擇遊戲", abGames));
+    }
     return reply(token, roomPrompt(platform));
+  }
+
+  if (session.platform === "歐博") {
+    if (value === "歐博遊戲" || abGames.includes(value)) {
+      await resetBaccaratSession(userId);
+      const step = value === "歐博百家樂" ? "abVariant" : "abGame";
+      setSession(userId, { platform: "歐博", step, deliveryChannel });
+      if (value === "歐博遊戲") return reply(token, abMenu("歐博選擇遊戲", abGames));
+      if (value === "歐博百家樂") {
+        return reply(token, abMenu("歐博百家樂選擇玩法", [...Object.keys(AB_BACCARAT_VARIANTS), "歐博遊戲"]));
+      }
+      const game = value === "歐博牛牛" ? "bullbull" : "dotsmahjong";
+      return reply(token, baccaratPromptFlex({
+        title: value,
+        lines: ["在會員頁面查看桌況與玩法。"],
+        quickReply: {
+          items: [
+            { type: "action", action: { type: "uri", label: "查看桌況", uri: `${publicBaseUrl()}/portal/baccarat/ab/${game}` } },
+            ...quickReply([{ label: "返回遊戲", text: "歐博遊戲" }]).items,
+          ],
+        },
+      }));
+    }
+
+    if (["abVariant", "room"].includes(session.step) && Object.hasOwn(AB_BACCARAT_VARIANTS, value)) {
+      setSession(userId, { abVariant: value, step: "room" });
+      return reply(token, abRoomPrompt(value));
+    }
   }
 
   if (session.step === "room") {
     const room = normalizeRoom(session.platform, value);
+    if (session.platform === "歐博") {
+      const allowed = AB_BACCARAT_VARIANTS[session.abVariant];
+      if (!allowed) return reply(token, abMenu("歐博百家樂選擇玩法", Object.keys(AB_BACCARAT_VARIANTS)));
+      if (!allowed.includes(room)) return reply(token, abRoomPrompt(session.abVariant));
+    }
     if (!validateRoom(session.platform, room)) {
       return reply(token, baccaratPromptFlex({
         title: "房號格式不正確",
         lines: ["房號格式不正確，請選擇下方按鈕或輸入正確房號。"],
       }));
     }
-    if (!roomIsObservedWhenSourceOnline(session.platform, room)) {
+    if (session.platform !== "歐博" && !roomIsObservedWhenSourceOnline(session.platform, room)) {
       return reply(token, baccaratPromptFlex({
         title: "此房目前沒有即時資料",
         lines: [
@@ -847,6 +929,9 @@ function isBaccaratCommand(value) {
     ...DG_ROOMS,
     ...MT_ROOMS,
     ...AB_ROOMS,
+    ...abGames,
+    ...Object.keys(AB_BACCARAT_VARIANTS),
+    "歐博遊戲",
     ...MODES,
     "台幣 TWD",
     "令吉 MYR",

@@ -34,6 +34,11 @@ const AB_ROOMS = [
   "V971", "V972", "V981", "V982",
 ];
 
+const AB_BACCARAT_VARIANTS = {
+  "一般百家樂": ["B601", "B602", "B603", "B604", "B605", "B801", "B802", "B803"],
+  "急速百家樂": AB_ROOMS.filter((room) => room.startsWith("Q")),
+};
+
 module.exports = {
   COMMANDS,
   RESULTS,
@@ -42,4 +47,5 @@ module.exports = {
   DG_ROOMS,
   MT_ROOMS,
   AB_ROOMS,
+  AB_BACCARAT_VARIANTS,
 };
