@@ -17,15 +17,13 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   let accessCalls=0;
   app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:false,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
   app.get('/health',(_req,res)=>res.json({ok:true}));
-  app.get('/api/ab/status',(_req,res)=>res.json({games:[{game:'bullbull',room:'BB701',fresh:true}]}));
   app.get('/api/electronic/status',(_req,res)=>state.failData?res.status(503).json({error:"測試資料讀取失敗"}):res.json({games:[]}));
   app.get('/api/web/events',(req,res)=>{res.set({'Content-Type':'text/event-stream','Cache-Control':'no-store'});res.write('event: ready\ndata: {}\n\n');req.on('close',()=>res.end());});
   app.post('/api/web/stop',(_req,res)=>res.json({ok:true}));
   app.post('/api/web/command',(req,res)=>{
     const value=req.body.text;state.commands.push(value);let messages=[];
     if(value==='DG')messages=[baccaratRoomFlex('DG',['RB01','RB02','RB03'])];
-    else if(value==='歐博')messages=[flex('歐博選擇遊戲',[],['歐博百家樂','歐博牛牛','歐博推筒子'])];
-    else if(value==='歐博百家樂')messages=[flex('歐博百家樂選擇玩法',[],['一般百家樂','急速百家樂'])];
+    else if(value==='歐博')messages=[flex('歐博百家樂選擇玩法',[],['一般百家樂','急速百家樂'])];
     else if(value==='一般百家樂')messages=[baccaratRoomFlex('歐博',['B601'],undefined,'一般百家樂')];
     else if(value==='急速百家樂')messages=[baccaratRoomFlex('歐博',['Q702'],undefined,'急速百家樂')];
     else if(value==='Q702')messages=[baccaratPromptFlex({title:'歐博等待即時桌況',lines:['Q702 尚未收到最新桌況。']})];
@@ -118,26 +116,15 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     await page.setViewportSize({width:390,height:844});await open('/portal/');await page.locator('#mobileDock').getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('heading',{name:'更多功能',exact:true}).waitFor();await page.getByRole('button',{name:'帳號設定',exact:true}).last().click();await page.getByRole('heading',{name:'帳號設定',exact:true}).waitFor();
     await page.getByRole('button',{name:/安裝黑域AI/}).click();await page.getByRole('dialog').waitFor({state:'visible'});await fit('install dialog');await page.getByRole('button',{name:'了解',exact:true}).click();
     await open('/portal/baccarat/ab/analyze');
-    await page.getByRole('button',{name:'玩法與本金風險',exact:true}).click();
-    await page.getByText('即時桌況：BB701',{exact:true}).waitFor();
-    await page.getByText('目前未收到即時桌況。',{exact:true}).waitFor();
-    await page.locator('select[name=multiplier]').selectOption('11');
-    for(const [name,value] of Object.entries({capital:'10000',budget:'1000',positions:'3',minimum:'50',maximum:'10000'}))await page.locator(`input[name=${name}]`).fill(value);
-    await page.getByRole('button',{name:'試算',exact:true}).click();
-    assert.match(await page.locator('output').innerText(),/單筆上限為 0/);
-    await page.locator('input[name=minimum]').fill('20');
-    await page.getByRole('button',{name:'試算',exact:true}).click();
-    assert.match(await page.locator('output').innerText(),/每筆試算上限 30.3/);
-    await fit('ALLBET risk calculator at 390px');
-    await open('/portal/baccarat/ab/analyze');
-    await page.getByRole('button',{name:'歐博牛牛',exact:true}).click();
-    await page.getByRole('heading',{name:'歐博 牛牛',exact:true}).waitFor();
-    assert.equal(await page.getByRole('heading',{name:'推筒子',exact:true}).count(),0);
-    await open('/portal/baccarat/ab/analyze');
-    await page.getByRole('button',{name:'歐博推筒子',exact:true}).click();
-    await page.getByRole('heading',{name:'歐博 推筒子',exact:true}).waitFor();
-    await open('/portal/baccarat/ab/analyze');
-    await page.getByRole('button',{name:'歐博百家樂',exact:true}).click();
+    await page.getByRole('heading',{name:'歐博百家樂選擇玩法',exact:true}).waitFor();
+    for (const name of ['牛牛','推筒子','玩法與本金風險']) {
+      assert.equal(await page.getByRole('button',{name,exact:true}).count(),0);
+    }
+    for (const route of ['bullbull','dotsmahjong','rules']) {
+      await open('/portal/baccarat/ab/'+route);
+      await page.getByRole('heading',{name:'歐博百家樂選擇玩法',exact:true}).waitFor();
+      assert.ok(page.url().endsWith('/portal/baccarat/ab/analyze'));
+    }
     await page.getByRole('button',{name:'急速百家樂',exact:true}).click();
     assert.equal(await page.getByRole('button',{name:'B601',exact:true}).count(),0);
     await page.getByRole('button',{name:'Q702',exact:true}).click();

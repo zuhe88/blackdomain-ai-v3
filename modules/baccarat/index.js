@@ -52,8 +52,7 @@ const sources = new Map([["DG", dgSource], ["MT", mtSource], ["歐博", abSource
 const rooms = new Map([["DG", DG_ROOMS], ["MT", MT_ROOMS], ["歐博", AB_ROOMS]]);
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("./availability");
 const { quickReply } = require("../../services/line");
-const { publicBaseUrl } = require("../../utils/moduleImage");
-const abGames = ["歐博百家樂", "歐博牛牛", "歐博推筒子"];
+const abMenuCommands = ["歐博百家樂", "歐博遊戲", "歐博牛牛", "歐博推筒子"];
 const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
 
@@ -75,11 +74,11 @@ function roomPrompt(platform) {
   return baccaratRoomFlex(platform, roomsForPlatform(platform));
 }
 
-function abMenu(title, choices) {
+function abVariantPrompt() {
   return baccaratPromptFlex({
-    title,
+    title: "歐博百家樂選擇玩法",
     lines: [],
-    quickReply: quickReply(choices.map((text) => ({ label: text === "歐博遊戲" ? "返回遊戲" : text.replace(/^歐博/, ""), text }))),
+    quickReply: quickReply(Object.keys(AB_BACCARAT_VARIANTS).map((text) => ({ label: text, text }))),
   });
 }
 
@@ -88,7 +87,6 @@ function abRoomPrompt(variant) {
   const fresh = configured.filter((room) => abSource.isRoomFresh(room));
   return baccaratRoomFlex("歐博", fresh.length ? fresh : configured, quickReply([
     { label: "返回玩法", text: "歐博百家樂" },
-    { label: "返回遊戲", text: "歐博遊戲" },
   ]), variant);
 }
 
@@ -112,7 +110,7 @@ function liveSyncPrompt(session) {
       ],
       quickReply: quickReply([
         { label: "返回房號", text: "返回房號" },
-        { label: "返回遊戲", text: "歐博遊戲" },
+        { label: "返回玩法", text: "歐博百家樂" },
       ]),
     });
   }
@@ -660,8 +658,8 @@ async function handleBaccaratMessage(event) {
     if (!platform) return reply(token, baccaratPlatformFlex(platformQuickReply()));
     setPlatform(userId, platform);
     if (platform === "歐博") {
-      setSession(userId, { step: "abGame", deliveryChannel });
-      return reply(token, abMenu("歐博選擇遊戲", abGames));
+      setSession(userId, { step: "abVariant", deliveryChannel });
+      return reply(token, abVariantPrompt());
     }
     return reply(token, roomPrompt(platform));
   }
@@ -691,8 +689,8 @@ async function handleBaccaratMessage(event) {
     }
     setPlatform(userId, platform);
     if (platform === "歐博") {
-      setSession(userId, { step: "abGame", deliveryChannel });
-      return reply(token, abMenu("歐博選擇遊戲", abGames));
+      setSession(userId, { step: "abVariant", deliveryChannel });
+      return reply(token, abVariantPrompt());
     }
     return reply(token, roomPrompt(platform));
   }
@@ -708,35 +706,20 @@ async function handleBaccaratMessage(event) {
     }
     setPlatform(userId, platform);
     if (platform === "歐博") {
-      setSession(userId, { step: "abGame", deliveryChannel });
-      return reply(token, abMenu("歐博選擇遊戲", abGames));
+      setSession(userId, { step: "abVariant", deliveryChannel });
+      return reply(token, abVariantPrompt());
     }
     return reply(token, roomPrompt(platform));
   }
 
   if (session.platform === "歐博") {
-    if (value === "歐博遊戲" || abGames.includes(value)) {
+    if (abMenuCommands.includes(value)) {
       await resetBaccaratSession(userId);
-      const step = value === "歐博百家樂" ? "abVariant" : "abGame";
-      setSession(userId, { platform: "歐博", step, deliveryChannel });
-      if (value === "歐博遊戲") return reply(token, abMenu("歐博選擇遊戲", abGames));
-      if (value === "歐博百家樂") {
-        return reply(token, abMenu("歐博百家樂選擇玩法", [...Object.keys(AB_BACCARAT_VARIANTS), "歐博遊戲"]));
-      }
-      const game = value === "歐博牛牛" ? "bullbull" : "dotsmahjong";
-      return reply(token, baccaratPromptFlex({
-        title: value,
-        lines: ["在會員頁面查看桌況與玩法。"],
-        quickReply: {
-          items: [
-            { type: "action", action: { type: "uri", label: "查看桌況", uri: `${publicBaseUrl()}/portal/baccarat/ab/${game}` } },
-            ...quickReply([{ label: "返回遊戲", text: "歐博遊戲" }]).items,
-          ],
-        },
-      }));
+      setSession(userId, { platform: "歐博", step: "abVariant", deliveryChannel });
+      return reply(token, abVariantPrompt());
     }
 
-    if (["abVariant", "room"].includes(session.step) && Object.hasOwn(AB_BACCARAT_VARIANTS, value)) {
+    if (["abGame", "abVariant", "room"].includes(session.step) && Object.hasOwn(AB_BACCARAT_VARIANTS, value)) {
       setSession(userId, { abVariant: value, step: "room" });
       return reply(token, abRoomPrompt(value));
     }
@@ -746,7 +729,7 @@ async function handleBaccaratMessage(event) {
     const room = normalizeRoom(session.platform, value);
     if (session.platform === "歐博") {
       const allowed = AB_BACCARAT_VARIANTS[session.abVariant];
-      if (!allowed) return reply(token, abMenu("歐博百家樂選擇玩法", Object.keys(AB_BACCARAT_VARIANTS)));
+      if (!allowed) return reply(token, abVariantPrompt());
       if (!allowed.includes(room)) return reply(token, abRoomPrompt(session.abVariant));
     }
     if (!validateRoom(session.platform, room)) {
@@ -929,9 +912,8 @@ function isBaccaratCommand(value) {
     ...DG_ROOMS,
     ...MT_ROOMS,
     ...AB_ROOMS,
-    ...abGames,
+    ...abMenuCommands,
     ...Object.keys(AB_BACCARAT_VARIANTS),
-    "歐博遊戲",
     ...MODES,
     "台幣 TWD",
     "令吉 MYR",
