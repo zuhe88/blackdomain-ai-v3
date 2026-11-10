@@ -1,12 +1,17 @@
 const crypto = require("node:crypto");
+const path = require("node:path");
 const express = require("express");
 const source = require("../modules/baccarat/abSource");
 const { normalizeTable, normalizeSpecialTable } = require("../modules/baccarat/abProtocol");
 
 function registerAbRelayRoutes(app) {
   const specialTables = new Map();
-  app.get("/api/ab/status", (_req, res) => {
+  app.get("/api/ab/status", (req, res) => {
     res.set("Cache-Control", "no-store");
+    res.vary("Accept");
+    if (req.accepts(["json", "html"]) === "html") {
+      return res.sendFile(path.join(__dirname, "..", "public", "ab-status.html"));
+    }
     const { tables, updatedAt } = source.getSnapshot();
     const rooms = tables.map(({ room, historyCount, updatedAt }) => ({
       room, historyCount, updatedAt, fresh: source.isRoomFresh(room),

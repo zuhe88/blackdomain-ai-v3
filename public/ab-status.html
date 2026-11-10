@@ -1,0 +1,129 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0b1220">
+<title>歐博即時桌況｜黑域AI</title>
+<style>
+:root { color-scheme: dark; font-family: "Microsoft JhengHei", system-ui, sans-serif; color: #edf5fc; background: #0b1220; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(100% - 32px, 860px); margin: 40px auto; }
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.eyebrow { margin: 0 0 8px; color: #7bd7ed; font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+h1 { margin: 0; font-size: clamp(25px, 6vw, 36px); }
+h2 { margin: 0; font-size: 17px; }
+a { color: #a5ddf2; text-decoration: none; }
+.back { white-space: nowrap; padding-top: 6px; font-size: 13px; }
+.panel { padding: 18px; margin-bottom: 14px; border: 1px solid #2b4056; border-radius: 14px; background: #142235; }
+.summary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+.summary p { margin: 6px 0 0; font-size: 13px; color: #a6b9ce; }
+.pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 4px 9px; border-radius: 99px; font-size: 12px; color: #f7cb82; background: #372b1b; }
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill[data-fresh="true"] { color: #9ae9c9; background: #183b35; }
+.heading, .row { display: grid; grid-template-columns: 1fr .7fr 1fr auto; align-items: center; gap: 10px; }
+.heading { margin-top: 14px; padding-bottom: 7px; color: #a6b9ce; font-size: 12px; }
+.row { min-height: 48px; border-top: 1px solid #2b4056; font-size: 13px; font-variant-numeric: tabular-nums; }
+.row strong { color: #ecf7ff; font-size: 15px; }
+.row time { color: #a6b9ce; }
+.empty { color: #a6b9ce; font-size: 14px; margin-bottom: 0; }
+@media(max-width: 480px) {
+  main { margin-top: 24px; }
+  .panel { padding: 14px; }
+  .heading, .row { gap: 6px; grid-template-columns: 1fr .7fr .9fr auto; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="eyebrow">BLACKDOMAIN AI</p><h1>歐博即時桌況</h1></div>
+    <a class="back" href="/portal/baccarat/ab/analyze">回歐博百家樂 →</a>
+  </header>
+  <section class="panel summary" aria-label="中繼狀態">
+    <div><h2 id="summary">正在讀取桌況</h2><p id="updated">每 5 秒更新一次 · 台北時間</p></div>
+    <span class="pill" id="relay">同步中</span>
+  </section>
+  <div id="groups"></div>
+  <noscript>請啟用 JavaScript 以查看即時桌況。</noscript>
+</main>
+<script>
+const clock = new Intl.DateTimeFormat("zh-TW", {
+  timeZone: "Asia/Taipei", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+});
+const groups = [
+  { name: "一般百家樂", rooms: new Set(["B601", "B602", "B603", "B604", "B605", "B801", "B802", "B803"]) },
+  { name: "急速百家樂", rooms: new Set(["Q501", "Q502", "Q601", "Q701", "Q702", "Q801", "Q802", "Q803", "Q804"]) },
+];
+const summary = document.querySelector("#summary");
+const updated = document.querySelector("#updated");
+const relay = document.querySelector("#relay");
+const container = document.querySelector("#groups");
+
+function element(tag, text, className) {
+  const node = document.createElement(tag);
+  node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+
+function formatTime(value) {
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? clock.format(timestamp) : "—";
+}
+
+function renderGroup(group, rooms) {
+  const panel = element("section", "", "panel");
+  panel.append(element("h2", group.name));
+  const tables = rooms.filter(room => group.rooms.has(room.room));
+  if (!tables.length) {
+    panel.append(element("p", "等待中繼送入桌況。", "empty"));
+    return panel;
+  }
+  const header = element("div", "", "heading");
+  for (const name of ["桌號", "牌路局數", "最後更新", "桌況"]) header.append(element("span", name));
+  panel.append(header);
+  for (const room of tables) {
+    const row = element("div", "", "row");
+    const status = element("span", room.fresh ? "即時" : "待更新", "pill");
+    status.dataset.fresh = String(Boolean(room.fresh));
+    const time = element("time", formatTime(room.updatedAt));
+    if (room.updatedAt) time.dateTime = room.updatedAt;
+    row.append(element("strong", room.room), element("span", room.historyCount ?? "—"), time, status);
+    panel.append(row);
+  }
+  return panel;
+}
+
+async function refresh() {
+  try {
+    const response = await fetch(location.pathname, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(4500),
+    });
+    if (!response.ok) throw new Error("Status request failed");
+    const data = await response.json();
+    const rooms = data.rooms.filter(room => groups.some(group => group.rooms.has(room.room)));
+    const freshCount = rooms.filter(room => room.fresh).length;
+    summary.textContent = rooms.length ? freshCount + " / " + rooms.length + " 張桌即時更新" : "尚未收到桌況";
+    const latest = rooms.reduce((last, room) => Date.parse(room.updatedAt) > Date.parse(last) || !last ? room.updatedAt : last, null);
+    updated.textContent = latest ? "最後收到桌況 " + formatTime(latest) + " · 台北時間" : "每 5 秒更新一次 · 台北時間";
+    relay.textContent = freshCount ? "中繼在線" : "等待資料";
+    relay.dataset.fresh = String(freshCount > 0);
+    container.replaceChildren(...groups.map(group => renderGroup(group, rooms)));
+  } catch {
+    summary.textContent = "暫時無法讀取桌況";
+    updated.textContent = "頁面會自動重試。";
+    relay.textContent = "連線異常";
+    relay.dataset.fresh = "false";
+    container.replaceChildren();
+  } finally {
+    setTimeout(refresh, 5000);
+  }
+}
+refresh();
+</script>
+</body>
+</html>
