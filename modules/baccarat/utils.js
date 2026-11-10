@@ -1,4 +1,4 @@
-const { RESULTS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
+const { RESULTS, MODES, DG_ROOMS, MT_ROOMS, AB_ROOMS } = require("./constants");
 
 function normalizeRoom(platform, room) {
   if (!room) return null;
@@ -21,6 +21,7 @@ function normalizeRoom(platform, room) {
 function validateRoom(platform, room) {
   if (platform === "DG") return DG_ROOMS.includes(room);
   if (platform === "MT") return MT_ROOMS.includes(room);
+  if (platform === "歐博") return AB_ROOMS.includes(room);
   return false;
 }
 

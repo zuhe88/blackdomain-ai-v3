@@ -44,3 +44,11 @@ npm start
 ```text
 /health
 ```
+
+## 歐博桌況中繼
+
+1. 在服務端與中繼電腦設定相同的 `AB_RELAY_KEY`。
+2. 在專用的 Chrome 設定檔啟用本機遠端偵錯，於中繼環境設定 `AB_BROWSER_CDP_URL`。將 `AB_INGEST_URL` 指向服務端的 `/api/ab/ingest`。
+3. 執行 `npm run ab-relay` 後，用該 Chrome 正常登入並開啟歐博。透過 `/api/ab/status` 檢查桌況是否持續更新。
+
+中繼只傳桌號與路單，不傳登入憑證、帳號或餘額。現有實作需要登入中的瀏覽器持續連線。

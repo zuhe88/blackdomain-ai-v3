@@ -43,24 +43,27 @@ const {
   applyResult,
   getTianmenRequirements,
 } = require("./ai");
-const { COMMANDS, MODES, DG_ROOMS, MT_ROOMS } = require("./constants");
+const { COMMANDS, MODES, PLATFORMS, DG_ROOMS, MT_ROOMS, AB_ROOMS } = require("./constants");
 const { currencyFor, parseCurrency, formatMoney } = require("./currency");
 const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
+const abSource = require("./abSource");
+const sources = new Map([["DG", dgSource], ["MT", mtSource], ["歐博", abSource]]);
+const rooms = new Map([["DG", DG_ROOMS], ["MT", MT_ROOMS], ["歐博", AB_ROOMS]]);
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("./availability");
 const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
 
 function roomsForPlatform(platform) {
-  const configured = platform === "DG" ? DG_ROOMS : MT_ROOMS;
-  const source = platform === "DG" ? dgSource : mtSource;
+  const configured = rooms.get(platform);
+  const source = sources.get(platform);
   const observed = new Set(source.getSnapshot().tables.map((table) => table.room));
   if (!observed.size) return configured;
   return configured.filter((room) => observed.has(room) && source.isRoomFresh(room));
 }
 
 function roomIsObservedWhenSourceOnline(platform, room) {
-  const source = platform === "DG" ? dgSource : mtSource;
+  const source = sources.get(platform);
   const observed = new Set(source.getSnapshot().tables.map((table) => table.room));
   return !observed.size || observed.has(room);
 }
@@ -70,12 +73,12 @@ function roomPrompt(platform) {
 }
 
 function roomStatsFor(session) {
-  const source = session.platform === "DG" ? dgSource : mtSource;
+  const source = sources.get(session.platform);
   return source.getRoomStats(session.room);
 }
 
 function liveDataIsFresh(session) {
-  const source = session.platform === "DG" ? dgSource : mtSource;
+  const source = sources.get(session.platform);
   return source.isRoomFresh(session.room);
 }
 
@@ -126,7 +129,7 @@ function bindLiveCursor(session, record = {}) {
 }
 
 function hydrateLiveHistory(session) {
-  const source = session.platform === "DG" ? dgSource : mtSource;
+  const source = sources.get(session.platform);
   const table = source.getTableByRoom(session.room);
   if (!table?.history.length) return session;
   session.history = table.history.slice(-50).map((record) => record.result);
@@ -448,7 +451,7 @@ function queueLiveResult(platform, event) {
 }
 
 function reconciliationEventFor(session) {
-  const source = session.platform === "DG" ? dgSource : mtSource;
+  const source = sources.get(session.platform);
   if (!source.isRoomFresh(session.room)) return null;
   const table = source.getTableByRoom(session.room);
   const history = Array.isArray(table?.history) ? table.history : [];
@@ -544,17 +547,13 @@ async function resetBaccaratSession(userId) {
   return persistenceResult.value;
 }
 
-dgSource.onResult((event) => {
-  queueLiveResult("DG", event).catch((error) => {
-    console.error("[DG] Auto settlement failed:", error.message);
+for (const [platform, source] of sources) {
+  source.onResult((event) => {
+    queueLiveResult(platform, event).catch((error) => {
+      console.error(`[${platform}] Auto settlement failed:`, error.message);
+    });
   });
-});
-
-mtSource.onResult((event) => {
-  queueLiveResult("MT", event).catch((error) => {
-    console.error("[MT] Auto settlement failed:", error.message);
-  });
-});
+}
 
 function capitalPrompt(mode = "", currency = "TWD") {
   const minimum = getTianmenRequirements(0, currency).minBankroll;
@@ -655,10 +654,10 @@ async function handleBaccaratMessage(event) {
 
   if (session.step === "platform") {
     const platform = value.toUpperCase();
-    if (platform !== "DG" && platform !== "MT") {
+    if (!PLATFORMS.includes(platform)) {
       return reply(token, baccaratPromptFlex({
         title: "請選擇平台",
-        lines: ["請選擇 DG 或 MT。"],
+        lines: ["請選擇 DG、MT 或歐博。"],
         quickReply: platformQuickReply(),
       }));
     }
@@ -686,6 +685,20 @@ async function handleBaccaratMessage(event) {
       }));
     }
     setRoom(userId, room);
+    if (session.platform === "歐博") {
+      const updated = setMode(userId, "自由配注");
+      if (!liveDataIsFresh(updated)) return reply(token, liveSyncPrompt(waitForFreshLiveData(userId, updated)));
+      const analysis = firstAnalysis(hydrateLiveHistory(updated));
+      updateAfterRound(userId, analysis.session);
+      return reply(token, baccaratAnalysisFlex({
+        session: analysis.session,
+        prediction: analysis.prediction,
+        bet: analysis.bet,
+        reason: getReason(analysis.session),
+        roomStats: roomStatsFor(analysis.session),
+        ...liveResultOptions(),
+      }));
+    }
     return reply(token, currencyPrompt());
   }
 
@@ -797,7 +810,7 @@ async function handleBaccaratMessage(event) {
   }
 
   if (session.step === "playing") {
-    if (["DG", "MT"].includes(session.platform) && isResult(value)) {
+    if (PLATFORMS.includes(session.platform) && isResult(value)) {
       return reply(token, baccaratPromptFlex({
         title: `${session.platform} 已啟用自動結算`,
         lines: ["不需要自行回報莊、閒或和，系統會依此房即時開獎自動更新。"],
@@ -830,10 +843,10 @@ async function handleBaccaratMessage(event) {
 function isBaccaratCommand(value) {
   return [
     ...COMMANDS,
-    "DG",
-    "MT",
+    ...PLATFORMS,
     ...DG_ROOMS,
     ...MT_ROOMS,
+    ...AB_ROOMS,
     ...MODES,
     "台幣 TWD",
     "令吉 MYR",

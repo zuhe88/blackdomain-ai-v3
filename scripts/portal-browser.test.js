@@ -17,12 +17,15 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   let accessCalls=0;
   app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:false,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
   app.get('/health',(_req,res)=>res.json({ok:true}));
+  app.get('/api/ab/status',(_req,res)=>res.json({games:[{game:'bullbull',room:'BB701',fresh:true}]}));
   app.get('/api/electronic/status',(_req,res)=>state.failData?res.status(503).json({error:"測試資料讀取失敗"}):res.json({games:[]}));
   app.get('/api/web/events',(req,res)=>{res.set({'Content-Type':'text/event-stream','Cache-Control':'no-store'});res.write('event: ready\ndata: {}\n\n');req.on('close',()=>res.end());});
   app.post('/api/web/stop',(_req,res)=>res.json({ok:true}));
   app.post('/api/web/command',(req,res)=>{
     const value=req.body.text;state.commands.push(value);let messages=[];
     if(value==='DG')messages=[baccaratRoomFlex('DG',['RB01','RB02','RB03'])];
+    else if(value==='歐博')messages=[baccaratRoomFlex('歐博',['B501','IB801','Q702','C501'])];
+    else if(value==='IB801')messages=[baccaratPromptFlex({title:'歐博即時資料同步中',lines:['IB801 目前尚未收到新的即時桌況']})];
     else if(value==='RB01')messages=[baccaratPromptFlex({title:'請選擇幣別',lines:['台幣 TWD：最低下注 NT$ 50','令吉 MYR：最低下注 RM 10'],quickReply:currencyQuickReply()})];
     else if(['台幣 TWD','令吉 MYR'].includes(value)){state.currency=value.includes('MYR')?'MYR':'TWD';messages=[baccaratPromptFlex({title:'請選擇分析模式',lines:[`使用幣別：${value}`],quickReply:modeQuickReply()})];}
     else if(['AI配注','天門'].includes(value)){state.mode=value;state.inputStep='capital';messages=[baccaratPromptFlex({title:'請輸入本金',lines:[`使用幣別：${state.currency}`]})];}
@@ -111,6 +114,21 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     }
     await page.setViewportSize({width:390,height:844});await open('/portal/');await page.locator('#mobileDock').getByRole('button',{name:'更多',exact:true}).click();await page.getByRole('heading',{name:'更多功能',exact:true}).waitFor();await page.getByRole('button',{name:'帳號設定',exact:true}).last().click();await page.getByRole('heading',{name:'帳號設定',exact:true}).waitFor();
     await page.getByRole('button',{name:/安裝黑域AI/}).click();await page.getByRole('dialog').waitFor({state:'visible'});await fit('install dialog');await page.getByRole('button',{name:'了解',exact:true}).click();
+    await open('/portal/baccarat');
+    await page.getByRole('button',{name:'歐博玩法與本金風險',exact:true}).click();
+    await page.getByText('即時桌況：BB701',{exact:true}).waitFor();
+    await page.getByText('目前未收到即時桌況。',{exact:true}).waitFor();
+    await page.locator('select[name=multiplier]').selectOption('11');
+    for(const [name,value] of Object.entries({capital:'10000',budget:'1000',positions:'3',minimum:'50',maximum:'10000'}))await page.locator(`input[name=${name}]`).fill(value);
+    await page.getByRole('button',{name:'試算',exact:true}).click();
+    assert.match(await page.locator('output').innerText(),/單筆上限為 0/);
+    await page.locator('input[name=minimum]').fill('20');
+    await page.getByRole('button',{name:'試算',exact:true}).click();
+    assert.match(await page.locator('output').innerText(),/每筆試算上限 30.3/);
+    await fit('ALLBET risk calculator at 390px');
+    await open('/portal/baccarat/ab/analyze');
+    await page.getByRole('button',{name:'IB801 保險',exact:true}).click();
+    await page.getByRole('heading',{name:'歐博即時資料同步中',exact:true}).waitFor();
     // The core always animates, including devices with reduced motion enabled.
     const ring=page.locator('.ring-inner');
     const transform=()=>ring.evaluate(node=>getComputedStyle(node).transform);

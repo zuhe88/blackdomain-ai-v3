@@ -32,14 +32,14 @@ function platformImageBubble(actionText, title, imageName) {
       body: { backgroundColor: COLORS.black },
       footer: { backgroundColor: COLORS.black },
     },
-    hero: {
+    ...(imageName ? { hero: {
       type: "image",
       url: moduleImageUrl(imageName),
       size: "full",
       aspectRatio: "8:9",
       aspectMode: "cover",
       ...(!paused ? { action: { type: "message", text: actionText } } : {}),
-    },
+    } } : {}),
     body: {
       type: "box",
       layout: "vertical",
@@ -70,12 +70,23 @@ function baccaratPlatformFlex(quickReply) {
       contents: [
         platformImageBubble("DG", "DG 百家樂AI", "dg.png"),
         platformImageBubble("MT", "MT 百家樂AI", "mt.png"),
+        platformImageBubble("歐博", "歐博百家樂AI"),
       ],
     },
   };
 }
 
-function roomButton(room) {
+function abRoomLabel(room) {
+  if (room.startsWith("IB")) return "保險";
+  if (room.startsWith("C")) return "咪牌";
+  if (room.startsWith("Q")) return "快速";
+  if (room.startsWith("V")) return "VIP";
+  if (room.startsWith("B5")) return "性感";
+  if (["B618", "B819", "B820"].includes(room)) return "經典";
+  return "一般";
+}
+
+function roomButton(room, variant) {
   return {
     type: "box",
     layout: "vertical",
@@ -83,8 +94,11 @@ function roomButton(room) {
     paddingAll: "10px",
     backgroundColor: COLORS.panel,
     cornerRadius: "10px",
-    action: { type: "message", text: room },
-    contents: [text(room, { size: "sm", weight: "bold", color: COLORS.gold, align: "center", wrap: false })],
+    action: { type: "message", text: room, ...(variant ? { label: `${room} ${variant}` } : {}) },
+    contents: [
+      text(room, { size: "sm", weight: "bold", color: COLORS.gold, align: "center", wrap: false }),
+      ...(variant ? [text(variant, { size: "xs", color: COLORS.muted, align: "center" })] : []),
+    ],
   };
 }
 
@@ -108,7 +122,7 @@ function baccaratRoomFlex(platform, rooms, quickReply) {
         layout: "horizontal",
         spacing: "sm",
         contents: [
-          ...row.map(roomButton),
+          ...row.map((room) => roomButton(room, platform === "歐博" ? abRoomLabel(room) : null)),
           ...Array.from({ length: 3 - row.length }, () => ({ type: "box", layout: "vertical", flex: 1, contents: [] })),
         ],
       })),

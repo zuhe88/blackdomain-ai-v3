@@ -1,4 +1,5 @@
 const dgSource = require("../modules/baccarat/dgSource");
+const abSource = require("../modules/baccarat/abSource");
 const mtSource = require("../modules/baccarat/mtSource");
 const electronicSource = require("../modules/electronic/source");
 const electronicAvailability = require("../modules/electronic/availability");
@@ -70,6 +71,7 @@ function getSystemHealth() {
   const providers = [
     baccaratProvider("dg", "DG 百家樂", dgSource.getSnapshot()),
     baccaratProvider("mt", "MT 百家樂", mtSource.getSnapshot()),
+    ...(process.env.AB_RELAY_KEY ? [baccaratProvider("ab", "歐博百家樂", abSource.getSnapshot())] : []),
     electronicProvider(),
     mbProvider(),
   ];

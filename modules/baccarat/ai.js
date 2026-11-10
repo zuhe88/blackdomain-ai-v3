@@ -394,6 +394,11 @@ function nextAnalysis(session, opened) {
 }
 
 function firstAnalysis(session, countFundingRound = true) {
+  if (session.platform === "歐博") {
+    const analysis = { prediction: OBSERVE, reasonCode: "AB_NO_VERIFIED_EDGE" };
+    Object.assign(session, { lastPrediction: OBSERVE, lastPredictionMeta: analysis, lastBet: 0 });
+    return { session, prediction: OBSERVE, bet: 0, analysis };
+  }
   const analysis = analyzePrediction(session.history);
   const prediction = analysis.prediction;
   let bet = calculateBet(session, prediction);
@@ -416,6 +421,9 @@ function firstAnalysis(session, countFundingRound = true) {
 }
 
 function getReason(session) {
+  if (session.lastPredictionMeta?.reasonCode === "AB_NO_VERIFIED_EDGE") {
+    return "目前牌路只能描述已開結果，未驗證可預測下一局。本局建議下注 0，保留全部本金。";
+  }
   if (session.lastPredictionMeta?.reasonCode === "INSUFFICIENT_TIANMEN_BANKROLL") {
     const minimum = Number(session.lastPredictionMeta.minBankroll || MIN_TIANMEN_BANKROLL).toLocaleString("en-US");
     const current = Number(session.lastPredictionMeta.startingCapital || 0).toLocaleString("en-US");
