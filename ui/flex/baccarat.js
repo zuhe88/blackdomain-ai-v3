@@ -479,6 +479,13 @@ function compactPerformancePanel(results) {
   };
 }
 
+function allbetSettlement(session) {
+  if (session.platform !== "歐博" || !session.lastSettlement) return null;
+  const { prediction, actual, verdict } = session.lastSettlement;
+  const label = { 過: "命中", 倒: "未中", 和: "和局", 觀望: "觀望" }[verdict];
+  return `開 ${actual} · 上局 ${prediction} · ${label}`;
+}
+
 function baccaratLiveUpdateFlex({ session, prediction, betText, betLabel, isFreeBet, isObserve, profit, results, tableStats, notice, quickReply }) {
   const muted = "#9CA3AF", gold = "#E2C18D", white = "#F2F3F5";
   const value = amount => formatMoney(amount, session.currency);
@@ -503,6 +510,7 @@ function baccaratLiveUpdateFlex({ session, prediction, betText, betLabel, isFree
         stat("剩餘本金", value(session.bankroll)),
         stat("目前獲利", (Number(profit) > 0 ? "+" : "") + value(profit), Number(profit) < 0 ? "#EF8B83" : gold),
       ] }] : []),
+      ...(allbetSettlement(session) ? [infoLine("上局模擬結算", allbetSettlement(session))] : []),
       divider, roomStatsPanel(tableStats), compactPerformancePanel(results),
       ...(notice ? [text("同步提示：" + notice, { size: "xs", color: "#EF8B83", wrap: true })] : []),
       text("請核對莊、閒、和、總數是否與平台一致", { size: "xxs", color: muted, wrap: true }),
@@ -598,6 +606,7 @@ function baccaratAnalysisFlex({
         infoLine("剩餘本金", formatMoney(session.bankroll, session.currency)),
         infoLine("目前獲利", formatMoney(profit, session.currency)),
       ] : []),
+      ...(allbetSettlement(session) ? [infoLine("上局模擬結算", allbetSettlement(session))] : []),
       roomStatsPanel(tableStats),
       verificationNotice(),
       performancePanel(results, hitRate),

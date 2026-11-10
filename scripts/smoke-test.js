@@ -1625,10 +1625,10 @@ async function main() {
   if (!webPortalSource.includes('name="robots" content="noindex,nofollow,noarchive"')) {
     throw new Error("Private member portal must be excluded from search indexing");
   }
-  for (const expected of ["app.js?v=20261110.05", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
+  for (const expected of ["app.js?v=20261110.06", "styles.css?v=20260907.06", "admin.css?v=20260907.06"]) {
     if (!webPortalSource.includes(expected)) throw new Error(`Website cache-busted asset is missing: ${expected}`);
   }
-  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261110.05"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
+  for (const expected of ["etag: false", '"cache-control", "no-store, no-cache, must-revalidate"', "web.waitReply(replyToken, 20_000)", 'portalBuild: "20261110.06"', 'isAdminLineUserId(userId)', '"/api/web/admin/monitor"', '"/api/mobile/login/account"', "sessionToken: token"]) {
     if (!webPortalRouteSource.includes(expected)) throw new Error(`Website command/cache hardening is missing: ${expected}`);
   }
   const webManifestSource = fs.readFileSync(path.join(root, "public", "portal", "manifest.webmanifest"), "utf8");
@@ -4517,7 +4517,7 @@ async function main() {
 
   const abSource = require("../modules/baccarat/abSource");
   const { normalizeTable } = require("../modules/baccarat/abProtocol");
-  const abRoads = ["077000400000", "269080300000", "224002500000"];
+  const abRoads = ["077000400000", ...Array(6).fill("269080300000")];
   const abTable = (roads) => normalizeTable({ room: "B601", tableId: 157, roads });
   abSource.ingestTables([abTable(abRoads)]);
   await send("百家樂", "user-smoke");
@@ -4527,6 +4527,11 @@ async function main() {
   assertIncludes(values, "Q702", "ALLBET rapid room selection");
   if (values.includes("B601") || values.includes("B501")) throw new Error("ALLBET rapid menu mixed room types");
   values = await sendAndTexts("Q702", "user-smoke");
+  assertIncludes(values, "請選擇幣別", "ALLBET currency selection");
+  values = await sendAndTexts("台幣 TWD", "user-smoke");
+  assertIncludes(values, "請選擇分析模式", "ALLBET mode selection");
+  for (const mode of ["AI配注", "天門", "自由配注"]) assertIncludes(values, mode, "ALLBET mode available");
+  values = await sendAndTexts("自由配注", "user-smoke");
   assertIncludes(values, "歐博等待即時桌況", "ALLBET waiting state");
   const abWaitingPushes = captured.pushes.length;
   abSource.ingestTables([normalizeTable({ room: "Q702", tableId: 900, roads: abRoads })]);
@@ -4539,13 +4544,36 @@ async function main() {
   await send("歐博百家樂", "user-smoke");
   values = await sendAndTexts("一般百家樂", "user-smoke");
   assertIncludes(values, "B601", "ALLBET room selection");
-  values = await sendAndTexts("B601", "user-smoke");
-  assertIncludes(values, "觀望", "ALLBET first road analysis");
+  await send("B601", "user-smoke");
+  await send("台幣 TWD", "user-smoke");
+  values = await sendAndTexts("AI配注", "user-smoke");
+  assertIncludes(values, "請輸入本金", "ALLBET AI capital prompt");
+  values = await sendAndTexts("10000", "user-smoke");
+  assertIncludes(values, "請輸入單注上限", "ALLBET AI stake limit prompt");
+  await send("2000", "user-smoke");
+  if (getBaccaratSession("user-smoke").lastPrediction !== "閒") throw new Error("ALLBET should recommend the simulated side");
   const abPushes = captured.pushes.length;
   abSource.ingestTables([abTable([...abRoads, "160040H00300"])]);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  if (captured.pushes.length !== abPushes + 1 || getBaccaratSession("user-smoke").lastBet !== 0) {
-    throw new Error("ALLBET must publish the new road without allocating a stake");
+  if (captured.pushes.length !== abPushes + 1 || getBaccaratSession("user-smoke").mode !== "AI配注") {
+    throw new Error("ALLBET must publish the new road using the selected AI mode");
+  }
+  const abSession = getBaccaratSession("user-smoke");
+  if (abSession.lastSettlement?.actual !== "莊" || abSession.lastSettlement?.verdict !== "倒" || abSession.results.fail !== 1) {
+    throw new Error("ALLBET must settle the simulated recommendation against the next result");
+  }
+  assertIncludes(captured.pushes.at(-1).messages.flatMap((message) => collectText(message)), "上局模擬結算", "ALLBET settlement card");
+  await send("返回房號", "user-smoke");
+  await send("B601", "user-smoke");
+  await send("台幣 TWD", "user-smoke");
+  values = await sendAndTexts("天門", "user-smoke");
+  assertIncludes(values, "請輸入本金", "ALLBET Tianmen capital prompt");
+  values = await sendAndTexts("100", "user-smoke");
+  assertIncludes(values, "天門本金不足", "ALLBET Tianmen minimum capital");
+  await send("50000", "user-smoke");
+  await send("50000", "user-smoke");
+  if (getBaccaratSession("user-smoke").step !== "playing" || getBaccaratSession("user-smoke").mode !== "天門") {
+    throw new Error("ALLBET Tianmen must enter live analysis after configuration");
   }
   await send("返回首頁", "user-smoke");
   abSource.resetForTest();

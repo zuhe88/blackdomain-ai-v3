@@ -750,20 +750,6 @@ async function handleBaccaratMessage(event) {
       }));
     }
     setRoom(userId, room);
-    if (session.platform === "歐博") {
-      const updated = setMode(userId, "自由配注");
-      if (!liveDataIsFresh(updated)) return reply(token, liveSyncPrompt(waitForFreshLiveData(userId, updated)));
-      const analysis = firstAnalysis(hydrateLiveHistory(updated));
-      updateAfterRound(userId, analysis.session);
-      return reply(token, baccaratAnalysisFlex({
-        session: analysis.session,
-        prediction: analysis.prediction,
-        bet: analysis.bet,
-        reason: getReason(analysis.session),
-        roomStats: roomStatsFor(analysis.session),
-        ...liveResultOptions(),
-      }));
-    }
     return reply(token, currencyPrompt());
   }
 

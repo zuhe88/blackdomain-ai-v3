@@ -78,8 +78,8 @@ test("authenticated intake keeps ALLBET separate and publishes new results only 
   ]);
   assert.equal(status.source, "browser-relay");
   assert.equal(status.rooms[0].historyCount, 4);
-  const analysis = firstAnalysis({ platform: "歐博", history: Array(20).fill("莊"), bankroll: 10000 });
+  const analysis = firstAnalysis({ platform: "歐博", history: Array(20).fill("莊"), mode: "自由配注", bankroll: 10000 });
   assert.equal(analysis.bet, 0);
-  assert.equal(analysis.prediction, "觀望");
+  assert.equal(analysis.prediction, "莊");
   assert.equal(analysis.session.bankroll, 10000);
 });
