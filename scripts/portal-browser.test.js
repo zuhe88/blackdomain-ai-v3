@@ -25,7 +25,8 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     if(value==='DG')messages=[baccaratRoomFlex('DG',['RB01','RB02','RB03'])];
     else if(value==='歐博')messages=[flex('歐博百家樂選擇玩法',[],['一般百家樂','急速百家樂'])];
     else if(value==='一般百家樂')messages=[baccaratRoomFlex('歐博',['B601'],undefined,'一般百家樂')];
-    else if(value==='急速百家樂')messages=[baccaratRoomFlex('歐博',['Q702'],undefined,'急速百家樂')];
+    else if(value==='急速百家樂')messages=[baccaratRoomFlex('歐博',['Q702','Q501'],undefined,'急速百家樂')];
+    else if(value==='Q501')messages=[baccaratAnalysisFlex({session:{platform:'歐博',room:'Q501',mode:'自由配注',results:{}},prediction:'觀望',bet:0,roomStats:{banker:18,player:11,tie:2,total:31}})];
     else if(value==='Q702')messages=[baccaratPromptFlex({title:'歐博等待即時桌況',lines:['Q702 尚未收到最新桌況。']})];
     else if(value==='RB01')messages=[baccaratPromptFlex({title:'請選擇幣別',lines:['台幣 TWD：最低下注 NT$ 50','令吉 MYR：最低下注 RM 10'],quickReply:currencyQuickReply()})];
     else if(['台幣 TWD','令吉 MYR'].includes(value)){state.currency=value.includes('MYR')?'MYR':'TWD';messages=[baccaratPromptFlex({title:'請選擇分析模式',lines:[`使用幣別：${value}`],quickReply:modeQuickReply()})];}
@@ -130,6 +131,14 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     await page.getByRole('button',{name:'Q702',exact:true}).click();
     await page.getByRole('heading',{name:'歐博等待即時桌況',exact:true}).waitFor();
     assert.equal(await page.getByText('分析完成',{exact:true}).count(),0);
+    await open('/portal/baccarat/ab/analyze');
+    await page.getByRole('button',{name:'急速百家樂',exact:true}).click();
+    await page.getByRole('button',{name:'Q501',exact:true}).click();
+    await page.getByRole('heading',{name:'歐博 Q501',exact:true}).waitFor();
+    const abBadge=page.locator('.room-platform');
+    assert.equal(await abBadge.innerText(),'歐博');
+    assert.ok(await abBadge.evaluate(element=>element.scrollWidth<=element.clientWidth&&element.scrollHeight<=element.clientHeight));
+    await fit('ALLBET room result');
     // The core always animates, including devices with reduced motion enabled.
     const ring=page.locator('.ring-inner');
     const transform=()=>ring.evaluate(node=>getComputedStyle(node).transform);
