@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261111.01";
+const PORTAL_BUILD="20261111.02";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -25,7 +25,6 @@ const categories={
     {id:"dg",name:"DG",subtitle:"DG 百家樂 AI",image:"/images/electronic/dg-baccarat.png",command:"DG"},
     {id:"mt",name:"MT",subtitle:"MT 百家樂 AI",image:"/images/electronic/mt-baccarat.png",command:"MT",disabled:true,disabledLabel:"MT休息中"},
     {id:"ab",name:"歐博",subtitle:"歐博百家樂 AI",image:"/images/electronic/allbet-baccarat.png",command:"歐博"},
-    {id:"t9",name:"T9",subtitle:"T9 真人百家樂",command:"T9",disabled:true,disabledLabel:"待接入即時桌況"},
   ]},
   atg:{name:"ATG",subtitle:"AI 電子選房",image:"/images/electronic/seth2-hd.webp",items:[
     {id:"set1",name:"賽特1",fullName:"戰神賽特1",subtitle:"AI 智能選房",image:"/images/electronic/seth1-hd.webp",command:"戰神賽特1"},
