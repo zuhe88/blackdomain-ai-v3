@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#071010">
   <meta name="description" content="3A 大老爺・周賀 LINE 聯絡入口。">
   <meta property="og:title" content="3A 大老爺｜周賀">
-  <meta property="og:description" content="加周賀 LINE，直接聯絡本人。">
+  <meta property="og:description" content="加入官方 LINE，索取 AI 預測程式。">
   <meta property="og:type" content="website">
   <meta property="og:image" content="/3a/zhouhe-character.webp">
   <title>3A 大老爺｜周賀 LINE</title>
@@ -17,6 +17,9 @@
     .stage { position: relative; isolation: isolate; overflow: hidden; min-height: 100svh; display: grid; align-content: center; padding: 32px max(26px, calc((100% - 1170px) / 2)) 38px; background: radial-gradient(ellipse at 76% 44%, #168b63 0, #0b3533 26%, transparent 59%), linear-gradient(125deg, #091015, #081d22 78%, #0c3932); }
     .stage::before { content: ""; position: absolute; z-index: -1; inset: 0; background: repeating-linear-gradient(120deg, transparent 0 86px, #4cf9b909 87px 90px); pointer-events: none; }
     .mast { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-weight: 850; letter-spacing: .12em; }
+    .brand-logos { display: flex; gap: 12px; }
+    .brand-logos img { display: block; width: clamp(48px, 6vw, 72px); height: auto; border-radius: 16%; }
+    .brand-logos img:last-child { border-radius: 50%; }
     .mast small { color: #9bd0be; font-size: 11px; }
     .hero { display: grid; grid-template-columns: .95fr 1fr; align-items: center; min-height: 530px; }
     .copy { position: relative; z-index: 1; }
@@ -53,7 +56,7 @@
 </head>
 <body>
   <main class="stage">
-    <div class="mast"><span>3A / 大老爺</span><small>ZHOU HE · LINE CONTACT</small></div>
+    <div class="mast"><div class="brand-logos"><img src="/3a/3a-logo.png" alt="3A" width="512" height="512"><img src="/3a/dalaoye-logo.png" alt="大老爺" width="352" height="352"></div><small>ZHOU HE · LINE CONTACT</small></div>
     <div class="hero">
       <div class="copy">
         <p class="tag">最帥代理</p>
@@ -64,7 +67,7 @@
     </div>
     <a class="line-entry" href="https://line.me/ti/p/@893jrweh">
       <span class="line-icon" aria-hidden="true">LINE</span>
-      <span class="line-copy"><strong>加周賀 LINE</strong><small>@893jrweh</small></span>
+      <span class="line-copy"><strong>索取 AI 預測程式</strong><small>請加入官方 LINE 索取 · @893jrweh</small></span>
       <span class="arrow" aria-hidden="true">↗</span>
     </a>
   </main>
