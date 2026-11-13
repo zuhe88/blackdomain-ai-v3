@@ -158,8 +158,8 @@ function multiTableCard(table, recommended) {
   const predictionLabel = table.prediction ? `第 ${escapeHtml(table.nextRound)} 局預測` : "預測待更新";
   const predictionSide = table.prediction === "莊" ? "banker" : table.prediction === "閒" ? "player" : "observe";
   const streak = count => Number.isInteger(count) ? count : "—";
-  return `<article class="multi-table-card">
-    <header><h2>${escapeHtml(table.room)}${recommended ? ' <span class="multi-table-recommended">推薦</span>' : ""}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
+  return `<article class="multi-table-card${recommended ? " is-recommended" : ""}" data-room="${escapeHtml(table.room)}">
+    <header><h2>${escapeHtml(table.room)}${recommended ? ' <span class="multi-table-recommended"><span aria-hidden="true">👍</span> 推薦</span>' : ""}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
     <div class="multi-table-roads">
       ${baccaratBeadRoad(road)}
       ${road.length ? `<section class="multi-table-big-road"><b>大路</b><div class="multi-table-road-scroll" tabindex="0" aria-label="大路，可左右滑動"><div class="multi-table-big-grid">${multiTableBigRoad(road)}</div></div></section>` : '<p class="multi-table-empty">暫無路單</p>'}
@@ -217,12 +217,20 @@ function renderMultiTable(itemId) {
       const serialized = JSON.stringify(data.tables);
       if (serialized !== lastResponse) {
         const scrollers = ".bead-road-scroll, .multi-table-road-scroll";
-        const offsets = [...grid.querySelectorAll(scrollers)].map(road => road.scrollLeft);
+        const offsets = new Map([...grid.children].map(card => [card.dataset.room,
+          [...card.querySelectorAll(scrollers)].map(road => road.scrollLeft),
+        ]));
         const highestTotal = Math.max(0, ...data.tables.map(table => table.totalCorrect ?? 0));
-        grid.innerHTML = data.tables.map(table =>
-          multiTableCard(table, highestTotal > 0 && table.totalCorrect === highestTotal)
-        ).join("");
-        grid.querySelectorAll(scrollers).forEach((road, index) => { road.scrollLeft = offsets[index] || 0; });
+        const isRecommended = table => highestTotal > 0 && table.totalCorrect === highestTotal;
+        const orderedTables = [...data.tables].sort((left, right) =>
+          Number(isRecommended(right)) - Number(isRecommended(left))
+        );
+        grid.innerHTML = orderedTables.map(table => multiTableCard(table, isRecommended(table))).join("");
+        for (const card of grid.children) {
+          card.querySelectorAll(scrollers).forEach((road, index) => {
+            road.scrollLeft = offsets.get(card.dataset.room)?.[index] ?? 0;
+          });
+        }
         lastResponse = serialized;
       }
       status.textContent = data.tables.length ? "" : "目前沒有桌況";

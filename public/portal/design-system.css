@@ -564,4 +564,7 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 .multi-table-totals .multi-table-score-label { color:#c1ddff; }
 .multi-table-totals .multi-table-streak { background:#21364d; border-color:#526c87; }
 
-.multi-table-card header .multi-table-recommended { display:inline-block; margin-inline-start:6px; padding:3px 8px; border-radius:5px; background:#f4cf7e; color:#302013; font-size:.75rem; font-weight:800; vertical-align:middle; }
+.multi-table-card.is-recommended { border-color:#f5cc72; box-shadow:0 0 0 1px #f5cc72, 0 6px 22px #c18a383d; }
+.multi-table-card.is-recommended header { background:linear-gradient(105deg,#513816,#211911 75%); }
+.multi-table-card header .multi-table-recommended { display:inline-flex; align-items:center; gap:5px; margin-inline-start:7px; padding:4px 10px; border-radius:6px; background:#ffda85; color:#302013; font-size:.85rem; font-weight:800; vertical-align:middle; }
+.multi-table-card header .multi-table-recommended span { color:inherit; font-size:1rem; }
