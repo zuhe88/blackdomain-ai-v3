@@ -555,4 +555,5 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 .multi-table-prediction .banker { background:#9c2636; }
 .multi-table-prediction .player { background:#1659a3; }
 .multi-table-prediction .observe { font-size:1rem; }
-.multi-table-totals { display:flex; flex-basis:100%; gap:14px; color:#e8daca; font-variant-numeric:tabular-nums; }
+.multi-table-totals { display:flex; flex-wrap:wrap; flex-basis:100%; gap:6px; }
+.multi-table-totals .multi-table-streak b { font-size:1.6rem; }

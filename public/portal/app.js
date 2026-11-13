@@ -176,7 +176,10 @@ function multiTableCard(table) {
       <div class="multi-table-streaks">
         <span class="multi-table-streak correct">連對 <b>${streak(table.correct)}</b> 關</span>
         <span class="multi-table-streak incorrect">連錯 <b>${streak(table.incorrect)}</b> 關</span>
-        <div class="multi-table-totals"><span>總對 <b>${streak(table.totalCorrect)}</b> 次</span><span>總錯 <b>${streak(table.totalIncorrect)}</b> 次</span></div>
+        <div class="multi-table-totals">
+          <span class="multi-table-streak correct">總對 <b>${streak(table.totalCorrect)}</b> 次</span>
+          <span class="multi-table-streak incorrect">總錯 <b>${streak(table.totalIncorrect)}</b> 次</span>
+        </div>
       </div>
     </footer>
   </article>`;
