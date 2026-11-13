@@ -92,6 +92,8 @@ function multiTableOverview(platform) {
         nextRound: fresh ? analysis?.nextRound ?? null : null,
         correct: tracked?.correct ?? null,
         incorrect: tracked?.incorrect ?? null,
+        totalCorrect: tracked?.totalCorrect ?? null,
+        totalIncorrect: tracked?.totalIncorrect ?? null,
       };
     });
 }

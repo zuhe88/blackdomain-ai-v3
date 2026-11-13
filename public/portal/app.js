@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261113.02";
+const PORTAL_BUILD="20261113.03";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -155,7 +155,8 @@ function multiTableBigRoad(road) {
 function multiTableCard(table) {
   const labels = {live:"即時", "new-shoe":"等待開獎", stale:"資料延遲", waiting:"等待桌況"};
   const road = Array.isArray(table.road) ? table.road : [];
-  const prediction = table.prediction ? `第 ${escapeHtml(table.nextRound)} 局預測　${escapeHtml(table.prediction)}` : "預測待更新";
+  const predictionLabel = table.prediction ? `第 ${escapeHtml(table.nextRound)} 局預測` : "預測待更新";
+  const predictionSide = table.prediction === "莊" ? "banker" : table.prediction === "閒" ? "player" : "observe";
   const streak = count => Number.isInteger(count) ? count : "—";
   return `<article class="multi-table-card">
     <header><h2>${escapeHtml(table.room)}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
@@ -168,10 +169,14 @@ function multiTableCard(table) {
       <span>總 ${table.status === "new-shoe" ? 0 : road.length || "—"}</span>
     </div>
     <footer>
-      <strong>${prediction}</strong>
+      <div class="multi-table-prediction">
+        <span>${predictionLabel}</span>
+        ${table.prediction ? `<b class="${predictionSide}">${escapeHtml(table.prediction)}</b>` : ""}
+      </div>
       <div class="multi-table-streaks">
         <span class="multi-table-streak correct">連對 <b>${streak(table.correct)}</b> 關</span>
         <span class="multi-table-streak incorrect">連錯 <b>${streak(table.incorrect)}</b> 關</span>
+        <div class="multi-table-totals"><span>總對 <b>${streak(table.totalCorrect)}</b> 次</span><span>總錯 <b>${streak(table.totalIncorrect)}</b> 次</span></div>
       </div>
     </footer>
   </article>`;

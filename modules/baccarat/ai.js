@@ -208,7 +208,7 @@ function signalConfidence(margin, totalWeight, patternBonus = 0) {
   return Math.min(0.62, 0.5 + weightedStrength + patternBonus);
 }
 
-function analyzePrediction(history = []) {
+function analyzePrediction(history = [], { doubleJump = false } = {}) {
   const source = Array.isArray(history) ? history : [];
   const clean = source
     .map((item) => (typeof item === "string" ? item : item?.result))
@@ -240,6 +240,19 @@ function analyzePrediction(history = []) {
 
   const latest = recent[recent.length - 1];
   const totalWeight = (sampleSize * (sampleSize + 1)) / 2;
+
+  const cycle = clean.slice(-6);
+  if (doubleJump && cycle.length === 6
+    && new Set(cycle).size === 2
+    && cycle.slice(0, 3).every((side, index) => side === cycle[index + 3])) {
+    return predictionResult({
+      prediction: cycle[0],
+      sampleSize,
+      historySize,
+      reasonCode: "RECENT_DOUBLE_JUMP",
+      evidence,
+    });
+  }
 
   if (streakLength >= 2) {
     return predictionResult({
@@ -311,8 +324,8 @@ function analyzePrediction(history = []) {
   });
 }
 
-function predict(history = []) {
-  return analyzePrediction(history).prediction;
+function predict(history = [], options) {
+  return analyzePrediction(history, options).prediction;
 }
 
 function calculateBet(session, prediction = session.lastPrediction) {

@@ -549,3 +549,10 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 .multi-table-streak b { font-size:1.48rem; font-weight:850; line-height:1.15; font-variant-numeric:tabular-nums; }
 .multi-table-streak.correct { color:#9bf0bc; background:#153022; }
 .multi-table-streak.incorrect { color:#ffacb1; background:#3c1f24; }
+
+.multi-table-prediction { display:flex; align-items:center; flex-wrap:wrap; gap:8px; color:#f4d599; font-weight:700; }
+.multi-table-prediction b { display:grid; place-items:center; min-width:42px; padding:3px 8px; border-radius:8px; background:#34333a; color:#fff; font-size:1.55rem; line-height:1.2; }
+.multi-table-prediction .banker { background:#9c2636; }
+.multi-table-prediction .player { background:#1659a3; }
+.multi-table-prediction .observe { font-size:1rem; }
+.multi-table-totals { display:flex; flex-basis:100%; gap:14px; color:#e8daca; font-variant-numeric:tabular-nums; }

@@ -17,7 +17,7 @@ for (const { platform, results } of shoes) {
   const groups = totals.get(platform);
   for (const [index, result] of results.entries()) {
     if (result === "和") continue;
-    const analysis = analyzePrediction(results.slice(Math.max(0, index - 50), index));
+    const analysis = analyzePrediction(results.slice(Math.max(0, index - 50), index), { doubleJump: true });
     for (const name of ["overall", analysis.reasonCode]) {
       const score = groups[name] ??= { eligible: 0, issued: 0, hits: 0, banker: 0, player: 0 };
       score.eligible += 1;

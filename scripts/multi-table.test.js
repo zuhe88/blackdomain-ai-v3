@@ -17,18 +17,35 @@ test("multi-table scores only issued rounds, independently by table and shoe", (
   const next = tracker.update("A", history(prefix + first.prediction + "和和"));
   assert.equal(next.correct, 1);
   assert.equal(next.incorrect, 0);
-  assert.equal(tracker.update("A", history(prefix + first.prediction + "和和")), next);
+  assert.equal(next.totalCorrect, 1);
+  assert.equal(next.totalIncorrect, 0);
+  const tied = tracker.update("A", history(prefix + first.prediction + "和和和"));
+  assert.equal(tied.totalCorrect, 1);
+  assert.equal(tied.totalIncorrect, 0);
+  assert.equal(tracker.update("A", history(prefix + first.prediction + "和和和")), tied);
   assert.equal(tracker.update("B", history(prefix)), other);
   assert.equal(other.correct, 0);
   const opposite = other.prediction === "莊" ? "閒" : "莊";
   const missed = tracker.update("B", history(prefix + opposite));
   assert.equal(missed.correct, 0);
   assert.equal(missed.incorrect, 1);
+  assert.equal(missed.totalIncorrect, 1);
   assert.equal(tracker.update("A", history(prefix, "shoe-2")).correct, 1);
   assert.equal(tracker.update("A", history(prefix, "shoe-2"), true).correct, 1);
   assert.equal(tracker.update("A", []).correct, 1);
   tracker.resetAtEmptyShoe("A");
   assert.equal(tracker.get("A").correct, 0);
+  assert.equal(tracker.get("A").totalCorrect, 0);
+  assert.equal(tracker.get("B").totalIncorrect, 1);
   assert.equal(tracker.update("A", history(prefix, "shoe-3")).correct, 0);
   assert.equal(tracker.get("B").incorrect, 1);
+});
+
+test("multi-table recognizes both double-jump patterns and their rotations", () => {
+  const tracker = createMultiTableTracker();
+  assert.equal(tracker.update("A", history("莊莊閒莊莊閒")).prediction, "莊");
+  assert.equal(tracker.update("B", history("閒閒莊閒閒莊")).prediction, "閒");
+  assert.equal(tracker.update("C", history("閒莊莊和閒莊莊")).prediction, "閒");
+  assert.equal(tracker.update("D", history("莊閒莊莊閒莊")).prediction, "莊");
+  assert.equal(tracker.update("E", history("莊莊莊莊莊莊")).prediction, "莊");
 });
