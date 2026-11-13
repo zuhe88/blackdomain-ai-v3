@@ -315,6 +315,9 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
 
   function mergeTable(incoming) {
     if (!incoming || !Number.isInteger(Number(incoming.tableId))) return false;
+    if (Number.isFinite(incoming.countDown)) {
+      incoming = { ...incoming, countdownEndsAt: Date.now() + incoming.countDown * 1000 };
+    }
     const tableId = Number(incoming.tableId);
     const hadCurrent = tables.has(tableId);
     const incomingRoom = roomFromName(incoming.tableName);
@@ -667,6 +670,7 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
         playId: table.playId || null,
         state: table.state ?? null,
         countDown: table.countDown ?? null,
+        countdownEndsAt: table.countdownEndsAt ?? null,
         result: table.result || null,
         gameNo: table.gameNo || null,
         historyCount: table.history.length,

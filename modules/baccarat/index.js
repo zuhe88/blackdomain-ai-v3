@@ -85,7 +85,8 @@ function multiTableOverview(platform) {
         status: fresh ? records.length ? "live" : "new-shoe" : table ? "stale" : "waiting",
         shoe: table?.shoeId ?? table?.shoe ?? null,
         round: records.at(-1)?.roundIndex ?? null,
-        countdown: fresh ? table.countDown ?? null : null,
+        countdownMs: fresh && table.countdownEndsAt
+          ? Math.max(0, table.countdownEndsAt - Date.now()) : null,
         road,
         counts,
         prediction: fresh ? analysis?.prediction ?? null : null,

@@ -159,7 +159,7 @@ function multiTableCard(table, recommended) {
   const predictionSide = table.prediction === "莊" ? "banker" : table.prediction === "閒" ? "player" : "observe";
   const streak = count => Number.isInteger(count) ? count : "—";
   return `<article class="multi-table-card${recommended ? " is-recommended" : ""}" data-room="${escapeHtml(table.room)}">
-    <header><h2>${escapeHtml(table.room)}${recommended ? ' <span class="multi-table-recommended"><span aria-hidden="true">👍</span> 推薦</span>' : ""}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
+    <header><h2>${escapeHtml(table.room)}${recommended ? ' <span class="multi-table-recommended"><span aria-hidden="true">👍</span> 推薦</span>' : ""}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}<span class="multi-table-countdown" hidden></span></span></header>
     <div class="multi-table-roads">
       ${baccaratBeadRoad(road)}
       ${road.length ? `<section class="multi-table-big-road"><b>大路</b><div class="multi-table-road-scroll" tabindex="0" aria-label="大路，可左右滑動"><div class="multi-table-big-grid">${multiTableBigRoad(road)}</div></div></section>` : '<p class="multi-table-empty">暫無路單</p>'}
@@ -201,6 +201,23 @@ function renderMultiTable(itemId) {
   const status = screen.querySelector(".multi-table-status");
   const grid = screen.querySelector(".multi-table-grid");
   let lastResponse = "";
+  let deadlines = new Map();
+  function updateCountdowns() {
+    if (!screen.isConnected) {
+      clearInterval(countdownTimer);
+      return;
+    }
+    const now = performance.now();
+    for (const card of grid.children) {
+      const label = card.querySelector(".multi-table-countdown");
+      const deadline = deadlines.get(card.dataset.room);
+      const seconds = Math.max(0, Math.ceil(((deadline ?? now) - now) / 1000));
+      label.hidden = seconds === 0;
+      const text = seconds ? ` · ${seconds} 秒` : "";
+      if (label.textContent !== text) label.textContent = text;
+    }
+  }
+  const countdownTimer = setInterval(updateCountdowns, 100);
   async function refresh() {
     if (!screen.isConnected) return;
     try {
@@ -214,7 +231,9 @@ function renderMultiTable(itemId) {
         lastResponse = "";
         throw new Error(data.error || "無法同步桌況");
       }
-      const serialized = JSON.stringify(data.tables);
+      const now = performance.now();
+      deadlines = new Map(data.tables.map(table => [table.room, now + (table.countdownMs ?? 0)]));
+      const serialized = JSON.stringify(data.tables.map(({ countdownMs, ...table }) => table));
       if (serialized !== lastResponse) {
         const scrollers = ".bead-road-scroll, .multi-table-road-scroll";
         const offsets = new Map([...grid.children].map(card => [card.dataset.room,
@@ -233,6 +252,7 @@ function renderMultiTable(itemId) {
         }
         lastResponse = serialized;
       }
+      updateCountdowns();
       status.textContent = data.tables.length ? "" : "目前沒有桌況";
     } catch (error) {
       if (screen.isConnected) {
