@@ -17,7 +17,7 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   let accessCalls=0;
   app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:state.mtEnabled===true,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
   app.get('/api/web/baccarat/multi',(req,res)=>{
-    assert.ok(['dg','mt','ab'].includes(req.query.platform));
+    assert.ok(['dg','mt','ab','t9'].includes(req.query.platform));
     res.json({tables:[
       {room:'TEST01',status:'live',round:3,road:['莊','閒','和'],counts:{莊:1,閒:1,和:1},prediction:'莊',nextRound:4,correct:2,incorrect:0},
       {room:'TEST02',status:'stale',road:[],prediction:null,correct:null,incorrect:null},
@@ -82,7 +82,7 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
       await fit('multi-table '+width);
     }
     state.mtEnabled=true;
-    for(const platform of ['ab','mt']){
+    for(const platform of ['ab','mt','t9']){
       await open('/portal/baccarat/'+platform+'/multi');
       await page.getByText('連對 2 關',{exact:true}).waitFor();
     }

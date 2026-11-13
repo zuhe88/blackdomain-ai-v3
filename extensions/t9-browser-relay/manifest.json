@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "BLACKDOMAIN T9 Relay",
+  "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjLE7dC/wvJh+80emQaEV4i87GNTeaaLlBQvTO4bR3En3HzIulcNkVQj8djA85RmwPCE5jRn/4CwjXrzB1FdWQ98Tj+ZJRXwlwi3RSk8LP7fQXau6InHq8Nap7KMCLOdv5BWeSkVRb9Axa1Gcysj9/0DH8rFuJtERtFXAI3b/d8PJ5jnrQQMXo1vsrBSid1/uLUKBhVGvouZL9V3l2xnYYsEWBue7iV3QLFevuLqsIvHgG2D5+qrSYzaXltwJuz+GZ3terh3668i+bRhRU+cZbZS5pSXIeCtZfZTI68sTOkIqGxABNBHqeYG5qis83iysQscDZ+4J86Sc1UaNaVYVfwIDAQAB",
+  "host_permissions": [
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://g.t9gaming.fun/VideoBaccarat/index.html*"
+      ],
+      "js": [
+        "capture.js"
+      ],
+      "all_frames": true,
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://g.t9gaming.fun/VideoBaccarat/index.html*"
+      ],
+      "js": [
+        "relay.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ]
+}

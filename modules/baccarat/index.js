@@ -48,7 +48,8 @@ const { currencyFor, parseCurrency, formatMoney } = require("./currency");
 const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
 const abSource = require("./abSource");
-const sources = new Map([["DG", dgSource], ["MT", mtSource], ["歐博", abSource]]);
+const t9Source = require("./t9Source");
+const sources = new Map([["DG", dgSource], ["MT", mtSource], ["歐博", abSource], ["T9", t9Source]]);
 const { createMultiTableTracker } = require("./multiTable");
 const rooms = new Map([["DG", DG_ROOMS], ["MT", MT_ROOMS], ["歐博", AB_ROOMS]]);
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("./availability");
@@ -67,7 +68,7 @@ function multiTableOverview(platform) {
   const observed = new Map(source.getSnapshot().tables.map(table => [table.room, table]));
   const configured = platform === "歐博"
     ? Object.values(AB_BACCARAT_VARIANTS).flat()
-    : rooms.get(platform);
+    : rooms.get(platform) || [];
   return [...new Set([...configured, ...observed.keys()])]
     .filter(room => platform !== "歐博" || /^[BQ]/.test(room))
     .map(room => {
@@ -641,6 +642,7 @@ for (const [platform, source] of sources) {
     multiTableTrackers.get(platform).update(
       event.room, event.history, event.resyncReason === "snapshot_replaced",
     );
+    if (platform === "T9") return;
     queueLiveResult(platform, event).catch((error) => {
       console.error(`[${platform}] Auto settlement failed:`, error.message);
     });

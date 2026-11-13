@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "BLACKDOMAIN 歐博轉發",
+  "version": "1.0.0",
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [
+    {"matches":["https://www.ab88.games/*"], "js":["capture.js"], "run_at":"document_start","world":"MAIN"},
+    {"matches":["https://www.ab88.games/*"], "js":["relay.js"], "run_at":"document_start"}
+  ]
+}

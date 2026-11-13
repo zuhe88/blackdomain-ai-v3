@@ -4,7 +4,7 @@ const { DG_ROOMS } = require("./constants");
 
 const ALLOWED_COMMANDS = new Set([2, 27, 207, 1002, 1004, 1005]);
 
-function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defaultFreshnessMs }) {
+function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defaultFreshnessMs, roomAllowed = room => rooms.includes(room), allowImplicitShoeReset = true }) {
   const tables = new Map();
   const events = new EventEmitter();
   events.setMaxListeners(50);
@@ -321,7 +321,7 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
     const tableId = Number(incoming.tableId);
     const hadCurrent = tables.has(tableId);
     const incomingRoom = roomFromName(incoming.tableName);
-    if (incoming.tableName && (!incomingRoom || !rooms.includes(incomingRoom))) {
+    if (incoming.tableName && (!incomingRoom || !roomAllowed(incomingRoom))) {
       tables.delete(tableId);
       return false;
     }
@@ -394,13 +394,13 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
     );
     const emptyResetConfirmed = current.emptyResetPending === true
       && shortResetCandidate;
-    const ambiguousMatchingReset = !explicitShoeChanged
+    const ambiguousMatchingReset = allowImplicitShoeReset && !explicitShoeChanged
       && hasRoadSnapshot
       && sourceRoundReset
       && matchingCurrentPrefix
       && !emptyResetConfirmed
       && !pendingResetConfirmed;
-    const implicitShoeReset = !explicitShoeChanged
+    const implicitShoeReset = allowImplicitShoeReset && !explicitShoeChanged
       && hasRoadSnapshot
       && (
         emptyResetConfirmed
@@ -566,7 +566,7 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
       history,
       updatedAt: new Date().toISOString(),
     };
-    if (next.room && !rooms.includes(next.room)) {
+    if (next.room && !roomAllowed(next.room)) {
       tables.delete(tableId);
       return false;
     }

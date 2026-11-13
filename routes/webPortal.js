@@ -373,7 +373,7 @@ function registerWebPortalRoutes(app) {
     try {
       const userId = user(req);
       if (!userId) return res.status(401).json({ error: "請重新登入。" });
-      const platforms = new Map([["dg", "DG"], ["mt", "MT"], ["ab", "歐博"]]);
+      const platforms = new Map([["dg", "DG"], ["mt", "MT"], ["ab", "歐博"], ["t9", "T9"]]);
       const platform = platforms.get(req.query.platform);
       if (!platform) return res.status(400).json({ error: "找不到平台。" });
       const access = await vip.checkVipAccess(userId);
@@ -431,7 +431,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20261113.03",
+        portalBuild: "20261113.04",
       });
     } catch (error) { return next(error); }
   });
