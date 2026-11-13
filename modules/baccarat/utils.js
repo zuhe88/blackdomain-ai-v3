@@ -22,6 +22,7 @@ function validateRoom(platform, room) {
   if (platform === "DG") return DG_ROOMS.includes(room);
   if (platform === "MT") return MT_ROOMS.includes(room);
   if (platform === "歐博") return AB_ROOMS.includes(room);
+  if (platform === "T9") return /^[1-9]\d{0,7}$/.test(room);
   return false;
 }
 

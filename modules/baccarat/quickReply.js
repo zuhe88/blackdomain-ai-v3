@@ -5,6 +5,7 @@ function platformQuickReply() {
   return quickReply([
     { label: "DG", text: "DG" },
     { label: "歐博", text: "歐博" },
+    { label: "T9", text: "T9" },
     ...(isMtEntryEnabled() ? [{ label: "MT", text: "MT" }] : []),
     { label: "返回首頁", text: "返回首頁" },
   ]);

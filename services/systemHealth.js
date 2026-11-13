@@ -1,4 +1,5 @@
 const dgSource = require("../modules/baccarat/dgSource");
+const t9Source = require("../modules/baccarat/t9Source");
 const abSource = require("../modules/baccarat/abSource");
 const mtSource = require("../modules/baccarat/mtSource");
 const electronicSource = require("../modules/electronic/source");
@@ -79,6 +80,7 @@ function getSystemHealth() {
     baccaratProvider("dg", "DG 百家樂", dgSource),
     baccaratProvider("mt", "MT 百家樂", mtSource),
     baccaratProvider("ab", "歐博百家樂", abSource),
+    baccaratProvider("t9", "T9 百家樂", t9Source),
     electronicProvider(),
     mbProvider(),
   ];

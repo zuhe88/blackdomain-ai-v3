@@ -71,6 +71,7 @@ function baccaratPlatformFlex(quickReply) {
         platformImageBubble("DG", "DG 百家樂AI", "dg-baccarat.png"),
         platformImageBubble("MT", "MT 百家樂AI", "mt-baccarat.png"),
         platformImageBubble("歐博", "歐博百家樂AI", "allbet-baccarat.png"),
+        platformImageBubble("T9", "T9 百家樂AI", "t9-baccarat.png"),
       ],
     },
   };

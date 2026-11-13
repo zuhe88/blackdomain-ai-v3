@@ -104,6 +104,7 @@ function roomsForPlatform(platform) {
   const configured = rooms.get(platform);
   const source = sources.get(platform);
   const observed = new Set(source.getSnapshot().tables.map((table) => table.room));
+  if (platform === "T9") return [...observed].filter(room => source.isRoomFresh(room));
   if (!observed.size) return configured;
   return configured.filter((room) => observed.has(room) && source.isRoomFresh(room));
 }
@@ -111,6 +112,7 @@ function roomsForPlatform(platform) {
 function roomIsObservedWhenSourceOnline(platform, room) {
   const source = sources.get(platform);
   const observed = new Set(source.getSnapshot().tables.map((table) => table.room));
+  if (platform === "T9") return observed.has(room);
   return !observed.size || observed.has(room);
 }
 
@@ -642,7 +644,6 @@ for (const [platform, source] of sources) {
     multiTableTrackers.get(platform).update(
       event.room, event.history, event.resyncReason === "snapshot_replaced",
     );
-    if (platform === "T9") return;
     queueLiveResult(platform, event).catch((error) => {
       console.error(`[${platform}] Auto settlement failed:`, error.message);
     });
@@ -763,7 +764,7 @@ async function handleBaccaratMessage(event) {
     if (!PLATFORMS.includes(platform)) {
       return reply(token, baccaratPromptFlex({
         title: "請選擇平台",
-        lines: ["請選擇 DG、MT 或歐博。"],
+        lines: ["請選擇 DG、MT、歐博或 T9。"],
         quickReply: platformQuickReply(),
       }));
     }

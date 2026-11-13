@@ -56,6 +56,10 @@
         <p class="help">登入到期時，從賀哥的 3A 分頁重新進入歐博大廳。</p>
         <a href="/api/ab/status" target="_blank" rel="noopener noreferrer">查看逐桌狀態</a>
       </article>
+      <article id="t9">
+        <header><h2>T9</h2><span class="badge">讀取中</span></header>
+        <p class="metrics"></p><p class="updated"></p>
+      </article>
       <article id="electronic">
         <header><h2>ATG</h2><span class="badge">讀取中</span></header>
         <p class="metrics"></p><p class="updated"></p>
@@ -65,7 +69,7 @@
   </main>
   <script>
     const labels = { healthy:"有即時資料", degraded:"部分遊戲可用", stale:"等待新資料", offline:"尚無資料", error:"無法確認" };
-    const ids = ["dg","mt","ab","electronic"];
+    const ids = ["dg","mt","ab","t9","electronic"];
     const button = document.querySelector("#refresh");
     const summary = document.querySelector("#summary");
     const taipei = new Intl.DateTimeFormat("zh-TW", { timeZone:"Asia/Taipei", dateStyle:"short", timeStyle:"medium" });

@@ -568,3 +568,6 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 .multi-table-card.is-recommended header { background:linear-gradient(105deg,#513816,#211911 75%); }
 .multi-table-card header .multi-table-recommended { display:inline-flex; align-items:center; gap:5px; margin-inline-start:7px; padding:4px 10px; border-radius:6px; background:#ffda85; color:#302013; font-size:.85rem; font-weight:800; vertical-align:middle; }
 .multi-table-card header .multi-table-recommended span { color:inherit; font-size:1rem; }
+.t9-connection[data-state="healthy"] { color: #62e5ab; }
+.t9-connection[data-state="stale"],
+.t9-connection[data-state="offline"] { color: #f7ca7f; }

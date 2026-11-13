@@ -1,7 +1,7 @@
 const COMMANDS = ["百家樂", "百家樂AI", "baccarat", "🎲 百家樂AI"];
 const RESULTS = ["閒", "和", "莊"];
 const MODES = ["AI配注", "天門", "自由配注"];
-const PLATFORMS = ["DG", "MT", "歐博"];
+const PLATFORMS = ["DG", "MT", "歐博", "T9"];
 
 const DG_ROOMS = [
   "RB01",
