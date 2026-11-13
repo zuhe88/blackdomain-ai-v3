@@ -8,7 +8,11 @@ function createMultiTableTracker() {
     if (!latest) return tables.get(room);
 
     const { shoeKey, roundIndex, eventKey } = latest;
-    const current = tables.get(room);
+    const previous = tables.get(room);
+    const changedShoe = previous?.shoeKey && previous.shoeKey !== shoeKey && !replaceSnapshot;
+    const decisiveRounds = history.filter(record => record.result === "莊" || record.result === "閒").length;
+    const invalidTotals = (previous?.totalCorrect ?? 0) + (previous?.totalIncorrect ?? 0) > decisiveRounds;
+    const current = changedShoe || invalidTotals ? null : previous;
     if (!replaceSnapshot && current?.eventKey === eventKey && current.result === latest.result) {
       return current;
     }
