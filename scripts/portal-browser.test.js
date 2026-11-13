@@ -77,7 +77,7 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
       await dg.getByRole('button',{name:'多桌'}).click();
       await page.getByText('連對 2 關',{exact:true}).waitFor();
       assert.equal(await page.locator('.multi-table-card').count(),2);
-      assert.match(await page.locator('.multi-table-card').first().innerText(),/第 4 局預測.*莊/);
+      assert.match(await page.locator('.multi-table-card').first().innerText(),/第 4 局預測\s+莊/);
       assert.match(await page.locator('.multi-table-card').last().innerText(),/資料延遲/);
       await fit('multi-table '+width);
     }

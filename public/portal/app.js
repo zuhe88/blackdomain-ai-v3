@@ -152,14 +152,14 @@ function multiTableBigRoad(road) {
   }).join("");
 }
 
-function multiTableCard(table) {
+function multiTableCard(table, recommended) {
   const labels = {live:"即時", "new-shoe":"等待開獎", stale:"資料延遲", waiting:"等待桌況"};
   const road = Array.isArray(table.road) ? table.road : [];
   const predictionLabel = table.prediction ? `第 ${escapeHtml(table.nextRound)} 局預測` : "預測待更新";
   const predictionSide = table.prediction === "莊" ? "banker" : table.prediction === "閒" ? "player" : "observe";
   const streak = count => Number.isInteger(count) ? count : "—";
   return `<article class="multi-table-card">
-    <header><h2>${escapeHtml(table.room)}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
+    <header><h2>${escapeHtml(table.room)}${recommended ? ' <span class="multi-table-recommended">推薦</span>' : ""}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
     <div class="multi-table-roads">
       ${baccaratBeadRoad(road)}
       ${road.length ? `<section class="multi-table-big-road"><b>大路</b><div class="multi-table-road-scroll" tabindex="0" aria-label="大路，可左右滑動"><div class="multi-table-big-grid">${multiTableBigRoad(road)}</div></div></section>` : '<p class="multi-table-empty">暫無路單</p>'}
@@ -218,7 +218,10 @@ function renderMultiTable(itemId) {
       if (serialized !== lastResponse) {
         const scrollers = ".bead-road-scroll, .multi-table-road-scroll";
         const offsets = [...grid.querySelectorAll(scrollers)].map(road => road.scrollLeft);
-        grid.innerHTML = data.tables.map(multiTableCard).join("");
+        const highestTotal = Math.max(0, ...data.tables.map(table => table.totalCorrect ?? 0));
+        grid.innerHTML = data.tables.map(table =>
+          multiTableCard(table, highestTotal > 0 && table.totalCorrect === highestTotal)
+        ).join("");
         grid.querySelectorAll(scrollers).forEach((road, index) => { road.scrollLeft = offsets[index] || 0; });
         lastResponse = serialized;
       }
