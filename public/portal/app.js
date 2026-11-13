@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261111.02";
+const PORTAL_BUILD="20261113.01";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -117,7 +117,108 @@ function paintOverview(){if(!overviewData)return;const service=document.querySel
 async function refreshOverview(){if(!authenticated||document.hidden||!document.querySelector("#overviewData"))return;if(overviewInFlight)return;if(Date.now()-overviewCheckedAt<30000){paintOverview();return;}overviewInFlight=true;const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),10000);try{const results=await Promise.allSettled([fetch("/health",{cache:"no-store",signal:controller.signal}).then(r=>{if(!r.ok)throw new Error("service");return r.json();}),fetch("/api/electronic/status",{cache:"no-store",signal:controller.signal}).then(r=>{if(!r.ok)throw new Error("data");return r.json();})]);overviewData={online:results[0].status==="fulfilled"&&results[0].value.ok===true,games:results[1].status==="fulfilled"?results[1].value.games:[],failed:results[1].status!=="fulfilled"};overviewCheckedAt=Date.now();paintOverview();}finally{clearTimeout(timer);overviewInFlight=false;}}
 setInterval(refreshOverview,30000);
 
-function renderCategory(categoryKey){const category=categories[categoryKey];if(!category)return navigate("/portal/",{replace:true});view.innerHTML=`<section class="screen category-screen">${pageHeader(({baccarat:"百家樂分析",atg:"電子遊戲分析",lottery:"彩票分析",sports:"體育數據"})[categoryKey]||category.name,`點選項目後立即開始分析`,"/portal/")}<div class="selection-grid">${category.items.map(item=>card(item,directAnalysisPath(categoryKey,item))).join("")}</div></section>`;}
+function multiTableBigRoad(road) {
+  const cells = new Map();
+  let column = 0;
+  let row = 0;
+  let startColumn = 0;
+  let previous = null;
+  let leadingTies = 0;
+  for (const result of road) {
+    if (result === "和") {
+      if (previous) cells.get(`${column}:${row}`).ties += 1;
+      else leadingTies += 1;
+      continue;
+    }
+    if (previous && result !== previous) {
+      startColumn += 1;
+      while (cells.has(`${startColumn}:0`)) startColumn += 1;
+      column = startColumn;
+      row = 0;
+    } else if (previous) {
+      if (column === startColumn && row < 5 && !cells.has(`${column}:${row + 1}`)) row += 1;
+      else column += 1;
+    }
+    cells.set(`${column}:${row}`, { result, ties: leadingTies });
+    leadingTies = 0;
+    previous = result;
+  }
+  if (!cells.size && leadingTies) cells.set("0:0", { result: "和", ties: leadingTies });
+  return Array.from({length: Math.max(14, ...[...cells.keys()].map(key => Number(key.split(":")[0]) + 1)) * 6}, (_, index) => {
+    const cell = cells.get(`${Math.floor(index / 6)}:${index % 6}`);
+    if (!cell) return '<span></span>';
+    const color = {"莊":"banker","閒":"player","和":"tie"}[cell.result];
+    return `<span><b class="${color}" aria-label="${cell.result}${cell.ties ? `，和 ${cell.ties}` : ""}">${cell.ties || ""}</b></span>`;
+  }).join("");
+}
+
+function multiTableCard(table) {
+  const labels = {live:"即時", stale:"資料延遲", waiting:"等待桌況"};
+  const road = Array.isArray(table.road) ? table.road : [];
+  const prediction = table.prediction ? `第 ${escapeHtml(table.nextRound)} 局預測　${escapeHtml(table.prediction)}` : "預測待更新";
+  const streak = count => Number.isInteger(count) ? `${count} 關` : "—";
+  return `<article class="multi-table-card">
+    <header><h2>${escapeHtml(table.room)}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
+    <div class="multi-table-roads">
+      ${baccaratBeadRoad(road)}
+      ${road.length ? `<section class="multi-table-big-road"><b>大路</b><div class="multi-table-road-scroll" tabindex="0" aria-label="大路，可左右滑動"><div class="multi-table-big-grid">${multiTableBigRoad(road)}</div></div></section>` : '<p class="multi-table-empty">暫無路單</p>'}
+    </div>
+    <div class="multi-table-counts">
+      ${["莊","閒","和"].map(side => `<span>${side} ${road.length ? escapeHtml(table.counts[side]) : "—"}</span>`).join("")}
+      <span>總 ${road.length || "—"}</span>
+    </div>
+    <footer><strong>${prediction}</strong><span>連對 ${streak(table.correct)}</span><span>連錯 ${streak(table.incorrect)}</span></footer>
+  </article>`;
+}
+
+function renderMultiTable(itemId) {
+  const item = itemFor("baccarat", itemId);
+  if (!item || item.disabled) return navigate("/portal/baccarat", {replace:true});
+  view.innerHTML = `<section class="screen multi-table-screen">
+    ${pageHeader(`${item.name} 多桌`, "", "/portal/baccarat")}
+    <p class="multi-table-status" role="status">正在同步桌況…</p>
+    <div class="multi-table-grid"></div>
+  </section>`;
+  const screen = view.querySelector(".multi-table-screen");
+  const status = screen.querySelector(".multi-table-status");
+  const grid = screen.querySelector(".multi-table-grid");
+  let lastResponse = "";
+  async function refresh() {
+    if (!screen.isConnected) return;
+    try {
+      const response = await fetch(`/api/web/baccarat/multi?platform=${encodeURIComponent(itemId)}`, {
+        cache:"no-store", signal:AbortSignal.timeout(8000),
+      });
+      const data = await response.json();
+      if (!screen.isConnected) return;
+      if (!response.ok) {
+        grid.replaceChildren();
+        lastResponse = "";
+        throw new Error(data.error || "無法同步桌況");
+      }
+      const serialized = JSON.stringify(data.tables);
+      if (serialized !== lastResponse) {
+        const scrollers = ".bead-road-scroll, .multi-table-road-scroll";
+        const offsets = [...grid.querySelectorAll(scrollers)].map(road => road.scrollLeft);
+        grid.innerHTML = data.tables.map(multiTableCard).join("");
+        grid.querySelectorAll(scrollers).forEach((road, index) => { road.scrollLeft = offsets[index] || 0; });
+        lastResponse = serialized;
+      }
+      status.textContent = data.tables.length ? "" : "目前沒有桌況";
+    } catch (error) {
+      if (screen.isConnected) {
+        grid.replaceChildren();
+        lastResponse = "";
+        status.textContent = error.name === "TimeoutError" ? "桌況同步逾時，稍後重試" : error.message;
+      }
+    } finally {
+      if (screen.isConnected) setTimeout(refresh, 3000);
+    }
+  }
+  refresh();
+}
+
+function renderCategory(categoryKey){const category=categories[categoryKey];if(!category)return navigate("/portal/",{replace:true});view.innerHTML=`<section class="screen category-screen">${pageHeader(({baccarat:"百家樂分析",atg:"電子遊戲分析",lottery:"彩票分析",sports:"體育數據"})[categoryKey]||category.name,`點選項目後立即開始分析`,"/portal/")}<div class="selection-grid">${category.items.map(item=>categoryKey==="baccarat"&&!item.disabled?`<div class="baccarat-platform-options">${card(item,directAnalysisPath(categoryKey,item))}${actionButton("多桌",`/portal/baccarat/${item.id}/multi`,false)}</div>`:card(item,directAnalysisPath(categoryKey,item))).join("")}</div></section>`;}
 function actionButton(label,path,primary=true,description=""){return `<button class="action-card${primary?" primary":""}" data-go="${escapeHtml(path)}"><span><b>${escapeHtml(label)}</b>${description?`<small>${escapeHtml(description)}</small>`:""}</span><i>進入</i></button>`;}
 async function initializeGame(categoryKey,item){if(categoryKey==="baccarat"){await send("百家樂",{showBusy:false,silent:true});return send(item.command,{showBusy:true,silent:false});}if(categoryKey==="atg")return send(item.command,{showBusy:false,silent:true});return null;}
 function itemFor(categoryKey,itemId){return categories[categoryKey]?.items.find(entry=>entry.id===itemId)||null;}
@@ -134,7 +235,7 @@ function renderMbConfirmation(count){const track=mbSelection.track;if(!track||!m
 function startMbAnalysis(){const {track,count}=mbSelection;if(!track||!count)return renderMbTrackPicker();renderMbShell(`${mbStepHeader(3)}<div id="analysisStage" class="analysis-stage"><div class="analysis-progress"><div class="scan-orbit"><span>MB</span></div><h2>正在分析 ${track.name}</h2><p>正在同步最新賽果並計算冠、亞、季軍推薦號碼。</p><div class="progress-line"><i></i></div></div></div><div id="result"></div>`);send(`MB ${track.name} ${count}碼`,{showBusy:false});}
 async function startElectronicRecommendation(item){const revision=routeRevision;await send(item.command,{showBusy:false,silent:true});if(revision!==routeRevision||activeOperation?.categoryKey!=="atg"||activeOperation?.mode!=="recommend")return;await send("AI推薦房",{showBusy:false});}
 function restartElectronicRecommendation(){if(activeOperation?.categoryKey!=="atg"||!["recommend","recommend-timeout"].includes(activeOperation?.mode))return false;navigate(currentPath,{replace:true});return true;}
-function renderAnalysis(categoryKey,itemId,mode){const item=itemFor(categoryKey,itemId);if(!item||item.disabled)return navigate(`/portal/${categoryKey}`,{replace:true});activeOperation={categoryKey,item,mode,startedAt:Date.now()};if(categoryKey==="lottery"&&item.id==="mb")return renderMbTrackPicker();const [title,subtitle]=analysisCopy(mode);const initialStep=categoryKey==="baccarat"?1:2;view.innerHTML=`<section class="screen analysis-screen">${pageHeader(title,`${item.fullName||item.name}・${subtitle}`,itemId==="ab"?"/portal/baccarat":`/portal/${categoryKey}/${itemId}`)}${analysisStepHeader(analysisFlowSteps(categoryKey,item),initialStep)}<div id="analysisStage" class="analysis-stage"><div class="analysis-progress"><div class="scan-orbit"><span>AI</span></div><h2>正在分析</h2><p>平台資料同步完成後將自動顯示結果，請勿重複點擊。</p><div class="progress-line"><i></i></div></div></div><div id="result"></div></section>`;if(categoryKey==="baccarat"&&resumeBaccaratSession&&resumeBaccaratPlatform===item.command){resumeBaccaratSession=false;const latest=[...restoredMessages].reverse().find(entry=>(entry.messages||[]).some(messageBelongsToActiveOperation))?.messages||[];if(latest.length)renderResults(latest,{enforceScope:true});else{setAnalysisFlowStep(3);document.querySelector("#analysisStage h2").textContent="監控已恢復";document.querySelector("#analysisStage p").textContent="下一局開獎後會自動更新分析。";}}else if(categoryKey==="baccarat")initializeGame(categoryKey,item);else if(categoryKey==="atg"&&mode==="recommend")startElectronicRecommendation(item);else send(item.command,{showBusy:false});}
+function renderAnalysis(categoryKey,itemId,mode){const item=itemFor(categoryKey,itemId);if(!item||item.disabled)return navigate(`/portal/${categoryKey}`,{replace:true});activeOperation={categoryKey,item,mode,startedAt:Date.now()};if(categoryKey==="lottery"&&item.id==="mb")return renderMbTrackPicker();const [title,subtitle]=analysisCopy(mode);const initialStep=categoryKey==="baccarat"?1:2;view.innerHTML=`<section class="screen analysis-screen">${pageHeader(title,`${item.fullName||item.name}・${subtitle}`,itemId==="ab"?"/portal/baccarat":`/portal/${categoryKey}/${itemId}`)}${categoryKey==="baccarat"?actionButton("多桌",`/portal/baccarat/${itemId}/multi`,false):""}${analysisStepHeader(analysisFlowSteps(categoryKey,item),initialStep)}<div id="analysisStage" class="analysis-stage"><div class="analysis-progress"><div class="scan-orbit"><span>AI</span></div><h2>正在分析</h2><p>平台資料同步完成後將自動顯示結果，請勿重複點擊。</p><div class="progress-line"><i></i></div></div></div><div id="result"></div></section>`;if(categoryKey==="baccarat"&&resumeBaccaratSession&&resumeBaccaratPlatform===item.command){resumeBaccaratSession=false;const latest=[...restoredMessages].reverse().find(entry=>(entry.messages||[]).some(messageBelongsToActiveOperation))?.messages||[];if(latest.length)renderResults(latest,{enforceScope:true});else{setAnalysisFlowStep(3);document.querySelector("#analysisStage h2").textContent="監控已恢復";document.querySelector("#analysisStage p").textContent="下一局開獎後會自動更新分析。";}}else if(categoryKey==="baccarat")initializeGame(categoryKey,item);else if(categoryKey==="atg"&&mode==="recommend")startElectronicRecommendation(item);else send(item.command,{showBusy:false});}
 function renderVip(){const item=categories.vip.items[0];activeOperation={categoryKey:"vip",item,mode:"status"};view.innerHTML=`<section class="screen operation-screen vip-center-screen">${pageHeader("VIP會員權限","查看會員資格、有效期限與可使用功能","/portal/")}<div id="result"><section class="result-view"><div class="vip-skeleton"><div></div><div></div><div></div><p>正在讀取會員資料…</p></div></section></div></section>`;send("VIP",{showBusy:false});}
 function healthStateLabel(state){return({healthy:"正常",degraded:"部分異常",stale:"資料逾時",offline:"未連線",maintenance:"維護中"})[state]||"未知";}
 function adminProviderHelp(providerId){
@@ -155,7 +256,7 @@ async function refreshAdminMonitor(){if(!isAdmin||normalizePath(location.pathnam
 function renderAdminMonitor(){if(!isAdmin)return navigate("/portal/",{replace:true});activeOperation={categoryKey:"admin",mode:"monitor"};view.innerHTML=`<section class="screen admin-monitor-screen">${pageHeader("系統監控中心","僅管理員可查看","/portal/")}<p><a class="access-contact" href="/portal/admin/web-members">網站會員管理（免 LINE）</a></p>${adminDirectWatchPanel()}<div id="adminMonitorContent"><div class="vip-skeleton"><div></div><div></div><p>正在讀取系統狀態…</p></div></div></section>`;refreshAdminMonitor();adminMonitorTimer=setInterval(refreshAdminMonitor,10000);}
 function renderAccessDenied(categoryKey){if(memberProfile.accountPlatform==="OFA")return renderOfaAccessNotice(false);const back=categories[categoryKey]?`/portal/${categoryKey}`:"/portal/";view.innerHTML=`<section class="screen access-screen">${pageHeader("需要開通權限","黑域AI",back)}<article class="access-card"><div class="access-lock">VIP</div><h2>請聯絡管理員</h2><p>LINE：@893jrweh</p><a href="https://line.me/ti/p/@893jrweh" class="access-contact">聯絡管理員</a></article></section>`;}
 function updateMobileDock(categoryKey){document.body.classList.toggle("is-authenticated",authenticated);const key=categoryKey||"home";document.querySelectorAll("[data-nav]").forEach(button=>{const active=button.dataset.nav===key||(button.dataset.nav==="more"&&["sports","vip","settings","more","admin"].includes(key));button.classList.toggle("active",active);if(active)button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");});const title=document.querySelector("#currentPage");if(title)title.textContent=({home:"系統首頁",baccarat:"百家樂分析",atg:"電子遊戲分析",lottery:"彩票分析",sports:"體育數據",vip:"會員權限",settings:"帳號設定",more:"更多功能",admin:"系統監控"})[key]||"分析工作台";document.querySelectorAll(".account-menu[open]").forEach(menu=>menu.removeAttribute("open"));}
-function renderRoute(){if(!authenticated)return renderLogin();const [categoryKey,itemId,mode]=pathParts();updateMobileDock(categoryKey);if(!categoryKey)return renderHome();if(categoryKey==="settings")return renderSettings();if(categoryKey==="more")return renderMore();if(categoryKey==="admin")return renderAdminMonitor();if(categoryKey==="vip")return renderVip();if(!itemId)return renderCategory(categoryKey);if(!accessAllowed)return accessExpired?renderAccessExpired():renderAccessDenied(categoryKey);if(categoryKey==="atg"&&mode==="custom")return navigate(`/portal/${categoryKey}/${itemId}`,{replace:true});if(categoryKey==="baccarat"&&itemId==="ab"&&mode!=="analyze")return navigate("/portal/baccarat/ab/analyze",{replace:true});if(mode)return renderAnalysis(categoryKey,itemId,mode);renderGame(categoryKey,itemId);requestAnimationFrame(()=>{view.focus({preventScroll:true});scrollTo({top:0,behavior:"instant"});});}
+function renderRoute(){if(!authenticated)return renderLogin();const [categoryKey,itemId,mode]=pathParts();updateMobileDock(categoryKey);if(!categoryKey)return renderHome();if(categoryKey==="settings")return renderSettings();if(categoryKey==="more")return renderMore();if(categoryKey==="admin")return renderAdminMonitor();if(categoryKey==="vip")return renderVip();if(!itemId)return renderCategory(categoryKey);if(!accessAllowed)return accessExpired?renderAccessExpired():renderAccessDenied(categoryKey);if(categoryKey==="atg"&&mode==="custom")return navigate(`/portal/${categoryKey}/${itemId}`,{replace:true});if(categoryKey==="baccarat"&&mode==="multi")return renderMultiTable(itemId);if(categoryKey==="baccarat"&&itemId==="ab"&&mode!=="analyze")return navigate("/portal/baccarat/ab/analyze",{replace:true});if(mode)return renderAnalysis(categoryKey,itemId,mode);renderGame(categoryKey,itemId);requestAnimationFrame(()=>{view.focus({preventScroll:true});scrollTo({top:0,behavior:"instant"});});}
 function renderLogin(){document.body.classList.remove("is-authenticated");view.innerHTML=`<section class="screen login-screen"><article class="login-panel"><div class="brand-mark large"><img src="/brand/blackdomain-ai-logo.png" alt="黑域AI Logo"></div><p class="eyebrow">會員安全登入</p><h1>登入黑域AI</h1><p class="login-copy">LINE 會員：前往官方帳號輸入「網站登入」，使用安全連結登入，無需 AI 專用密碼。</p><a class="login-cta login-official" href="https://line.me/ti/p/@391wiftp" target="_blank" rel="noopener noreferrer"><span class="login-bot-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M16 5v3M13.5 5a2.5 2.5 0 1 1 5 0"/><rect x="7" y="9" width="18" height="15" rx="6"/><path d="M11 24v3M21 24v3M7 16H4v4h3M25 16h3v4h-3"/><circle class="bot-eye" cx="12.5" cy="16" r="1.5"/><circle class="bot-eye" cx="19.5" cy="16" r="1.5"/><path class="bot-smile" d="M12 20h8"/></svg></span><b>LINE 會員｜前往官方帳號登入</b><i>›</i></a><div class="login-divider"><span>馬來／無 LINE 用戶</span></div><p class="login-copy">此入口使用管理員開通的 OFA 帳號與 AI 專用密碼。</p><a class="login-cta login-official" href="/portal/member-login"><b>馬來／無 LINE 用戶登入</b><i>›</i></a><div class="login-divider"><span>尚未開通分析權限？</span></div><a class="login-cta login-manager" href="https://line.me/ti/p/@893jrweh" target="_blank" rel="noopener noreferrer"><span class="login-line-mark">LINE</span><b>開通權限・聯絡管理員</b><i>›</i></a><small class="login-help">管理員 LINE：@893jrweh</small></article></section>`;setConnection("offline","尚未登入");}
 function walk(node,out={texts:[],actions:[],images:[]}){if(!node)return out;if(Array.isArray(node)){node.forEach(value=>walk(value,out));return out;}if(typeof node!=="object")return out;if(node.type==="text"&&node.text)out.texts.push(node.text);if(node.type==="image"&&node.url)out.images.push(node.url);if(node.action){if(node.action.type==="message")out.actions.push({label:node.action.label||node.action.text,text:node.action.text});if(node.action.type==="uri")out.actions.push({label:node.action.label||"開啟連結",uri:node.action.uri});}for(const key of ["contents","body","hero","footer"])walk(node[key],out);return out;}
 function routeForCommand(command){const text=String(command||"").trim();const direct={首頁:"/portal/",返回首頁:"/portal/",主選單:"/portal/",百家樂:"/portal/baccarat",DG:"/portal/baccarat/dg",MT:"/portal/baccarat/mt",歐博:"/portal/baccarat/ab",ATG:"/portal/atg",電子:"/portal/atg",彩票:"/portal/lottery",體育:"/portal/sports",VIP:"/portal/vip/status",MLB:"/portal/sports/mlb",NBA:"/portal/sports/nba",CPBL:"/portal/sports/cpbl",539:"/portal/lottery/539",MB彈珠:"/portal/lottery/mb",戰神賽特1:"/portal/atg/set1",戰神賽特2:"/portal/atg/set2",古神巴風特:"/portal/atg/baphomet",虎小妹:"/portal/atg/tiger",赤三國:"/portal/atg/red3"};return direct[text]||null;}

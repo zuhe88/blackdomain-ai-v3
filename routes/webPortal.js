@@ -368,6 +368,24 @@ function registerWebPortalRoutes(app) {
       unsubscribe();
     });
   });
+  app.get("/api/web/baccarat/multi", async (req, res, next) => {
+    res.setHeader("cache-control", "no-store");
+    try {
+      const userId = user(req);
+      if (!userId) return res.status(401).json({ error: "請重新登入。" });
+      const platforms = new Map([["dg", "DG"], ["mt", "MT"], ["ab", "歐博"]]);
+      const platform = platforms.get(req.query.platform);
+      if (!platform) return res.status(400).json({ error: "找不到平台。" });
+      const access = await vip.checkVipAccess(userId);
+      if (!access.allowed) return res.status(403).json({ error: "目前無法使用百家樂分析。" });
+      if (platform === "MT" && !isMtEntryEnabled()) {
+        return res.status(503).json({ error: "MT 休息中。" });
+      }
+      return res.json({ tables: baccarat.multiTableOverview(platform) });
+    } catch (error) {
+      return next(error);
+    }
+  });
   app.post("/api/web/sync", async (req, res, next) => {
     try {
       const userId = user(req);
@@ -413,7 +431,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20261111.02",
+        portalBuild: "20261113.01",
       });
     } catch (error) { return next(error); }
   });

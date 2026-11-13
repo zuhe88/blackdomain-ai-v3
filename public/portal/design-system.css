@@ -509,3 +509,32 @@ input:focus,select:focus,textarea:focus { border-color:var(--cyan); }
 .v4-hero .core-brand:after {animation:core-breathe 5s ease-in-out infinite!important}
 
 body[data-core-background] .core-ring,body[data-core-background] .core-circuit-light,body[data-core-background] .core-brand:after {animation-play-state:paused!important}
+
+.multi-table-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.multi-table-status:empty { display:none; }
+.multi-table-card { min-width:0; overflow:hidden; border:1px solid #725634; border-radius:10px; background:#161310; color:#f6efe6; }
+.multi-table-card header, .multi-table-card footer, .multi-table-counts { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; padding:8px 12px; }
+.multi-table-card header { justify-content:space-between; }
+.multi-table-card h2 { font-size:1rem; margin:0; }
+.multi-table-card header span { font-size:.8rem; color:#ddc5a2; }
+.multi-table-roads { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,3fr); gap:1px; background:#594429; }
+.multi-table-roads .bead-road, .multi-table-big-road { min-width:0; margin:0; padding:0; border:0; border-radius:0; background:#241a12; }
+.multi-table-roads .metric-title, .multi-table-big-road > b { display:block; padding:4px 8px; font-size:.75rem; }
+.multi-table-roads .metric-title span { display:none; }
+.multi-table-roads .bead-road-board { display:block; }
+.multi-table-roads .bead-road-grid { grid-template-rows:repeat(6,18px); grid-auto-columns:18px; }
+.multi-table-roads .bead-cell { width:18px; height:18px; }
+.multi-table-roads .bead-cell b { width:15px; height:15px; font-size:10px; }
+.multi-table-road-scroll { overflow-x:auto; background:#e9e9e9; }
+.multi-table-big-grid { display:grid; grid-template-rows:repeat(6,18px); grid-auto-columns:18px; grid-auto-flow:column; width:max-content; min-width:100%; }
+.multi-table-big-grid > span { border:1px solid #d0d0d0; display:grid; place-items:center; }
+.multi-table-big-grid b { display:grid; place-items:center; width:13px; height:13px; border:2px solid; border-radius:50%; font-size:9px; line-height:1; color:#168342; }
+.multi-table-big-grid .banker { border-color:#c62733; }
+.multi-table-big-grid .player { border-color:#2167bb; }
+.multi-table-empty { grid-column:1/-1; margin:0; padding:24px 12px; background:#241a12; }
+.multi-table-counts { font-size:.82rem; }
+.multi-table-card footer { background:#282015; font-size:.86rem; }
+.multi-table-card footer strong { margin-right:auto; color:#f4d599; }
+@media (max-width:767px) { .multi-table-grid { grid-template-columns:minmax(0,1fr); } }
+
+.baccarat-platform-options { display:grid; gap:8px; min-width:0; }

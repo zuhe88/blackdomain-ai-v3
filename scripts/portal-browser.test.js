@@ -15,7 +15,14 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   const app=express();app.use(express.json());
   const state={authenticated:true,allowed:true,expired:false,failMe:false,failData:false,commands:[],amount:null,prediction:'觀望',modeOverride:null};
   let accessCalls=0;
-  app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:false,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
+  app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:state.mtEnabled===true,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
+  app.get('/api/web/baccarat/multi',(req,res)=>{
+    assert.ok(['dg','mt','ab'].includes(req.query.platform));
+    res.json({tables:[
+      {room:'TEST01',status:'live',round:3,road:['莊','閒','和'],counts:{莊:1,閒:1,和:1},prediction:'莊',nextRound:4,correct:2,incorrect:0},
+      {room:'TEST02',status:'stale',road:[],prediction:null,correct:null,incorrect:null},
+    ]});
+  });
   app.get('/health',(_req,res)=>res.json({ok:true}));
   app.get('/api/electronic/status',(_req,res)=>state.failData?res.status(503).json({error:"測試資料讀取失敗"}):res.json({games:[]}));
   app.get('/api/web/events',(req,res)=>{res.set({'Content-Type':'text/event-stream','Cache-Control':'no-store'});res.write('event: ready\ndata: {}\n\n');req.on('close',()=>res.end());});
@@ -63,6 +70,23 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   async function fit(label){const sizes=await page.evaluate(()=>({viewport:innerWidth,width:document.documentElement.scrollWidth}));assert.ok(sizes.width<=sizes.viewport,`${label} overflows: ${JSON.stringify(sizes)}`);}
   async function screenshot(name){if(!capture)return;await page.evaluate(()=>{window.scrollTo({top:0,behavior:'instant'});const marker=document.createElement('div');marker.id='test-marker';marker.textContent='本機版面測試・非即時分析資料';marker.style.cssText='position:fixed;bottom:76px;right:12px;z-index:999;background:#253247;color:#f1f5f9;border:1px solid #94a3b8;padding:5px 10px;font:12px system-ui;border-radius:6px';document.body.append(marker);});await page.screenshot({path:path.join(capture,name+'.png'),fullPage:true,animations:'disabled'});if(name.startsWith('baccarat-')){await page.locator('.baccarat-result-card').screenshot({path:path.join(capture,name+'-panel.png'),animations:'disabled'});await page.locator('.baccarat-decision').screenshot({path:path.join(capture,name+'-decision.png'),animations:'disabled'});}if(name.startsWith('home-'))await page.screenshot({path:path.join(capture,name+'-viewport.png'),fullPage:false,animations:'disabled'});await page.locator('#test-marker').evaluate(node=>node.remove());}
   try{
+    for(const width of [375,1440]){
+      await page.setViewportSize({width,height:900});
+      await open('/portal/baccarat');
+      const dg = page.locator('.baccarat-platform-options').filter({has:page.getByRole('heading',{name:'DG',exact:true})});
+      await dg.getByRole('button',{name:'多桌'}).click();
+      await page.getByText('連對 2 關',{exact:true}).waitFor();
+      assert.equal(await page.locator('.multi-table-card').count(),2);
+      assert.match(await page.locator('.multi-table-card').first().innerText(),/第 4 局預測.*莊/);
+      assert.match(await page.locator('.multi-table-card').last().innerText(),/資料延遲/);
+      await fit('multi-table '+width);
+    }
+    state.mtEnabled=true;
+    for(const platform of ['ab','mt']){
+      await open('/portal/baccarat/'+platform+'/multi');
+      await page.getByText('連對 2 關',{exact:true}).waitFor();
+    }
+    state.mtEnabled=false;
     for(const width of [375,390,430,768,1024,1440]){
       state.prediction=[390,430].includes(width)?'閒':width===1440?'莊':'觀望';
       state.modeOverride=width===430?'自由配注':null;

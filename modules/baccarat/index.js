@@ -49,12 +49,50 @@ const dgSource = require("./dgSource");
 const mtSource = require("./mtSource");
 const abSource = require("./abSource");
 const sources = new Map([["DG", dgSource], ["MT", mtSource], ["歐博", abSource]]);
+const { createMultiTableTracker } = require("./multiTable");
 const rooms = new Map([["DG", DG_ROOMS], ["MT", MT_ROOMS], ["歐博", AB_ROOMS]]);
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("./availability");
 const { quickReply } = require("../../services/line");
 const abMenuCommands = ["歐博百家樂", "歐博遊戲", "歐博牛牛", "歐博推筒子"];
 const liveSettlementQueues = new Map();
 const cancellationBarriers = new Map();
+
+const multiTableTrackers = new Map([...sources.keys()].map(platform => [
+  platform, createMultiTableTracker(),
+]));
+
+function multiTableOverview(platform) {
+  const source = sources.get(platform);
+  const tracker = multiTableTrackers.get(platform);
+  const observed = new Map(source.getSnapshot().tables.map(table => [table.room, table]));
+  const configured = platform === "歐博"
+    ? Object.values(AB_BACCARAT_VARIANTS).flat()
+    : rooms.get(platform);
+  return [...new Set([...configured, ...observed.keys()])]
+    .filter(room => platform !== "歐博" || /^[BQ]/.test(room))
+    .map(room => {
+      const table = observed.get(room);
+      const fresh = Boolean(table && source.isRoomFresh(room));
+      const records = table ? source.getTableByRoom(room)?.history || [] : [];
+      const road = records.map(record => record.result);
+      const analysis = fresh ? tracker.update(room, records) : null;
+      const counts = { "莊": 0, "閒": 0, "和": 0 };
+      for (const result of road) counts[result] += 1;
+      return {
+        room,
+        status: fresh ? "live" : table ? "stale" : "waiting",
+        shoe: table?.shoeId ?? table?.shoe ?? null,
+        round: records.at(-1)?.roundIndex ?? null,
+        countdown: fresh ? table.countDown ?? null : null,
+        road,
+        counts,
+        prediction: analysis?.prediction ?? null,
+        nextRound: analysis?.nextRound ?? null,
+        correct: analysis?.correct ?? null,
+        incorrect: analysis?.incorrect ?? null,
+      };
+    });
+}
 
 function roomsForPlatform(platform) {
   const configured = rooms.get(platform);
@@ -594,6 +632,9 @@ async function resetBaccaratSession(userId) {
 
 for (const [platform, source] of sources) {
   source.onResult((event) => {
+    multiTableTrackers.get(platform).update(
+      event.room, event.history, ["initial_snapshot", "snapshot_replaced"].includes(event.resyncReason),
+    );
     queueLiveResult(platform, event).catch((error) => {
       console.error(`[${platform}] Auto settlement failed:`, error.message);
     });
@@ -937,6 +978,7 @@ function activeBaccaratPlatform(userId) {
 
 module.exports = {
   handleBaccaratMessage,
+  multiTableOverview,
   isBaccaratCommand,
   hasActiveBaccaratSession: hasActiveSession,
   activeBaccaratPlatform,
