@@ -23,7 +23,7 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
       {room:'TEST02',status:'stale',road:[],prediction:null,correct:null,incorrect:null},
     ]});
   });
-  app.get('/api/connections',(_req,res)=>res.json({providers:[{id:'t9',state:'healthy'}]}));
+  app.get('/api/connections',(_req,res)=>res.json({providers:[{id:'dg',state:'healthy'},{id:'mt',state:'offline'},{id:'ab',state:'stale'},{id:'t9',state:'healthy'}]}));
   app.get('/health',(_req,res)=>res.json({ok:true}));
   app.get('/api/electronic/status',(_req,res)=>state.failData?res.status(503).json({error:"測試資料讀取失敗"}):res.json({games:[]}));
   app.get('/api/web/events',(req,res)=>{res.set({'Content-Type':'text/event-stream','Cache-Control':'no-store'});res.write('event: ready\ndata: {}\n\n');req.on('close',()=>res.end());});
@@ -83,6 +83,9 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
       await fit('multi-table '+width);
     }
     await open('/portal/baccarat');
+    await page.locator('[data-provider=dg][data-state=healthy]').filter({hasText:'已連線'}).waitFor();
+    await page.locator('[data-provider=mt][data-state=offline]').filter({hasText:'尚未連線'}).waitFor();
+    await page.locator('[data-provider=ab][data-state=stale]').filter({hasText:'資料延遲'}).waitFor();
     const t9 = page.locator('.baccarat-platform-options').filter({hasText:'T9 百家樂 AI'});
     await t9.getByText('● 已連線',{exact:true}).waitFor();
     assert.equal(await t9.locator('button[data-go="/portal/baccarat/t9/analyze"]').count(),1);

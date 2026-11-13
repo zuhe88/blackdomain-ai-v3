@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261113.05";
+const PORTAL_BUILD="20261113.06";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -103,7 +103,7 @@ async function stopMonitoringAndGoHome(){if(homeStopInFlight)return;homeStopInFl
 function backTo(path){navigate(path);}
 function pageHeader(title,subtitle,backPath){return `<div class="page-heading">${backPath?`<button class="back-button" data-go="${backPath}">← 返回</button>`:"<p class=\"eyebrow\">黑域AI</p>"}<h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div>`;}
 function homeGameList(item){if(!Array.isArray(item.items))return "";return `<div class="home-game-list" aria-label="包含遊戲">${item.items.map(game=>`<small${game.disabled?' class="is-maintenance"':""}>${escapeHtml(game.fullName||game.name)}${game.disabled?`・${escapeHtml(game.disabledLabel||"維護中")}`:""}</small>`).join("")}</div>`;}
-function card(item,path,{home=false}={}){const disabledLabel=item.disabledLabel||(item.id==="horse"?"維護中":"暫停開放");return `<button class="selection-card${item.disabled?" is-disabled":""}${home?" home-category-card":""}" ${item.disabled?'disabled aria-disabled="true"':`data-go="${path}"`}><div class="image-frame">${item.image?`<img src="${item.image}" alt="${escapeHtml(item.name)}" loading="${home?"eager":"lazy"}" onerror="this.closest('.image-frame').classList.add('image-error');this.remove()">`:""}${item.disabled?`<b class="maintenance-badge">${escapeHtml(disabledLabel)}</b>`:""}</div><div class="selection-copy"><div><h2>${escapeHtml(item.name)}</h2><p>${escapeHtml(item.disabled?disabledLabel:item.subtitle)}</p>${home?homeGameList(item):""}${item.id==="t9"?'<small class="t9-connection" role="status">連線確認中</small>':""}</div><span>${item.disabled?disabledLabel:"進入分析"}</span></div></button>`;}
+function card(item,path,{home=false,showConnection=false}={}){const disabledLabel=item.disabledLabel||(item.id==="horse"?"維護中":"暫停開放");return `<button class="selection-card${item.disabled?" is-disabled":""}${home?" home-category-card":""}" ${item.disabled?'disabled aria-disabled="true"':`data-go="${path}"`}><div class="image-frame">${item.image?`<img src="${item.image}" alt="${escapeHtml(item.name)}" loading="${home?"eager":"lazy"}" onerror="this.closest('.image-frame').classList.add('image-error');this.remove()">`:""}${item.disabled?`<b class="maintenance-badge">${escapeHtml(disabledLabel)}</b>`:""}</div><div class="selection-copy"><div><h2>${escapeHtml(item.name)}</h2><p>${escapeHtml(item.disabled?disabledLabel:item.subtitle)}</p>${home?homeGameList(item):""}${showConnection?'<small class="platform-connection" data-provider="'+escapeHtml(item.id)+'" role="status">● 連線確認中</small>':""}</div><span>${item.disabled?disabledLabel:"進入分析"}</span></div></button>`;}
 function directAnalysisPath(categoryKey,item){if(categoryKey==="atg")return `/portal/${categoryKey}/${item.id}/recommend`;if(["baccarat","lottery","sports"].includes(categoryKey))return `/portal/${categoryKey}/${item.id}/analyze`;return `/portal/${categoryKey}/${item.id}`;}
 function renderHome(){
   const resumeItem=resumeBaccaratSession&&categories.baccarat.items.find(item=>item.command===resumeBaccaratPlatform&&!item.disabled);
@@ -270,21 +270,24 @@ function renderMultiTable(itemId) {
   refresh();
 }
 
-function renderCategory(categoryKey){const category=categories[categoryKey];if(!category)return navigate("/portal/",{replace:true});view.innerHTML=`<section class="screen category-screen">${pageHeader(({baccarat:"百家樂分析",atg:"電子遊戲分析",lottery:"彩票分析",sports:"體育數據"})[categoryKey]||category.name,`點選項目後立即開始分析`,"/portal/")}<div class="selection-grid">${category.items.map(item=>categoryKey==="baccarat"&&!item.disabled?`<div class="baccarat-platform-options">${card(item,directAnalysisPath(categoryKey,item))}${actionButton("多桌",`/portal/baccarat/${item.id}/multi`,false)}</div>`:card(item,directAnalysisPath(categoryKey,item))).join("")}</div></section>`;if(categoryKey==="baccarat")void refreshT9Connection(view.querySelector(".t9-connection"));}
-async function refreshT9Connection(label) {
-  if (!label?.isConnected) return;
+function renderCategory(categoryKey){const category=categories[categoryKey];if(!category)return navigate("/portal/",{replace:true});view.innerHTML=`<section class="screen category-screen">${pageHeader(({baccarat:"百家樂分析",atg:"電子遊戲分析",lottery:"彩票分析",sports:"體育數據"})[categoryKey]||category.name,`點選項目後立即開始分析`,"/portal/")}<div class="selection-grid">${category.items.map(item=>categoryKey==="baccarat"&&!item.disabled?`<div class="baccarat-platform-options">${card(item,directAnalysisPath(categoryKey,item),{showConnection:true})}${actionButton("多桌",`/portal/baccarat/${item.id}/multi`,false)}</div>`:card(item,directAnalysisPath(categoryKey,item),{showConnection:categoryKey==="baccarat"})).join("")}</div></section>`;if(categoryKey==="baccarat")void refreshBaccaratConnections(view.querySelector(".category-screen"));}
+async function refreshBaccaratConnections(screen) {
+  if (!screen?.isConnected) return;
+  const labels = screen.querySelectorAll(".platform-connection");
+  const states = { healthy: "● 已連線", stale: "● 資料延遲", offline: "● 尚未連線" };
+  let providers = [];
   try {
     const response = await fetch("/api/connections", { cache: "no-store", signal: AbortSignal.timeout(5000) });
-    if (!response.ok) throw new Error("Connection status unavailable");
-    const { providers } = await response.json();
-    const provider = providers.find(item => item.id === "t9");
-    label.textContent = ({ healthy: "● 已連線", stale: "● 資料延遲", offline: "● 等待轉發" })[provider?.state] || "● 狀態暫不可用";
-    label.dataset.state = provider?.state || "";
+    if (response.ok) ({ providers } = await response.json());
   } catch {
-    label.textContent = "● 狀態暫不可用";
-    label.dataset.state = "";
+    // A failed request cannot determine the provider's connection state.
   }
-  if (label.isConnected) setTimeout(() => refreshT9Connection(label), 5000);
+  for (const label of labels) {
+    const provider = providers?.find(item => item.id === label.dataset.provider);
+    label.dataset.state = provider?.state || "";
+    label.textContent = states[provider?.state] || "● 狀態暫不可用";
+  }
+  if (screen.isConnected) setTimeout(() => refreshBaccaratConnections(screen), 5000);
 }
 function actionButton(label,path,primary=true,description=""){return `<button class="action-card${primary?" primary":""}" data-go="${escapeHtml(path)}"><span><b>${escapeHtml(label)}</b>${description?`<small>${escapeHtml(description)}</small>`:""}</span><i>進入</i></button>`;}
 async function initializeGame(categoryKey,item){if(categoryKey==="baccarat"){await send("百家樂",{showBusy:false,silent:true});return send(item.command,{showBusy:true,silent:false});}if(categoryKey==="atg")return send(item.command,{showBusy:false,silent:true});return null;}
