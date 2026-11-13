@@ -239,8 +239,10 @@ function renderMultiTable(itemId) {
         const offsets = new Map([...grid.children].map(card => [card.dataset.room,
           [...card.querySelectorAll(scrollers)].map(road => road.scrollLeft),
         ]));
-        const highestTotal = Math.max(0, ...data.tables.map(table => table.totalCorrect ?? 0));
-        const isRecommended = table => highestTotal > 0 && table.totalCorrect === highestTotal;
+        const netCorrect = table => Number.isInteger(table.totalCorrect) && Number.isInteger(table.totalIncorrect)
+          ? table.totalCorrect - table.totalIncorrect : 0;
+        const highestNet = Math.max(0, ...data.tables.map(netCorrect));
+        const isRecommended = table => highestNet > 0 && netCorrect(table) === highestNet;
         const orderedTables = [...data.tables].sort((left, right) =>
           Number(isRecommended(right)) - Number(isRecommended(left))
         );
