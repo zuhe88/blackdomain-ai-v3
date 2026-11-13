@@ -555,5 +555,9 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 .multi-table-prediction .banker { background:#9c2636; }
 .multi-table-prediction .player { background:#1659a3; }
 .multi-table-prediction .observe { font-size:1rem; }
-.multi-table-totals { display:flex; flex-wrap:wrap; flex-basis:100%; gap:6px; }
-.multi-table-totals .multi-table-streak b { font-size:1.6rem; }
+.multi-table-current, .multi-table-totals { display:flex; flex-wrap:wrap; align-content:start; gap:6px; padding:8px; border-radius:8px; }
+.multi-table-current { background:#30261a; }
+.multi-table-totals { background:#17283b; }
+.multi-table-score-label { flex-basis:100%; font-weight:700; color:#f0d4a8; }
+.multi-table-totals .multi-table-score-label { color:#c1ddff; }
+.multi-table-totals .multi-table-streak { background:#21364d; border-color:#526c87; }

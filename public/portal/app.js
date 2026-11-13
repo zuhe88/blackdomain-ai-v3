@@ -174,9 +174,13 @@ function multiTableCard(table) {
         ${table.prediction ? `<b class="${predictionSide}">${escapeHtml(table.prediction)}</b>` : ""}
       </div>
       <div class="multi-table-streaks">
+        <div class="multi-table-current">
+          <span class="multi-table-score-label">目前連續</span>
         <span class="multi-table-streak correct">連對 <b>${streak(table.correct)}</b> 關</span>
         <span class="multi-table-streak incorrect">連錯 <b>${streak(table.incorrect)}</b> 關</span>
+        </div>
         <div class="multi-table-totals">
+          <span class="multi-table-score-label">本靴累計</span>
           <span class="multi-table-streak correct">總對 <b>${streak(table.totalCorrect)}</b> 次</span>
           <span class="multi-table-streak incorrect">總錯 <b>${streak(table.totalIncorrect)}</b> 次</span>
         </div>
