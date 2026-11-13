@@ -37,7 +37,8 @@ function Assistant() {
   const ai = useRef<WebView>(null);
   const [gameSource, setGameSource] = useState({ uri: GAME_HOME });
   const [panelOpen, setPanelOpen] = useState(false);
-  const [panelLoaded, setPanelLoaded] = useState(false);
+  const [floating, setFloating] = useState(false);
+  const [aiCanGoBack, setAiCanGoBack] = useState(false);
   const [canGoBack, setCanGoBack] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -46,7 +47,6 @@ function Assistant() {
   const [aiAuthenticated, setAiAuthenticated] = useState(false);
   const [aiAccessAllowed, setAiAccessAllowed] = useState(false);
   const { width, height } = useWindowDimensions();
-  const landscape = width > height;
   const fabPosition = useRef(new Animated.ValueXY({ x: Math.max(12, width - 78), y: Math.max(24, height * 0.42) })).current;
   const fabPoint = useRef({ x: Math.max(12, width - 78), y: Math.max(24, height * 0.42) });
   const fabMoved = useRef(false);
@@ -87,15 +87,19 @@ function Assistant() {
     fabPosition.setValue(next);
   }, [fabPosition, height, width]);
 
-  const togglePanel = () => { setPanelLoaded(true); setPanelOpen(value => !value); };
+  const openAnalysis = (asFloating = false) => { setFloating(asFloating); setPanelOpen(true); };
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (panelOpen) { setPanelOpen(false); return true; }
+      if (panelOpen) {
+        if (aiCanGoBack) ai.current?.goBack();
+        else setPanelOpen(false);
+        return true;
+      }
       if (canGoBack) { game.current?.goBack(); return true; }
       return false;
     });
     return () => subscription.remove();
-  }, [panelOpen, canGoBack]);
+  }, [panelOpen, canGoBack, aiCanGoBack]);
 
   const reloadGame = () => Alert.alert('重新載入遊戲', '目前遊戲連線會重新建立。', [
     { text: '取消', style: 'cancel' },
@@ -108,11 +112,19 @@ function Assistant() {
 
   return <SafeAreaView style={styles.root}>
     <View style={styles.toolbar}>
-      <Pressable accessibilityRole="button" accessibilityLabel="返回上一頁" disabled={!canGoBack} onPress={() => game.current?.goBack()} style={styles.navButton}>
-        <Text style={[styles.navText, !canGoBack && styles.disabled]}>‹</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="返回上一頁" disabled={panelOpen ? !aiCanGoBack : !canGoBack} onPress={() => (panelOpen ? ai : game).current?.goBack()} style={styles.navButton}>
+        <Text style={[styles.navText, !(panelOpen ? aiCanGoBack : canGoBack) && styles.disabled]}>‹</Text>
       </Pressable>
       <View style={styles.brand}><Text style={styles.title}>黑域 AI 助手</Text><Text style={styles.subtitle}>{loading ? '頁面載入中' : '遊戲瀏覽器'}</Text></View>
-      <Pressable accessibilityRole="button" accessibilityLabel="重新載入遊戲" onPress={reloadGame} style={styles.navButton}><Text style={styles.navText}>↻</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={panelOpen ? "重新載入分析" : "重新載入遊戲"} onPress={() => panelOpen ? ai.current?.reload() : reloadGame()} style={styles.navButton}><Text style={styles.navText}>↻</Text></Pressable>
+    </View>
+    <View accessibilityRole="tablist" style={styles.tabs}>
+      <Pressable accessibilityRole="tab" accessibilityState={{ selected: !panelOpen || floating }} onPress={() => setPanelOpen(false)} style={[styles.tab, !panelOpen && styles.activeTab]}>
+        <Text style={styles.title}>3A</Text>
+      </Pressable>
+      <Pressable accessibilityRole="tab" accessibilityState={{ selected: panelOpen && !floating }} onPress={() => openAnalysis()} style={[styles.tab, panelOpen && styles.activeTab]}>
+        <Text style={styles.title}>AI 分析</Text>
+      </Pressable>
     </View>
     <View style={styles.stage}>
       <WebView ref={game} source={gameSource} style={styles.webview}
@@ -131,16 +143,18 @@ function Assistant() {
       />
       {error && <View style={styles.error}><Text style={styles.title}>遊戲頁面已中斷</Text><Text style={styles.message}>請確認網路，再手動重新載入。</Text><Pressable onPress={reloadGame} style={styles.action}><Text style={styles.actionText}>重新載入</Text></Pressable></View>}
       {!panelOpen && <Animated.View {...fabPan.panHandlers} style={[styles.fab, { transform: fabPosition.getTranslateTransform() }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="開啟黑域 AI 分析；可拖曳移動" onPress={() => { if (!fabMoved.current) togglePanel(); }} style={styles.fabPress}>
+        <Pressable accessibilityRole="button" accessibilityLabel="開啟黑域 AI 分析；可拖曳移動" onPress={() => { if (!fabMoved.current) openAnalysis(true); }} style={styles.fabPress}>
           <Image source={require('./assets/blackdomain-ai-logo.png')} style={styles.fabLogo}/><Text style={styles.fabCaption}>AI 分析</Text>
         </Pressable>
       </Animated.View>}
-      {panelLoaded && <View pointerEvents={panelOpen ? 'auto' : 'none'} accessibilityElementsHidden={!panelOpen} importantForAccessibility={panelOpen ? 'auto' : 'no-hide-descendants'} style={[
+      <View pointerEvents={panelOpen ? 'auto' : 'none'} accessibilityElementsHidden={!panelOpen} importantForAccessibility={panelOpen ? 'auto' : 'no-hide-descendants'} style={[
         styles.panel,
-        landscape ? { width: Math.min(420, width * 0.48), height: '100%' } : { width: '100%', height: '68%' },
+        floating
+          ? width > height ? { width: Math.min(420, width * 0.48), height: '100%' } : { width: '100%', height: '68%' }
+          : { width: '100%', height: '100%' },
         !panelOpen && styles.hidden,
       ]}>
-        <View style={styles.panelHeader}><View style={styles.brand}><Text style={styles.title}>黑域 AI 分析</Text><Text style={styles.subtitle}>收起面板即可繼續遊戲</Text></View><Pressable accessibilityRole="button" accessibilityLabel="收起分析" onPress={() => setPanelOpen(false)} style={styles.close}><Text style={styles.closeText}>收起 ⌄</Text></Pressable></View>
+        <View style={styles.panelHeader}><View style={styles.brand}><Text style={styles.title}>黑域 AI 分析</Text><Text style={styles.subtitle}>收起面板即可繼續遊戲</Text></View><Pressable accessibilityRole="button" accessibilityLabel="收起分析" onPress={() => setPanelOpen(false)} style={styles.close}><Text style={styles.closeText}>回到 3A</Text></Pressable></View>
         {aiAuthenticated && <View style={[styles.memberState, aiAccessAllowed ? styles.memberActive : styles.memberLimited]}><Text style={styles.memberStateText}>{aiAccessAllowed ? '會員權限已啟用' : '已登入・尚未開通分析權限'}</Text></View>}
         <WebView ref={ai} source={aiSource} style={styles.webview} sharedCookiesEnabled thirdPartyCookiesEnabled
           originWhitelist={['https://*', 'about:*', 'blob:*', 'data:*']} setSupportMultipleWindows
@@ -150,6 +164,7 @@ function Assistant() {
             try { if (new URL(request.url).origin === AI_ORIGIN) return true; } catch { return false; }
             openExternal(request.url); return false;
           }}
+          onNavigationStateChange={state => setAiCanGoBack(state.canGoBack)}
           injectedJavaScript={READ_MEMBER_STATE}
           onMessage={event => {
             try {
@@ -163,7 +178,7 @@ function Assistant() {
           onContentProcessDidTerminate={() => setAiError(true)} onRenderProcessGone={() => setAiError(true)}
         />
         {aiError && <View style={styles.aiError}><Text style={styles.message}>分析頁面暫時無法載入</Text><Pressable onPress={() => ai.current?.reload()} style={styles.action}><Text style={styles.actionText}>重試分析</Text></Pressable></View>}
-      </View>}
+      </View>
     </View>
   </SafeAreaView>;
 }
@@ -175,6 +190,9 @@ const styles = StyleSheet.create({
   toolbar: { height: 54, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#263143', paddingHorizontal: 8 },
   brand: { flex: 1 }, title: { color: '#f3f6fc', fontSize: 16, fontWeight: '700' }, subtitle: { color: '#9dacc3', fontSize: 11, marginTop: 3 },
   navButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, navText: { color: '#e3bc73', fontSize: 30 }, disabled: { opacity: 0.25 },
+  tabs: { flexDirection: 'row', gap: 8, padding: 8 },
+  tab: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10, backgroundColor: '#172131' },
+  activeTab: { backgroundColor: '#514022' },
   stage: { flex: 1, overflow: 'hidden' }, webview: { flex: 1, backgroundColor: '#080c13' },
   fab: { position: 'absolute', left: 0, top: 0, width: 62, height: 70, borderRadius: 22, backgroundColor: '#101926', borderWidth: 1, borderColor: '#e3bc73', elevation: 8, overflow: 'hidden' },
   fabPress: { flex: 1, alignItems: 'center', justifyContent: 'center' }, fabLogo: { width: 42, height: 42, borderRadius: 21, resizeMode: 'contain' }, fabCaption: { color: '#ecdfc6', fontSize: 9, marginTop: 2 },
