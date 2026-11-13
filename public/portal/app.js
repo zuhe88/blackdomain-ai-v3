@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261113.06";
+const PORTAL_BUILD="20261113.07";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -22,10 +22,10 @@ let deferredInstallPrompt=null;
 
 const categories={
   baccarat:{name:"百家樂",subtitle:"AI 牌路分析",image:"/images/electronic/dg-baccarat.png",items:[
-    {id:"dg",name:"DG",subtitle:"DG 百家樂 AI",image:"/images/electronic/dg-baccarat.png",command:"DG"},
-    {id:"mt",name:"MT",subtitle:"MT 百家樂 AI",image:"/images/electronic/mt-baccarat.png",command:"MT",disabled:true,disabledLabel:"MT休息中"},
+    {id:"dg",name:"DG",subtitle:"DG 百家樂 AI",image:"/images/electronic/dg-logo-transparent.png",command:"DG"},
+    {id:"mt",name:"MT",subtitle:"MT 百家樂 AI",image:"/images/electronic/mt-logo-transparent.png",command:"MT",disabled:true,disabledLabel:"MT休息中"},
     {id:"t9",name:"T9",subtitle:"T9 百家樂 AI",image:"/images/electronic/t9-baccarat.png",command:"T9"},
-    {id:"ab",name:"歐博",subtitle:"歐博百家樂 AI",image:"/images/electronic/allbet-baccarat.png",command:"歐博"},
+    {id:"ab",name:"歐博",subtitle:"歐博百家樂 AI",image:"/images/electronic/allbet-logo-transparent.png",command:"歐博"},
   ]},
   atg:{name:"ATG",subtitle:"AI 電子選房",image:"/images/electronic/seth2-hd.webp",items:[
     {id:"set1",name:"賽特1",fullName:"戰神賽特1",subtitle:"AI 智能選房",image:"/images/electronic/seth1-hd.webp",command:"戰神賽特1"},
@@ -103,7 +103,7 @@ async function stopMonitoringAndGoHome(){if(homeStopInFlight)return;homeStopInFl
 function backTo(path){navigate(path);}
 function pageHeader(title,subtitle,backPath){return `<div class="page-heading">${backPath?`<button class="back-button" data-go="${backPath}">← 返回</button>`:"<p class=\"eyebrow\">黑域AI</p>"}<h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div>`;}
 function homeGameList(item){if(!Array.isArray(item.items))return "";return `<div class="home-game-list" aria-label="包含遊戲">${item.items.map(game=>`<small${game.disabled?' class="is-maintenance"':""}>${escapeHtml(game.fullName||game.name)}${game.disabled?`・${escapeHtml(game.disabledLabel||"維護中")}`:""}</small>`).join("")}</div>`;}
-function card(item,path,{home=false,showConnection=false}={}){const disabledLabel=item.disabledLabel||(item.id==="horse"?"維護中":"暫停開放");return `<button class="selection-card${item.disabled?" is-disabled":""}${home?" home-category-card":""}" ${item.disabled?'disabled aria-disabled="true"':`data-go="${path}"`}><div class="image-frame">${item.image?`<img src="${item.image}" alt="${escapeHtml(item.name)}" loading="${home?"eager":"lazy"}" onerror="this.closest('.image-frame').classList.add('image-error');this.remove()">`:""}${item.disabled?`<b class="maintenance-badge">${escapeHtml(disabledLabel)}</b>`:""}</div><div class="selection-copy"><div><h2>${escapeHtml(item.name)}</h2><p>${escapeHtml(item.disabled?disabledLabel:item.subtitle)}</p>${home?homeGameList(item):""}${showConnection?'<small class="platform-connection" data-provider="'+escapeHtml(item.id)+'" role="status">● 連線確認中</small>':""}</div><span>${item.disabled?disabledLabel:"進入分析"}</span></div></button>`;}
+function card(item,path,{home=false,showConnection=false}={}){const disabledLabel=item.disabledLabel||(item.id==="horse"?"維護中":"暫停開放");return `<button class="selection-card${item.disabled?" is-disabled":""}${home?" home-category-card":""}" ${item.disabled?'disabled aria-disabled="true"':`data-go="${path}"`}><div class="image-frame">${item.image?`<img ${item.id==="t9"?'class="t9-platform-logo"':""} src="${item.image}" alt="${escapeHtml(item.name)}" loading="${home?"eager":"lazy"}" onerror="this.closest('.image-frame').classList.add('image-error');this.remove()">`:""}${item.disabled?`<b class="maintenance-badge">${escapeHtml(disabledLabel)}</b>`:""}</div><div class="selection-copy"><div><h2>${escapeHtml(item.name)}</h2><p>${escapeHtml(item.disabled?disabledLabel:item.subtitle)}</p>${home?homeGameList(item):""}${showConnection?'<small class="platform-connection" data-provider="'+escapeHtml(item.id)+'" role="status">● 連線確認中</small>':""}</div><span>${item.disabled?disabledLabel:"進入分析"}</span></div></button>`;}
 function directAnalysisPath(categoryKey,item){if(categoryKey==="atg")return `/portal/${categoryKey}/${item.id}/recommend`;if(["baccarat","lottery","sports"].includes(categoryKey))return `/portal/${categoryKey}/${item.id}/analyze`;return `/portal/${categoryKey}/${item.id}`;}
 function renderHome(){
   const resumeItem=resumeBaccaratSession&&categories.baccarat.items.find(item=>item.command===resumeBaccaratPlatform&&!item.disabled);

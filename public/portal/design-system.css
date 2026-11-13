@@ -571,3 +571,7 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 .platform-connection[data-state="healthy"] { color: #62e5ab; }
 .platform-connection[data-state="stale"],
 .platform-connection[data-state="offline"] { color: #f7ca7f; }
+
+.category-screen .selection-card .image-frame .t9-platform-logo {
+  filter: saturate(1.45) brightness(1.06);
+}
