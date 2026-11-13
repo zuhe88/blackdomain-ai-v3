@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261113.01";
+const PORTAL_BUILD="20261113.02";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -153,10 +153,10 @@ function multiTableBigRoad(road) {
 }
 
 function multiTableCard(table) {
-  const labels = {live:"即時", stale:"資料延遲", waiting:"等待桌況"};
+  const labels = {live:"即時", "new-shoe":"等待開獎", stale:"資料延遲", waiting:"等待桌況"};
   const road = Array.isArray(table.road) ? table.road : [];
   const prediction = table.prediction ? `第 ${escapeHtml(table.nextRound)} 局預測　${escapeHtml(table.prediction)}` : "預測待更新";
-  const streak = count => Number.isInteger(count) ? `${count} 關` : "—";
+  const streak = count => Number.isInteger(count) ? count : "—";
   return `<article class="multi-table-card">
     <header><h2>${escapeHtml(table.room)}</h2><span>${table.round == null ? "" : `已開 ${escapeHtml(table.round)} 局 · `}${labels[table.status] || labels.waiting}${Number(table.countdown) > 0 ? ` · ${escapeHtml(table.countdown)} 秒` : ""}</span></header>
     <div class="multi-table-roads">
@@ -164,10 +164,16 @@ function multiTableCard(table) {
       ${road.length ? `<section class="multi-table-big-road"><b>大路</b><div class="multi-table-road-scroll" tabindex="0" aria-label="大路，可左右滑動"><div class="multi-table-big-grid">${multiTableBigRoad(road)}</div></div></section>` : '<p class="multi-table-empty">暫無路單</p>'}
     </div>
     <div class="multi-table-counts">
-      ${["莊","閒","和"].map(side => `<span>${side} ${road.length ? escapeHtml(table.counts[side]) : "—"}</span>`).join("")}
-      <span>總 ${road.length || "—"}</span>
+      ${["莊","閒","和"].map(side => `<span>${side} ${road.length || table.status === "new-shoe" ? escapeHtml(table.counts[side]) : "—"}</span>`).join("")}
+      <span>總 ${table.status === "new-shoe" ? 0 : road.length || "—"}</span>
     </div>
-    <footer><strong>${prediction}</strong><span>連對 ${streak(table.correct)}</span><span>連錯 ${streak(table.incorrect)}</span></footer>
+    <footer>
+      <strong>${prediction}</strong>
+      <div class="multi-table-streaks">
+        <span class="multi-table-streak correct">連對 <b>${streak(table.correct)}</b> 關</span>
+        <span class="multi-table-streak incorrect">連錯 <b>${streak(table.incorrect)}</b> 關</span>
+      </div>
+    </footer>
   </article>`;
 }
 

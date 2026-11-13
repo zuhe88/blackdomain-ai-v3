@@ -607,6 +607,10 @@ function mergeTable(incoming) {
   tables.set(tableId, next);
   updatedAt = next.updatedAt;
 
+  const incomingBeadPlate = incomingTrend?.bead_plate2 ?? incomingTrend?.bead_plate;
+  if (next.room && transitionReason === "shoe_changed" && incomingBeadPlate === "") {
+    events.emit("emptyShoe", next.room);
+  }
   emitResultEvent(next, previousHistory, hadCurrent, eventTransitionReason, {
     replacementFromRoundIndex,
     replacedShoeKey: replacementFromRoundIndex ? current.shoeKey || null : null,
@@ -675,6 +679,7 @@ function getRoomStats(room) {
 }
 
 function getSnapshot() {
+  const now = Date.now();
   return {
     source: tables.size ? "live" : "unavailable",
     updatedAt,
@@ -692,6 +697,7 @@ function getSnapshot() {
         latest: table.history[table.history.length - 1] || null,
         latestEventKey: table.history[table.history.length - 1]?.eventKey || null,
         updatedAt: table.updatedAt,
+        fresh: isTimestampFresh(table.updatedAt, now),
       })),
   };
 }
@@ -716,7 +722,8 @@ module.exports = {
   isRoomFresh,
   isTimestampFresh,
   normalizeHistory,
-  onResult,
+    onResult,
+  onEmptyShoe: listener => events.on("emptyShoe", listener),
   resetForTest,
   roomFromName,
 };

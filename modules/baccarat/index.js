@@ -72,24 +72,26 @@ function multiTableOverview(platform) {
     .filter(room => platform !== "歐博" || /^[BQ]/.test(room))
     .map(room => {
       const table = observed.get(room);
-      const fresh = Boolean(table && source.isRoomFresh(room));
+      const fresh = table?.fresh ?? Boolean(table && source.isRoomFresh(room));
       const records = table ? source.getTableByRoom(room)?.history || [] : [];
       const road = records.map(record => record.result);
-      const analysis = fresh ? tracker.update(room, records) : null;
+      const latest = records.at(-1);
+      const tracked = tracker.get(room);
+      const analysis = tracked && latest?.eventKey === tracked.eventKey ? tracked : null;
       const counts = { "莊": 0, "閒": 0, "和": 0 };
       for (const result of road) counts[result] += 1;
       return {
         room,
-        status: fresh ? "live" : table ? "stale" : "waiting",
+        status: fresh ? records.length ? "live" : "new-shoe" : table ? "stale" : "waiting",
         shoe: table?.shoeId ?? table?.shoe ?? null,
         round: records.at(-1)?.roundIndex ?? null,
         countdown: fresh ? table.countDown ?? null : null,
         road,
         counts,
-        prediction: analysis?.prediction ?? null,
-        nextRound: analysis?.nextRound ?? null,
-        correct: analysis?.correct ?? null,
-        incorrect: analysis?.incorrect ?? null,
+        prediction: fresh ? analysis?.prediction ?? null : null,
+        nextRound: fresh ? analysis?.nextRound ?? null : null,
+        correct: tracked?.correct ?? null,
+        incorrect: tracked?.incorrect ?? null,
       };
     });
 }
@@ -631,9 +633,10 @@ async function resetBaccaratSession(userId) {
 }
 
 for (const [platform, source] of sources) {
+  source.onEmptyShoe(room => multiTableTrackers.get(platform).resetAtEmptyShoe(room));
   source.onResult((event) => {
     multiTableTrackers.get(platform).update(
-      event.room, event.history, ["initial_snapshot", "snapshot_replaced"].includes(event.resyncReason),
+      event.room, event.history, event.resyncReason === "snapshot_replaced",
     );
     queueLiveResult(platform, event).catch((error) => {
       console.error(`[${platform}] Auto settlement failed:`, error.message);

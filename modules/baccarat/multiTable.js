@@ -3,23 +3,19 @@ const { predict } = require("./ai");
 function createMultiTableTracker() {
   const tables = new Map();
 
-  function update(room, history, reset = false) {
+  function update(room, history, replaceSnapshot = false) {
     const latest = history.at(-1);
-    if (!latest) {
-      tables.delete(room);
-      return null;
-    }
+    if (!latest) return tables.get(room);
 
     const { shoeKey, roundIndex, eventKey } = latest;
-    let current = tables.get(room);
-    if (!reset && current?.eventKey === eventKey && current.result === latest.result) {
+    const current = tables.get(room);
+    if (!replaceSnapshot && current?.eventKey === eventKey && current.result === latest.result) {
       return current;
     }
 
-    if (reset || !current || current.shoeKey !== shoeKey || roundIndex <= current.roundIndex) {
-      current = null;
-    }
-    const settled = current && history.find(record =>
+    const canSettle = !replaceSnapshot && current?.shoeKey === shoeKey
+      && roundIndex > current.roundIndex;
+    const settled = canSettle && history.find(record =>
       record.shoeKey === shoeKey && record.roundIndex === current.nextRound
     );
     let correct = current?.correct || 0;
@@ -44,7 +40,11 @@ function createMultiTableTracker() {
     return next;
   }
 
-  return { update };
+  return {
+    update,
+    get: room => tables.get(room),
+    resetAtEmptyShoe: room => tables.set(room, { correct: 0, incorrect: 0 }),
+  };
 }
 
 module.exports = { createMultiTableTracker };

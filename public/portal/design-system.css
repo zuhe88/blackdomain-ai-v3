@@ -538,3 +538,14 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 @media (max-width:767px) { .multi-table-grid { grid-template-columns:minmax(0,1fr); } }
 
 .baccarat-platform-options { display:grid; gap:8px; min-width:0; }
+
+.multi-table-card { display:flex; flex-direction:column; background:#171511; box-shadow:0 6px 18px #0003; }
+.multi-table-card header { background:linear-gradient(110deg,#302416,#171511 72%); }
+.multi-table-card h2 { font-size:1.08rem; letter-spacing:.025em; }
+.multi-table-roads { flex:1; }
+.multi-table-card footer { justify-content:space-between; gap:8px; border-top:1px solid #554227; background:#211b13; }
+.multi-table-streaks { display:flex; gap:6px; flex-wrap:wrap; }
+.multi-table-streak { display:inline-flex; align-items:baseline; gap:5px; padding:4px 9px; border:1px solid currentColor; border-radius:8px; font-size:.78rem; white-space:nowrap; }
+.multi-table-streak b { font-size:1.48rem; font-weight:850; line-height:1.15; font-variant-numeric:tabular-nums; }
+.multi-table-streak.correct { color:#9bf0bc; background:#153022; }
+.multi-table-streak.incorrect { color:#ffacb1; background:#3c1f24; }

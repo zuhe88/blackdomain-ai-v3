@@ -569,6 +569,9 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
     }
     tables.set(tableId, next);
     updatedAt = next.updatedAt;
+    if (next.room && transitionReason === "shoe_changed" && hasRoadSnapshot && roads.length === 0) {
+      events.emit("emptyShoe", next.room);
+    }
     emitResultEvent(next, previousHistory, hadCurrent, eventTransitionReason, {
       replacementFromRoundIndex,
       replacedShoeKey: replacementFromRoundIndex ? current.shoeKey || null : null,
@@ -652,6 +655,7 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
   }
 
   function getSnapshot() {
+    const now = Date.now();
     const items = [...tables.values()]
       .filter((table) => table.room)
       .sort((left, right) => left.room.localeCompare(right.room, "en", { numeric: true }))
@@ -669,6 +673,7 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
         latest: table.history[table.history.length - 1] || null,
         latestEventKey: table.history[table.history.length - 1]?.eventKey || null,
         updatedAt: table.updatedAt,
+        fresh: isTimestampFresh(table.updatedAt, now),
       }));
     return {
       source: items.length ? "relay" : "unavailable",
@@ -698,6 +703,7 @@ function createRoadSource({ platform, rooms, roomPattern, freshnessSetting, defa
     ingestMessage,
     normalizeHistory,
     onResult,
+    onEmptyShoe: listener => events.on("emptyShoe", listener),
     resetForTest,
     roadResult,
     roomFromName,

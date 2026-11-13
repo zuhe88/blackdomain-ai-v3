@@ -24,5 +24,11 @@ test("multi-table scores only issued rounds, independently by table and shoe", (
   const missed = tracker.update("B", history(prefix + opposite));
   assert.equal(missed.correct, 0);
   assert.equal(missed.incorrect, 1);
-  assert.equal(tracker.update("A", history(prefix, "shoe-2")).correct, 0);
+  assert.equal(tracker.update("A", history(prefix, "shoe-2")).correct, 1);
+  assert.equal(tracker.update("A", history(prefix, "shoe-2"), true).correct, 1);
+  assert.equal(tracker.update("A", []).correct, 1);
+  tracker.resetAtEmptyShoe("A");
+  assert.equal(tracker.get("A").correct, 0);
+  assert.equal(tracker.update("A", history(prefix, "shoe-3")).correct, 0);
+  assert.equal(tracker.get("B").incorrect, 1);
 });

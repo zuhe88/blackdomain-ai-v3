@@ -15,6 +15,8 @@ const WS_KEY = "63dwReOhAlDbUoXiMFyZPgSvQc4JnTr7La0EjWf3Cu6NzBt9Ks1HxGq2Rd8Ym5Vp
 let socket = null;
 let heartbeatTimer = null;
 let reconnectTimer = null;
+let lobbyTimer = null;
+let secondLobbyTimer = null;
 let reconnectAttempt = 0;
 let connecting = false;
 let connectedAt = null;
@@ -97,6 +99,17 @@ function send(command, guestToken, fields = {}) {
 function stopHeartbeat() {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   heartbeatTimer = null;
+  clearInterval(lobbyTimer);
+  clearTimeout(secondLobbyTimer);
+  lobbyTimer = null;
+  secondLobbyTimer = null;
+}
+
+function refreshLobbies(guestToken) {
+  send(2, guestToken, { lobbyId: 5, type: 0 });
+  clearTimeout(secondLobbyTimer);
+  secondLobbyTimer = setTimeout(() => send(2, guestToken, { lobbyId: 6, type: 0 }), 750);
+  secondLobbyTimer.unref();
 }
 
 function scheduleReconnect() {
@@ -125,11 +138,10 @@ function handleMessage(raw, guestToken) {
       } catch {
         // The table snapshots below remain the source of truth.
       }
-      send(2, guestToken, { lobbyId: 5, type: 0 });
-      const secondLobbyTimer = setTimeout(() => {
-        send(2, guestToken, { lobbyId: 6, type: 0 });
-      }, 750);
-      secondLobbyTimer.unref();
+      refreshLobbies(guestToken);
+      clearInterval(lobbyTimer);
+      lobbyTimer = setInterval(() => refreshLobbies(guestToken), 10000);
+      lobbyTimer.unref();
     }
   } catch (error) {
     lastError = `Decode: ${error.message}`;
