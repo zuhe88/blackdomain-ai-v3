@@ -11,8 +11,17 @@ pre { white-space:pre-wrap; font:inherit; }
 <h1>百家樂模擬</h1>
 <button id="read">讀取目前的黑域 AI 多桌頁</button>
 <label for="table">模擬桌台</label><select id="table"></select>
+<button id="portalRecord">在多桌頁記錄模擬</button>
 <p>切到遊戲桌，選取包含平台、桌號、局號及倒數的可見文字，再打開本工具核對。</p>
 <button id="check">核對桌況並記錄模擬</button>
+<details>
+<summary>遊戲桌文字讀不到時，手動核對</summary>
+<label>平台 <select id="manualPlatform"><option value="">請選擇</option><option>DG</option><option>MT</option><option>歐博</option></select></label>
+<label>桌號 <input id="manualRoom" placeholder="RB01"></label>
+<label>局號 <input id="manualRound" type="number" min="1" step="1"></label>
+<label>剩餘秒數 <input id="manualSeconds" type="number" min="1" step="1"></label>
+<button id="manual">記錄手動核對的模擬</button>
+</details>
 <p id="status" role="status"></p>
 <pre id="log"></pre>
 <script src="popup.js"></script>
