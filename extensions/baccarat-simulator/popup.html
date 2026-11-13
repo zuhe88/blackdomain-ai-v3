@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<title>黑域 AI 百家樂模擬</title>
+<style>
+body { width:330px; padding:14px; background:#141b26; color:#fff; font:15px system-ui; }
+label, select, button { display:block; margin:8px 0; }
+button, select { padding:8px; max-width:100%; }
+pre { white-space:pre-wrap; font:inherit; }
+</style>
+<h1>百家樂模擬</h1>
+<button id="read">讀取目前的黑域 AI 多桌頁</button>
+<label for="table">模擬桌台</label><select id="table"></select>
+<p>切到遊戲桌，選取包含平台、桌號、局號及倒數的可見文字，再打開本工具核對。</p>
+<button id="check">核對桌況並記錄模擬</button>
+<p id="status" role="status"></p>
+<pre id="log"></pre>
+<script src="popup.js"></script>
+</html>
