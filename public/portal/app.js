@@ -9,7 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
-const PORTAL_BUILD="20261114.01";
+const PORTAL_BUILD="20261114.02";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
 try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)localStorage.setItem("blackdomain_session",hashSession)}catch{try{portalSessionToken=hashSession||sessionStorage.getItem("blackdomain_session")||"";if(hashSession)sessionStorage.setItem("blackdomain_session",hashSession)}catch{}}
@@ -24,7 +24,7 @@ const categories={
   baccarat:{name:"百家樂",subtitle:"AI 牌路分析",image:"/images/electronic/dg-baccarat.png",items:[
     {id:"dg",name:"DG",subtitle:"DG 百家樂 AI",image:"/images/electronic/dg-logo-transparent.png",command:"DG"},
     {id:"mt",name:"MT",subtitle:"MT 百家樂 AI",image:"/images/electronic/mt-logo-transparent.png",command:"MT",disabled:true,disabledLabel:"MT休息中"},
-    {id:"t9",name:"T9",subtitle:"T9 百家樂 AI",image:"/images/electronic/t9-baccarat.png?v=20261114.01",command:"T9"},
+    {id:"t9",name:"T9",subtitle:"T9 百家樂 AI",image:"/images/electronic/t9-baccarat.png?v=20261114.02",command:"T9"},
     {id:"ab",name:"歐博",subtitle:"歐博百家樂 AI",image:"/images/electronic/allbet-logo-transparent.png",command:"歐博"},
   ]},
   atg:{name:"ATG",subtitle:"AI 電子選房",image:"/images/electronic/seth2-hd.webp",items:[
@@ -292,7 +292,50 @@ async function refreshBaccaratConnections(screen) {
 function actionButton(label,path,primary=true,description=""){return `<button class="action-card${primary?" primary":""}" data-go="${escapeHtml(path)}"><span><b>${escapeHtml(label)}</b>${description?`<small>${escapeHtml(description)}</small>`:""}</span><i>進入</i></button>`;}
 async function initializeGame(categoryKey,item){if(categoryKey==="baccarat"){await send("百家樂",{showBusy:false,silent:true});return send(item.command,{showBusy:true,silent:false});}if(categoryKey==="atg")return send(item.command,{showBusy:false,silent:true});return null;}
 function itemFor(categoryKey,itemId){return categories[categoryKey]?.items.find(entry=>entry.id===itemId)||null;}
-function renderGame(categoryKey,itemId){const item=itemFor(categoryKey,itemId);if(!item||item.disabled)return navigate(`/portal/${categoryKey}`,{replace:true});activeOperation={categoryKey,item,mode:"menu"};let actions="";if(categoryKey==="atg")actions=actionButton("AI推薦房",`/portal/${categoryKey}/${itemId}/recommend`,true,"由 AI 分析目前房間數據");else if(categoryKey==="baccarat")actions=actionButton("進入百家樂分析",`/portal/${categoryKey}/${itemId}/analyze`,true,"依步驟設定房間、本金與配注模式");else actions=actionButton(`開始${item.name}分析`,`/portal/${categoryKey}/${itemId}/analyze`,true,"取得目前最新分析資料");view.innerHTML=`<section class="screen operation-screen">${pageHeader(item.fullName||item.name,item.subtitle,`/portal/${categoryKey}`)}<article class="game-identity"><div class="game-image">${item.image?`<img src="${item.image}" alt="${escapeHtml(item.name)}" onerror="this.closest('.game-image').classList.add('image-error');this.remove()">`:""}</div><div><p>目前選擇</p><h2>${escapeHtml(item.fullName||item.name)}</h2><span>${escapeHtml(item.subtitle)}</span></div></article><div class="operation-panel"><h2>開始分析</h2><p>AI 將依照最新房況資料推薦合適房間</p><div class="operation-actions">${actions}</div></div></section>`;if(categoryKey==="atg")initializeGame(categoryKey,item);}
+function startSet2QuickResults(panel) {
+  const toggle = panel.querySelector("button");
+  const status = panel.querySelector("[role=status]");
+  const results = panel.querySelector("ul");
+  let currentRun = 0;
+
+  async function refresh(run) {
+    if (!panel.isConnected || run !== currentRun) return;
+    try {
+      const response = await fetch("/api/web/admin/set2/results", {
+        cache: "no-store", signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) throw new Error("Result feed unavailable");
+      const data = await response.json();
+      if (!panel.isConnected || run !== currentRun) return;
+      const money = new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 2 });
+      results.replaceChildren(...data.results.map(result => {
+        const row = document.createElement("li");
+        const room = result.roomNumber ? "第 " + result.roomNumber + " 房｜" : "";
+        row.textContent = new Date(result.capturedAt).toLocaleTimeString("zh-TW", { timeZone: "Asia/Taipei" })
+          + "｜" + room + "派彩 " + money.format(result.totalWinnings);
+        return row;
+      }));
+      status.textContent = data.results.length ? "最近收到的結果" : "等待賽特 2 轉發結果";
+    } catch {
+      if (!panel.isConnected || run !== currentRun) return;
+      results.replaceChildren();
+      status.textContent = "暫時無法取得轉發結果";
+    }
+    if (panel.isConnected && run === currentRun) setTimeout(() => refresh(run), 2000);
+  }
+
+  toggle.addEventListener("click", () => {
+    const enabled = toggle.getAttribute("aria-pressed") !== "true";
+    toggle.setAttribute("aria-pressed", String(enabled));
+    toggle.textContent = enabled ? "關閉快速顯示" : "開啟快速顯示";
+    currentRun++;
+    results.replaceChildren();
+    status.textContent = enabled ? "正在取得轉發結果…" : "";
+    if (enabled) void refresh(currentRun);
+  });
+}
+
+function renderGame(categoryKey,itemId){const item=itemFor(categoryKey,itemId);if(!item||item.disabled)return navigate(`/portal/${categoryKey}`,{replace:true});activeOperation={categoryKey,item,mode:"menu"};let actions="";if(categoryKey==="atg")actions=actionButton("AI推薦房",`/portal/${categoryKey}/${itemId}/recommend`,true,"由 AI 分析目前房間數據");else if(categoryKey==="baccarat")actions=actionButton("進入百家樂分析",`/portal/${categoryKey}/${itemId}/analyze`,true,"依步驟設定房間、本金與配注模式");else actions=actionButton(`開始${item.name}分析`,`/portal/${categoryKey}/${itemId}/analyze`,true,"取得目前最新分析資料");view.innerHTML=`<section class="screen operation-screen">${pageHeader(item.fullName||item.name,item.subtitle,`/portal/${categoryKey}`)}<article class="game-identity"><div class="game-image">${item.image?`<img src="${item.image}" alt="${escapeHtml(item.name)}" onerror="this.closest('.game-image').classList.add('image-error');this.remove()">`:""}</div><div><p>目前選擇</p><h2>${escapeHtml(item.fullName||item.name)}</h2><span>${escapeHtml(item.subtitle)}</span></div></article><div class="operation-panel"><h2>開始分析</h2><p>AI 將依照最新房況資料推薦合適房間</p><div class="operation-actions">${actions}</div>${categoryKey==="atg"&&item.id==="set2"&&isAdmin?'<section class="set2-quick-results"><button class="action-card" type="button" aria-pressed="false">開啟快速顯示</button><p role="status"></p><ul></ul></section>':""}</div></section>`;const quickResults=view.querySelector(".set2-quick-results");if(quickResults)startSet2QuickResults(quickResults);if(categoryKey==="atg")initializeGame(categoryKey,item);}
 function analysisCopy(mode){if(mode==="recommend")return ["AI推薦房","正在同步平台資料並分析房間數據"];return ["AI分析","依照畫面步驟完成設定並取得結果"];}
 function analysisFlowSteps(categoryKey,item){if(categoryKey==="baccarat")return ["選擇房號","本金與配注","自動分析"];if(categoryKey==="atg")return["同步房況","篩選房間","推薦結果"];if(categoryKey==="lottery"&&item?.id==="539")return["同步開獎","AI運算","推薦號碼"];if(categoryKey==="sports")return["同步賽事","AI分析","分析結果"];return["同步資料","AI分析","分析結果"];}
 function analysisStepHeader(labels,active,id="analysisStepper"){return `<div class="mb-stepper analysis-flow"${id?` id="${id}"`:""} aria-label="分析步驟">${labels.map((label,index)=>`<div class="${index+1===active?"active":index+1<active?"done":""}"><i>${index+1<active?"✓":index+1}</i><span>${label}</span></div>`).join("")}</div>`;}

@@ -318,6 +318,17 @@ function registerWebPortalRoutes(app) {
       return next(error);
     }
   });
+  app.get("/api/web/admin/set2/results", (req, res) => {
+    res.setHeader("cache-control", "no-store");
+    if (!isAdminLineUserId(user(req))) return res.status(403).json({ error: "僅限管理員查看。" });
+    const game = require("../modules/electronic/source").getGame("戰神賽特2");
+    const results = (game?.recentSpins || []).filter(result =>
+      Number(result.capturedAt) >= Date.now() - 600000 && Number(result.capturedAt) <= Date.now()
+    ).map(({ roomNumber, totalWinnings, totalStake, capturedAt }) => ({
+      roomNumber, totalWinnings, totalStake, capturedAt: Number(capturedAt),
+    }));
+    res.json({ results: results.sort((a, b) => b.capturedAt - a.capturedAt) });
+  });
   app.get("/api/web/admin/electronic-room", async (req, res, next) => {
     try {
       const userId = user(req);
@@ -430,7 +441,7 @@ function registerWebPortalRoutes(app) {
       return res.status(messages.length ? 200 : 202).json({
         messages,
         pending: messages.length === 0,
-        portalBuild: "20261114.01",
+        portalBuild: "20261114.02",
       });
     } catch (error) { return next(error); }
   });

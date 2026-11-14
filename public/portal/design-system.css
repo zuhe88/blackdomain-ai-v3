@@ -585,3 +585,8 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
     padding-block: 8px;
   }
 }
+
+.set2-quick-results { margin-top: 16px; }
+.set2-quick-results button { width: 100%; }
+.set2-quick-results p:empty, .set2-quick-results ul:empty { display: none; }
+.set2-quick-results li { margin-block: 8px; }
