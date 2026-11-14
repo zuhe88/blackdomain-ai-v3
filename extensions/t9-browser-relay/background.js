@@ -1,4 +1,4 @@
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.origin !== "https://g.t9gaming.fun"
     || !sender.url?.startsWith("https://g.t9gaming.fun/VideoBaccarat/index.html?")
     || !Array.isArray(message?.tables) || message.tables.length > 100) return;
@@ -10,5 +10,6 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     headers: { "content-type": "application/json" },
     body,
     signal: AbortSignal.timeout(5000),
-  }).catch(() => {});
+  }).then(response => respond({ ok: response.status === 204 }), () => respond({ ok: false }));
+  return true;
 });
