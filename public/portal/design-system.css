@@ -575,3 +575,13 @@ body[data-core-background] .core-ring,body[data-core-background] .core-circuit-l
 .category-screen .selection-card .image-frame .t9-platform-logo {
   filter: saturate(1.45) brightness(1.06);
 }
+
+.category-screen .selection-card .image-frame:has(.t9-platform-logo)::after {
+  content: none;
+}
+
+@media (max-width: 600px) {
+  .category-screen .selection-card .image-frame:has(.t9-platform-logo) {
+    padding-block: 8px;
+  }
+}
