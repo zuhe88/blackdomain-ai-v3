@@ -686,11 +686,12 @@ function modePrompt(session) {
   });
 }
 
-function currencyPrompt() {
+function currencyPrompt(deliveryChannel) {
   return baccaratPromptFlex({
     title: "請選擇幣別",
     lines: ["台幣 TWD：最低下注 NT$ 50", "令吉 MYR：最低下注 RM 10", "請依遊戲帳戶使用的幣別選擇，本金與配注皆以所選幣別計算。"],
     quickReply: currencyQuickReply(),
+    actions: deliveryChannel === "line" ? ["台幣 TWD", "令吉 MYR"] : [],
   });
 }
 
@@ -814,12 +815,12 @@ async function handleBaccaratMessage(event) {
       }));
     }
     setRoom(userId, room);
-    return reply(token, currencyPrompt());
+    return reply(token, currencyPrompt(deliveryChannel));
   }
 
   if (session.step === "currency") {
     const currency = parseCurrency(value);
-    if (!currency) return reply(token, currencyPrompt());
+    if (!currency) return reply(token, currencyPrompt(deliveryChannel));
     const updated = setSession(userId, { currency, step: "mode" });
     return reply(token, modePrompt(updated));
   }

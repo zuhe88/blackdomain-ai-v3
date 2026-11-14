@@ -11,14 +11,14 @@ const { moduleImageUrl } = require("../../utils/moduleImage");
 const { isMtEntryEnabled, MT_PAUSE_REASON } = require("../../modules/baccarat/availability");
 const { currencyFor, formatMoney } = require("../../modules/baccarat/currency");
 
-function baccaratPromptFlex({ title, lines = [], quickReply }) {
+function baccaratPromptFlex({ title, lines = [], quickReply, actions = [] }) {
   return bubble({
     altText: title,
     title,
     subtitle: "BLACKDOMAIN 百家樂AI",
     quickReply,
     footer: "BLACKDOMAIN BACCARAT AI",
-    contents: lines.map((line) => text(line, { size: "sm", color: COLORS.white, align: "center" })),
+    contents: [...lines.map((line) => text(line, { size: "sm", color: COLORS.white, align: "center" })), ...actions.map(label => button(label, label))],
   });
 }
 
