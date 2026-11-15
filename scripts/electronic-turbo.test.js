@@ -117,17 +117,42 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   const root = {
     getAttribute: name => attrs.get(name),
     removeAttribute: name => attrs.delete(name),
-    toggleAttribute: (name, force) => force ? attrs.set(name, "") : attrs.delete(name),
+    setAttribute: (name, value) => attrs.set(name, value),
   };
   let tick;
   let hide;
+  class Tween {
+    to(seconds) { return seconds; }
+    by(seconds) { return seconds; }
+    delay(seconds) { return seconds; }
+  }
+  class WinningSymbol {
+    scheduleOnce(callback, delay) { return { callback, delay }; }
+    playWinAnim(callback) { return this.scheduleOnce(callback, 1); }
+  }
+  class WinView {
+    playWinCashTween() { return [new Tween().by(1.5), new Tween().delay(1), new Tween().to(0.5)]; }
+  }
   class ReelView {}
+  const config = { reelConfig: { speed: 0.2, animStagger: 0.05 } };
+  class SymbolView {
+    get configModel() { return config; }
+    showSymbolsOut(callback) {
+      callback(this.configModel.reelConfig);
+    }
+    showNormalSymbolsIn() { return this.configModel.reelConfig; }
+    showTurboSymbolsIn() { return this.configModel.reelConfig; }
+    moveTo() { return this.configModel.reelConfig; }
+  }
+  const symbolView = new SymbolView();
   const engine = {
     sp: { Skeleton },
-    js: { getClassByName: () => ReelView },
+    Tween,
+    js: { getClassByName: name => ({ Symbol: WinningSymbol, SymbolView, ReelView, WinView })[name] },
     director: {
       getScene: () => ({
         getComponentsInChildren(type) {
+          if (type === WinningSymbol) return [];
           assert.equal(type, ReelView);
           return [{ spine: selected }, { spine: excluded }];
         },
@@ -143,18 +168,32 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   });
   vm.runInContext(fs.readFileSync(path.join(extension, "seth2-canvas.js"), "utf8"), context);
   assert.equal(selected.timeScale, 5);
+  assert.deepEqual(new WinView().playWinCashTween(), [0.15, 0.1, 0.05]);
+  assert.equal(new Tween().by(1.5), 1.5);
+  const winner = new WinningSymbol();
+  const onWin = () => {};
+  assert.deepEqual(winner.playWinAnim(onWin), { callback: onWin, delay: 0.1 });
+  assert.deepEqual(winner.scheduleOnce(onWin, 1), { callback: onWin, delay: 1 });
   assert.equal(excluded.timeScale, 0.5);
-  assert.equal(attrs.has(readyAttribute), true);
+  assert.equal(attrs.get(readyAttribute), "reels");
+  symbolView.showSymbolsOut(config => assert.equal(config.speed, 0.02));
+  assert.equal(symbolView.showNormalSymbolsIn().animStagger, 0.005);
+  assert.equal(symbolView.showTurboSymbolsIn().speed, 0.02);
+  assert.equal(symbolView.moveTo().speed, 0.02);
+  assert.equal(symbolView.configModel, config);
+  assert.throws(() => symbolView.showSymbolsOut(() => { throw new Error("cancelled"); }), /cancelled/);
+  assert.equal(symbolView.configModel, config);
   attrs.set(rateAttribute, "3");
   tick();
   assert.equal(selected.timeScale, 1.5);
   selected.animation = "unknown";
   tick();
   assert.equal(selected.timeScale, 0.5);
-  assert.equal(attrs.has(readyAttribute), false);
+  assert.equal(attrs.get(readyAttribute), "reels");
   selected.animation = "mg_idle";
   tick();
   assert.equal(selected.timeScale, 1.5);
   hide();
+  assert.equal(symbolView.moveTo(), config.reelConfig);
   assert.equal(selected.timeScale, 0.5);
 });

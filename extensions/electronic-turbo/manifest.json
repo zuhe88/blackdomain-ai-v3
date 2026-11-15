@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "黑域 AI 電子加速器",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "黑域 AI 電子動畫速度控制與免遊紀錄測試版",
   "host_permissions": ["https://blackdomain-ai-v3-production.up.railway.app/*"],
   "background": { "service_worker": "membership.js" },

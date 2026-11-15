@@ -5,7 +5,7 @@
   const seth2ReadyAttribute = "data-blackdomain-seth2-ready";
 
   const root = document.documentElement;
-  const speed = { set: value => root.setAttribute(seth2RateAttribute, String(value)) };
+  const speed = { set(value) { root.removeAttribute("data-blackdomain-seth2-applied"); root.setAttribute(seth2RateAttribute, String(value)); } };
   const panel = globalThis.createTurboPanel(document.body, { speed });
   let authorized = false;
   let expiryTimer;
@@ -39,11 +39,15 @@
   }
 
   let presentationAvailable;
+  let reportedRate;
   function renderAvailability() {
-    const available = root.hasAttribute(seth2ReadyAttribute);
-    if (available === presentationAvailable) return;
+    const available = root.getAttribute(seth2ReadyAttribute);
+    const applied = root.getAttribute("data-blackdomain-seth2-applied");
+    if (available === presentationAvailable && applied === reportedRate) return;
+    reportedRate = applied;
     presentationAvailable = available;
-    panel.setState(available ? "戰神賽特 2 · 得分看板動畫就緒" : "等待得分看板動畫就緒", available);
+    const labels = { reels: applied ? `轉軸動畫已套用 ${applied}×` : "轉軸已連接 · 等待下一次動畫", scoreboard: "戰神賽特 2 · 得分看板動畫就緒" };
+    panel.setState(labels[available] || "等待遊戲動畫就緒", Boolean(labels[available]));
   }
 
   window.addEventListener("BLACKDOMAIN_ELECTRONIC_RELAY", event => {
