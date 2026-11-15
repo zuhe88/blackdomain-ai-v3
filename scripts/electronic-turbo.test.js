@@ -261,7 +261,7 @@ test("bankroll stops before starting a spin below the floor and above the ceilin
   };
   let tick;
   vm.runInNewContext(fs.readFileSync(path.join(extension, "bankroll.js"), "utf8"), {
-    document: { documentElement: { getAttribute: name => attrs.get(name), setAttribute: (name, value) => attrs.set(name, value) } },
+    document: { documentElement: { hasAttribute: () => true, getAttribute: name => attrs.get(name), setAttribute: (name, value) => attrs.set(name, value) } },
     window: {
       System: { get: key => modules[key.split("/").pop().replace(".ts", "")] },
       dispatch: () => { auto.active = false; auto.spinsRemaining = 0; },

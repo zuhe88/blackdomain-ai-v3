@@ -30,6 +30,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       button { color: inherit; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: #121f33; cursor: pointer; }
       #toggle { padding: 3px 8px; color: var(--muted); font-size: 12px; }
       #status { margin: 7px 0 10px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+      .controls[hidden] { display: none; }
       .controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
       .controls button { min-height: 34px; padding: 3px 1px; font-weight: 700; font-variant-numeric: tabular-nums; }
       .controls button[aria-pressed="true"] {
@@ -87,7 +88,11 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
   const latest = shadow.getElementById("latest");
   const list = shadow.getElementById("history");
   const controls = shadow.querySelector(".controls");
-  const rateButtons = [1, 10, 20, 50].map(rate => {
+  if (!speed) {
+    controls.hidden = true;
+    shadow.getElementById("spoiler-content").hidden = true;
+  }
+  const rateButtons = (speed ? [1, 10, 20, 50] : []).map(rate => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = `${rate}×`;
@@ -123,7 +128,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
 
   function changeSpeed(value) {
     for (const button of rateButtons) button.setAttribute("aria-pressed", String(Number(button.value) === value));
-    speed.set(value);
+    speed?.set(value);
     if (demo) status.textContent = `示範模式 · ${value}×`;
   }
 
@@ -166,7 +171,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
   }
 
   let spoilerEnabled = true;
-  addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
+  if (speed) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
     spoilerEnabled = enabled;
     if (!enabled) {
       history.length = 0;

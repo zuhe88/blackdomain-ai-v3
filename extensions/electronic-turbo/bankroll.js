@@ -2,6 +2,7 @@
 
 (() => {
   const root = document.documentElement;
+  if (!root.hasAttribute("data-blackdomain-supported-atg")) return;
   const settingsName = "data-blackdomain-bankroll-settings";
   const statusName = "data-blackdomain-bankroll-status";
   let managed = false;
