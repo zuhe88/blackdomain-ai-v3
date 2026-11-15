@@ -180,9 +180,8 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     settings.innerHTML = `
 
       <form>
-        <label>自動轉模式 <select name="mode"><option value="count">指定轉數</option><option value="continuous">持續自動轉</option></select></label>
-        <label>轉數 <input name="count" type="number" min="1" step="1" value="20" required></label>
-        <label>最低餘額 <input name="floor" type="number" min="0" step="0.01" required></label>
+        <label>低於 <input name="floor" type="number" min="0" step="0.01" aria-label="低於多少停止"> 停止</label>
+        <label>高於 <input name="ceiling" type="number" min="0" step="0.01" aria-label="高於多少停止"> 停止</label>
         <button type="submit">儲存設定</button>
       </form>
       <p role="status">等待遊戲連接</p>`;
@@ -197,17 +196,22 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       if (state && state !== lastStatus) message.textContent = state;
       lastStatus = state;
     };
-    form.elements.mode.addEventListener("change", () => {
-      form.elements.count.disabled = form.elements.mode.value === "continuous";
-    });
     form.addEventListener("submit", event => {
       event.preventDefault();
       if (!bankroll.status()) return;
-      bankroll.save({
-        count: form.elements.mode.value === "continuous" ? -1 : form.elements.count.valueAsNumber,
-        floor: form.elements.floor.valueAsNumber,
-      });
-      message.textContent = "已儲存。請用遊戲內的自動轉按鈕開始。";
+      const floor = form.elements.floor.value === "" ? null : form.elements.floor.valueAsNumber;
+      const ceiling = form.elements.ceiling.value === "" ? null : form.elements.ceiling.valueAsNumber;
+      if (floor === null && ceiling === null) {
+        bankroll.clear();
+        message.textContent = "已清除門檻";
+        return;
+      }
+      if (floor !== null && ceiling !== null && floor > ceiling) {
+        message.textContent = "低於門檻須小於或等於高於門檻";
+        return;
+      }
+      bankroll.save({ floor, ceiling });
+      message.textContent = "已儲存門檻";
     });
     refresh();
     setInterval(refresh, 250);

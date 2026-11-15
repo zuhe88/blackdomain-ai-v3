@@ -9,8 +9,9 @@
   function settings() {
     try {
       const value = JSON.parse(root.getAttribute(settingsName));
-      if (!value || !Number.isFinite(value.floor) || value.floor < 0) return null;
-      if (value.count !== -1 && (!Number.isSafeInteger(value.count) || value.count < 1)) return null;
+      if (!value || [value.floor, value.ceiling].every(limit => limit == null)) return null;
+      if ([value.floor, value.ceiling].some(limit => limit != null && (!Number.isFinite(limit) || limit < 0))) return null;
+      if (value.floor != null && value.ceiling != null && value.floor > value.ceiling) return null;
       return value;
     } catch {
       return null;
@@ -36,13 +37,17 @@
       window.dispatch(events.STOP_AUTO_SPIN);
     }
 
-    function balanceAllows(config) {
-      if (!config || !Number.isFinite(platform.amount)) return false;
+    function stopReason(config) {
+      if (!config) return "已撤銷本金控管設定，自動轉已停止";
+      if (!Number.isFinite(platform.amount)) return "無法確認餘額，已停止";
+      if (config.ceiling != null && platform.amount > config.ceiling) return "餘額高於門檻，已停止";
+      if (config.floor == null) return null;
       try {
         const remaining = spin.getAfterBettingBalance();
-        return Number.isFinite(remaining) && remaining >= config.floor;
+        if (!Number.isFinite(remaining)) return "無法確認扣款後餘額，已停止";
+        return remaining < config.floor ? "扣款後餘額低於門檻，已停止" : null;
       } catch {
-        return false;
+        return "無法確認扣款後餘額，已停止";
       }
     }
 
@@ -61,11 +66,11 @@
       const mainGame = this.data.currentGameType === gameType.MAIN_GAME;
       const continuation = event?.data?.data?.earlySpin;
       if (mainGame && auto.active && (managed || config) && !continuation) {
-        if (!balanceAllows(config)) {
-          stop("餘額不足，已停止");
+        const reason = stopReason(config);
+        if (reason) {
+          stop(reason);
           return;
         }
-        if (!managed) auto.spinsRemaining = config.count;
         managed = true;
         this.data.isOpenEarlyFlag = false;
         root.setAttribute(statusName, "本金控管中");
@@ -76,8 +81,8 @@
     const createFlow = closed.createFlow;
     closed.createFlow = function (...args) {
       if (managed && auto.active && this.data.currentGameType === gameType.MAIN_GAME) {
-        if (auto.spinsRemaining === 0) stop("已達設定轉數");
-        else if (!balanceAllows(settings())) stop("餘額低於門檻，已停止");
+        const reason = stopReason(settings());
+        if (reason) stop(reason);
       }
       const result = createFlow.apply(this, args);
       if (managed && !auto.active) {

@@ -239,9 +239,9 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   assert.equal(selected.timeScale, 0.5);
 });
 
-test("bankroll stops before starting a spin below the floor and uses the requested count", () => {
+test("bankroll stops before starting a spin below the floor and above the ceiling", () => {
   const vm = require("node:vm");
-  const attrs = new Map([["data-blackdomain-bankroll-settings", JSON.stringify({ count: 3, floor: 100 })]]);
+  const attrs = new Map([["data-blackdomain-bankroll-settings", JSON.stringify({ floor: 100, ceiling: null })]]);
   const data = { currentGameType: "main", isOpenEarlyFlag: true };
   const auto = { active: true, spinsRemaining: 10 };
   const platform = { amount: 125 };
@@ -272,7 +272,7 @@ test("bankroll stops before starting a spin below the floor and uses the request
   tick();
   spin.execute();
   assert.equal(bets, 1);
-  assert.equal(auto.spinsRemaining, 3);
+  assert.equal(auto.spinsRemaining, 10);
   early.execute();
   assert.equal(earlyBets, 0);
   platform.amount = 124.99;
@@ -280,10 +280,12 @@ test("bankroll stops before starting a spin below the floor and uses the request
   auto.active = true;
   spin.execute();
   assert.equal(bets, 1);
-  attrs.set("data-blackdomain-bankroll-settings", JSON.stringify({ count: -1, floor: 100 }));
+  attrs.set("data-blackdomain-bankroll-settings", JSON.stringify({ floor: null, ceiling: 125 }));
   platform.amount = 125;
   auto.active = true;
   spin.execute();
-  assert.equal(auto.spinsRemaining, -1);
+
   assert.equal(bets, 2);
+  platform.amount = 125.01;
+  assert.equal(closed.createFlow(), false);
 });
