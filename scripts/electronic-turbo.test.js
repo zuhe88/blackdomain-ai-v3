@@ -30,12 +30,12 @@ test("installed extension drives demo controls and the game fixture", { timeout:
     );
     await animationRate(1);
     await page.keyboard.press("Tab"); // collapse button
-    await page.keyboard.press("Tab"); // multiplier
-    await page.keyboard.press("End");
-    await animationRate(10);
-    await page.keyboard.press("ArrowUp");
-    await animationRate(9);
-    await page.keyboard.press("Tab"); // reset
+    for (const rate of [1, 10, 20, 50]) {
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Enter");
+      await animationRate(rate);
+    }
+    for (let index = 0; index < 3; index += 1) await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Enter");
     await animationRate(1);
     for (let index = 0; index < 6; index += 1) await page.locator("#record").click();
@@ -47,7 +47,7 @@ test("installed extension drives demo controls and the game fixture", { timeout:
       for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) collect(child);
     }
     collect(root);
-    assert.ok(text.includes("本次免遊總得分 750"));
+    assert.ok(text.includes("750") && text.includes("已結算"));
     assert.deepEqual(text.filter(line => /^\d+ 分$/.test(line)), ["750 分", "625 分", "500 分", "375 分", "250 分"]);
 
     await worker.evaluate(() => {
@@ -68,11 +68,19 @@ test("installed extension drives demo controls and the game fixture", { timeout:
             getCurrent() { return {animation: {name: "mg_idle"}}; }
           }
           const spine = new Skeleton();
+          const summary = { gameState: { totalWinnings: 0 }, spinId: "free-round" };
+          class FreeGameAlertView {
+            data = { getData: () => summary };
+            showSummaryAlert() { return "shown"; }
+          }
+          const parser = { parseNewSpin: () => "parsed" };
+          window.parseGameFixture = gameState => parser.parseNewSpin({ engine: { gameState } });
+          window.showFreeGameSummary = () => new FreeGameAlertView().showSummaryAlert();
           window.readTestRate = () => spine.timeScale;
           window.System = {
             resolve: name => name,
-            get: () => ({
-              js: {getClassByName: () => class ReelView {}},
+            get: name => name.endsWith("/ParseResponse.ts") ? { default: parser } : ({
+              js: {getClassByName: name => ({ ReelView: class ReelView {}, FreeGameAlertView })[name]},
               sp: {Skeleton},
               director: {getScene: () => ({getComponentsInChildren: () => [{spine}]})},
             }),
@@ -84,13 +92,31 @@ test("installed extension drives demo controls and the game fixture", { timeout:
     await page.goto(gameUrl);
     await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "1"
       && document.documentElement.hasAttribute("data-blackdomain-seth2-ready"));
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("End");
-    await page.waitForFunction(() => window.readTestRate() === 10);
-    await page.keyboard.press("Tab");
+    for (let index = 0; index < 5; index += 1) await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => window.readTestRate() === 50);
+    for (let index = 0; index < 3; index += 1) await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => window.readTestRate() === 1);
+    const gameSession = await context.newCDPSession(page);
+    async function gameText() {
+      const { root: gameRoot } = await gameSession.send("DOM.getDocument", { depth: -1, pierce: true });
+      text.length = 0;
+      collect(gameRoot);
+      return text;
+    }
+    assert.equal(await page.evaluate(() => window.parseGameFixture([
+      { freeGameCount: 3 }, { freeGameCount: 2, totalWinnings: 50 },
+    ])), "parsed");
+    assert.ok(!(await gameText()).includes("50"));
+    assert.equal(await page.evaluate(() => window.parseGameFixture([
+      { freeGameCount: 3 }, { freeGameCount: 0, totalWinnings: 125 },
+    ])), "parsed");
+    await gameText();
+    assert.ok(text.includes("125") && text.includes("待結算"));
+    assert.equal(await page.evaluate(() => window.showFreeGameSummary()), "shown");
+    await gameText();
+    assert.ok(text.includes("0") && text.includes("已結算"));
     assert.deepEqual(pageErrors, []);
   } finally {
     await context?.close();
@@ -112,6 +138,11 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
     getCurrent() { return { animation: { name: this.animation } }; }
   }
   const selected = new Skeleton();
+  class AnimView {}
+  const awakening = new Skeleton();
+  const fireBall = new Skeleton();
+  fireBall.animation = "fireball_purple_turbo_stop";
+  class EffectsView {}
   const excluded = new Skeleton();
   excluded.node.parent.name = "reel";
   const root = {
@@ -130,6 +161,8 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
     scheduleOnce(callback, delay) { return { callback, delay }; }
     playWinAnim(callback) { return this.scheduleOnce(callback, 1); }
   }
+  class InfoBarController { playTotalWinTween() { return new Tween().to(1.9); } }
+  class RunScore { runScore(seconds) { return new Tween().to(seconds); } }
   class WinView {
     playWinCashTween() { return [new Tween().by(1.5), new Tween().delay(1), new Tween().to(0.5)]; }
   }
@@ -148,11 +181,13 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   const engine = {
     sp: { Skeleton },
     Tween,
-    js: { getClassByName: name => ({ Symbol: WinningSymbol, SymbolView, ReelView, WinView })[name] },
+    js: { getClassByName: name => ({ Symbol: WinningSymbol, SymbolView, ReelView, WinView, RunScore, EffectsView })[name] },
     director: {
       getScene: () => ({
         getComponentsInChildren(type) {
+          if (type === AnimView) return [{ menLevel2Animation: awakening }];
           if (type === WinningSymbol) return [];
+          if (type === EffectsView) return [{ node: { getComponentsInChildren: () => [fireBall, excluded] } }];
           assert.equal(type, ReelView);
           return [{ spine: selected }, { spine: excluded }];
         },
@@ -161,15 +196,19 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   };
   const context = vm.createContext({
     document: { documentElement: root, getElementById: () => ({}) },
-    window: { System: { resolve: () => "cc", get: () => engine } },
+    window: { System: { resolve: () => "cc", get: name => ({ cc: engine, "chunks:///_virtual/InfoBarController.ts": { default: InfoBarController }, "chunks:///_virtual/AnimaView.ts": { AnimView } })[name] } },
     MutationObserver: class { observe() {} },
     setInterval: callback => { tick = callback; },
     addEventListener: (_event, callback) => { hide = callback; },
   });
   vm.runInContext(fs.readFileSync(path.join(extension, "seth2-canvas.js"), "utf8"), context);
   assert.equal(selected.timeScale, 5);
+  assert.equal(fireBall.timeScale, 5);
+  assert.equal(awakening.timeScale, 5);
   assert.deepEqual(new WinView().playWinCashTween(), [0.15, 0.1, 0.05]);
   assert.equal(new Tween().by(1.5), 1.5);
+  assert.equal(new RunScore().runScore(2), 0.2);
+  assert.equal(new InfoBarController().playTotalWinTween(), 0.19);
   const winner = new WinningSymbol();
   const onWin = () => {};
   assert.deepEqual(winner.playWinAnim(onWin), { callback: onWin, delay: 0.1 });
@@ -194,6 +233,57 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   tick();
   assert.equal(selected.timeScale, 1.5);
   hide();
+  assert.equal(fireBall.timeScale, 0.5);
+  assert.equal(awakening.timeScale, 0.5);
   assert.equal(symbolView.moveTo(), config.reelConfig);
   assert.equal(selected.timeScale, 0.5);
+});
+
+test("bankroll stops before starting a spin below the floor and uses the requested count", () => {
+  const vm = require("node:vm");
+  const attrs = new Map([["data-blackdomain-bankroll-settings", JSON.stringify({ count: 3, floor: 100 })]]);
+  const data = { currentGameType: "main", isOpenEarlyFlag: true };
+  const auto = { active: true, spinsRemaining: 10 };
+  const platform = { amount: 125 };
+  let bets = 0;
+  let earlyBets = 0;
+  const spin = { data, execute() { bets++; }, getAfterBettingBalance: () => platform.amount - 25 };
+  const early = { data, execute() { earlyBets++; } };
+  const closed = { data, createFlow: () => auto.active };
+  const modules = {
+    CreateNewSpinFlowCmd: { default: spin },
+    CreateNewEarlySpinFlowCmd: { default: early },
+    NewSpinClosedCmd: { default: closed },
+    AutoPlayModel: { default: auto },
+    PlatformModel: { default: platform },
+    SlotFrameworkEvent: { SlotFrameworkEvent: { STOP_AUTO_SPIN: "stop" } },
+    types: { EGameType: { MAIN_GAME: "main" } },
+  };
+  let tick;
+  vm.runInNewContext(fs.readFileSync(path.join(extension, "bankroll.js"), "utf8"), {
+    document: { documentElement: { getAttribute: name => attrs.get(name), setAttribute: (name, value) => attrs.set(name, value) } },
+    window: {
+      System: { get: key => modules[key.split("/").pop().replace(".ts", "")] },
+      dispatch: () => { auto.active = false; auto.spinsRemaining = 0; },
+    },
+    setInterval: callback => { tick = callback; return 1; },
+    clearInterval() {},
+  });
+  tick();
+  spin.execute();
+  assert.equal(bets, 1);
+  assert.equal(auto.spinsRemaining, 3);
+  early.execute();
+  assert.equal(earlyBets, 0);
+  platform.amount = 124.99;
+  assert.equal(closed.createFlow(), false);
+  auto.active = true;
+  spin.execute();
+  assert.equal(bets, 1);
+  attrs.set("data-blackdomain-bankroll-settings", JSON.stringify({ count: -1, floor: 100 }));
+  platform.amount = 125;
+  auto.active = true;
+  spin.execute();
+  assert.equal(auto.spinsRemaining, -1);
+  assert.equal(bets, 2);
 });

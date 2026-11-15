@@ -13,7 +13,7 @@
 
   function requestedRate() {
     const requested = Number(root.getAttribute(seth2RateAttribute));
-    return Number.isInteger(requested) && requested >= 1 && requested <= 10 ? requested : 1;
+    return Number.isInteger(requested) && requested >= 1 && requested <= 50 ? requested : 1;
   }
 
   function installReelControls(SymbolView) {
@@ -68,15 +68,20 @@
     SymbolView: ["playOutAnimAndRemoveSymbols", "showSplitA_Anim", "showSplitSymbolAnime"],
     ReelView: ["updateWinAmount", "fontNodeOpacityTween", "expandWinnings", "mergeWinnings", "playBounceTween", "playFadeOut"],
     WinView: ["playWinCashTween"],
+    RunScore: ["runScore"],
+    InfoBarController: ["playTotalWinTween"],
+    InfoBarPController: ["playTotalWinTween"],
     EffectsView: ["showFireBall", "showSplitFireBall", "showTimesMoving", "showCloneTimesMoving"],
-    BigwinView: ["playBounceTween", "showWinResult", "playBigFontLoop"],
-    FullComboView: ["openAlert", "closeAlert"],
+    BigwinView: ["playBounceTween", "showWinResult", "playBigFontLoop", "playAnimation", "playWin", "playBigwin", "showCoinSpray", "showBigwin", "addClickAlertCompleteCb"],
+    FullComboView: ["openAlert", "closeAlert", "showFullCombo"],
     FreeGameAlertView: ["playBounceTween"],
     JackpotView: ["playBounceTween", "showJpResult"],
     TreasuresView: ["playBounceTween", "showWinResult"],
     CurrentTimesView: ["playBreatheTween"],
   };
+  const visualHoldMethods = new Set(["playWinAnim", "playAnimation", "playWin", "playBigwin", "showCoinSpray", "showFullCombo", "showBigwin", "showWinResult", "addClickAlertCompleteCb"]);
   const skeletonFields = {
+    AnimaView: ["womenAnimation", "menAnimation", "menLevel2Animation", "frameAnime"],
     Symbol: ["symbolAnimation", "symbolOutSpine", "frameSpine"],
     BigwinView: ["effectFont", "effectBg", "fireworks"],
     BackgroundView: ["bgSpine", "bgTopSpine"],
@@ -90,7 +95,10 @@
   };
 
   function findComponent(loader, engine, name) {
-    return loader.get(`chunks:///_virtual/${name}.ts`)?.[name] || engine.js.getClassByName(name);
+    const module = loader.get(`chunks:///_virtual/${name}.ts`);
+    // AnimaView.ts exports and registers the Cocos class as AnimView.
+    const className = name === "AnimaView" ? "AnimView" : name;
+    return module?.[className] || module?.default || engine.js.getClassByName(className);
   }
 
   function installEffectControls(Component, Tween, names) {
@@ -107,34 +115,57 @@
       const original = method.value;
       prototype[name] = function (...args) {
         const rate = requestedRate();
-        if (rate === 1 || scalingEffect) return original.apply(this, args);
+        if (rate === 1) return original.apply(this, args);
+        const ownsTweenScaling = !scalingEffect;
         const saved = durations.map(key => tween[key]);
         // The winning symbol uses a one-shot hold before the game's removal event.
-        const scheduler = name === "playWinAnim" && this.scheduleOnce;
+        const scheduler = visualHoldMethods.has(name) && this.scheduleOnce;
         const ownScheduler = scheduler && Object.getOwnPropertyDescriptor(this, "scheduleOnce");
-        const scaleHold = typeof scheduler === "function"
+        const scaleHold = !ownScheduler?.value?.blackdomainScaledHold && typeof scheduler === "function"
           && (ownScheduler ? ownScheduler.configurable : Object.isExtensible(this));
         scalingEffect = true;
         try {
-          if (scaleHold) Object.defineProperty(this, "scheduleOnce", {
-            configurable: true,
-            value(callback, seconds) {
-              return scheduler.call(this, callback, Number.isFinite(seconds) ? seconds / rate : seconds);
-            },
-          });
-          durations.forEach((key, index) => {
+          if (scaleHold) {
+            const scaleDelay = function (callback, seconds) {
+              const next = name === "showBigwin" && typeof callback === "function"
+                ? function (...callbackArgs) {
+                  const currentRate = requestedRate();
+                  if (currentRate === 1 || scalingEffect) return callback.apply(this, callbackArgs);
+                  const originals = durations.map(key => tween[key]);
+                  scalingEffect = true;
+                  try {
+                    durations.forEach((key, index) => {
+                      tween[key] = function (duration, ...rest) {
+                        return originals[index].call(this, Number.isFinite(duration) ? duration / currentRate : duration, ...rest);
+                      };
+                    });
+                    return callback.apply(this, callbackArgs);
+                  } finally {
+                    durations.forEach((key, index) => { tween[key] = originals[index]; });
+                    scalingEffect = false;
+                  }
+                }
+                : callback;
+              return scheduler.call(this, next, Number.isFinite(seconds) ? seconds / rate : seconds);
+            };
+            scaleDelay.blackdomainScaledHold = true;
+            Object.defineProperty(this, "scheduleOnce", { configurable: true, value: scaleDelay });
+          }
+          if (ownsTweenScaling) durations.forEach((key, index) => {
             tween[key] = function (seconds, ...rest) {
               return saved[index].call(this, Number.isFinite(seconds) ? seconds / rate : seconds, ...rest);
             };
           });
-          return original.apply(this, args);
+          const result = original.apply(this, args);
+          if (name === "showFireBall" || name === "showSplitFireBall") sync();
+          return result;
         } finally {
-          durations.forEach((key, index) => { tween[key] = saved[index]; });
+          if (ownsTweenScaling) durations.forEach((key, index) => { tween[key] = saved[index]; });
           if (scaleHold) {
             if (ownScheduler) Object.defineProperty(this, "scheduleOnce", ownScheduler);
             else delete this.scheduleOnce;
           }
-          scalingEffect = false;
+          if (ownsTweenScaling) scalingEffect = false;
         }
       };
     }
@@ -142,6 +173,59 @@
   }
 
   let scalingEffect = false;
+
+  const connectedSummaries = new WeakSet();
+  const summaryIds = new WeakMap();
+  let nextSummaryId = 0;
+
+  function connectFreeGameSummary(Component) {
+    const prototype = Component?.prototype;
+    const method = prototype && Object.getOwnPropertyDescriptor(prototype, "showSummaryAlert");
+    if (!method?.writable || typeof method.value !== "function" || connectedSummaries.has(prototype)) return;
+    const showSummary = method.value;
+    prototype.showSummaryAlert = function (...args) {
+      const result = showSummary.apply(this, args);
+      const data = this.data?.getData();
+      const gameState = data?.gameState;
+      const total = gameState?.totalWinnings;
+      if (!Number.isFinite(total) || total < 0) return result;
+      let id = data.spinId ? String(data.spinId) : summaryIds.get(gameState);
+      if (!id) {
+        id = `summary-${++nextSummaryId}`;
+        summaryIds.set(gameState, id);
+      }
+      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_SUMMARY", { detail: { id, total } }));
+      return result;
+    };
+    connectedSummaries.add(prototype);
+  }
+
+  const previewParsers = new WeakSet();
+
+  function connectFreeGamePreview(parser) {
+    if (!parser || previewParsers.has(parser) || typeof parser.parseNewSpin !== "function") return;
+    function showPreview(payload) {
+      const states = payload?.engine?.gameState;
+      if (!Array.isArray(states) || states.length < 2) return;
+      const counters = ["numFreeSpins", "freeGameCount", "superMainGameCount"];
+      const terminal = states.at(-1);
+      const remaining = counters.map(key => terminal?.[key]).filter(Number.isFinite);
+      if (!remaining.length || remaining.some(count => count !== 0)) return;
+      if (!states.slice(0, -1).some(state => counters.some(key => state?.[key] > 0))) return;
+      const total = terminal.freespinWinnings ?? terminal.totalWinnings;
+      if (!Number.isFinite(total) || total < 0) return;
+      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", { detail: { total } }));
+    }
+    for (const name of ["parseNewSpin", "parseNewEarlySpin"]) {
+      const original = parser[name];
+      if (typeof original !== "function") continue;
+      parser[name] = function (payload, ...args) {
+        try { showPreview(payload); } catch { /* Keep game response processing independent of the panel. */ }
+        return original.call(this, payload, ...args);
+      };
+    }
+    previewParsers.add(parser);
+  }
 
   function sync() {
     const rate = requestedRate();
@@ -152,6 +236,10 @@
       const engine = loader?.get(loader.resolve("cc"));
       const ReelView = engine?.js.getClassByName("ReelView");
       const scene = engine?.director.getScene();
+      if (scene && document.getElementById("GameCanvas")) {
+        connectFreeGameSummary(findComponent(loader, engine, "FreeGameAlertView"));
+        connectFreeGamePreview(loader.get("chunks:///_virtual/ParseResponse.ts")?.default);
+      }
       reelsReady = Boolean(scene && document.getElementById("GameCanvas")
         && (installReelControls(loader.get("chunks:///_virtual/SymbolView.ts")?.SymbolView)
           || installReelControls(engine?.js.getClassByName("SymbolView"))));
@@ -164,11 +252,24 @@
             const Component = findComponent(loader, engine, name);
             if (!Component) continue;
             for (const view of scene.getComponentsInChildren(Component)) {
-              for (const field of fields) {
-                const spine = view[field];
+              const extraSpines = name === "BigwinView" ? view.coinSprays?.getComponentsInChildren(engine.sp.Skeleton) || [] : [];
+              for (const spine of [...fields.map(field => view[field]), ...extraSpines]) {
+
                 if (spine instanceof engine.sp.Skeleton && spine.isValid && spine.enabledInHierarchy
                   && Number.isFinite(spine.timeScale)) targets.add(spine);
               }
+            }
+          }
+        }
+      }
+      if (rate !== 1 && scene && document.getElementById("GameCanvas") && engine.sp?.Skeleton) {
+        const EffectsView = findComponent(loader, engine, "EffectsView");
+        if (EffectsView) {
+          for (const view of scene.getComponentsInChildren(EffectsView)) {
+            for (const spine of view.node.getComponentsInChildren(engine.sp.Skeleton)) {
+              const animation = spine.getCurrent(0)?.animation?.name;
+              if (spine.isValid && spine.enabledInHierarchy && Number.isFinite(spine.timeScale)
+                && /^fireball_(?:purple|blue)(?:_turbo)?(?:_stop)?$/.test(animation || "")) targets.add(spine);
             }
           }
         }

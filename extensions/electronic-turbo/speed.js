@@ -29,7 +29,7 @@ function createAnimationSpeed(root) {
 
   return {
     set(value) {
-      if (!Number.isInteger(value) || value < 1 || value > 10) return 0;
+      if (!Number.isInteger(value) || value < 1 || value > 50) return 0;
       if (value !== multiplier && multiplier !== 1) {
         for (const [animation, rate] of controlled) animation.updatePlaybackRate(rate * value);
       }
