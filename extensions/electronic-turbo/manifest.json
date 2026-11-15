@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "黑域 AI 電子加速器",
+  "version": "0.1.0",
+  "description": "黑域 AI 電子動畫速度控制與免遊紀錄測試版",
+  "host_permissions": ["https://blackdomain-ai-v3-production.up.railway.app/*"],
+  "background": { "service_worker": "membership.js" },
+  "action": { "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": ["https://play.godeebxp.com/egames/22020103b31b7390f07b1551e8538589b5e51967/game/*"],
+      "all_frames": true,
+      "world": "MAIN",
+      "js": ["seth2-canvas.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://play.godeebxp.com/egames/22020103b31b7390f07b1551e8538589b5e51967/game/*"],
+      "all_frames": true,
+      "js": ["panel.js", "game.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

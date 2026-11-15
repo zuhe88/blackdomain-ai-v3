@@ -1,0 +1,15 @@
+:root { color-scheme: dark; font: 16px/1.55 system-ui, sans-serif; background: #0d0e16; color: #f4f3ff; }
+body { margin: 0; }
+h1 { font-size: 1.5rem; margin: 0 0 12px; }
+p { color: #c1bfd2; }
+a { color: #c5b6ff; }
+button { font: inherit; color: inherit; background: #242539; border: 1px solid #777494; border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.popup { width: 265px; box-sizing: border-box; padding: 18px; }
+nav { display: grid; gap: 8px; }
+main { max-width: 760px; padding: 24px; margin: 24px auto; }
+#demo-layout { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 24px; align-items: start; }
+#stage { padding: 16px; background: #141520; border-radius: 12px; }
+.track { border-radius: 6px; overflow: hidden; background: #28283a; margin-bottom: 16px; }
+.marker { width: 25%; height: 16px; background: #a996ff; border-radius: inherit; animation: sweep 3s linear infinite alternate; }
+@keyframes sweep { to { transform: translateX(300%); } }
+@media (max-width: 560px) { #demo-layout { grid-template-columns: minmax(0, 1fr); } }
