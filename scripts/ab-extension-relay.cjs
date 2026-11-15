@@ -7,13 +7,25 @@ const rooms = new Set(Object.values(AB_BACCARAT_VARIANTS).flat());
 const ingest = createTableFeed();
 const pending = new Map();
 let sending = false;
+let lastPacketAt = null;
+let lastPublishedAt = null;
+let publishFailed = false;
 if (!process.env.AB_INGEST_URL || !process.env.AB_RELAY_KEY) throw Error("Missing ALLBET relay configuration");
 
 http.createServer(async (req, res) => {
-  if (req.method !== "POST" || req.url !== "/packet" || req.headers.host !== "127.0.0.1:19487"
+  if (req.headers.host !== "127.0.0.1:19487"
     || !/^chrome-extension:\/\/[a-p]{32}$/.test(req.headers.origin || "")
     || req.headers["x-blackdomain-relay"] !== "ab") {
     res.writeHead(403).end();
+    return;
+  }
+  if (req.method === "POST" && req.url === "/status") {
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    res.end(JSON.stringify({ lastPacketAt, lastPublishedAt, publishFailed }));
+    return;
+  }
+  if (req.method !== "POST" || req.url !== "/packet") {
+    res.writeHead(404).end();
     return;
   }
   try {
@@ -25,7 +37,9 @@ http.createServer(async (req, res) => {
         return;
       }
     }
-    for (const table of ingest(JSON.parse(body))) {
+    const tables = ingest(JSON.parse(body));
+    lastPacketAt = Date.now();
+    for (const table of tables) {
       if (rooms.has(table.room)) pending.set(table.tableId, table);
     }
     res.writeHead(204).end();
@@ -48,8 +62,11 @@ setInterval(async () => {
     for (const table of tables) {
       if (pending.get(table.tableId) === table) pending.delete(table.tableId);
     }
+    lastPublishedAt = Date.now();
+    publishFailed = false;
     console.log("Published", tables.length, "table(s)");
   } catch (error) {
+    publishFailed = true;
     console.error(error.message);
   } finally {
     sending = false;

@@ -1,5 +1,8 @@
 const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { resolve } = require("node:path");
 const { test } = require("node:test");
+const { runInNewContext } = require("node:vm");
 const express = require("express");
 const { createTableFeed, decodeRoad, normalizeTable } = require("../modules/baccarat/abProtocol");
 const source = require("../modules/baccarat/abSource");
@@ -8,6 +11,40 @@ const { registerAbRelayRoutes } = require("../routes/abRelay");
 
 const initial = ["077000400000", "269080300000", "224002500000"];
 const latest = "160040H00300";
+
+test("browser capture accepts table messages across endpoint changes and ignores unrelated traffic", async () => {
+  const origin = "https://www.ab88.games:8888";
+  const sent = [];
+  class FakeSocket extends EventTarget {
+    constructor(url) {
+      super();
+      this.url = new URL(url).href;
+    }
+  }
+  const window = {
+    WebSocket: FakeSocket, postMessage: ({ type, data }, target) => sent.push([type, JSON.parse(data).c, target]),
+  };
+  const path = resolve(__dirname, "../extensions/ab-browser-relay/capture.js");
+  runInNewContext(readFileSync(path, "utf8"), {
+    window, location: { origin }, TextDecoder, Blob, ArrayBuffer,
+  });
+
+  const tableSocket = new window.WebSocket("wss://new-provider.example/websocket?v=2");
+  const table = JSON.stringify({ c: "getGameHall", p: { A: 0, D: [] } });
+  const status = JSON.stringify({ c: "pushGameStatus", p: { A: [] } });
+  tableSocket.dispatchEvent(new MessageEvent("message", { data: new Blob([table]) }));
+  tableSocket.dispatchEvent(new MessageEvent("message", { data: "invalid json" }));
+  tableSocket.dispatchEvent(new MessageEvent("message", { data: '{"c":"getAccount","p":{}}' }));
+  tableSocket.dispatchEvent(new MessageEvent("message", { data: status }));
+  const otherSocket = new window.WebSocket("ws://new-provider.example/websocket");
+  otherSocket.dispatchEvent(new MessageEvent("message", { data: table }));
+
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(sent, [
+    ["BLACKDOMAIN_AB_PACKET", "getGameHall", origin],
+    ["BLACKDOMAIN_AB_PACKET", "pushGameStatus", origin],
+  ]);
+});
 
 test("ALLBET history validates the encoded winner against both totals", () => {
   assert.deepEqual(initial.map(decodeRoad).map((round) => round.code), [9, 5, 5]);

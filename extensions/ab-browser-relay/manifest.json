@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BLACKDOMAIN 歐博轉發",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "host_permissions": ["http://127.0.0.1/*"],
   "background": {"service_worker": "background.js"},
   "content_scripts": [
