@@ -38,6 +38,10 @@ small { font-size:12px; }
 .connection i,.connection[data-state] i { box-shadow:none; }
 .connection[data-state=access-granted] i { background:var(--green); }
 .connection[data-state=access-denied] i { background:var(--warning); }
+.header-actions .logout-button { min-width:44px;min-height:44px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font-size:12px;white-space:nowrap; }
+.header-actions .logout-button:hover { background:var(--panel2);border-color:#466078; }
+.header-actions .logout-button:disabled { opacity:.6; }
+body:not(.is-authenticated) .logout-button { display:none; }
 .account-menu { position:relative; }
 .account-menu summary { display:flex;align-items:center;gap:10px;min-height:44px;padding:4px 8px;list-style:none;cursor:pointer; }
 .account-menu summary::-webkit-details-marker { display:none; }

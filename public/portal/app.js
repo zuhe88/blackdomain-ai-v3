@@ -9,6 +9,7 @@ const installInstructions=document.querySelector("#installInstructions");
 const installClose=document.querySelector("#installClose");
 const installConfirm=document.querySelector("#installConfirm");
 const adminMonitorButton=document.querySelector("#adminMonitor");
+const logoutButton=document.querySelector("#logoutButton");
 const PORTAL_BUILD="20261114.03";
 const hashSession=new URLSearchParams(location.hash.replace(/^#/,"")).get("session")||"";
 let portalSessionToken=hashSession;
@@ -16,7 +17,7 @@ try{portalSessionToken=hashSession||localStorage.getItem("blackdomain_session")|
 if(hashSession)history.replaceState({},"",location.pathname+location.search);
 const nativeFetch=window.fetch.bind(window);
 window.fetch=(input,options={})=>{const url=typeof input==="string"?input:input?.url||"";if(!portalSessionToken||!url.startsWith("/api/"))return nativeFetch(input,options);const headers=new Headers(options.headers||(typeof input!=="string"?input.headers:undefined));headers.set("authorization",`Bearer ${portalSessionToken}`);return nativeFetch(input,{...options,headers});};
-function clearPortalSession(){portalSessionToken="";try{localStorage.removeItem("blackdomain_session");sessionStorage.removeItem("blackdomain_session")}catch{}}
+function clearPortalSession(){portalSessionToken="";try{localStorage.removeItem("blackdomain_session")}catch{}try{sessionStorage.removeItem("blackdomain_session")}catch{}}
 function eventStreamUrl(){return portalSessionToken?`/api/web/events?session=${encodeURIComponent(portalSessionToken)}`:"/api/web/events";}
 let deferredInstallPrompt=null;
 
@@ -539,6 +540,24 @@ function expireElectronicRecommendation(){if(!authenticated||activeOperation?.ca
 setInterval(expireElectronicRecommendation,1_000);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)recoverElectronicRecommendation();});
 document.addEventListener("keydown",event=>{if(!installDialog.hidden){if(event.key==="Escape"){event.preventDefault();closeInstallDialog();}if(event.key==="Tab"){const first=installClose,last=installConfirm;if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}});
+logoutButton?.addEventListener("click", async () => {
+  logoutButton.disabled = true;
+  try {
+    const response = await fetch("/api/web/logout", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-blackdomain-portal": "1" },
+      body: "{}",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    clearPortalSession();
+    location.replace("/portal/");
+  } catch (error) {
+    console.error("Portal logout failed", error);
+    toast("登出未完成", "請確認網路連線後再試一次。");
+    logoutButton.disabled = false;
+  }
+});
 installButton.addEventListener("click",installPwa);
 installClose.addEventListener("click",closeInstallDialog);
 installConfirm.addEventListener("click",closeInstallDialog);

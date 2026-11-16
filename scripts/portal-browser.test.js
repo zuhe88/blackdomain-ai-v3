@@ -15,6 +15,11 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
   const app=express();app.use(express.json());
   const state={authenticated:true,allowed:true,expired:false,failMe:false,failData:false,commands:[],amount:null,prediction:'觀望',modeOverride:null};
   let accessCalls=0;
+  app.post('/api/web/logout',(req,res)=>{
+    if(req.get('x-blackdomain-portal')!=='1')return res.sendStatus(403);
+    state.authenticated=false;
+    res.json({ok:true});
+  });
   app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:state.mtEnabled===true,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
   app.get('/api/web/baccarat/multi',(req,res)=>{
     assert.ok(['dg','mt','ab','t9'].includes(req.query.platform));
@@ -195,7 +200,14 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     }
     state.allowed=false;state.expired=true;await open('/portal/baccarat/dg/analyze');await page.getByRole('heading',{name:'會員權限已到期',exact:true}).waitFor();await fit('expired');
     state.expired=false;await open('/portal/atg/set2/recommend');await page.getByRole('heading',{name:'需要開通權限',exact:true}).waitFor();
-    state.authenticated=false;await open('/portal/');await page.getByRole('heading',{name:'登入黑域AI',exact:true}).waitFor();await fit('login');await screenshot('login-390');
+    await page.setViewportSize({width:375,height:900});
+    await page.evaluate(()=>{localStorage.setItem("blackdomain_session","fixture");sessionStorage.setItem("blackdomain_session","fixture");});
+    await page.getByRole('button',{name:'登出',exact:true}).click();
+    await page.getByRole('heading',{name:'登入 3A 帳號',exact:true}).waitFor();
+    assert.equal(new URL(page.url()).pathname,'/portal/');
+    assert.equal(await page.locator('#logoutButton').isVisible(),false);
+    assert.equal(await page.evaluate(()=>localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")),null);
+    await fit(' login after logout');await screenshot('login-390');
     state.authenticated=true;state.failMe=true;await open('/portal/');await page.getByRole('heading',{name:'正在重新確認會員權限',exact:true}).waitFor();
     state.failMe=false;state.allowed=true;state.failData=true;await open('/portal/');await page.locator('#overviewData strong').filter({hasText:'無法取得'}).waitFor();
     await page.goto(base+'/');await page.getByRole('heading',{name:'黑域AI',exact:true}).waitFor();await fit('public landing');

@@ -70,10 +70,10 @@ function scheduleAccessExpiry(userId, expiresAt) {
 function cookies(req) {
   return Object.fromEntries(String(req.get("cookie") || "").split(";").map((v) => v.trim().split("=")).filter((v) => v.length === 2));
 }
-function user(req) {
+function user(req, { allowQuerySession = true } = {}) {
   const authorization = String(req.get("authorization") || "");
   const bearer = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-  return web.authenticate(cookies(req).blackdomain_web || bearer || req.query?.session);
+  return web.authenticate(cookies(req).blackdomain_web || bearer || (allowQuerySession ? req.query?.session : undefined));
 }
 function isExactFeatureRecord(record) {
   return record?.featureTrigger === "purchased" || record?.featureTrigger === "natural";
@@ -162,6 +162,20 @@ if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWor
 }
 
 function registerWebPortalRoutes(app) {
+  app.post("/api/web/logout", async (req, res) => {
+    res.setHeader("cache-control", "no-store");
+    res.clearCookie("blackdomain_web", { path: "/", httpOnly: true, secure: true, sameSite: "none" });
+    const userId = user(req, { allowQuerySession: false });
+    if (userId) {
+      try {
+        const { clearAllUserSessions } = require("./webhook");
+        await clearAllUserSessions(userId);
+      } catch (error) {
+        console.warn("[WebPortal] Logout monitoring cleanup failed:", error.message);
+      }
+    }
+    return res.json({ ok: true });
+  });
   app.use("/api/web", async (req, res, next) => {
     try {
       if (req.path === "/member/login") return next();
