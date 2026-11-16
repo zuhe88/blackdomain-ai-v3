@@ -15,6 +15,7 @@ const { isAdminLineUserId } = require("../config/admin");
 const { isLineWebsiteOnlyMode, refreshLineWebsiteMode } = require("../config/lineWebsiteMode");
 const { clearUser, updateSession } = require("../utils/sessionStore");
 const webChannel = require("../services/webChannel");
+const webMembers = require("../services/webMembers");
 const { text: textMessage } = require("../services/line");
 
 const HOME_COMMANDS = new Set(["黑域AI", "首頁", "開始", "menu", "選單", "主選單"]);
@@ -104,12 +105,36 @@ function isAdminCommand(text) {
   );
 }
 
+function publicBaseUrl() {
+  return String(
+    process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app",
+  ).replace(/\/$/, "");
+}
+
+async function replyTrialCode(event) {
+  const userId = event.source?.userId || "";
+  if (!isAdminLineUserId(userId)) {
+    return reply(event.replyToken, textMessage("僅限管理員產生體驗序號。"));
+  }
+  if (event.source.type !== "user" || String(event.replyToken || "").startsWith("web:")) {
+    return reply(event.replyToken, textMessage("請在黑域 AI 官方 LINE 的一對一聊天室產生體驗序號。"));
+  }
+  try {
+    const result = await webMembers.createTrial(userId);
+    if (!result.ok) return reply(event.replyToken, textMessage(result.error));
+    return reply(event.replyToken, textMessage(
+      `免費體驗序號\n\n${result.code}\n\n每組限用一次，兌換成功後可使用 10 分鐘。\n在 3A 登入頁下方輸入序號即可兌換。\n${publicBaseUrl()}/portal/mobile-login`,
+    ));
+  } catch (err) {
+    logError("E003", err);
+    return reply(event.replyToken, textMessage("目前無法產生體驗序號，請稍後再試。"));
+  }
+}
+
 function websiteAccessReply(event) {
   const userId = event.source?.userId || "";
   const code = webChannel.issue(userId);
-  const base = String(
-    process.env.PUBLIC_BASE_URL || "https://blackdomain-ai-v3-production.up.railway.app",
-  ).replace(/\/$/, "");
+  const base = publicBaseUrl();
   const availability = isLineWebsiteOnlyMode()
     ? "黑域AI LINE 分析功能暫時改由網站版提供"
     : "黑域AI LINE 與網站版皆可使用，請選擇習慣的方式進行分析。";
@@ -158,6 +183,7 @@ async function handleEvent(event) {
   const text = event.message.text.trim();
   const userId = event.source.userId || "";
   const isWebsiteCommand = String(event.replyToken || "").startsWith("web:");
+  if (text === "產生體驗序號") return replyTrialCode(event);
   await refreshLineWebsiteMode();
 
   if (["網站登入", "網頁登入"].includes(text)) return websiteAccessReply(event);
