@@ -191,17 +191,21 @@ async function pushStrict(userId, messages) {
   await lineClient.pushMessage(userId, normalized);
 }
 
-async function pushLineStrict(userId, messages) {
+async function pushLineStrict(userId, messages, { requireLineDelivery = false } = {}) {
   if (String(userId || "").startsWith("webmember_")) {
+    if (requireLineDelivery) throw new Error("No LINE binding for web member.");
     const access = await require("./webMembers").access(userId);
     if (access.allowed) webChannel.publish(userId, normalizeMessages(messages));
     return;
   }
   await refreshLineWebsiteMode();
   if (!userId) throw new Error("Missing line_user_id for pushMessage.");
-  if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) return;
+  if (await require("../modules/vip/lineTransfer").isLineRevoked(userId)) {
+    if (requireLineDelivery) throw new Error("LINE binding has been revoked.");
+    return;
+  }
   const normalized = normalizeMessages(messages);
-  if (isLineWebsiteOnlyMode()) {
+  if (!requireLineDelivery && isLineWebsiteOnlyMode()) {
     webChannel.publish(userId, normalized);
     return;
   }

@@ -154,7 +154,7 @@ async function requestCode(rawAccount, clientKey) {
 
   if (eligible) {
     try {
-      await pushLineStrict(user.lineUserId, text(`黑域AI 助手登入驗證碼：${verificationCode}\n\n5 分鐘內有效。若不是您本人操作，請忽略此訊息。`));
+      await pushLineStrict(user.lineUserId, text(`黑域AI 登入驗證碼：${verificationCode}\n\n5 分鐘內有效。若不是您本人操作，請忽略此訊息。`), { requireLineDelivery: true });
     } catch (error) {
       challenges.delete(challengeId);
       console.error('[MobileLogin] LINE verification delivery failed:', error.message);
