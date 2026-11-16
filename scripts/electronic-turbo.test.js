@@ -141,8 +141,11 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   class AnimView {}
   const awakening = new Skeleton();
   const fireBall = new Skeleton();
-  fireBall.animation = "fireball_purple_turbo_stop";
-  class EffectsView {}
+  fireBall.animation = "fireball_blue_upgrade_loop";
+  class EffectsView {
+    scheduleOnce(callback, delay) { return { callback, delay }; }
+    showTimesMoving() { return this.scheduleOnce(() => new Tween().call(() => new Tween().to(2)), 1); }
+  }
   const excluded = new Skeleton();
   excluded.node.parent.name = "reel";
   const root = {
@@ -156,6 +159,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
     to(seconds) { return seconds; }
     by(seconds) { return seconds; }
     delay(seconds) { return seconds; }
+    call(callback) { return callback; }
   }
   class WinningSymbol {
     scheduleOnce(callback, delay) { return { callback, delay }; }
@@ -204,6 +208,10 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   vm.runInContext(fs.readFileSync(path.join(extension, "seth2-canvas.js"), "utf8"), context);
   assert.equal(selected.timeScale, 5);
   assert.equal(fireBall.timeScale, 5);
+  const multiplier = new EffectsView().showTimesMoving();
+  assert.equal(multiplier.delay, 0.1);
+  assert.equal(multiplier.callback()(), 0.2);
+  assert.equal(new Tween().call(() => new Tween().to(2))(), 2);
   assert.equal(awakening.timeScale, 5);
   assert.deepEqual(new WinView().playWinCashTween(), [0.15, 0.1, 0.05]);
   assert.equal(new Tween().by(1.5), 1.5);
@@ -233,6 +241,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   tick();
   assert.equal(selected.timeScale, 1.5);
   hide();
+  assert.equal(multiplier.callback()(), 2);
   assert.equal(fireBall.timeScale, 0.5);
   assert.equal(awakening.timeScale, 0.5);
   assert.equal(symbolView.moveTo(), config.reelConfig);

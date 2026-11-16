@@ -101,71 +101,83 @@
     return module?.[className] || module?.default || engine.js.getClassByName(className);
   }
 
+  const multiplierMethods = new Set([
+    "showFireBall", "showSplitFireBall", "showTimesMoving", "showCloneTimesMoving",
+    "playTimesSymbolsUpgrade", "playBreatheTween",
+  ]);
+  const tweenDurations = ["to", "by", "delay"];
+
+  function withTweenRate(tween, rate, followCallbacks, run) {
+    if (rate === 1 || scalingEffect) return run();
+    const originals = tweenDurations.map(name => tween[name]);
+    const originalCall = Object.getOwnPropertyDescriptor(tween, "call");
+    const wrapCall = followCallbacks && originalCall?.writable && typeof originalCall.value === "function";
+    scalingEffect = true;
+    try {
+      tweenDurations.forEach((name, index) => {
+        tween[name] = function (seconds, ...args) {
+          return originals[index].call(this, Number.isFinite(seconds) ? seconds / rate : seconds, ...args);
+        };
+      });
+      if (wrapCall) {
+        tween.call = function (callback, ...args) {
+          return originalCall.value.call(this, wrapCallback(tween, callback, true), ...args);
+        };
+      }
+      return run();
+    } finally {
+      tweenDurations.forEach((name, index) => { tween[name] = originals[index]; });
+      if (wrapCall) tween.call = originalCall.value;
+      scalingEffect = false;
+    }
+  }
+
+  function wrapCallback(tween, callback, followCallbacks) {
+    if (typeof callback !== "function") return callback;
+    return function (...args) {
+      const result = withTweenRate(tween, requestedRate(), followCallbacks, () => callback.apply(this, args));
+      if (followCallbacks) sync();
+      return result;
+    };
+  }
+
   function installEffectControls(Component, Tween, names) {
     const prototype = Component?.prototype;
     const tween = Tween?.prototype;
-    const durations = ["to", "by", "delay"];
     if (!prototype || !tween || checkedEffects.has(prototype)
-      || !durations.every(name => typeof tween[name] === "function"
+      || !tweenDurations.every(name => typeof tween[name] === "function"
         && Object.getOwnPropertyDescriptor(tween, name)?.writable)) return;
 
     for (const name of names) {
       const method = Object.getOwnPropertyDescriptor(prototype, name);
       if (typeof method?.value !== "function" || !method.writable) continue;
       const original = method.value;
+      const followsMultiplier = multiplierMethods.has(name);
       prototype[name] = function (...args) {
         const rate = requestedRate();
         if (rate === 1) return original.apply(this, args);
-        const ownsTweenScaling = !scalingEffect;
-        const saved = durations.map(key => tween[key]);
-        // The winning symbol uses a one-shot hold before the game's removal event.
-        const scheduler = visualHoldMethods.has(name) && this.scheduleOnce;
+        const scheduler = (followsMultiplier || visualHoldMethods.has(name)) && this.scheduleOnce;
         const ownScheduler = scheduler && Object.getOwnPropertyDescriptor(this, "scheduleOnce");
         const scaleHold = !ownScheduler?.value?.blackdomainScaledHold && typeof scheduler === "function"
           && (ownScheduler ? ownScheduler.configurable : Object.isExtensible(this));
-        scalingEffect = true;
         try {
           if (scaleHold) {
             const scaleDelay = function (callback, seconds) {
-              const next = name === "showBigwin" && typeof callback === "function"
-                ? function (...callbackArgs) {
-                  const currentRate = requestedRate();
-                  if (currentRate === 1 || scalingEffect) return callback.apply(this, callbackArgs);
-                  const originals = durations.map(key => tween[key]);
-                  scalingEffect = true;
-                  try {
-                    durations.forEach((key, index) => {
-                      tween[key] = function (duration, ...rest) {
-                        return originals[index].call(this, Number.isFinite(duration) ? duration / currentRate : duration, ...rest);
-                      };
-                    });
-                    return callback.apply(this, callbackArgs);
-                  } finally {
-                    durations.forEach((key, index) => { tween[key] = originals[index]; });
-                    scalingEffect = false;
-                  }
-                }
-                : callback;
+              const next = followsMultiplier || name === "showBigwin"
+                ? wrapCallback(tween, callback, followsMultiplier) : callback;
               return scheduler.call(this, next, Number.isFinite(seconds) ? seconds / rate : seconds);
             };
             scaleDelay.blackdomainScaledHold = true;
             Object.defineProperty(this, "scheduleOnce", { configurable: true, value: scaleDelay });
           }
-          if (ownsTweenScaling) durations.forEach((key, index) => {
-            tween[key] = function (seconds, ...rest) {
-              return saved[index].call(this, Number.isFinite(seconds) ? seconds / rate : seconds, ...rest);
-            };
-          });
-          const result = original.apply(this, args);
-          if (name === "showFireBall" || name === "showSplitFireBall") sync();
+          const result = withTweenRate(tween, rate, followsMultiplier, () => original.apply(this, args));
+          if (followsMultiplier) sync();
           return result;
         } finally {
-          if (ownsTweenScaling) durations.forEach((key, index) => { tween[key] = saved[index]; });
           if (scaleHold) {
             if (ownScheduler) Object.defineProperty(this, "scheduleOnce", ownScheduler);
             else delete this.scheduleOnce;
           }
-          if (ownsTweenScaling) scalingEffect = false;
         }
       };
     }
@@ -252,7 +264,8 @@
             const Component = findComponent(loader, engine, name);
             if (!Component) continue;
             for (const view of scene.getComponentsInChildren(Component)) {
-              const extraSpines = name === "BigwinView" ? view.coinSprays?.getComponentsInChildren(engine.sp.Skeleton) || [] : [];
+              const effectNode = name === "BigwinView" ? view.coinSprays : name === "CurrentTimesView" ? view.node : null;
+              const extraSpines = effectNode?.getComponentsInChildren(engine.sp.Skeleton) || [];
               for (const spine of [...fields.map(field => view[field]), ...extraSpines]) {
 
                 if (spine instanceof engine.sp.Skeleton && spine.isValid && spine.enabledInHierarchy
@@ -269,7 +282,7 @@
             for (const spine of view.node.getComponentsInChildren(engine.sp.Skeleton)) {
               const animation = spine.getCurrent(0)?.animation?.name;
               if (spine.isValid && spine.enabledInHierarchy && Number.isFinite(spine.timeScale)
-                && /^fireball_(?:purple|blue)(?:_turbo)?(?:_stop)?$/.test(animation || "")) targets.add(spine);
+                && /^fireball(?:_[a-z0-9]+)+$/i.test(animation || "")) targets.add(spine);
             }
           }
         }
