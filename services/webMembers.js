@@ -13,7 +13,9 @@ function memberId(row) { return `${PREFIX}${row.id}@${row.auth_version}`; }
 function isMember(id) { return typeof id === "string" && id.startsWith(PREFIX); }
 function allowed(row) { return Boolean(row?.enabled && Date.parse(row.expires_at) > Date.now()); }
 function profile(row) {
-  return row ? { lineUserId: memberId(row), account3A: row.account, accountPlatform: "OFA", lineName: "OFA 網站會員", vipStatus: "approved", aiPermission: row.enabled === true, expiresAt: row.expires_at, isAdmin: false } : null;
+  if (!row) return null;
+  const trial = trialAccountPattern.test(row.account);
+  return { lineUserId: memberId(row), account3A: trial ? null : row.account, accountPlatform: trial ? null : "OFA", lineName: trial ? "免費體驗會員" : "OFA 網站會員", vipStatus: "approved", aiPermission: row.enabled === true, expiresAt: row.expires_at, isAdmin: false };
 }
 async function lookup(field, value) {
   if (!db) throw unavailable();
@@ -55,7 +57,7 @@ async function verifyPassword(password, stored) {
 async function login(account, password, ip) {
   account = normalize(account);
   if (!takeSlot(String(ip || ""), account)) return { ok: false, status: 429, error: "嘗試次數過多，請於 10 分鐘後再試。" };
-  if (!validAccount(account) || typeof password !== "string" || password.length > 128) return { ok: false, status: 401, error: "帳號或密碼不正確，或會員權限已到期。" };
+  if (!validAccount(account) || trialAccountPattern.test(account) || typeof password !== "string" || password.length > 128) return { ok: false, status: 401, error: "帳號或密碼不正確，或會員權限已到期。" };
   const row = await lookup("account", account);
   const verified = await verifyPassword(password, row?.password_hash);
   if (!verified || !allowed(row)) return { ok: false, status: 401, error: "帳號或密碼不正確，或會員權限已到期。" };
@@ -66,7 +68,7 @@ async function save(adminId, input) {
   const account = normalize(input?.account);
   const password = input?.password;
   const expiry = Date.parse(input?.expiresAt);
-  if (!validAccount(account) || typeof input?.enabled !== "boolean" || !Number.isFinite(expiry) || (input.enabled && expiry <= Date.now())) return { ok: false, status: 400, error: "請填寫正確的帳號、開通狀態及有效期限。" };
+  if (!validAccount(account) || trialAccountPattern.test(account) || typeof input?.enabled !== "boolean" || !Number.isFinite(expiry) || (input.enabled && expiry <= Date.now())) return { ok: false, status: 400, error: "請填寫正確的帳號、開通狀態及有效期限。" };
   if (password !== undefined && password !== "" && (typeof password !== "string" || password.length < 12 || password.length > 128)) return { ok: false, status: 400, error: "AI 專用密碼須為 12 至 128 字元。" };
   const existing = await lookup("account", account);
   if (!existing && !password) return { ok: false, status: 400, error: "新增會員必須設定 AI 專用密碼。" };
@@ -77,4 +79,40 @@ async function save(adminId, input) {
   if (error) throw unavailable();
   return { ok: true };
 }
-module.exports = { isMember, access, login, save, hashPassword, verifyPassword };
+
+const TRIAL_SECONDS = 600;
+const UNUSED_TRIAL_EXPIRY = "1970-01-01T00:00:00.000Z";
+const trialAccountPattern = /^trial[a-f0-9]{59}$/;
+function trialAccount(code) {
+  return "trial" + crypto.createHash("sha256").update(code).digest("hex").slice(0, 59);
+}
+async function createTrial(adminId) {
+  if (!isAdminLineUserId(adminId)) return { ok: false, status: 403, error: "僅限管理員操作。" };
+  if (!db) throw unavailable();
+  const code = crypto.randomBytes(16).toString("hex").toUpperCase();
+  const { error } = await db.from("web_members").insert({
+    account: trialAccount(code),
+    password_hash: await hashPassword(crypto.randomBytes(32).toString("hex")),
+    expires_at: UNUSED_TRIAL_EXPIRY,
+    enabled: false,
+    updated_by: adminId,
+  });
+  if (error) throw unavailable();
+  return { ok: true, code };
+}
+async function redeemTrial(rawCode, ip) {
+  const code = typeof rawCode === "string" ? rawCode.trim().toUpperCase() : "";
+  if (!takeSlot("trial:" + String(ip || ""), "trial:" + code)) return { ok: false, status: 429, error: "嘗試次數過多，請於 10 分鐘後再試。" };
+  const invalid = { ok: false, status: 400, error: "體驗序號無效或已使用。" };
+  if (!/^[A-F0-9]{32}$/.test(code)) return invalid;
+  if (!db) throw unavailable();
+  const expiresAt = new Date(Date.now() + TRIAL_SECONDS * 1000).toISOString();
+  // An atomic conditional update gives only one request the trial account.
+  const { data, error } = await db.from("web_members")
+    .update({ enabled: true, expires_at: expiresAt, updated_at: new Date().toISOString() })
+    .eq("account", trialAccount(code)).eq("enabled", false).eq("expires_at", UNUSED_TRIAL_EXPIRY)
+    .select("id, auth_version").maybeSingle();
+  if (error) throw unavailable();
+  return data ? { ok: true, userId: memberId(data) } : invalid;
+}
+module.exports = { isMember, access, login, save, hashPassword, verifyPassword, createTrial, redeemTrial, TRIAL_SECONDS };

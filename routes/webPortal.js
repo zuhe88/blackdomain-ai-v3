@@ -107,7 +107,7 @@ function unavailableLoginPage() {
 function mobileLoginPage() {
   return `<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="#07080c"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="黑域AI"><link rel="manifest" href="/portal/manifest.webmanifest"><link rel="icon" type="image/png" sizes="192x192" href="/portal/icons/icon-192.png"><link rel="apple-touch-icon" sizes="180x180" href="/portal/icons/apple-touch-icon.png"><title>黑域AI｜會員登入</title>
 <style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));background:radial-gradient(circle at 50% 0,#252112 0,#090b10 38%,#050609 100%);color:#f7f4eb;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif}.card{width:min(100%,430px);padding:30px 24px;border:1px solid #756029;border-radius:24px;background:linear-gradient(145deg,rgba(28,27,22,.97),rgba(8,10,14,.98));box-shadow:0 28px 80px #000}.brand{display:flex;align-items:center;gap:12px;margin-bottom:24px}.brand img{width:50px;height:50px;border-radius:50%;object-fit:contain}.brand small{display:block;color:#c2a966;letter-spacing:.14em;font-size:10px}.brand b{display:block;margin-top:3px;font-size:18px}h1{font-size:25px;margin:0 0 8px}.copy{margin:0 0 22px;color:#aaa99f;line-height:1.65;font-size:14px}.step{display:flex;gap:8px;margin-bottom:18px}.step i{height:3px;flex:1;border-radius:3px;background:#2c3038}.step i.on{background:#dcb85b;box-shadow:0 0 12px #bd8c20}label{display:block;margin:14px 0 7px;color:#d8d5cb;font-size:13px;font-weight:700}input{width:100%;height:50px;padding:0 14px;border:1px solid #404650;border-radius:13px;background:#090c11;color:white;font-size:16px;outline:none}input:focus{border-color:#dcb85b;box-shadow:0 0 0 3px rgba(220,184,91,.12)}button{width:100%;height:50px;margin-top:14px;border:0;border-radius:13px;background:linear-gradient(135deg,#efcd73,#b98a2e);color:#171207;font-size:15px;font-weight:900}.message{min-height:20px;margin:12px 0 0;color:#b7bdc8;font-size:12px;line-height:1.55}.message.bad{color:#ff9292}.secondary{background:#252a33;color:#e7e2d7}.install-button{margin-top:10px;border:1px solid #555044;background:#15171c;color:#e8ddbd}.install-guide{margin-top:12px;padding:13px 14px;border:1px solid #3d4149;border-radius:13px;background:#0b0e13;color:#c9c8c2;font-size:12px;line-height:1.65}.install-guide b{display:block;margin-bottom:3px;color:#efcd73}.hidden{display:none}.legal{display:block;margin-top:18px;color:#747b87;font-size:10px;text-align:center;line-height:1.5}</style><link rel="stylesheet" href="/portal/access.css?v=20261017.08"></head><body><main class="card"><div class="brand"><img src="/brand/blackdomain-ai-logo.png" alt="黑域AI"><div><small>會員安全登入</small><b>黑域AI</b></div></div><div class="step"><i class="on"></i><i id="step2"></i></div>
-<section id="accountStep"><h1>登入 3A 帳號</h1><p class="copy">系統會直接核對原有會員資料與有效期限，只有已開通帳號能繼續。</p><form id="accountForm"><label for="account">3A 帳號</label><input id="account" name="account" autocomplete="username" inputmode="text" pattern="[A-Za-z0-9]+" maxlength="64" required><button type="submit">取得 LINE 驗證碼</button></form><p id="accountMessage" class="message" role="status"></p><p class="copy">第一次使用者請先加管理員驗證 3A 帳號。<br>LINE：<a href="https://line.me/ti/p/@893jrweh" style="color:inherit">@893jrweh</a></p></section>
+<section id="accountStep"><h1>登入 3A 帳號</h1><p class="copy">系統會直接核對原有會員資料與有效期限，只有已開通帳號能繼續。</p><form id="accountForm"><label for="account">3A 帳號</label><input id="account" name="account" autocomplete="username" inputmode="text" pattern="[A-Za-z0-9]+" maxlength="64" required><button type="submit">取得 LINE 驗證碼</button></form><p id="accountMessage" class="message" role="status"></p><p class="copy">第一次使用者請先加管理員驗證 3A 帳號。<br>LINE：<a href="https://line.me/ti/p/@893jrweh" style="color:inherit">@893jrweh</a></p><form id="trialForm"><label for="trialCode">免費體驗序號</label><input id="trialCode" name="trialCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="32" pattern="[A-Fa-f0-9]{32}" required><button type="submit" class="secondary">開通 10 分鐘免費體驗</button><p id="trialMessage" class="message" role="status"></p></form></section>
 <section id="codeStep" class="hidden"><h1>輸入驗證碼</h1><p class="copy">若此 3A 帳號已開通，請用原綁定的 LINE 帳號查看黑域 AI 官方帳號的聊天室。驗證碼為 6 位數，5 分鐘內有效。</p><form id="codeForm"><label for="code">LINE 驗證碼</label><input id="code" name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required><button type="submit">登入黑域AI</button></form><p id="codeMessage" class="message" role="status"></p><button id="resendCode" class="secondary" type="button">重新傳送驗證碼</button><button id="back" class="secondary" type="button">返回修改帳號</button></section><button id="installButton" class="install-button" type="button">安裝到手機主畫面</button><div id="installGuide" class="install-guide hidden"><b>iPhone 安裝方式</b>請使用 Safari 開啟本頁，點「分享」→「加入主畫面」→「加入」。<br><b>Android 安裝方式</b>請使用 Chrome 開啟本頁，點右上角選單→「安裝應用程式」。</div><small class="legal">登入只會核對既有權限，不會變更會員資料或有效期限。</small></main>
 <script>
 let challengeId="",installPrompt=null;
@@ -139,6 +139,22 @@ async function requestLoginCode(){
 }
 accountForm.addEventListener("submit",event=>{event.preventDefault();requestLoginCode()});
 resendCode.addEventListener("click",requestLoginCode);
+const trialForm=document.getElementById("trialForm"),trialMessage=document.getElementById("trialMessage");
+trialForm.addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(trialForm.querySelector("button").disabled || accountForm.querySelector("button").disabled)return;
+  trialMessage.className="message";trialMessage.textContent="正在兌換體驗序號…";
+  busy(trialForm,true);busy(accountForm,true);
+  try{
+    const response=await postJson("/api/mobile/login/trial",{code:document.getElementById("trialCode").value});
+    const value=await response.json();
+    if(!response.ok)throw new Error(value.error||"目前無法開通體驗");
+    location.replace(embedded?"/portal/?embed=1":"/portal/");
+  }catch(error){
+    trialMessage.className="message bad";trialMessage.textContent=error.message||"請稍後再試。";
+    busy(trialForm,false);busy(accountForm,false);
+  }
+});
 document.getElementById("codeForm").addEventListener("submit",async event=>{event.preventDefault();const form=event.currentTarget;codeMessage.className="message";codeMessage.textContent="正在登入…";busy(form,true);resendCode.disabled=true;back.disabled=true;try{await requestEmbeddedStorage();const response=await postJson("/api/mobile/login/verify",{challengeId,code:document.getElementById("code").value,embed:embedded,deviceId});const value=await response.json();if(!response.ok)throw new Error(value.error||"登入失敗");const target=embedded?"/portal/?embed=1":"/portal/";location.replace(embedded?target+"#session="+encodeURIComponent(value.sessionToken):target)}catch(error){codeMessage.className="message bad";codeMessage.textContent=error.message||"登入失敗，請稍後再試。";busy(form,false);resendCode.disabled=false;back.disabled=false}});
 document.getElementById("back").addEventListener("click",()=>{challengeId="";codeStep.classList.add("hidden");accountStep.classList.remove("hidden");step2.classList.remove("on");codeMessage.textContent=""});
 if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("/portal/sw.js",{scope:"/portal/",updateViaCache:"none"}).catch(()=>{}));
@@ -201,6 +217,14 @@ function registerWebPortalRoutes(app) {
       return res.status(result.status || 200).json(result);
     } catch (error) { return next(error); }
   });
+  app.post("/api/web/admin/trial-codes", express.json({ limit: "1kb" }), async (req, res, next) => {
+    res.setHeader("cache-control", "no-store");
+    if (!req.is("application/json")) return res.sendStatus(415);
+    try {
+      const result = await webMembers.createTrial(user(req));
+      return res.status(result.status || 201).json(result);
+    } catch (error) { return next(error); }
+  });
   app.get("/portal/login", (req, res) => {
     res.setHeader("cache-control", "no-store");
     res.setHeader("x-robots-tag", "noindex, nofollow, noarchive");
@@ -232,6 +256,18 @@ function registerWebPortalRoutes(app) {
         return res.redirect(302, `/portal/${embedSuffix}#session=${encodeURIComponent(token)}`);
       }
       return res.type("html").send(mobileLoginPage());
+    } catch (error) { return next(error); }
+  });
+  app.post("/api/mobile/login/trial", express.json({ limit: "1kb" }), async (req, res, next) => {
+    res.setHeader("cache-control", "no-store");
+    if (!req.is("application/json")) return res.sendStatus(415);
+    if (user(req)) return res.status(409).json({ error: "目前已有登入工作階段。" });
+    try {
+      const result = await webMembers.redeemTrial(req.body?.code, req.ip || req.socket?.remoteAddress);
+      if (!result.ok) return res.status(result.status).json(result);
+      const token = web.issueSession(result.userId);
+      res.cookie("blackdomain_web", token, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: webMembers.TRIAL_SECONDS * 1000 });
+      return res.json({ ok: true });
     } catch (error) { return next(error); }
   });
   app.post("/api/mobile/login/request", express.json({ limit: "4kb" }), async (req, res, next) => {
