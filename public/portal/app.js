@@ -542,12 +542,14 @@ document.addEventListener("visibilitychange",()=>{if(!document.hidden)recoverEle
 document.addEventListener("keydown",event=>{if(!installDialog.hidden){if(event.key==="Escape"){event.preventDefault();closeInstallDialog();}if(event.key==="Tab"){const first=installClose,last=installConfirm;if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}}}});
 logoutButton?.addEventListener("click", async () => {
   logoutButton.disabled = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
   try {
     const response = await fetch("/api/web/logout", {
       method: "POST",
       headers: { "content-type": "application/json", "x-blackdomain-portal": "1" },
       body: "{}",
-      signal: AbortSignal.timeout(10000),
+      signal: controller.signal,
     });
     if (!response.ok) throw new Error("HTTP " + response.status);
     clearPortalSession();
@@ -556,6 +558,8 @@ logoutButton?.addEventListener("click", async () => {
     console.error("Portal logout failed", error);
     toast("登出未完成", "請確認網路連線後再試一次。");
     logoutButton.disabled = false;
+  } finally {
+    clearTimeout(timeout);
   }
 });
 installButton.addEventListener("click",installPwa);
