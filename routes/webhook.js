@@ -123,7 +123,7 @@ async function replyTrialCode(event) {
     const result = await webMembers.createTrial(userId);
     if (!result.ok) return reply(event.replyToken, textMessage(result.error));
     return reply(event.replyToken, textMessage(
-      `免費體驗序號\n\n${result.code}\n\n每組限用一次，兌換成功後可使用 10 分鐘。\n在 3A 登入頁下方輸入序號即可兌換。\n${publicBaseUrl()}/portal/mobile-login`,
+      `免費體驗序號\n\n${result.code}\n\n每組限用一次，兌換成功後可使用 10 分鐘。\n在黑域 AI 首頁的「免費體驗序號」區塊輸入序號即可兌換。\n${publicBaseUrl()}/portal/#trial-entry`,
     ));
   } catch (err) {
     logError("E003", err);

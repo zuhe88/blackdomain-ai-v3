@@ -20,6 +20,12 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     state.authenticated=false;
     res.json({ok:true});
   });
+  app.post('/api/mobile/login/trial',(req,res)=>{
+    if(req.body?.code!=="A".repeat(32))return res.status(400).json({error:"體驗序號無效或已使用。"});
+    state.authenticated=true;
+    state.allowed=true;
+    res.json({ok:true});
+  });
   app.get('/api/web/me',(_req,res)=>{accessCalls++;if(state.failMe)return res.status(503).json({error:"測試連線失敗"});res.json({authenticated:state.authenticated,accessAllowed:state.allowed,accessExpired:state.expired,accessExpiresAt:null,isAdmin:false,mtEntryEnabled:state.mtEnabled===true,allElectronicGamesEnabled:true,memberProfile:{account:null,accessType:"member",expiresAt:null,features:state.allowed?["百家樂分析","電子遊戲分析","彩票分析","體育數據"]:[]},messages:[]});});
   app.get('/api/web/baccarat/multi',(req,res)=>{
     assert.ok(['dg','mt','ab','t9'].includes(req.query.platform));
@@ -207,7 +213,22 @@ test("portal at six widths: routes, truthful empty states, navigation, inputs, e
     assert.equal(new URL(page.url()).pathname,'/portal/');
     assert.equal(await page.locator('#logoutButton').isVisible(),false);
     assert.equal(await page.evaluate(()=>localStorage.getItem("blackdomain_session")||sessionStorage.getItem("blackdomain_session")),null);
-    await fit(' login after logout');await screenshot('login-390');
+    await fit('login after logout');await screenshot('login-390');
+    for(const width of [320,1440]){
+      await page.setViewportSize({width,height:900});
+      await page.goto(base+'/portal/?test-width='+width+'#trial-entry');
+      await page.getByRole('heading',{name:'免費體驗序號',exact:true}).waitFor();
+      await page.locator('#trial-heading:focus').waitFor();
+      assert.equal(await page.getByRole('link',{name:'登入 3A 帳號',exact:true}).getAttribute('href'),'/portal/mobile-login');
+      assert.equal(await page.getByRole('link',{name:/加管理員 LINE/}).getAttribute('href'),'https://line.me/ti/p/@893jrweh');
+      await fit('guest entry '+width);
+    }
+    await page.getByLabel('輸入體驗序號').fill('B'.repeat(32));
+    await page.getByRole('button',{name:'開始免費體驗'}).click();
+    await page.getByRole('status').filter({hasText:'體驗序號無效或已使用。'}).waitFor();
+    await page.getByLabel('輸入體驗序號').fill('A'.repeat(32));
+    await page.getByRole('button',{name:'開始免費體驗'}).click();
+    await page.locator('body.is-authenticated').waitFor();
     state.authenticated=true;state.failMe=true;await open('/portal/');await page.getByRole('heading',{name:'正在重新確認會員權限',exact:true}).waitFor();
     state.failMe=false;state.allowed=true;state.failData=true;await open('/portal/');await page.locator('#overviewData strong').filter({hasText:'無法取得'}).waitFor();
     await page.goto(base+'/');await page.getByRole('heading',{name:'黑域AI',exact:true}).waitFor();await fit('public landing');

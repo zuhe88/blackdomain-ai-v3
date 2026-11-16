@@ -378,7 +378,76 @@ function renderAdminMonitor(){if(!isAdmin)return navigate("/portal/",{replace:tr
 function renderAccessDenied(categoryKey){if(memberProfile.accountPlatform==="OFA")return renderOfaAccessNotice(false);const back=categories[categoryKey]?`/portal/${categoryKey}`:"/portal/";view.innerHTML=`<section class="screen access-screen">${pageHeader("需要開通權限","黑域AI",back)}<article class="access-card"><div class="access-lock">VIP</div><h2>請聯絡管理員</h2><p>LINE：@893jrweh</p><a href="https://line.me/ti/p/@893jrweh" class="access-contact">聯絡管理員</a></article></section>`;}
 function updateMobileDock(categoryKey){document.body.classList.toggle("is-authenticated",authenticated);const key=categoryKey||"home";document.querySelectorAll("[data-nav]").forEach(button=>{const active=button.dataset.nav===key||(button.dataset.nav==="more"&&["sports","vip","settings","more","admin"].includes(key));button.classList.toggle("active",active);if(active)button.setAttribute("aria-current","page");else button.removeAttribute("aria-current");});const title=document.querySelector("#currentPage");if(title)title.textContent=({home:"系統首頁",baccarat:"百家樂分析",atg:"電子遊戲分析",lottery:"彩票分析",sports:"體育數據",vip:"會員權限",settings:"帳號設定",more:"更多功能",admin:"系統監控"})[key]||"分析工作台";document.querySelectorAll(".account-menu[open]").forEach(menu=>menu.removeAttribute("open"));}
 function renderRoute(){if(!authenticated)return renderLogin();const [categoryKey,itemId,mode]=pathParts();updateMobileDock(categoryKey);if(!categoryKey)return renderHome();if(categoryKey==="settings")return renderSettings();if(categoryKey==="more")return renderMore();if(categoryKey==="admin")return renderAdminMonitor();if(categoryKey==="vip")return renderVip();if(!itemId)return renderCategory(categoryKey);if(!accessAllowed)return accessExpired?renderAccessExpired():renderAccessDenied(categoryKey);if(categoryKey==="atg"&&mode==="custom")return navigate(`/portal/${categoryKey}/${itemId}`,{replace:true});if(categoryKey==="baccarat"&&mode==="multi")return renderMultiTable(itemId);if(categoryKey==="baccarat"&&itemId==="ab"&&mode!=="analyze")return navigate("/portal/baccarat/ab/analyze",{replace:true});if(mode)return renderAnalysis(categoryKey,itemId,mode);renderGame(categoryKey,itemId);requestAnimationFrame(()=>{view.focus({preventScroll:true});scrollTo({top:0,behavior:"instant"});});}
-function renderLogin(){document.body.classList.remove("is-authenticated");view.innerHTML=`<section class="screen login-screen"><article class="login-panel"><div class="brand-mark large"><img src="/brand/blackdomain-ai-logo.png" alt="黑域AI Logo"></div><p class="eyebrow">會員安全登入</p><h1>登入 3A 帳號</h1><p class="login-copy">限管理員已驗證並開通的會員。驗證碼會傳送至原綁定的 LINE。</p><a class="login-cta login-official" href="/portal/mobile-login"><b>登入 3A 帳號</b><i>›</i></a><div class="login-divider"><span>尚未開通分析權限？</span></div><a class="login-cta login-manager" href="https://line.me/ti/p/@893jrweh" target="_blank" rel="noopener noreferrer"><span class="login-line-mark">LINE</span><b>開通權限・聯絡管理員</b><i>›</i></a><small class="login-help">管理員 LINE：@893jrweh</small></article></section>`;setConnection("offline","尚未登入");}
+let trialAnchorHandled = false;
+function renderLogin() {
+  document.body.classList.remove("is-authenticated");
+  view.innerHTML = `<section class="screen login-screen portal-entry">
+    <article class="login-panel">
+      <h1>登入 3A 帳號</h1>
+      <p class="login-copy">已驗證並開通的會員，可用原綁定的 LINE 收取登入驗證碼。</p>
+      <a class="login-cta login-official portal-entry-login" href="/portal/mobile-login"><b>登入 3A 帳號</b><i aria-hidden="true">›</i></a>
+      <section class="portal-trial" id="trial-entry" aria-labelledby="trial-heading">
+        <h2 id="trial-heading" tabindex="-1">免費體驗序號</h2>
+        <p id="trial-help">輸入序號即可開始 10 分鐘免費體驗。</p>
+        <form id="portalTrialForm">
+          <label for="portalTrialCode">輸入體驗序號</label>
+          <div class="portal-trial-fields">
+            <input id="portalTrialCode" name="code" type="text" maxlength="32" pattern="[A-Fa-f0-9]{32}" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="trial-help" required>
+            <button type="submit">開始免費體驗</button>
+          </div>
+          <p class="portal-trial-message" role="status"></p>
+        </form>
+      </section>
+      <section class="portal-first-use" aria-labelledby="first-use-heading">
+        <div><h2 id="first-use-heading">第一次使用？</h2><p>請先加管理員 LINE，驗證你的 3A 帳號。</p></div>
+        <a href="https://line.me/ti/p/@893jrweh" target="_blank" rel="noopener noreferrer"><span>加管理員 LINE</span><strong>@893jrweh</strong></a>
+      </section>
+    </article>
+  </section>`;
+  view.querySelector("#portalTrialForm").addEventListener("submit", redeemPortalTrial);
+  if (!trialAnchorHandled && location.hash === "#trial-entry") {
+    trialAnchorHandled = true;
+    const heading = view.querySelector("#trial-heading");
+    requestAnimationFrame(() => { if (heading.isConnected) heading.focus(); });
+  }
+  setConnection("offline", "尚未登入");
+}
+async function redeemPortalTrial(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const input = form.elements.code;
+  const button = form.querySelector("button");
+  const message = form.querySelector("[role=status]");
+  if (button.disabled) return;
+  button.disabled = true;
+  message.classList.remove("is-error");
+  message.textContent = "正在兌換體驗序號…";
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch("/api/mobile/login/trial", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: input.value.trim() }),
+      signal: controller.signal,
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.ok !== true) {
+      message.classList.add("is-error");
+      message.textContent = result?.error || "目前無法開通體驗，請稍後再試。";
+      return;
+    }
+    clearPortalSession();
+    history.replaceState({}, "", "/portal/");
+    location.reload();
+  } catch {
+    message.classList.add("is-error");
+    message.textContent = "連線失敗，請稍後再試。";
+  } finally {
+    clearTimeout(timeout);
+    button.disabled = false;
+  }
+}
 function walk(node,out={texts:[],actions:[],images:[]}){if(!node)return out;if(Array.isArray(node)){node.forEach(value=>walk(value,out));return out;}if(typeof node!=="object")return out;if(node.type==="text"&&node.text)out.texts.push(node.text);if(node.type==="image"&&node.url)out.images.push(node.url);if(node.action){if(node.action.type==="message")out.actions.push({label:node.action.label||node.action.text,text:node.action.text});if(node.action.type==="uri")out.actions.push({label:node.action.label||"開啟連結",uri:node.action.uri});}for(const key of ["contents","body","hero","footer"])walk(node[key],out);return out;}
 function routeForCommand(command){const text=String(command||"").trim();const direct={首頁:"/portal/",返回首頁:"/portal/",主選單:"/portal/",百家樂:"/portal/baccarat",DG:"/portal/baccarat/dg",MT:"/portal/baccarat/mt",歐博:"/portal/baccarat/ab",T9:"/portal/baccarat/t9",ATG:"/portal/atg",電子:"/portal/atg",彩票:"/portal/lottery",體育:"/portal/sports",VIP:"/portal/vip/status",MLB:"/portal/sports/mlb",NBA:"/portal/sports/nba",CPBL:"/portal/sports/cpbl",539:"/portal/lottery/539",MB彈珠:"/portal/lottery/mb",戰神賽特1:"/portal/atg/set1",戰神賽特2:"/portal/atg/set2",古神巴風特:"/portal/atg/baphomet",虎小妹:"/portal/atg/tiger",赤三國:"/portal/atg/red3"};return direct[text]||null;}
 function actionMarkup(actions){return actions.length?`<div class="result-actions">${actions.map((action,index)=>{if(action.uri)return `<a class="operation-button${index===0?" primary":""}" href="${escapeHtml(action.uri)}">${escapeHtml(action.label)}</a>`;if(action.text==="綁定")return `<a class="operation-button${index===0?" primary":""}" href="https://line.me/ti/p/@893jrweh">${escapeHtml(action.label||"綁定3A")}</a>`;const route=routeForCommand(action.text);const modes={"AI配注":"依既有 AI 配注設定進行分析","AI 配注":"依既有 AI 配注設定進行分析","天門":"依既有天門模式進行分析","自由配注":"自行管理配注，查看分析資訊"};const description=modes[action.text];return `<button class="operation-button${description?" mode-choice":index===0?" primary":""}" ${route?`data-go="${route}"`:`data-command="${escapeHtml(action.text)}"`}>${description?`<b>${escapeHtml(action.label)}</b><small>${description}</small>`:escapeHtml(action.label)}</button>`;}).join("")}</div>`:"";}
