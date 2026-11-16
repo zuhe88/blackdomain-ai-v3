@@ -6,11 +6,12 @@
 
   const root = document.documentElement;
   if (!root.hasAttribute("data-blackdomain-supported-atg")) return;
-  const supportsVisuals = location.pathname.startsWith("/egames/22020103b31b7390f07b1551e8538589b5e51967/game/");
+  const supportsFreeGameHistory = root.hasAttribute("data-blackdomain-seth2-game");
   const speed = { set(value) { root.removeAttribute("data-blackdomain-seth2-applied"); root.setAttribute(seth2RateAttribute, String(value)); } };
   let authorized = false;
   const panel = globalThis.createTurboPanel(document.body, {
-    speed: supportsVisuals ? speed : null,
+    speed,
+    supportsFreeGameHistory,
     bankroll: {
       status: () => authorized ? root.getAttribute("data-blackdomain-bankroll-status") : null,
       clear() { root.removeAttribute("data-blackdomain-bankroll-settings"); },
@@ -53,16 +54,12 @@
   let presentationAvailable;
   let reportedRate;
   function renderAvailability() {
-    const available = supportsVisuals ? root.getAttribute(seth2ReadyAttribute) : root.getAttribute("data-blackdomain-bankroll-status");
+    const available = root.getAttribute(seth2ReadyAttribute);
     const applied = root.getAttribute("data-blackdomain-seth2-applied");
     if (available === presentationAvailable && applied === reportedRate) return;
     reportedRate = applied;
     presentationAvailable = available;
-    if (!supportsVisuals) {
-      panel.setState(available ? "本金控管已就緒" : "等待遊戲控管介面");
-      return;
-    }
-    const labels = { reels: applied ? `加速已套用 ${applied}×` : "加速已就緒", scoreboard: "加速已就緒" };
+    const labels = { effects: "加速已就緒", reels: applied ? `加速已套用 ${applied}×` : "加速已就緒", scoreboard: "加速已就緒" };
     panel.setState(labels[available] || "加速準備中", Boolean(labels[available]));
   }
 

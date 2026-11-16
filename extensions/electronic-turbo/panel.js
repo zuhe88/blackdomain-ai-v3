@@ -1,6 +1,6 @@
 "use strict";
 
-globalThis.createTurboPanel = function createTurboPanel(container, { demo = false, speed, bankroll }) {
+globalThis.createTurboPanel = function createTurboPanel(container, { demo = false, speed, bankroll, supportsFreeGameHistory = demo }) {
   const host = document.createElement("div");
   container.append(host);
   const shadow = host.attachShadow({ mode: "closed" });
@@ -171,7 +171,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
   }
 
   let spoilerEnabled = true;
-  if (speed) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
+  if (supportsFreeGameHistory) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
     spoilerEnabled = enabled;
     if (!enabled) {
       history.length = 0;

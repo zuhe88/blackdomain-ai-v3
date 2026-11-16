@@ -5,8 +5,11 @@
   const seth2ReadyAttribute = "data-blackdomain-seth2-ready";
 
   const root = document.documentElement;
+  if (!root.hasAttribute("data-blackdomain-supported-atg")) return;
+  const supportsFreeGameHistory = root.hasAttribute("data-blackdomain-seth2-game");
   const animationNames = new Set(["mg_idle", "fg_idle", "golden_idle", "mg_win", "fg_win", "golden_win"]);
-  const controlled = new Map();
+  const controlledSpines = new Map();
+  const controlledClips = new Map();
 
   const checkedSymbolViews = new WeakSet();
   const reelMethods = ["showSymbolsOut", "showNormalSymbolsIn", "showTurboSymbolsIn", "moveTo"];
@@ -75,10 +78,10 @@
 
   function findComponent(loader, engine, name) {
     let module;
-    try { module = loader.get(`chunks:///_virtual/${name}.ts`); } catch { /* Module may still be loading. */ }
+    try { module = loader?.get?.(`chunks:///_virtual/${name}.ts`); } catch { /* Module may still be loading. */ }
     // AnimaView.ts exports and registers the Cocos class as AnimView.
     const className = name === "AnimaView" ? "AnimView" : name;
-    return module?.[className] || module?.default || engine.js.getClassByName(className);
+    return [module?.[className], module?.default, engine.js?.getClassByName?.(className)].find(value => typeof value === "function");
   }
 
   const tweenDurations = ["to", "by", "delay"];
@@ -227,10 +230,11 @@
     if (!prototype || !tween || !tweenDurations.every(name => typeof tween[name] === "function"
         && Object.getOwnPropertyDescriptor(tween, name)?.writable)) return false;
 
-    installVisualScheduler(prototype, engine);
+    let installed = false;
     for (const name of names) {
       const method = Object.getOwnPropertyDescriptor(prototype, name);
       if (typeof method?.value !== "function" || !method.writable) continue;
+      installed = true;
       prototype[name] = function (...args) {
         const rate = requestedRate();
         const result = withVisualTiming(this, engine, () => method.value.apply(this, args));
@@ -238,8 +242,11 @@
         return result;
       };
     }
-    checkedEffects.add(prototype);
-    return true;
+    if (installed) {
+      installVisualScheduler(prototype, engine);
+      checkedEffects.add(prototype);
+    }
+    return installed;
   }
 
   const connectedSummaries = new WeakSet();
@@ -295,30 +302,104 @@
     previewParsers.add(parser);
   }
 
+  function animationEngine(loader) {
+    try { return loader?.get?.(loader.resolve?.("cc") || "cc") || window.cc; }
+    catch { return window.cc; }
+  }
+
+  const watchedAnimationPrototypes = new WeakSet();
+
+  function watchAnimationStarts(Component, methods) {
+    const prototype = Component?.prototype;
+    if (!prototype || watchedAnimationPrototypes.has(prototype)) return;
+    for (const name of methods) {
+      const method = Object.getOwnPropertyDescriptor(prototype, name);
+      if (!method?.writable || typeof method.value !== "function") continue;
+      prototype[name] = function (...args) {
+        const result = method.value.apply(this, args);
+        if (requestedRate() !== 1) queueSync();
+        return result;
+      };
+    }
+    watchedAnimationPrototypes.add(prototype);
+  }
+
+  function collectCommonAnimations(scene, engine, Skeleton, rate, spines, clips) {
+    let ready = false;
+    if (Skeleton) {
+      for (const spine of scene.getComponentsInChildren(Skeleton)) {
+        if (!spine.isValid || !spine.enabledInHierarchy || !Number.isFinite(spine.timeScale)) continue;
+        ready = true;
+        if (rate === 1 || spine.paused) continue;
+        const track = spine.getCurrent?.(0);
+        if ((track?.animation || spine.animation) && (track?.loop ?? spine.loop) === false) spines.add(spine);
+      }
+    }
+    if (engine.Animation) {
+      for (const player of scene.getComponentsInChildren(engine.Animation)) {
+        if (!player.isValid || !player.enabledInHierarchy || typeof player.getState !== "function") continue;
+        const animationClips = player.clips || [];
+        if (animationClips.length) ready = true;
+        if (rate === 1) continue;
+        for (const clip of animationClips) {
+          if (!clip?.name) continue;
+          const state = player.getState(clip.name);
+          if (state?.isPlaying && !state.isPaused && state.repeatCount === 1 && Number.isFinite(state.speed)) clips.add(state);
+        }
+      }
+    }
+    return ready;
+  }
+
+  function applyRates(controlled, targets, property, rate) {
+    for (const [target, saved] of controlled) {
+      if (rate !== 1 && targets.has(target)) continue;
+      if (target.isValid !== false && target[property] === saved.applied) target[property] = saved.original;
+      controlled.delete(target);
+    }
+    if (rate === 1) return;
+    for (const target of targets) {
+      const previous = controlled.get(target);
+      const current = target[property];
+      const original = previous?.applied === current ? previous.original : current;
+      const applied = original * rate;
+      if (current !== applied) target[property] = applied;
+      controlled.set(target, { original, applied });
+    }
+  }
+
   function sync() {
     const rate = requestedRate();
     const targets = new Set();
+    const clips = new Set();
     let reelsReady = false;
+    let effectsReady = false;
     try {
       const loader = window.System;
-      const engine = loader?.get(loader.resolve("cc"));
-      const scene = document.getElementById("GameCanvas") && engine?.director.getScene();
+      const engine = animationEngine(loader);
+      const canvas = document.getElementById("GameCanvas") || engine?.game?.canvas;
+      const scene = canvas && engine?.director?.getScene?.();
       const components = new Map();
       const component = name => {
         if (!components.has(name)) components.set(name, findComponent(loader, engine, name));
         return components.get(name);
       };
       const ReelView = scene && component("ReelView");
-      const Skeleton = engine?.sp?.Skeleton;
-      if (scene) {
+      const Skeleton = engine?.sp?.Skeleton || window.sp?.Skeleton;
+      if (scene && !supportsFreeGameHistory) {
+        watchAnimationStarts(Skeleton, ["setAnimation"]);
+        watchAnimationStarts(engine.Animation, ["play", "crossFade"]);
+        effectsReady = collectCommonAnimations(scene, engine, Skeleton, rate, targets, clips);
+      }
+      if (scene) reelsReady = installReelControls(component("SymbolView"), engine);
+      if (scene && supportsFreeGameHistory) {
         connectFreeGameSummary(component("FreeGameAlertView"));
-        reelsReady = installReelControls(component("SymbolView"), engine);
         try { connectFreeGamePreview(loader.get("chunks:///_virtual/ParseResponse.ts")?.default); }
         catch { /* An unavailable preview parser must not block visual timing. */ }
       }
       if (scene && engine.Tween) {
         for (const [name, methods] of Object.entries(effectMethods)) {
-          installEffectControls(component(name), engine, methods);
+          effectsReady = installEffectControls(component(name), engine, methods) || effectsReady;
         }
         if (rate !== 1 && Skeleton) {
           for (const [name, fields] of Object.entries(skeletonFields)) {
@@ -360,23 +441,12 @@
         }
       }
     } catch {
-      targets.clear();
+      // A transition can temporarily replace the scene. Retry on the next scan.
     }
-    for (const [spine, saved] of controlled) {
-      if (rate !== 1 && targets.has(spine)) continue;
-      if (spine.isValid && spine.timeScale === saved.applied) spine.timeScale = saved.original;
-      controlled.delete(spine);
-    }
-    if (rate !== 1) {
-      for (const spine of targets) {
-        const previous = controlled.get(spine);
-        const original = previous?.applied === spine.timeScale ? previous.original : spine.timeScale;
-        const applied = original * rate;
-        if (spine.timeScale !== applied) spine.timeScale = applied;
-        controlled.set(spine, { original, applied });
-      }
-    }
+    applyRates(controlledSpines, targets, "timeScale", rate);
+    applyRates(controlledClips, clips, "speed", rate);
     if (reelsReady) root.setAttribute(seth2ReadyAttribute, "reels");
+    else if (effectsReady) root.setAttribute(seth2ReadyAttribute, "effects");
     else if (targets.size > 0) root.setAttribute(seth2ReadyAttribute, "scoreboard");
     else root.removeAttribute(seth2ReadyAttribute);
   }

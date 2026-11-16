@@ -6,8 +6,16 @@ const { test } = require("node:test");
 const { chromium } = require("playwright-core");
 
 const extension = path.resolve(__dirname, "../extensions/electronic-turbo");
+const gamePaths = {
+  seth2: "/egames/22020103b31b7390f07b1551e8538589b5e51967/game/",
+  seth1: "/egames/88d5a6c6b3ebe4c6410b52b1c1aba71f2fad6de0/game/",
+  baphomet: "/egames/2b4c37c532b5e60f542a29c23e602748c06fd426/game/",
+  tigerPrincess: "/egames/9c0ec83253193a1c672c2906b83e88e29a61a826/game/",
+  scarletThreeKingdoms: "/egames/e19fdb8f5121a0abeecca7638e92d010dbe496c1/game/",
+};
+const gameOrigin = "https://play.godeebxp.com";
 
-test("installed extension drives demo controls and the game fixture", { timeout: 30000 }, async () => {
+test("installed extension drives demo controls and the five supported games", { timeout: 60000 }, async () => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "blackdomain-turbo-"));
   let context;
   try {
@@ -55,19 +63,42 @@ test("installed extension drives demo controls and the game fixture", { timeout:
     });
     await page.goto(`${extensionOrigin}/popup.html`);
     await page.getByText("會員資格已確認").waitFor();
-    const gameUrl = "https://play.godeebxp.com/egames/22020103b31b7390f07b1551e8538589b5e51967/game/";
-    await context.route(gameUrl, route => route.fulfill({
+    await context.route(/^https:\/\/play\.godeebxp\.com\/egames\/[^/]+\/game\/$/, route => route.fulfill({
       contentType: "text/html",
       body: `<!doctype html><html><body><canvas id="GameCanvas"></canvas>
         <script>
+          const isSeth2 = location.pathname === ${JSON.stringify(gamePaths.seth2)};
           class Skeleton {
             isValid = true;
             enabledInHierarchy = true;
             timeScale = 1;
             node = {name: "spine", parent: {name: "winboard"}};
-            getCurrent() { return {animation: {name: "mg_idle"}}; }
+            constructor(loop = false) { this.loop = loop; }
+            getCurrent(index) {
+              if (index !== 0) return null;
+              return {loop: this.loop, animation: {name: "mg_idle", duration: 1}};
+            }
           }
           const spine = new Skeleton();
+          const loopingSpine = new Skeleton(true);
+          const oneShot = {isPlaying: true, isPaused: false, repeatCount: 1, speed: 1};
+          const loopingClip = {isPlaying: true, isPaused: false, repeatCount: Infinity, speed: 1};
+          class Animation {
+            isValid = true;
+            enabledInHierarchy = true;
+            clips = [{name: "wipe"}, {name: "idle"}];
+            getState(name) { return name === "wipe" ? oneShot : loopingClip; }
+          }
+          const animation = new Animation();
+          class Tween {
+            to(seconds) { return seconds; }
+            by(seconds) { return seconds; }
+            delay(seconds) { return seconds; }
+          }
+          class ReelView {
+            playBounceTween() { return new Tween().to(1); }
+          }
+          window.readTestTween = () => new ReelView().playBounceTween();
           const summary = { gameState: { totalWinnings: 0 }, spinId: "free-round" };
           class FreeGameAlertView {
             data = { getData: () => summary };
@@ -77,27 +108,44 @@ test("installed extension drives demo controls and the game fixture", { timeout:
           window.parseGameFixture = gameState => parser.parseNewSpin({ engine: { gameState } });
           window.showFreeGameSummary = () => new FreeGameAlertView().showSummaryAlert();
           window.readTestRate = () => spine.timeScale;
+          window.readTestClip = () => oneShot.speed;
+          window.readLoopRates = () => [loopingSpine.timeScale, loopingClip.speed];
           window.System = {
             resolve: name => name,
             get: name => name.endsWith("/ParseResponse.ts") ? { default: parser } : ({
-              js: {getClassByName: name => ({ ReelView: class ReelView {}, FreeGameAlertView })[name]},
+              js: {getClassByName: name => isSeth2 ? ({ ReelView, FreeGameAlertView })[name] : undefined},
+              Tween,
+              Animation,
               sp: {Skeleton},
-              director: {getScene: () => ({getComponentsInChildren: () => [{spine}]})},
+              director: {getScene: () => ({getComponentsInChildren(type) {
+                if (type === Skeleton) return [spine, loopingSpine];
+                if (type === Animation) return [animation];
+                if (type === ReelView) return [{spine}];
+                return [];
+              }})},
             }),
           };
         </script></body></html>`,
     }));
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
-    await page.goto(gameUrl);
-    await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "1"
-      && document.documentElement.hasAttribute("data-blackdomain-seth2-ready"));
-    for (let index = 0; index < 5; index += 1) await page.keyboard.press("Tab");
-    await page.keyboard.press("Enter");
-    await page.waitForFunction(() => window.readTestRate() === 50);
-    for (let index = 0; index < 3; index += 1) await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Enter");
-    await page.waitForFunction(() => window.readTestRate() === 1);
+    async function testAcceleration(gamePath) {
+      const usesSeth2Hooks = gamePath === gamePaths.seth2;
+      await page.goto(gameOrigin + gamePath);
+      await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "1"
+        && document.documentElement.hasAttribute("data-blackdomain-seth2-ready"));
+      for (let index = 0; index < 5; index += 1) await page.keyboard.press("Tab");
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(specific => window.readTestRate() === 50
+        && (specific || window.readTestClip() === 50), usesSeth2Hooks);
+      assert.equal(await page.evaluate(() => window.readTestTween()), usesSeth2Hooks ? 0.02 : 1);
+      assert.deepEqual(await page.evaluate(() => window.readLoopRates()), [1, 1]);
+      for (let index = 0; index < 3; index += 1) await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(() => window.readTestRate() === 1 && window.readTestClip() === 1);
+      assert.equal(await page.evaluate(() => window.readTestTween()), 1);
+    }
+    await testAcceleration(gamePaths.seth2);
     const gameSession = await context.newCDPSession(page);
     async function gameText() {
       const { root: gameRoot } = await gameSession.send("DOM.getDocument", { depth: -1, pierce: true });
@@ -117,6 +165,27 @@ test("installed extension drives demo controls and the game fixture", { timeout:
     assert.equal(await page.evaluate(() => window.showFreeGameSummary()), "shown");
     await gameText();
     assert.ok(text.includes("0") && text.includes("已結算"));
+
+    for (const [game, gamePath] of Object.entries(gamePaths)) {
+      if (game === "seth2") continue;
+      await testAcceleration(gamePath);
+      assert.equal(await page.evaluate(() => {
+        let previews = 0;
+        window.addEventListener("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", () => previews++);
+        window.parseGameFixture([{ freeGameCount: 1 }, { freeGameCount: 0, totalWinnings: 125 }]);
+        return previews;
+      }), 0, `${game} should not use the Seth 2 preview`);
+    }
+
+    await page.goto(gameOrigin + "/egames/another-game/game/");
+    // Trigger the same observer input without granting the page a supported game identity.
+    await page.evaluate(() => document.documentElement.setAttribute("data-blackdomain-seth2-rate", "50"));
+    assert.deepEqual(await page.evaluate(() => ({
+      supported: document.documentElement.hasAttribute("data-blackdomain-supported-atg"),
+      ready: document.documentElement.hasAttribute("data-blackdomain-seth2-ready"),
+      panel: Boolean(document.querySelector("[data-overlay]")),
+      rate: window.readTestRate(),
+    })), { supported: false, ready: false, panel: false, rate: 1 });
     assert.deepEqual(pageErrors, []);
   } finally {
     await context?.close();
@@ -128,7 +197,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   const vm = require("node:vm");
   const rateAttribute = "data-blackdomain-seth2-rate";
   const readyAttribute = "data-blackdomain-seth2-ready";
-  const attrs = new Map([[rateAttribute, "10"]]);
+  const attrs = new Map([[rateAttribute, "10"], ["data-blackdomain-supported-atg", ""], ["data-blackdomain-seth2-game", ""]]);
   class Skeleton {
     timeScale = 0.5;
     isValid = true;
@@ -150,6 +219,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   const excluded = new Skeleton();
   excluded.node.parent.name = "reel";
   const root = {
+    hasAttribute: name => attrs.has(name),
     getAttribute: name => attrs.get(name),
     removeAttribute: name => attrs.delete(name),
     setAttribute: (name, value) => attrs.set(name, value),
@@ -231,6 +301,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   };
   const context = vm.createContext({
     document: { documentElement: root, getElementById: () => ({}) },
+    location: { pathname: gamePaths.seth2, search: "" },
     window: { System: { resolve: () => "cc", get: name => ({ cc: engine, "chunks:///_virtual/InfoBarController.ts": { default: InfoBarController }, "chunks:///_virtual/AnimaView.ts": { AnimView } })[name] } },
     MutationObserver: class { observe() {} },
     setInterval: callback => { tick = callback; },
