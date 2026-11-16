@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
+const { setTimeout: delay } = require("node:timers/promises");
 const { chromium } = require("playwright-core");
 
 const extension = path.resolve(__dirname, "../extensions/electronic-turbo");
@@ -99,21 +100,28 @@ test("installed extension drives demo controls and the five supported games", { 
             playBounceTween() { return new Tween().to(1); }
           }
           window.readTestTween = () => new ReelView().playBounceTween();
-          const summary = { gameState: { totalWinnings: 0 }, spinId: "free-round" };
           class FreeGameAlertView {
-            data = { getData: () => summary };
+            constructor(summary) { this.data = { getData: () => summary }; }
             showSummaryAlert() { return "shown"; }
           }
-          const parser = { parseNewSpin: () => "parsed" };
-          window.parseGameFixture = gameState => parser.parseNewSpin({ engine: { gameState } });
-          window.showFreeGameSummary = () => new FreeGameAlertView().showSummaryAlert();
+          const parser = { parseNewSpin: () => "parsed", parseNewEarlySpin: () => "parsed early" };
+          window.parseGameFixture = (gameState, early = false, spinId) =>
+            parser[early ? "parseNewEarlySpin" : "parseNewSpin"]({ engine: { gameState, spinId } });
+          window.showFreeGameSummary = (spinId = "free-round", totalWinnings = 0) =>
+            new FreeGameAlertView({ gameState: { freeGameCount: 0, totalWinnings }, spinId }).showSummaryAlert();
+          window.freeGameEvents = { progress: 0, previews: 0, summaries: 0 };
+          window.addEventListener("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", event => {
+            const kind = event.detail?.complete === false ? "progress" : "previews";
+            window.freeGameEvents[kind]++;
+          });
+          window.addEventListener("BLACKDOMAIN_TURBO_FREE_GAME_SUMMARY", () => window.freeGameEvents.summaries++);
           window.readTestRate = () => spine.timeScale;
           window.readTestClip = () => oneShot.speed;
           window.readLoopRates = () => [loopingSpine.timeScale, loopingClip.speed];
           window.System = {
             resolve: name => name,
             get: name => name.endsWith("/ParseResponse.ts") ? { default: parser } : ({
-              js: {getClassByName: name => isSeth2 ? ({ ReelView, FreeGameAlertView })[name] : undefined},
+              js: {getClassByName: name => ({ FreeGameAlertView, ReelView: isSeth2 ? ReelView : undefined })[name]},
               Tween,
               Animation,
               sp: {Skeleton},
@@ -129,52 +137,100 @@ test("installed extension drives demo controls and the five supported games", { 
     }));
     const pageErrors = [];
     page.on("pageerror", error => pageErrors.push(error.message));
+    const gameSession = await context.newCDPSession(page);
+    async function gameDocument() {
+      const { root: gameRoot } = await gameSession.send("DOM.getDocument", { depth: -1, pierce: true });
+      return gameRoot;
+    }
+    function findRateButton(node, rate) {
+      const attributes = node.attributes || [];
+      if (node.nodeName === "BUTTON" && attributes[attributes.indexOf("value") + 1] === String(rate)
+        && !attributes.includes("disabled")) return node;
+      for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) {
+        const match = findRateButton(child, rate);
+        if (match) return match;
+      }
+      return undefined;
+    }
+    async function chooseGameRate(rate) {
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline) {
+        const button = findRateButton(await gameDocument(), rate);
+        if (button) {
+          await gameSession.send("DOM.focus", { backendNodeId: button.backendNodeId });
+          await page.keyboard.press("Enter");
+          return;
+        }
+        await delay(50);
+      }
+      assert.fail(`Game rate ${rate} was not enabled at ${page.url()}`);
+    }
     async function testAcceleration(gamePath) {
       const usesSeth2Hooks = gamePath === gamePaths.seth2;
       await page.goto(gameOrigin + gamePath);
       await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "1"
         && document.documentElement.hasAttribute("data-blackdomain-seth2-ready"));
-      for (let index = 0; index < 5; index += 1) await page.keyboard.press("Tab");
-      await page.keyboard.press("Enter");
+      await chooseGameRate(50);
       await page.waitForFunction(specific => window.readTestRate() === 50
         && (specific || window.readTestClip() === 50), usesSeth2Hooks);
       assert.equal(await page.evaluate(() => window.readTestTween()), usesSeth2Hooks ? 0.02 : 1);
       assert.deepEqual(await page.evaluate(() => window.readLoopRates()), [1, 1]);
-      for (let index = 0; index < 3; index += 1) await page.keyboard.press("Shift+Tab");
-      await page.keyboard.press("Enter");
+      await chooseGameRate(1);
       await page.waitForFunction(() => window.readTestRate() === 1 && window.readTestClip() === 1);
       assert.equal(await page.evaluate(() => window.readTestTween()), 1);
     }
-    await testAcceleration(gamePaths.seth2);
-    const gameSession = await context.newCDPSession(page);
     async function gameText() {
-      const { root: gameRoot } = await gameSession.send("DOM.getDocument", { depth: -1, pierce: true });
       text.length = 0;
-      collect(gameRoot);
+      collect(await gameDocument());
       return text;
     }
-    assert.equal(await page.evaluate(() => window.parseGameFixture([
-      { freeGameCount: 3 }, { freeGameCount: 2, totalWinnings: 50 },
-    ])), "parsed");
-    assert.ok(!(await gameText()).includes("50"));
-    assert.equal(await page.evaluate(() => window.parseGameFixture([
-      { freeGameCount: 3 }, { freeGameCount: 0, totalWinnings: 125 },
-    ])), "parsed");
-    await gameText();
-    assert.ok(text.includes("125") && text.includes("待結算"));
-    assert.equal(await page.evaluate(() => window.showFreeGameSummary()), "shown");
-    await gameText();
-    assert.ok(text.includes("0") && text.includes("已結算"));
-
     for (const [game, gamePath] of Object.entries(gamePaths)) {
-      if (game === "seth2") continue;
       await testAcceleration(gamePath);
-      assert.equal(await page.evaluate(() => {
-        let previews = 0;
-        window.addEventListener("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", () => previews++);
-        window.parseGameFixture([{ freeGameCount: 1 }, { freeGameCount: 0, totalWinnings: 125 }]);
-        return previews;
-      }), 0, `${game} should not use the Seth 2 preview`);
+      const rejectedBatches = [
+        [{ freeGameCount: 3 }, { freeGameCount: 2, totalWinnings: 47 }],
+        [{ freeGameCount: 0, totalWinnings: 71 }],
+        [{ freeGameCount: 3 }, { freeGameCount: 0, superMainGameCount: 1, totalWinnings: 91 }],
+        [{ freeGameCount: 3 }, { totalWinnings: 92 }],
+        [{ freeGameCount: 0 }, { freeGameCount: 0, totalWinnings: 93 }],
+        [{ numFreeSpins: 3, freeGameCount: 3 }, { freeGameCount: 0, totalWinnings: 94 }],
+      ];
+      for (const batch of rejectedBatches) {
+        assert.equal(await page.evaluate(states => window.parseGameFixture(states), batch), "parsed");
+      }
+      assert.equal(await page.evaluate(() => window.freeGameEvents.previews), 0, `${game} previewed a partial or unrelated batch`);
+      assert.ok(!(await gameText()).includes("待結算"), `${game} displayed an incomplete result`);
+
+      assert.equal(await page.evaluate(() => window.parseGameFixture([
+        { freeGameCount: 3 }, { freeGameCount: 0, freespinWinnings: 125, totalWinnings: 135 },
+      ], true)), "parsed early");
+      await gameText();
+      assert.ok(text.includes("125") && text.includes("待結算"), `${game} did not show the completed preview`);
+      assert.equal(await page.evaluate(() => window.showFreeGameSummary()), "shown");
+      assert.equal(await page.evaluate(() => window.showFreeGameSummary()), "shown");
+      await gameText();
+      assert.ok(text.includes("0") && text.includes("已結算"), `${game} did not settle a zero result`);
+      assert.equal(text.filter(value => value === "0 分").length, 1, `${game} duplicated the same settlement`);
+      assert.ok(!text.includes("待結算"), `${game} did not clear the completed preview`);
+
+      assert.equal(await page.evaluate(() => window.parseGameFixture([
+        { freeGameCount: 2, freespinWinnings: 53, totalWinnings: 64 },
+      ], false, "split-round")), "parsed");
+      await gameText();
+      assert.ok(text.includes("53") && text.includes("累計中"), `${game} did not show the split round's running total`);
+      assert.equal(await page.evaluate(() => window.freeGameEvents.progress), 1);
+      assert.ok(!text.includes("待結算"), `${game} marked an in-progress round as complete`);
+      await page.evaluate(() => window.parseGameFixture([
+        { freeGameCount: 0, freespinWinnings: 83 },
+      ], false, "unrelated-round"));
+      assert.equal(await page.evaluate(() => window.freeGameEvents.previews), 1, `${game} used a different round's positive counter`);
+      assert.equal(await page.evaluate(() => window.parseGameFixture([
+        { freeGameCount: 0, totalWinnings: 165 },
+      ], false, "split-round")), "parsed");
+      await gameText();
+      assert.ok(text.includes("165") && text.includes("待結算"), `${game} did not complete the matching split round`);
+      assert.equal(await page.evaluate(() => window.showFreeGameSummary("split-round", 165)), "shown");
+      await gameText();
+      assert.ok(text.includes("165 分") && text.includes("已結算"), `${game} did not record the matching split round`);
     }
 
     await page.goto(gameOrigin + "/egames/another-game/game/");
@@ -186,6 +242,11 @@ test("installed extension drives demo controls and the five supported games", { 
       panel: Boolean(document.querySelector("[data-overlay]")),
       rate: window.readTestRate(),
     })), { supported: false, ready: false, panel: false, rate: 1 });
+    assert.deepEqual(await page.evaluate(() => {
+      window.parseGameFixture([{ freeGameCount: 1 }, { freeGameCount: 0, totalWinnings: 125 }]);
+      window.showFreeGameSummary();
+      return window.freeGameEvents;
+    }), { progress: 0, previews: 0, summaries: 0 });
     assert.deepEqual(pageErrors, []);
   } finally {
     await context?.close();

@@ -77,7 +77,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
         <div class="controls" role="group" aria-label="加速倍率"></div>
         <div id="spoiler-content">
           <div id="latest" hidden role="status">
-            <div class="result-caption"><span>免遊總贏分</span><span id="result-state"></span></div>
+            <div class="result-caption"><span id="result-label">免遊總贏分</span><span id="result-state"></span></div>
             <div class="result-value"><strong id="result-points"></strong><span>分</span></div>
           </div>
         <details><summary>最近五次紀錄</summary><ol id="history"></ol></details></div>
@@ -109,10 +109,11 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
 
   function renderHistory() {
     const hasPreview = preview !== null;
-    const points = hasPreview ? preview : history[0]?.points;
+    const points = hasPreview ? preview.points : history[0]?.points;
     latest.hidden = points === undefined;
     latest.toggleAttribute("data-preview", hasPreview);
-    shadow.getElementById("result-state").textContent = hasPreview ? "待結算" : "已結算";
+    shadow.getElementById("result-label").textContent = hasPreview && !preview.complete ? "免遊累計贏分" : "免遊總贏分";
+    shadow.getElementById("result-state").textContent = hasPreview ? (preview.complete ? "待結算" : "累計中") : "已結算";
     shadow.getElementById("result-points").textContent = points === undefined ? "" : formatter.format(points);
     list.replaceChildren(...history.map(entry => {
       const row = document.createElement("li");
@@ -232,9 +233,9 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       preview = null;
       renderHistory();
     },
-    preview(points) {
+    preview(points, complete = true) {
       if (!spoilerEnabled || !Number.isFinite(points) || points < 0) return;
-      preview = points;
+      preview = { points, complete };
       renderHistory();
     },
     record(id, points) {

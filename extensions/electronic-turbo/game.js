@@ -6,12 +6,11 @@
 
   const root = document.documentElement;
   if (!root.hasAttribute("data-blackdomain-supported-atg")) return;
-  const supportsFreeGameHistory = root.hasAttribute("data-blackdomain-seth2-game");
   const speed = { set(value) { root.removeAttribute("data-blackdomain-seth2-applied"); root.setAttribute(seth2RateAttribute, String(value)); } };
   let authorized = false;
   const panel = globalThis.createTurboPanel(document.body, {
     speed,
-    supportsFreeGameHistory,
+    supportsFreeGameHistory: true,
     bankroll: {
       status: () => authorized ? root.getAttribute("data-blackdomain-bankroll-status") : null,
       clear() { root.removeAttribute("data-blackdomain-bankroll-settings"); },
@@ -64,7 +63,7 @@
   }
 
   window.addEventListener("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", event => {
-    if (authorized) panel.preview(event.detail?.total);
+    if (authorized) panel.preview(event.detail?.total, event.detail?.complete !== false);
   });
   window.addEventListener("BLACKDOMAIN_TURBO_FREE_GAME_SUMMARY", event => {
     if (!authorized) return;

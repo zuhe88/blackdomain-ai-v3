@@ -260,44 +260,77 @@
     const showSummary = method.value;
     prototype.showSummaryAlert = function (...args) {
       const result = showSummary.apply(this, args);
-      const data = this.data?.getData();
-      const gameState = data?.gameState;
-      const total = gameState?.totalWinnings;
-      if (!Number.isFinite(total) || total < 0) return result;
-      let id = data.spinId ? String(data.spinId) : summaryIds.get(gameState);
-      if (!id) {
-        id = `summary-${++nextSummaryId}`;
-        summaryIds.set(gameState, id);
-      }
-      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_SUMMARY", { detail: { id, total } }));
+      try {
+        const data = this.data?.getData?.();
+        const gameState = data?.gameState;
+        const total = readAmount(gameState?.totalWinnings) ?? readAmount(gameState?.freespinWinnings);
+        if (total === undefined) return result;
+        let id = data.spinId ? String(data.spinId) : summaryIds.get(gameState);
+        if (!id) {
+          id = `summary-${++nextSummaryId}`;
+          summaryIds.set(gameState, id);
+        }
+        window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_SUMMARY", { detail: { id, total } }));
+      } catch { /* Keep the original summary independent of the panel. */ }
       return result;
     };
     connectedSummaries.add(prototype);
   }
 
   const previewParsers = new WeakSet();
+  const remainingCounters = ["numFreeSpins", "freeGameCount", "superMainGameCount"];
+
+  function readAmount(value) {
+    if (typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value)) value = Number(value);
+    return Number.isFinite(value) && value >= 0 ? value : undefined;
+  }
+
+  function readRemaining(state, key) {
+    const count = readAmount(state?.[key]);
+    return Number.isSafeInteger(count) ? count : undefined;
+  }
 
   function connectFreeGamePreview(parser) {
-    if (!parser || previewParsers.has(parser) || typeof parser.parseNewSpin !== "function") return;
+    const methods = ["parseNewSpin", "parseNewEarlySpin"].filter(name => typeof parser?.[name] === "function");
+    if (!methods.length || previewParsers.has(parser)) return;
+    let activeFeature = null;
+
     function showPreview(payload) {
-      const states = payload?.engine?.gameState;
-      if (!Array.isArray(states) || states.length < 2) return;
-      const counters = ["numFreeSpins", "freeGameCount", "superMainGameCount"];
+      const engine = payload?.engine || payload?.data?.engine;
+      const raw = engine?.gameState;
+      const states = Array.isArray(raw) ? raw : [raw];
       const terminal = states.at(-1);
-      const remaining = counters.map(key => terminal?.[key]).filter(Number.isFinite);
-      if (!remaining.length || remaining.some(count => count !== 0)) return;
-      if (!states.slice(0, -1).some(state => counters.some(key => state?.[key] > 0))) return;
-      const total = terminal.freespinWinnings ?? terminal.totalWinnings;
-      if (!Number.isFinite(total) || total < 0) return;
-      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", { detail: { total } }));
+      if (!terminal || typeof terminal !== "object") return;
+
+      const value = engine.spinId ?? terminal.spinId;
+      const id = typeof value === "string" || Number.isSafeInteger(value) ? String(value) : "";
+      const linkedFeature = id && activeFeature?.id === id ? activeFeature : null;
+      const priorCounters = remainingCounters.filter(key => states.slice(0, -1).some(state => readRemaining(state, key) > 0));
+      const witnessed = new Set([...priorCounters, ...(linkedFeature?.counters || [])]);
+      const activeCounters = remainingCounters.filter(key => readRemaining(terminal, key) > 0);
+      const complete = witnessed.size > 0 && activeCounters.length === 0
+        && [...witnessed].every(key => readRemaining(terminal, key) === 0);
+      const accumulated = readAmount(terminal.freespinWinnings) ?? readAmount(engine.freespinWinnings);
+      const total = complete ? accumulated ?? readAmount(terminal.totalWinnings) ?? readAmount(engine.totalWinnings) : accumulated;
+
+      if (complete && linkedFeature) activeFeature = null;
+      if (!complete && id) {
+        for (const key of activeCounters) witnessed.add(key);
+        if (witnessed.size) activeFeature = { id, counters: witnessed };
+      }
+      if (total === undefined || (!complete && !activeCounters.length)) return;
+
+      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", { detail: { total, complete } }));
     }
-    for (const name of ["parseNewSpin", "parseNewEarlySpin"]) {
+
+    for (const name of methods) {
       const original = parser[name];
-      if (typeof original !== "function") continue;
-      parser[name] = function (payload, ...args) {
-        try { showPreview(payload); } catch { /* Keep game response processing independent of the panel. */ }
-        return original.call(this, payload, ...args);
-      };
+      try {
+        parser[name] = function (payload, ...args) {
+          try { showPreview(payload); } catch { /* Keep game response processing independent of the panel. */ }
+          return original.call(this, payload, ...args);
+        };
+      } catch { /* Some game versions expose read-only parser methods. */ }
     }
     previewParsers.add(parser);
   }
@@ -392,9 +425,16 @@
         effectsReady = collectCommonAnimations(scene, engine, Skeleton, rate, targets, clips);
       }
       if (scene) reelsReady = installReelControls(component("SymbolView"), engine);
-      if (scene && supportsFreeGameHistory) {
+      if (scene) {
         connectFreeGameSummary(component("FreeGameAlertView"));
-        try { connectFreeGamePreview(loader.get("chunks:///_virtual/ParseResponse.ts")?.default); }
+        try {
+          const module = loader?.get?.("chunks:///_virtual/ParseResponse.ts");
+          const parser = module?.default || module?.ParseResponse;
+          if (parser) {
+            connectFreeGamePreview(parser);
+            connectFreeGamePreview(parser.prototype);
+          }
+        }
         catch { /* An unavailable preview parser must not block visual timing. */ }
       }
       if (scene && engine.Tween) {
