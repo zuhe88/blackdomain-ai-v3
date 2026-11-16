@@ -10,14 +10,23 @@
 main { max-width: 660px; margin: 6vh auto; padding: clamp(18px, 5vw, 36px); border: 1px solid #345571; border-radius: 16px; background: #142438; }
 a { color: #9ce8ff; } h2 { font-size: 20px; } li { margin-block: 6px; }
 .download { display: inline-block; padding: 8px 14px; border: 1px solid #75d4ed; border-radius: 8px; background: #22485c; font-weight: 700; text-decoration: none; }
+.update-card { margin:20px 0 24px;padding:16px 18px;border:1px solid #4c8297;border-radius:12px;background:#173548; }
+.update-card h2 { margin:0 0 6px; } .update-card p { margin:8px 0;color:#c9dfec; }
+.update-download { margin:4px 0;background:#a0ecff;color:#0a2533; }
 </style>
 </head>
 <body><main>
   <a href="/portal/atg">← 電子遊戲分析</a>
   <h1>電子加速器</h1>
   <p>在遊戲內設定本金停止門檻。戰神賽特 2 指定頁面還提供動畫加速與免遊紀錄。</p>
-  <a class="download" href="/portal/turbo/blackdomain-electronic-turbo-0.7.2.zip" download>下載擴充功能 0.7.2</a>
-  <h2>安裝方式</h2>
+  <section class="update-card" aria-labelledby="update-heading">
+    <h2 id="update-heading">已安裝？一鍵更新到 0.7.2</h2>
+    <p>Windows 版 Chrome／Edge 可用更新工具，把新版寫入原本載入的資料夾。</p>
+    <a class="download update-download" href="/portal/turbo/blackdomain-electronic-turbo-update-0.7.2.cmd" download>下載一鍵更新工具 0.7.2</a>
+    <p>執行更新工具後，到擴充功能頁按「重新載入」，再重新整理遊戲。</p>
+  </section>
+  <h2>第一次安裝</h2>
+  <a class="download" href="/portal/turbo/blackdomain-electronic-turbo-0.7.2.zip" download>下載擴充功能 ZIP 0.7.2</a>
   <ol>
     <li>下載 ZIP 並解壓，保留內含 <code>manifest.json</code> 的資料夾。</li>
     <li>在桌面 Chrome 開啟 <code>chrome://extensions</code>，Edge 使用 <code>edge://extensions</code>。</li>
