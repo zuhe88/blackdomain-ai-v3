@@ -16,57 +16,35 @@
     return Number.isInteger(requested) && requested >= 1 && requested <= 50 ? requested : 1;
   }
 
-  function installReelControls(SymbolView) {
-    if (!SymbolView) return false;
-    const prototype = SymbolView.prototype;
+  function installReelControls(SymbolView, engine) {
+    const prototype = SymbolView?.prototype;
+    if (!prototype) return false;
     if (checkedSymbolViews.has(prototype)) return true;
     if (!reelMethods.every(name => {
       const method = Object.getOwnPropertyDescriptor(prototype, name);
       return method?.writable && typeof method.value === "function"
         && /\.configModel\.reelConfig/.test(Function.prototype.toString.call(method.value));
     })) return false;
-
-    for (const name of reelMethods) {
-      const original = prototype[name];
-      prototype[name] = function (...args) {
-        const rate = requestedRate();
-        if (rate === 1 || Object.hasOwn(this, "configModel") || !Object.isExtensible(this)) {
-          return original.apply(this, args);
-        }
-        const config = this.configModel;
-        const reelConfig = config?.reelConfig;
-        if (!Number.isFinite(reelConfig?.speed) || !Number.isFinite(reelConfig.animStagger)) {
-          return original.apply(this, args);
-        }
-
-        // These methods read the durations synchronously when building the tweens.
-        // Keep the scaled copy local to that call and preserve game-owned settings.
-        const animationConfig = Object.create(config, {
-          reelConfig: { value: {
-            ...reelConfig,
-            speed: reelConfig.speed / rate,
-            animStagger: reelConfig.animStagger / rate,
-          } },
-        });
-        Object.defineProperty(this, "configModel", { value: animationConfig, configurable: true });
-        try {
-          const result = original.apply(this, args);
-          root.setAttribute("data-blackdomain-seth2-applied", String(rate));
-          return result;
-        } finally {
-          delete this.configModel;
-        }
-      };
-    }
+    if (!installEffectControls(SymbolView, engine, [...reelMethods, ...effectMethods.SymbolView])) return false;
     checkedSymbolViews.add(prototype);
     return true;
   }
 
   const checkedEffects = new WeakSet();
   const effectMethods = {
-    Symbol: ["playWinAnim", "playOutAnim", "showSplitA_Anim", "showSplitB_Anim", "playTimesSymbolsUpgrade"],
-    SymbolView: ["playOutAnimAndRemoveSymbols", "showSplitA_Anim", "showSplitSymbolAnime"],
-    ReelView: ["updateWinAmount", "fontNodeOpacityTween", "expandWinnings", "mergeWinnings", "playBounceTween", "playFadeOut"],
+    Symbol: [
+      "playWinAnim", "playOutAnim", "showSplitA_Anim", "showSplitB_Anim",
+      "playScatterInAnim", "playJackpotInAnim", "playScatterWinAnim", "playTotemWinAnim", "playTotemHitAnim", "playJpWinAnim",
+      "showTimesStage_Anim", "showTimesLock_Anim", "openTimesSymbol", "closeTimesSymbol", "showTimesSymbol",
+      "closeTimesLabel", "cloneLockAnime", "playTimesSymbolsFunction", "playTimesSymbolsUpgrade",
+    ],
+    SymbolView: [
+      "playOutAnimAndRemoveSymbols", "showSplitA_Anim", "showSplitSymbolAnime", "playSymbolsWin", "playScatterWin",
+      "showSymbolsQuickIn", "showLockSymbols", "showCloneSymbols", "showCurrentViewFall", "showNewSymbolFall",
+      "symbolsBezierByTimeTurbo", "symbolsBezierByTime", "startCloneTimeSymbol", "showTimesLock_Anim",
+      "showTimesLock_LevelDown", "timeLock_out", "timeLock_Allout",
+    ],
+    ReelView: ["IncreaseFgRemaining", "updateWinAmount", "fontNodeOpacityTween", "expandWinnings", "mergeWinnings", "playBounceTween", "playFadeOut"],
     WinView: ["playWinCashTween"],
     RunScore: ["runScore"],
     InfoBarController: ["playTotalWinTween"],
@@ -74,15 +52,16 @@
     EffectsView: ["showFireBall", "showSplitFireBall", "showTimesMoving", "showCloneTimesMoving"],
     BigwinView: ["playBounceTween", "showWinResult", "playBigFontLoop", "playAnimation", "playWin", "playBigwin", "showCoinSpray", "showBigwin", "addClickAlertCompleteCb"],
     FullComboView: ["openAlert", "closeAlert", "showFullCombo"],
-    FreeGameAlertView: ["playBounceTween"],
-    JackpotView: ["playBounceTween", "showJpResult"],
-    TreasuresView: ["playBounceTween", "showWinResult"],
-    CurrentTimesView: ["playBreatheTween"],
+    FreeGameAlertView: ["playBounceTween", "showIntroAlert", "showSummaryAlert"],
+    TransitionView: ["showTransitionIn", "showTransitionOut"],
+    JackpotView: ["playBounceTween", "showJpResult", "showJp", "closeAlert", "playAnimation", "showCoinSpray", "addClickAlertCompleteCb", "completedCB"],
+    TreasuresView: ["playBounceTween", "showWinResult", "playAnimation", "playWin", "playCoinSprayAndRunScore",
+      "addClickAlertCompleteCb", "showCoinSpray", "showTreasureWin", "completedCB"],
+    CurrentTimesView: ["playBreatheTween", "updateFGTotalTimes"],
   };
-  const visualHoldMethods = new Set(["playWinAnim", "playAnimation", "playWin", "playBigwin", "showCoinSpray", "showFullCombo", "showBigwin", "showWinResult", "addClickAlertCompleteCb"]);
   const skeletonFields = {
     AnimaView: ["womenAnimation", "menAnimation", "menLevel2Animation", "frameAnime"],
-    Symbol: ["symbolAnimation", "symbolOutSpine", "frameSpine"],
+    Symbol: ["symbolAnimation", "symbolOutSpine", "frameSpine", "timesSplitASpine", "timesSplitBSpine", "timesLockSpine", "timesStageSpine", "upgradeAnimation"],
     BigwinView: ["effectFont", "effectBg", "fireworks"],
     BackgroundView: ["bgSpine", "bgTopSpine"],
     CharacterView: ["man", "woman", "manFireEffect", "womanFireEffect"],
@@ -95,96 +74,173 @@
   };
 
   function findComponent(loader, engine, name) {
-    const module = loader.get(`chunks:///_virtual/${name}.ts`);
+    let module;
+    try { module = loader.get(`chunks:///_virtual/${name}.ts`); } catch { /* Module may still be loading. */ }
     // AnimaView.ts exports and registers the Cocos class as AnimView.
     const className = name === "AnimaView" ? "AnimView" : name;
     return module?.[className] || module?.default || engine.js.getClassByName(className);
   }
 
-  const multiplierMethods = new Set([
-    "showFireBall", "showSplitFireBall", "showTimesMoving", "showCloneTimesMoving",
-    "playTimesSymbolsUpgrade", "playBreatheTween",
-  ]);
   const tweenDurations = ["to", "by", "delay"];
+  const activeVisuals = new WeakSet();
+  const schedulerWrappers = new WeakSet();
+  let visualOwner;
+  let syncQueued = false;
 
-  function withTweenRate(tween, rate, followCallbacks, run) {
-    if (rate === 1 || scalingEffect) return run();
+  function queueSync() {
+    if (syncQueued) return;
+    syncQueued = true;
+    queueMicrotask(() => {
+      syncQueued = false;
+      sync();
+    });
+  }
+
+  function withVisualTiming(owner, engine, run) {
+    const rate = requestedRate();
+    if (rate === 1) return run();
+    const alreadyActive = activeVisuals.has(owner);
+    const previousOwner = visualOwner;
+    visualOwner = owner;
+    activeVisuals.add(owner);
+    try {
+      return previousOwner ? run() : withTweenRate(engine, rate, run);
+    } finally {
+      visualOwner = previousOwner;
+      if (!alreadyActive) activeVisuals.delete(owner);
+      queueSync();
+    }
+  }
+
+  function followVisual(owner, engine, callback) {
+    if (typeof callback !== "function") return callback;
+    return function (...args) {
+      return withVisualTiming(owner, engine, () => callback.apply(this, args));
+    };
+  }
+
+  function withTweenRate(engine, rate, run) {
+    const tween = engine.Tween.prototype;
+    const spine = engine.sp?.Skeleton?.prototype;
+    const setComplete = spine && Object.getOwnPropertyDescriptor(spine, "setCompleteListener");
+    const wrapComplete = setComplete?.writable && typeof setComplete.value === "function";
     const originals = tweenDurations.map(name => tween[name]);
-    const originalCall = Object.getOwnPropertyDescriptor(tween, "call");
-    const wrapCall = followCallbacks && originalCall?.writable && typeof originalCall.value === "function";
-    scalingEffect = true;
+    const call = Object.getOwnPropertyDescriptor(tween, "call");
+    const wrapCall = call?.writable && typeof call.value === "function";
+    let forwarding = false;
     try {
       tweenDurations.forEach((name, index) => {
         tween[name] = function (seconds, ...args) {
-          return originals[index].call(this, Number.isFinite(seconds) ? seconds / rate : seconds, ...args);
+          if (forwarding) return originals[index].call(this, seconds, ...args);
+          const options = args[1];
+          if (name !== "delay" && (typeof options?.onStart === "function" || typeof options?.onComplete === "function")) {
+            args[1] = { ...options,
+              onStart: followVisual(visualOwner, engine, options.onStart),
+              onComplete: followVisual(visualOwner, engine, options.onComplete),
+            };
+          }
+          forwarding = true;
+          try {
+            return originals[index].call(this, Number.isFinite(seconds) ? seconds / rate : seconds, ...args);
+          } finally {
+            forwarding = false;
+          }
         };
       });
       if (wrapCall) {
         tween.call = function (callback, ...args) {
-          return originalCall.value.call(this, wrapCallback(tween, callback, true), ...args);
+          return call.value.call(this, followVisual(visualOwner, engine, callback), ...args);
+        };
+      }
+      if (wrapComplete) {
+        spine.setCompleteListener = function (callback, ...args) {
+          return setComplete.value.call(this, followVisual(visualOwner, engine, callback), ...args);
         };
       }
       return run();
     } finally {
+      if (wrapComplete) spine.setCompleteListener = setComplete.value;
       tweenDurations.forEach((name, index) => { tween[name] = originals[index]; });
-      if (wrapCall) tween.call = originalCall.value;
-      scalingEffect = false;
+      if (wrapCall) tween.call = call.value;
     }
   }
 
-  function wrapCallback(tween, callback, followCallbacks) {
-    if (typeof callback !== "function") return callback;
-    return function (...args) {
-      const result = withTweenRate(tween, requestedRate(), followCallbacks, () => callback.apply(this, args));
-      if (followCallbacks) sync();
-      return result;
+  function installVisualScheduler(prototype, engine) {
+    const scheduleOnce = prototype.scheduleOnce;
+    const schedule = prototype.schedule;
+    const unschedule = prototype.unschedule;
+    if (typeof scheduleOnce !== "function" || schedulerWrappers.has(scheduleOnce)) return;
+    const canReplace = name => {
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+      return descriptor ? descriptor.writable : Object.isExtensible(prototype);
     };
+    if (!canReplace("scheduleOnce") || (typeof unschedule === "function" && !canReplace("unschedule"))) return;
+
+    const callbacks = new WeakMap();
+    const forwarding = new WeakSet();
+    function callbackFor(owner, callback, rate) {
+      let registered = callbacks.get(owner);
+      if (rate !== 1 && typeof callback === "function") {
+        if (!registered) callbacks.set(owner, registered = new WeakMap());
+        if (!registered.has(callback)) registered.set(callback, followVisual(owner, engine, callback));
+      }
+      return registered?.get(callback) || callback;
+    }
+    function replaceMethod(name, value) {
+      const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+      Object.defineProperty(prototype, name, descriptor ? { ...descriptor, value } : {
+        value, writable: true, configurable: true,
+      });
+    }
+    function duration(seconds, rate) {
+      return Number.isFinite(seconds) ? seconds / rate : seconds;
+    }
+    if (typeof schedule === "function" && canReplace("schedule")) {
+      replaceMethod("schedule", function (callback, interval, repeat, delay) {
+        if (forwarding.has(this)) return schedule.apply(this, arguments);
+        const rate = activeVisuals.has(this) ? requestedRate() : 1;
+        return schedule.call(this, callbackFor(this, callback, rate), duration(interval, rate), repeat, duration(delay, rate));
+      });
+    }
+    if (typeof unschedule === "function") {
+      replaceMethod("unschedule", function (callback, ...args) {
+        return unschedule.call(this, callbackFor(this, callback, 1), ...args);
+      });
+    }
+    function scheduleVisual(callback, seconds, ...args) {
+      const rate = activeVisuals.has(this) ? requestedRate() : 1;
+      forwarding.add(this);
+      try {
+        return scheduleOnce.call(this, callbackFor(this, callback, rate), duration(seconds, rate), ...args);
+      } finally {
+        forwarding.delete(this);
+      }
+    }
+    replaceMethod("scheduleOnce", scheduleVisual);
+    schedulerWrappers.add(scheduleVisual);
   }
 
-  function installEffectControls(Component, Tween, names) {
+  function installEffectControls(Component, engine, names) {
     const prototype = Component?.prototype;
-    const tween = Tween?.prototype;
-    if (!prototype || !tween || checkedEffects.has(prototype)
-      || !tweenDurations.every(name => typeof tween[name] === "function"
-        && Object.getOwnPropertyDescriptor(tween, name)?.writable)) return;
+    const tween = engine.Tween?.prototype;
+    if (checkedEffects.has(prototype)) return true;
+    if (!prototype || !tween || !tweenDurations.every(name => typeof tween[name] === "function"
+        && Object.getOwnPropertyDescriptor(tween, name)?.writable)) return false;
 
+    installVisualScheduler(prototype, engine);
     for (const name of names) {
       const method = Object.getOwnPropertyDescriptor(prototype, name);
       if (typeof method?.value !== "function" || !method.writable) continue;
-      const original = method.value;
-      const followsMultiplier = multiplierMethods.has(name);
       prototype[name] = function (...args) {
         const rate = requestedRate();
-        if (rate === 1) return original.apply(this, args);
-        const scheduler = (followsMultiplier || visualHoldMethods.has(name)) && this.scheduleOnce;
-        const ownScheduler = scheduler && Object.getOwnPropertyDescriptor(this, "scheduleOnce");
-        const scaleHold = !ownScheduler?.value?.blackdomainScaledHold && typeof scheduler === "function"
-          && (ownScheduler ? ownScheduler.configurable : Object.isExtensible(this));
-        try {
-          if (scaleHold) {
-            const scaleDelay = function (callback, seconds) {
-              const next = followsMultiplier || name === "showBigwin"
-                ? wrapCallback(tween, callback, followsMultiplier) : callback;
-              return scheduler.call(this, next, Number.isFinite(seconds) ? seconds / rate : seconds);
-            };
-            scaleDelay.blackdomainScaledHold = true;
-            Object.defineProperty(this, "scheduleOnce", { configurable: true, value: scaleDelay });
-          }
-          const result = withTweenRate(tween, rate, followsMultiplier, () => original.apply(this, args));
-          if (followsMultiplier) sync();
-          return result;
-        } finally {
-          if (scaleHold) {
-            if (ownScheduler) Object.defineProperty(this, "scheduleOnce", ownScheduler);
-            else delete this.scheduleOnce;
-          }
-        }
+        const result = withVisualTiming(this, engine, () => method.value.apply(this, args));
+        if (rate !== 1 && reelMethods.includes(name)) root.setAttribute("data-blackdomain-seth2-applied", String(rate));
+        return result;
       };
     }
     checkedEffects.add(prototype);
+    return true;
   }
-
-  let scalingEffect = false;
 
   const connectedSummaries = new WeakSet();
   const summaryIds = new WeakMap();
@@ -246,54 +302,59 @@
     try {
       const loader = window.System;
       const engine = loader?.get(loader.resolve("cc"));
-      const ReelView = engine?.js.getClassByName("ReelView");
-      const scene = engine?.director.getScene();
-      if (scene && document.getElementById("GameCanvas")) {
-        connectFreeGameSummary(findComponent(loader, engine, "FreeGameAlertView"));
-        connectFreeGamePreview(loader.get("chunks:///_virtual/ParseResponse.ts")?.default);
+      const scene = document.getElementById("GameCanvas") && engine?.director.getScene();
+      const components = new Map();
+      const component = name => {
+        if (!components.has(name)) components.set(name, findComponent(loader, engine, name));
+        return components.get(name);
+      };
+      const ReelView = scene && component("ReelView");
+      const Skeleton = engine?.sp?.Skeleton;
+      if (scene) {
+        connectFreeGameSummary(component("FreeGameAlertView"));
+        reelsReady = installReelControls(component("SymbolView"), engine);
+        try { connectFreeGamePreview(loader.get("chunks:///_virtual/ParseResponse.ts")?.default); }
+        catch { /* An unavailable preview parser must not block visual timing. */ }
       }
-      reelsReady = Boolean(scene && document.getElementById("GameCanvas")
-        && (installReelControls(loader.get("chunks:///_virtual/SymbolView.ts")?.SymbolView)
-          || installReelControls(engine?.js.getClassByName("SymbolView"))));
-      if (scene && document.getElementById("GameCanvas") && engine.Tween) {
+      if (scene && engine.Tween) {
         for (const [name, methods] of Object.entries(effectMethods)) {
-          installEffectControls(findComponent(loader, engine, name), engine.Tween, methods);
+          installEffectControls(component(name), engine, methods);
         }
-        if (rate !== 1) {
+        if (rate !== 1 && Skeleton) {
           for (const [name, fields] of Object.entries(skeletonFields)) {
-            const Component = findComponent(loader, engine, name);
+            const Component = component(name);
             if (!Component) continue;
             for (const view of scene.getComponentsInChildren(Component)) {
-              const effectNode = name === "BigwinView" ? view.coinSprays : name === "CurrentTimesView" ? view.node : null;
-              const extraSpines = effectNode?.getComponentsInChildren(engine.sp.Skeleton) || [];
+              const effectNode = name === "BigwinView" ? view.coinSprays
+                : ["CurrentTimesView", "TransitionView", "FreeGameAlertView"].includes(name) ? view.node : null;
+              const extraSpines = effectNode?.getComponentsInChildren?.(Skeleton) || [];
               for (const spine of [...fields.map(field => view[field]), ...extraSpines]) {
-
-                if (spine instanceof engine.sp.Skeleton && spine.isValid && spine.enabledInHierarchy
+                if (spine instanceof Skeleton && spine.isValid && spine.enabledInHierarchy
                   && Number.isFinite(spine.timeScale)) targets.add(spine);
               }
             }
           }
         }
       }
-      if (rate !== 1 && scene && document.getElementById("GameCanvas") && engine.sp?.Skeleton) {
-        const EffectsView = findComponent(loader, engine, "EffectsView");
+      if (rate !== 1 && scene && Skeleton) {
+        const EffectsView = component("EffectsView");
         if (EffectsView) {
           for (const view of scene.getComponentsInChildren(EffectsView)) {
-            for (const spine of view.node.getComponentsInChildren(engine.sp.Skeleton)) {
-              const animation = spine.getCurrent(0)?.animation?.name;
+            for (const spine of view.node?.getComponentsInChildren?.(Skeleton) || []) {
+              const animation = spine.getCurrent?.(0)?.animation?.name;
               if (spine.isValid && spine.enabledInHierarchy && Number.isFinite(spine.timeScale)
                 && /^fireball(?:_[a-z0-9]+)+$/i.test(animation || "")) targets.add(spine);
             }
           }
         }
       }
-      if (ReelView && scene && document.getElementById("GameCanvas")) {
+      if (ReelView && Skeleton) {
         for (const view of scene.getComponentsInChildren(ReelView)) {
           const spine = view.spine;
           if (
-            spine instanceof engine.sp.Skeleton && spine.isValid && spine.enabledInHierarchy
+            spine instanceof Skeleton && spine.isValid && spine.enabledInHierarchy
             && spine.node.name === "spine" && spine.node.parent?.name === "winboard"
-            && animationNames.has(spine.getCurrent(0)?.animation?.name)
+            && animationNames.has(spine.getCurrent?.(0)?.animation?.name)
             && Number.isFinite(spine.timeScale)
           ) targets.add(spine);
         }

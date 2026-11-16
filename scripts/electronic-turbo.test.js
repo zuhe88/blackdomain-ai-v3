@@ -136,6 +136,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
     animation = "mg_win";
     node = { name: "spine", parent: { name: "winboard" } };
     getCurrent() { return { animation: { name: this.animation } }; }
+    setCompleteListener(callback) { this.complete = callback; }
   }
   const selected = new Skeleton();
   class AnimView {}
@@ -155,42 +156,72 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   };
   let tick;
   let hide;
+  const queuedScans = [];
   class Tween {
-    to(seconds) { return seconds; }
+    to(seconds, props, options) {
+      const duration = this.by(seconds);
+      return options ? { duration, options } : duration;
+    }
     by(seconds) { return seconds; }
     delay(seconds) { return seconds; }
     call(callback) { return callback; }
   }
   class WinningSymbol {
-    scheduleOnce(callback, delay) { return { callback, delay }; }
+    schedule(callback, interval, repeat, delay) { return { callback, interval, repeat, delay }; }
+    scheduleOnce(callback, delay) {
+      const registration = this.schedule(callback, 0, 0, delay);
+      return { callback: registration.callback, delay: registration.delay };
+    }
+    unschedule(callback) { return callback; }
     playWinAnim(callback) { return this.scheduleOnce(callback, 1); }
+    playOutAnim() { return this.scheduleOnce(() => new Tween().call(() => new Tween().to(2)), 1); }
   }
   class InfoBarController { playTotalWinTween() { return new Tween().to(1.9); } }
   class RunScore { runScore(seconds) { return new Tween().to(seconds); } }
   class WinView {
     playWinCashTween() { return [new Tween().by(1.5), new Tween().delay(1), new Tween().to(0.5)]; }
   }
+  class TransitionView {
+    scheduleOnce(callback, delay) { return { callback, delay }; }
+    showTransitionIn() { return this.scheduleOnce(() => new Tween().to(3), 2); }
+    showTransitionOut() { selected.setCompleteListener(() => new Tween().delay(1)); }
+  }
+  class FreeGameAlertView extends WinningSymbol {
+    showIntroAlert() { return this.schedule(() => new Tween().to(2), 0.5, 3, 1); }
+  }
   class ReelView {}
   const config = { reelConfig: { speed: 0.2, animStagger: 0.05 } };
   class SymbolView {
     get configModel() { return config; }
     showSymbolsOut(callback) {
-      callback(this.configModel.reelConfig);
+      const { speed, animStagger } = this.configModel.reelConfig;
+      callback(speed);
+      return [new Tween().by(speed), new Tween().delay(animStagger)];
     }
-    showNormalSymbolsIn() { return this.configModel.reelConfig; }
-    showTurboSymbolsIn() { return this.configModel.reelConfig; }
-    moveTo() { return this.configModel.reelConfig; }
+    showNormalSymbolsIn() {
+      return [new Tween().to(this.configModel.reelConfig.speed), new Tween().to(0.1)];
+    }
+    showTurboSymbolsIn() {
+      return new Tween().to(this.configModel.reelConfig.speed, {}, {
+        onStart: () => new Tween().to(0.1),
+        onComplete: () => new Tween().to(0.04),
+      });
+    }
+    moveTo() {
+      const { speed } = this.configModel.reelConfig;
+      return new Tween().to(speed, {}, { onComplete: () => new Tween().to(speed) });
+    }
   }
   const symbolView = new SymbolView();
   const engine = {
     sp: { Skeleton },
     Tween,
-    js: { getClassByName: name => ({ Symbol: WinningSymbol, SymbolView, ReelView, WinView, RunScore, EffectsView })[name] },
+    js: { getClassByName: name => ({ Symbol: WinningSymbol, SymbolView, ReelView, WinView, RunScore, EffectsView, TransitionView, FreeGameAlertView })[name] },
     director: {
       getScene: () => ({
         getComponentsInChildren(type) {
           if (type === AnimView) return [{ menLevel2Animation: awakening }];
-          if (type === WinningSymbol) return [];
+          if (type === WinningSymbol || type === TransitionView || type === FreeGameAlertView) return [];
           if (type === EffectsView) return [{ node: { getComponentsInChildren: () => [fireBall, excluded] } }];
           assert.equal(type, ReelView);
           return [{ spine: selected }, { spine: excluded }];
@@ -203,6 +234,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
     window: { System: { resolve: () => "cc", get: name => ({ cc: engine, "chunks:///_virtual/InfoBarController.ts": { default: InfoBarController }, "chunks:///_virtual/AnimaView.ts": { AnimView } })[name] } },
     MutationObserver: class { observe() {} },
     setInterval: callback => { tick = callback; },
+    queueMicrotask: callback => { queuedScans.push(callback); },
     addEventListener: (_event, callback) => { hide = callback; },
   });
   vm.runInContext(fs.readFileSync(path.join(extension, "seth2-canvas.js"), "utf8"), context);
@@ -218,15 +250,37 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   assert.equal(new RunScore().runScore(2), 0.2);
   assert.equal(new InfoBarController().playTotalWinTween(), 0.19);
   const winner = new WinningSymbol();
-  const onWin = () => {};
-  assert.deepEqual(winner.playWinAnim(onWin), { callback: onWin, delay: 0.1 });
-  assert.deepEqual(winner.scheduleOnce(onWin, 1), { callback: onWin, delay: 1 });
+  const removal = winner.playOutAnim();
+  assert.equal(removal.delay, 0.1);
+  assert.equal(removal.callback()(), 0.2);
+  const transitionView = new TransitionView();
+  const transition = transitionView.showTransitionIn();
+  assert.equal(transition.delay, 0.2);
+  assert.equal(transition.callback(), 0.3);
+  transitionView.showTransitionOut();
+  assert.equal(selected.complete(), 0.1);
+  const intro = new FreeGameAlertView().showIntroAlert();
+  assert.equal(intro.interval, 0.05);
+  assert.equal(intro.delay, 0.1);
+  assert.equal(intro.repeat, 3);
+  assert.equal(intro.callback(), 0.2);
+  const onWin = () => new Tween().to(2);
+  const hold = winner.playWinAnim(onWin);
+  assert.equal(hold.delay, 0.1);
+  assert.equal(hold.callback(), 0.2);
+  assert.equal(winner.unschedule(onWin), hold.callback);
+  assert.equal(winner.scheduleOnce(onWin, 1).delay, 1);
   assert.equal(excluded.timeScale, 0.5);
   assert.equal(attrs.get(readyAttribute), "reels");
-  symbolView.showSymbolsOut(config => assert.equal(config.speed, 0.02));
-  assert.equal(symbolView.showNormalSymbolsIn().animStagger, 0.005);
-  assert.equal(symbolView.showTurboSymbolsIn().speed, 0.02);
-  assert.equal(symbolView.moveTo().speed, 0.02);
+  assert.deepEqual(symbolView.showSymbolsOut(speed => assert.equal(speed, 0.2)), [0.02, 0.005]);
+  assert.deepEqual(symbolView.showNormalSymbolsIn(), [0.02, 0.01]);
+  const turboIn = symbolView.showTurboSymbolsIn();
+  assert.equal(turboIn.duration, 0.02);
+  assert.equal(turboIn.options.onStart(), 0.01);
+  assert.equal(turboIn.options.onComplete(), 0.004);
+  assert.equal(symbolView.moveTo().options.onComplete(), 0.02);
+  assert.equal(queuedScans.length, 1);
+  queuedScans.shift()();
   assert.equal(symbolView.configModel, config);
   assert.throws(() => symbolView.showSymbolsOut(() => { throw new Error("cancelled"); }), /cancelled/);
   assert.equal(symbolView.configModel, config);
@@ -244,7 +298,7 @@ test("Seth 2 adapter changes only approved win board animation and restores repl
   assert.equal(multiplier.callback()(), 2);
   assert.equal(fireBall.timeScale, 0.5);
   assert.equal(awakening.timeScale, 0.5);
-  assert.equal(symbolView.moveTo(), config.reelConfig);
+  assert.equal(symbolView.moveTo().duration, config.reelConfig.speed);
   assert.equal(selected.timeScale, 0.5);
 });
 
