@@ -10,7 +10,9 @@ function secureEqual(left, right) {
 }
 
 function configuredRelayKey() {
-  return String(process.env.DG_RELAY_KEY || process.env.ATG_RELAY_KEY || "").trim();
+  return [process.env.MT_RELAY_KEY, process.env.DG_RELAY_KEY, process.env.ATG_RELAY_KEY]
+    .map((value) => String(value || "").trim())
+    .find(Boolean) || "";
 }
 
 function validLocalSignature(body, signature) {
