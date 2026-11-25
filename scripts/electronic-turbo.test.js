@@ -70,7 +70,7 @@ test("installed extension drives demo controls and the five supported games", { 
     }
     const switchSelector = 'this.querySelector("[role=switch]")';
     assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "提高勝率");
-    assert.equal(await inspectSimulation('this.getElementById("success").textContent'), "注入成功");
+    assert.equal(await inspectSimulation('this.getElementById("success").textContent'), "特效已啟用");
     const clickSimulation = () => inspectSimulation(switchSelector + ".click()");
     const successHidden = () => inspectSimulation('this.getElementById("success").hidden');
     await clickSimulation();
@@ -82,7 +82,7 @@ test("installed extension drives demo controls and the five supported games", { 
     while (await successHidden() && Date.now() < deadline) await delay(30);
     assert.equal(await successHidden(), false);
     assert.equal(await inspectSimulation('this.querySelector("#simulation [role=status]").textContent'), "注入成功 ! ! !");
-    await delay(1200);
+    await delay(1900);
     assert.equal(await successHidden(), true);
 
     const portal = "https://blackdomain-ai-v3-production.up.railway.app/portal/";

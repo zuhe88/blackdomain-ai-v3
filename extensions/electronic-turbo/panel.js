@@ -71,12 +71,14 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       .feature-switch[aria-checked="true"] .switch-track::after { left: 16px; background: #a9f1ff; box-shadow: 0 0 8px #62ddff; }
       #simulation { margin-top: 7px; color: var(--muted); font-size: 12px; }
       #simulation progress { display: block; width: 100%; height: 5px; margin-top: 5px; accent-color: var(--accent); }
-      #success:not([hidden]) { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse, #18485dad, #06142242); animation: glow 1.1s ease-out both; }
-      #success strong { display: flex; flex-direction: column; align-items: center; gap: .4em; font-size: clamp(28px, 5vw, 60px); letter-spacing: .08em; color: #e2fbff; text-shadow: 0 2px 12px #0b2739; }
-      #success strong::before { content: ""; width: .75em; height: .38em; border: solid #a9f1ff; border-width: 0 0 .09em .09em; transform: rotate(-45deg); }
+      #success:not([hidden]) { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: grid; place-items: center; text-align: center; background: radial-gradient(ellipse, #173e51e8, #061422a8); animation: glow 1.8s ease-out both; }
+      #success::before { content: ""; grid-area: 1 / 1; width: min(55vmin, 380px); aspect-ratio: 1; border-radius: 50%; border: 3px solid #9bedff; box-shadow: 0 0 32px #51c6e3; animation: success-ring 1s ease-out both; }
+      @keyframes success-ring { from { opacity: .9; transform: scale(.45); } to { opacity: 0; transform: scale(1.45); } }
+      #success strong { grid-area: 1 / 1; position: relative; display: grid; justify-items: center; gap: .55em; font-size: clamp(32px, 6vw, 76px); letter-spacing: .08em; color: #f1fcff; text-shadow: 0 2px 12px #0b2739; }
+      #success strong::before { content: ""; width: 1em; height: .5em; border: solid #a9f1ff; border-width: 0 0 .12em .12em; transform: rotate(-45deg); }
       .feature-note { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
       @keyframes glow { 0%, 100% { opacity: 0; } 20%, 65% { opacity: 1; } }
-      @media (prefers-reduced-motion: reduce) { #success:not([hidden]) { animation: none; background: transparent; } }
+      @media (prefers-reduced-motion: reduce) { #success:not([hidden]) { animation: none; } #success::before { display: none; animation: none; } }
     </style>
     <section aria-label="黑域 AI 電子加速器">
       <header><strong>黑域 AI · 電子加速器</strong><button type="button" id="toggle" aria-expanded="true" aria-controls="body">收合</button></header>
@@ -92,7 +94,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
         <details><summary>最近五次紀錄</summary><ol id="history"></ol></details></div>
       </div>
     </section>
-    <div id="success" aria-hidden="true" hidden><strong>注入成功</strong></div>`;
+    <div id="success" aria-hidden="true" hidden><strong>特效已啟用</strong></div>`;
   if (!demo) host.dataset.overlay = "";
   const status = shadow.getElementById("status");
   const latest = shadow.getElementById("latest");
@@ -198,16 +200,15 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     clearTimeout(simulationTimer);
     success.hidden = true;
     if (!enabled) return;
-    const stages = ["載入特效…", "同步動畫…", "準備顯示…"];
     function advance(step) {
       progress.value = step;
-      if (step < stages.length) {
-        message.textContent = stages[step];
+      if (step < progress.max) {
+        message.textContent = `啟用中 ${Math.round(progress.position * 100)}%`;
         simulationTimer = setTimeout(() => advance(step + 1), 550);
       } else {
         message.textContent = "注入成功 ! ! !";
         success.hidden = false;
-        simulationTimer = setTimeout(() => { success.hidden = true; }, 1100);
+        simulationTimer = setTimeout(() => { success.hidden = true; }, 1800);
       }
     }
     advance(0);
