@@ -69,12 +69,20 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       .switch-track::after { content: ""; position: absolute; inset: 2px auto 2px 2px; width: 10px; border-radius: 100%; background: #9aacc0; }
       .feature-switch[aria-checked="true"] { color: #daf8ff; border-color: #72d9ef; background: linear-gradient(135deg, #18344a, #1b4b5c); box-shadow: inset 0 0 8px #66dfff29; }
       .feature-switch[aria-checked="true"] .switch-track::after { left: 16px; background: #a9f1ff; box-shadow: 0 0 8px #62ddff; }
+      #simulation { margin-top: 7px; color: var(--muted); font-size: 12px; }
+      #simulation progress { display: block; width: 100%; height: 5px; margin-top: 5px; accent-color: var(--accent); }
+      #success:not([hidden]) { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse, #18485dad, #06142242); animation: glow 1.1s ease-out both; }
+      #success strong { font-size: clamp(28px, 6vw, 72px); color: #e2fbff; text-shadow: 0 0 18px #479eb4; }
+      #success span { color: white; text-shadow: 0 1px 4px black; }
+      @keyframes glow { 0%, 100% { opacity: 0; } 20%, 65% { opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { #success:not([hidden]) { animation: none; background: transparent; } }
     </style>
     <section aria-label="黑域 AI 電子加速器">
       <header><strong>黑域 AI · 電子加速器</strong><button type="button" id="toggle" aria-expanded="true" aria-controls="body">收合</button></header>
       <div id="body">
         <p id="status" role="status"></p>
         <div class="controls" role="group" aria-label="加速倍率"></div>
+        <div id="simulation"><span role="status"></span><progress max="3" value="0"></progress></div>
         <div id="spoiler-content">
           <div id="latest" hidden role="status">
             <div class="result-caption"><span id="result-label">免遊總贏分</span><span id="result-state"></span></div>
@@ -82,7 +90,8 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
           </div>
         <details><summary>最近五次紀錄</summary><ol id="history"></ol></details></div>
       </div>
-    </section>`;
+    </section>
+    <div id="success" aria-hidden="true" hidden><strong>注入成功</strong><span>視覺模擬 · 實際勝率不變</span></div>`;
   if (!demo) host.dataset.overlay = "";
   const status = shadow.getElementById("status");
   const latest = shadow.getElementById("latest");
@@ -170,6 +179,30 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     card.append(header, content);
     render(initial);
   }
+
+  const simulation = shadow.getElementById("simulation");
+  const success = shadow.getElementById("success");
+  const progress = simulation.querySelector("progress");
+  const message = simulation.querySelector("span");
+  let simulationTimer;
+  addFeatureSwitch("提高勝率（模擬）", simulation, false, enabled => {
+    clearTimeout(simulationTimer);
+    success.hidden = true;
+    if (!enabled) return;
+    const stages = ["讀取模擬數據…", "分析模擬樣本…", "完成模擬運算…"];
+    function advance(step) {
+      progress.value = step;
+      if (step < stages.length) {
+        message.textContent = stages[step];
+        simulationTimer = setTimeout(() => advance(step + 1), 550);
+      } else {
+        message.textContent = "模擬注入成功 · 實際勝率不變";
+        success.hidden = false;
+        simulationTimer = setTimeout(() => { success.hidden = true; }, 1100);
+      }
+    }
+    advance(0);
+  });
 
   let spoilerEnabled = true;
   if (supportsFreeGameHistory) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {

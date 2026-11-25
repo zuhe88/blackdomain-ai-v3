@@ -7,6 +7,7 @@
   const root = document.documentElement;
   if (!root.hasAttribute("data-blackdomain-supported-atg")) return;
   const supportsFreeGameHistory = root.hasAttribute("data-blackdomain-seth2-game");
+  const isBaphomet = root.hasAttribute("data-blackdomain-baphomet-game");
   const animationNames = new Set(["mg_idle", "fg_idle", "golden_idle", "mg_win", "fg_win", "golden_win"]);
   const controlledSpines = new Map();
   const controlledClips = new Map();
@@ -340,6 +341,23 @@
     catch { return window.cc; }
   }
 
+  // Keep Baphomet's skeletal events and reel callbacks on their native clocks.
+  // Driving the tween manager also covers score tweens built outside known views.
+  const baphometManagers = new WeakSet();
+  function installBaphometTiming(engine) {
+    const system = engine.TweenSystem?.instance || engine.director?.getSystem?.("TWEEN");
+    const manager = system?.ActionManager || system?.actionMgr;
+    if (typeof manager?.update !== "function") return false;
+    if (!baphometManagers.has(manager)) {
+      const update = manager.update;
+      manager.update = function (dt, ...args) {
+        return update.call(this, Number.isFinite(dt) ? dt * requestedRate() : dt, ...args);
+      };
+      baphometManagers.add(manager);
+    }
+    return true;
+  }
+
   const watchedAnimationPrototypes = new WeakSet();
 
   function watchAnimationStarts(Component, methods) {
@@ -419,12 +437,13 @@
       };
       const ReelView = scene && component("ReelView");
       const Skeleton = engine?.sp?.Skeleton || window.sp?.Skeleton;
-      if (scene && !supportsFreeGameHistory) {
+      if (scene && isBaphomet) effectsReady = installBaphometTiming(engine);
+      if (scene && !isBaphomet && !supportsFreeGameHistory) {
         watchAnimationStarts(Skeleton, ["setAnimation"]);
         watchAnimationStarts(engine.Animation, ["play", "crossFade"]);
         effectsReady = collectCommonAnimations(scene, engine, Skeleton, rate, targets, clips);
       }
-      if (scene) reelsReady = installReelControls(component("SymbolView"), engine);
+      if (scene && !isBaphomet) reelsReady = installReelControls(component("SymbolView"), engine);
       if (scene) {
         connectFreeGameSummary(component("FreeGameAlertView"));
         try {
@@ -437,7 +456,7 @@
         }
         catch { /* An unavailable preview parser must not block visual timing. */ }
       }
-      if (scene && engine.Tween) {
+      if (scene && !isBaphomet && engine.Tween) {
         for (const [name, methods] of Object.entries(effectMethods)) {
           effectsReady = installEffectControls(component(name), engine, methods) || effectsReady;
         }
@@ -457,7 +476,7 @@
           }
         }
       }
-      if (rate !== 1 && scene && Skeleton) {
+      if (rate !== 1 && scene && !isBaphomet && Skeleton) {
         const EffectsView = component("EffectsView");
         if (EffectsView) {
           for (const view of scene.getComponentsInChildren(EffectsView)) {
@@ -469,7 +488,7 @@
           }
         }
       }
-      if (ReelView && Skeleton) {
+      if (!isBaphomet && ReelView && Skeleton) {
         for (const view of scene.getComponentsInChildren(ReelView)) {
           const spine = view.spine;
           if (

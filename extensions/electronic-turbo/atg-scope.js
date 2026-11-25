@@ -8,6 +8,10 @@
   if (!knownPath.test(location.pathname) && !names.some(value => knownName.test(value))) return;
   const root = document.documentElement;
   root.setAttribute("data-blackdomain-supported-atg", "");
+  if (/^\/egames\/2b4c37c532b5e60f542a29c23e602748c06fd426\/game\/?$/i.test(location.pathname)
+    || names.some(value => /^(?:g1007|hades|(?:slot-)?erase-cluster-times-1)$/i.test(value))) {
+    root.setAttribute("data-blackdomain-baphomet-game", "");
+  }
   const seth2Path = /^\/egames\/(?:22020103b31b7390f07b1551e8538589b5e51967|361d567d94ac569664c82068a30b762e8d8438b8)\/game\/?$/i;
   if (seth2Path.test(location.pathname) || names.some(value => /^g1005$/i.test(value))) {
     root.setAttribute("data-blackdomain-seth2-game", "");

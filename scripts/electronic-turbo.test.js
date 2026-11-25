@@ -59,6 +59,30 @@ test("installed extension drives demo controls and the five supported games", { 
     assert.ok(text.includes("750") && text.includes("已結算"));
     assert.deepEqual(text.filter(line => /^\d+ 分$/.test(line)), ["750 分", "625 分", "500 分", "375 分", "250 分"]);
 
+    const simulationCDP = await session.send("DOM.querySelector", { nodeId: root.nodeId, selector: "#controls > div" });
+    const { node } = await session.send("DOM.describeNode", { nodeId: simulationCDP.nodeId, pierce: true, depth: 1 });
+    const { object } = await session.send("DOM.resolveNode", { backendNodeId: node.shadowRoots[0].backendNodeId });
+    async function inspectSimulation(expression) {
+      const { result } = await session.send("Runtime.callFunctionOn", {
+        objectId: object.objectId, functionDeclaration: "function() { return " + expression + "; }", returnByValue: true,
+      });
+      return result.value;
+    }
+    const switchSelector = 'this.querySelector("[role=switch]")';
+    assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "提高勝率（模擬）");
+    const clickSimulation = () => inspectSimulation(switchSelector + ".click()");
+    const successHidden = () => inspectSimulation('this.getElementById("success").hidden');
+    await clickSimulation();
+    await clickSimulation();
+    await delay(1750);
+    assert.equal(await successHidden(), true);
+    await clickSimulation();
+    const deadline = Date.now() + 4000;
+    while (await successHidden() && Date.now() < deadline) await delay(30);
+    assert.equal(await successHidden(), false);
+    await delay(1200);
+    assert.equal(await successHidden(), true);
+
     await worker.evaluate(() => {
       globalThis.fetch = async () => new Response(JSON.stringify({ authenticated: true, accessAllowed: true }));
     });
@@ -91,6 +115,14 @@ test("installed extension drives demo controls and the five supported games", { 
             getState(name) { return name === "wipe" ? oneShot : loopingClip; }
           }
           const animation = new Animation();
+          const scoreManager = {
+            elapsed: 0,
+            update(dt) { this.elapsed += dt; }
+          };
+          window.advanceScore = dt => {
+            scoreManager.update(dt);
+            return scoreManager.elapsed;
+          };
           class Tween {
             to(seconds) { return seconds; }
             by(seconds) { return seconds; }
@@ -123,6 +155,7 @@ test("installed extension drives demo controls and the five supported games", { 
             get: name => name.endsWith("/ParseResponse.ts") ? { default: parser } : ({
               js: {getClassByName: name => ({ FreeGameAlertView, ReelView: isSeth2 ? ReelView : undefined })[name]},
               Tween,
+              TweenSystem: { instance: { ActionManager: scoreManager } },
               Animation,
               sp: {Skeleton},
               director: {getScene: () => ({getComponentsInChildren(type) {
@@ -171,12 +204,21 @@ test("installed extension drives demo controls and the five supported games", { 
       await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "1"
         && document.documentElement.hasAttribute("data-blackdomain-seth2-ready"));
       await chooseGameRate(50);
-      await page.waitForFunction(specific => window.readTestRate() === 50
-        && (specific || window.readTestClip() === 50), usesSeth2Hooks);
+      if (gamePath === gamePaths.baphomet) {
+        await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "50");
+        assert.deepEqual(await page.evaluate(() => [window.readTestRate(), window.readTestClip(), window.advanceScore(0.02)]), [1, 1, 1]);
+      } else {
+        await page.waitForFunction(specific => window.readTestRate() === 50
+          && (specific || window.readTestClip() === 50), usesSeth2Hooks);
+      }
       assert.equal(await page.evaluate(() => window.readTestTween()), usesSeth2Hooks ? 0.02 : 1);
       assert.deepEqual(await page.evaluate(() => window.readLoopRates()), [1, 1]);
       await chooseGameRate(1);
       await page.waitForFunction(() => window.readTestRate() === 1 && window.readTestClip() === 1);
+      if (gamePath === gamePaths.baphomet) {
+        await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "1");
+        assert.equal(await page.evaluate(() => window.advanceScore(0.02)), 1.02);
+      }
       assert.equal(await page.evaluate(() => window.readTestTween()), 1);
     }
     async function gameText() {
