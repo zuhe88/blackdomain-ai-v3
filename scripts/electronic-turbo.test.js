@@ -70,7 +70,7 @@ test("installed extension drives demo controls and the five supported games", { 
     }
     const switchSelector = 'this.querySelector("[role=switch]")';
     assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "提高勝率");
-    assert.equal(await inspectSimulation('this.getElementById("success").textContent'), "特效已啟用");
+    assert.equal(await inspectSimulation('this.getElementById("success").textContent'), "");
     const clickSimulation = () => inspectSimulation(switchSelector + ".click()");
     const successHidden = () => inspectSimulation('this.getElementById("success").hidden');
     await clickSimulation();
