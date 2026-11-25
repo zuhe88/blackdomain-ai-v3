@@ -188,14 +188,14 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     clearTimeout(simulationTimer);
     success.hidden = true;
     if (!enabled) return;
-    const stages = ["讀取模擬數據…", "分析模擬樣本…", "完成模擬運算…"];
+    const stages = ["視覺特效 · 實際勝率不變", "分析模擬樣本…", "完成模擬運算…"];
     function advance(step) {
       progress.value = step;
       if (step < stages.length) {
         message.textContent = stages[step];
         simulationTimer = setTimeout(() => advance(step + 1), 550);
       } else {
-        message.textContent = "模擬注入成功 · 實際勝率不變";
+        message.textContent = "注入成功 ! ! !";
         success.hidden = false;
         simulationTimer = setTimeout(() => { success.hidden = true; }, 1100);
       }

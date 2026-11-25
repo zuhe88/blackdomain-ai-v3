@@ -81,6 +81,7 @@ test("installed extension drives demo controls and the five supported games", { 
     const deadline = Date.now() + 4000;
     while (await successHidden() && Date.now() < deadline) await delay(30);
     assert.equal(await successHidden(), false);
+    assert.equal(await inspectSimulation('this.querySelector("#simulation [role=status]").textContent'), "注入成功 ! ! !");
     await delay(1200);
     assert.equal(await successHidden(), true);
 
