@@ -70,7 +70,7 @@ test("installed extension drives demo controls and the five supported games", { 
     }
     const switchSelector = 'this.querySelector("[role=switch]")';
     assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "幸運光環");
-    assert.equal(await inspectSimulation('this.getElementById("success").textContent'), "");
+    assert.equal(await inspectSimulation('this.querySelector("#success strong").textContent'), "注入成功");
     const clickSimulation = () => inspectSimulation(switchSelector + ".click()");
     const successHidden = () => inspectSimulation('this.getElementById("success").hidden');
     await clickSimulation();
@@ -135,6 +135,8 @@ test("installed extension drives demo controls and the five supported games", { 
             getState(name) { return name === "wipe" ? oneShot : loopingClip; }
           }
           const animation = new Animation();
+          class SlotTableViewBase {}
+          window.roomFixture = { table: { roomId: 0, number: 0 }, selecting: false };
           const scoreManager = {
             elapsed: 0,
             update(dt) { this.elapsed += dt; }
@@ -172,13 +174,16 @@ test("installed extension drives demo controls and the five supported games", { 
           window.readLoopRates = () => [loopingSpine.timeScale, loopingClip.speed];
           window.System = {
             resolve: name => name,
-            get: name => name.endsWith("/ParseResponse.ts") ? { default: parser } : ({
+            get: name => name.endsWith("/PlatformModel.ts") ? { default: { getData: () => window.roomFixture } }
+              : name.endsWith("/SlotTableViewBase.ts") ? { default: SlotTableViewBase }
+              : name.endsWith("/ParseResponse.ts") ? { default: parser } : ({
               js: {getClassByName: name => ({ FreeGameAlertView, ReelView: isSeth2 ? ReelView : undefined })[name]},
               Tween,
               TweenSystem: { instance: { ActionManager: scoreManager } },
               Animation,
               sp: {Skeleton},
               director: {getScene: () => ({getComponentsInChildren(type) {
+                if (type === SlotTableViewBase) return [{ enabledInHierarchy: window.roomFixture.selecting }];
                 if (type === Skeleton) return [spine, loopingSpine];
                 if (type === Animation) return [animation];
                 if (type === ReelView) return [{spine}];
@@ -248,6 +253,26 @@ test("installed extension drives demo controls and the five supported games", { 
     }
     for (const [game, gamePath] of Object.entries(gamePaths)) {
       await testAcceleration(gamePath);
+      if (gamePath === gamePaths.baphomet) {
+        const elements = function* (node) {
+          yield node;
+          for (const child of [...(node.children || []), ...(node.shadowRoots || [])]) yield* elements(child);
+        };
+        const halo = async () => [...elements(await gameDocument())].find(node =>
+          node.nodeName === "BUTTON" && node.attributes.includes("幸運光環"));
+        assert.ok((await halo()).attributes.includes("disabled"));
+        await page.evaluate(() => { window.roomFixture.table = { roomId: "r5", number: 5 }; });
+        await page.waitForFunction(() => document.documentElement.dataset.blackdomainRoom === "r5");
+        const button = await halo();
+        assert.ok(!button.attributes.includes("disabled"));
+        await gameSession.send("DOM.focus", { backendNodeId: button.backendNodeId });
+        await page.keyboard.press("Enter");
+        assert.ok((await halo()).attributes.includes("true"));
+        await page.evaluate(() => { window.roomFixture.selecting = true; });
+        await page.waitForFunction(() => !document.documentElement.hasAttribute("data-blackdomain-room"));
+        const closed = await halo();
+        assert.ok(closed.attributes.includes("disabled") && closed.attributes.includes("false"));
+      }
       const rejectedBatches = [
         [{ freeGameCount: 3 }, { freeGameCount: 2, totalWinnings: 47 }],
         [{ freeGameCount: 0, totalWinnings: 71 }],

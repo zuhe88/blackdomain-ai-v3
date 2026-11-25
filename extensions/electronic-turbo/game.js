@@ -20,6 +20,10 @@
     },
   });
   let expiryTimer;
+  function syncRoom() {
+    panel.setRoom(authorized ? root.getAttribute("data-blackdomain-room") : null);
+  }
+  new MutationObserver(syncRoom).observe(root, { attributes: true, attributeFilter: ["data-blackdomain-room"] });
   let requestPending = false;
   panel.setState("正在檢查黑域會員資格…");
 
@@ -30,6 +34,7 @@
     requestPending = false;
     clearTimeout(expiryTimer);
     authorized = result?.status === "ready" && (result.expiresAt === null || result.expiresAt > Date.now());
+    syncRoom();
     if (!authorized) {
       root.removeAttribute("data-blackdomain-bankroll-settings");
       panel.clearHistory();
@@ -43,6 +48,7 @@
     if (result.expiresAt !== null) {
       expiryTimer = setTimeout(() => {
         authorized = false;
+        syncRoom();
         panel.clearHistory();
         panel.setState("會員使用期限已到");
       }, Math.min(result.expiresAt - Date.now(), 2147483647));
@@ -70,6 +76,8 @@
     panel.record(event.detail?.id, event.detail?.total);
   });
   window.addEventListener("pagehide", () => {
+    authorized = false;
+    syncRoom();
     panel.setState("遊戲已離開");
     presentationAvailable = undefined;
   });

@@ -1,8 +1,8 @@
 @charset "UTF-8";
-:root { --turbo-release-label: "新版 0.7.12 可下載"; }
-:root[data-turbo-installed] { --turbo-release-label: "可更新至 0.7.12"; }
-:root[data-turbo-installed="0.7.12"] {
-  --turbo-release-label: "已是最新版 0.7.12";
+:root { --turbo-release-label: "新版 0.7.13 可下載"; }
+:root[data-turbo-installed] { --turbo-release-label: "可更新至 0.7.13"; }
+:root[data-turbo-installed="0.7.13"] {
+  --turbo-release-label: "已是最新版 0.7.13";
   --turbo-badge-border: #526779;
   --turbo-badge-bg: #192734;
   --turbo-badge-text: #bbcad7;

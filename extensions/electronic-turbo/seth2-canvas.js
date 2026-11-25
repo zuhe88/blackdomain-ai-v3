@@ -425,6 +425,7 @@
     const clips = new Set();
     let reelsReady = false;
     let effectsReady = false;
+    let roomId = "";
     try {
       const loader = window.System;
       const engine = animationEngine(loader);
@@ -436,6 +437,17 @@
         return components.get(name);
       };
       const ReelView = scene && component("ReelView");
+      if (scene) {
+        try {
+          const table = loader?.get?.("chunks:///_virtual/PlatformModel.ts")?.default?.getData?.()?.table;
+          const selector = component("SlotTableViewBase");
+          const id = String(table?.roomId ?? "").trim();
+          if (id && id !== "0" && Number(table.number) > 0 &&
+              !(selector && scene.getComponentsInChildren(selector).some(view => view.enabledInHierarchy))) {
+            roomId = id;
+          }
+        } catch { /* Keep the halo locked while room data is loading. */ }
+      }
       const Skeleton = engine?.sp?.Skeleton || window.sp?.Skeleton;
       if (scene && isBaphomet) effectsReady = installBaphometTiming(engine);
       if (scene && !isBaphomet && !supportsFreeGameHistory) {
@@ -504,6 +516,10 @@
     }
     applyRates(controlledSpines, targets, "timeScale", rate);
     applyRates(controlledClips, clips, "speed", rate);
+    if (roomId !== (root.getAttribute("data-blackdomain-room") || "")) {
+      if (roomId) root.setAttribute("data-blackdomain-room", roomId);
+      else root.removeAttribute("data-blackdomain-room");
+    }
     if (reelsReady) root.setAttribute(seth2ReadyAttribute, "reels");
     else if (effectsReady) root.setAttribute(seth2ReadyAttribute, "effects");
     else if (targets.size > 0) root.setAttribute(seth2ReadyAttribute, "scoreboard");

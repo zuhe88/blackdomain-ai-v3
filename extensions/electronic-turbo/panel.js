@@ -74,7 +74,9 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       #success:not([hidden]) { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: grid; place-items: center; text-align: center; background: radial-gradient(ellipse, #173e51e8, #061422a8); animation: glow 1.8s ease-out both; }
       #success::before { content: ""; grid-area: 1 / 1; width: min(55vmin, 380px); aspect-ratio: 1; border-radius: 50%; border: 3px solid #9bedff; box-shadow: 0 0 32px #51c6e3; animation: success-ring 1s ease-out both; }
       @keyframes success-ring { from { opacity: .9; transform: scale(.45); } to { opacity: 0; transform: scale(1.45); } }
-      #success::after { content: ""; grid-area: 1 / 1; font-size: clamp(52px, 10vmin, 104px); width: 1em; height: .5em; border: solid #a9f1ff; border-width: 0 0 .12em .12em; transform: translateY(-12%) rotate(-45deg); }
+      .halo-result { grid-area: 1 / 1; position: relative; display: grid; justify-items: center; gap: .15em; font-size: clamp(26px, 6vmin, 60px); color: #effdff; text-shadow: 0 2px 8px #062336; }
+      .halo-result::before { content: ""; width: 1em; height: .5em; margin-bottom: .4em; border: solid #a9f1ff; border-width: 0 0 .12em .12em; transform: rotate(-45deg); }
+      .halo-result small { font-size: .5em; }
       .feature-note { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
       @keyframes glow { 0%, 100% { opacity: 0; } 20%, 65% { opacity: 1; } }
       @media (prefers-reduced-motion: reduce) { #success:not([hidden]) { animation: none; } #success::before { display: none; animation: none; } }
@@ -93,7 +95,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
         <details><summary>最近五次紀錄</summary><ol id="history"></ol></details></div>
       </div>
     </section>
-    <div id="success" aria-hidden="true" hidden></div>`;
+    <div id="success" aria-hidden="true" hidden><div class="halo-result"><small>幸運光環</small><strong>注入成功</strong></div></div>`;
   if (!demo) host.dataset.overlay = "";
   const status = shadow.getElementById("status");
   const latest = shadow.getElementById("latest");
@@ -188,6 +190,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     content.before(card);
     card.append(header, content);
     render(initial);
+    return button;
   }
 
   const simulation = shadow.getElementById("simulation");
@@ -195,7 +198,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
   const progress = simulation.querySelector("progress");
   const message = simulation.querySelector("span");
   let simulationTimer;
-  addFeatureSwitch("幸運光環", simulation, false, enabled => {
+  const haloButton = addFeatureSwitch("幸運光環", simulation, false, enabled => {
     clearTimeout(simulationTimer);
     success.hidden = true;
     if (!enabled) return;
@@ -212,6 +215,16 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     }
     advance(0);
   });
+  let activeRoom;
+  function setRoom(room) {
+    if (room !== activeRoom && haloButton.getAttribute("aria-checked") === "true") haloButton.click();
+    activeRoom = room;
+    haloButton.disabled = !room;
+    haloButton.title = room ? "" : "入房後可開啟";
+    if (!room) haloButton.lastElementChild.textContent = "待入房";
+    else if (haloButton.getAttribute("aria-checked") !== "true") haloButton.lastElementChild.textContent = "關閉";
+  }
+  setRoom(demo ? "demo" : null);
 
   let spoilerEnabled = true;
   if (supportsFreeGameHistory) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
@@ -265,6 +278,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     setInterval(refresh, 250);
   }
   return {
+    setRoom,
     setState(message, enabled = false) {
       status.textContent = message;
       for (const button of rateButtons) button.disabled = !enabled;
