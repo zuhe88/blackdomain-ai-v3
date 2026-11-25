@@ -211,7 +211,6 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       }
     }
     advance(0);
-  }, "視覺特效 · 不影響勝率");
 
   let spoilerEnabled = true;
   if (supportsFreeGameHistory) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
