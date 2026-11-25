@@ -69,7 +69,7 @@ test("installed extension drives demo controls and the five supported games", { 
       return result.value;
     }
     const switchSelector = 'this.querySelector("[role=switch]")';
-    assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "提高勝率");
+    assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "幸運光環");
     assert.equal(await inspectSimulation('this.getElementById("success").textContent'), "");
     const clickSimulation = () => inspectSimulation(switchSelector + ".click()");
     const successHidden = () => inspectSimulation('this.getElementById("success").hidden');
@@ -81,7 +81,7 @@ test("installed extension drives demo controls and the five supported games", { 
     const deadline = Date.now() + 4000;
     while (await successHidden() && Date.now() < deadline) await delay(30);
     assert.equal(await successHidden(), false);
-    assert.equal(await inspectSimulation('this.querySelector("#simulation [role=status]").textContent'), "注入成功 ! ! !");
+    assert.equal(await inspectSimulation('this.querySelector("#simulation [role=status]").textContent'), "光環已開啟");
     await delay(1900);
     assert.equal(await successHidden(), true);
 

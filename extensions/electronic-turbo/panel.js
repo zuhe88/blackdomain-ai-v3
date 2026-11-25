@@ -195,7 +195,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
   const progress = simulation.querySelector("progress");
   const message = simulation.querySelector("span");
   let simulationTimer;
-  addFeatureSwitch("提高勝率", simulation, false, enabled => {
+  addFeatureSwitch("幸運光環", simulation, false, enabled => {
     clearTimeout(simulationTimer);
     success.hidden = true;
     if (!enabled) return;
@@ -205,12 +205,13 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
         message.textContent = `啟用中 ${Math.round(progress.position * 100)}%`;
         simulationTimer = setTimeout(() => advance(step + 1), 550);
       } else {
-        message.textContent = "注入成功 ! ! !";
+        message.textContent = "光環已開啟";
         success.hidden = false;
         simulationTimer = setTimeout(() => { success.hidden = true; }, 1800);
       }
     }
     advance(0);
+  });
 
   let spoilerEnabled = true;
   if (supportsFreeGameHistory) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
