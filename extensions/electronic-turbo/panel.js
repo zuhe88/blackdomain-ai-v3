@@ -72,7 +72,9 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       #simulation { margin-top: 7px; color: var(--muted); font-size: 12px; }
       #simulation progress { display: block; width: 100%; height: 5px; margin-top: 5px; accent-color: var(--accent); }
       #success:not([hidden]) { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse, #18485dad, #06142242); animation: glow 1.1s ease-out both; }
-      #success strong { font-size: clamp(28px, 6vw, 72px); color: #e2fbff; text-shadow: 0 0 18px #479eb4; }
+      #success strong { display: flex; flex-direction: column; align-items: center; gap: .4em; font-size: clamp(28px, 5vw, 60px); letter-spacing: .08em; color: #e2fbff; text-shadow: 0 2px 12px #0b2739; }
+      #success strong::before { content: ""; width: .75em; height: .38em; border: solid #a9f1ff; border-width: 0 0 .09em .09em; transform: rotate(-45deg); }
+      .feature-note { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
       @keyframes glow { 0%, 100% { opacity: 0; } 20%, 65% { opacity: 1; } }
       @media (prefers-reduced-motion: reduce) { #success:not([hidden]) { animation: none; background: transparent; } }
     </style>
@@ -150,7 +152,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
   });
   renderHistory();
 
-  function addFeatureSwitch(title, content, initial, onChange) {
+  function addFeatureSwitch(title, content, initial, onChange, note) {
     const card = document.createElement("div");
     card.className = "feature";
     const header = document.createElement("div");
@@ -162,6 +164,14 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     button.className = "feature-switch";
     button.setAttribute("role", "switch");
     button.setAttribute("aria-label", title);
+    if (note) {
+      const detail = document.createElement("small");
+      detail.className = "feature-note";
+      detail.id = content.id + "-note";
+      detail.textContent = note;
+      label.append(detail);
+      button.setAttribute("aria-describedby", detail.id);
+    }
     button.innerHTML = '<span class="switch-track" aria-hidden="true"></span><span aria-hidden="true"></span>';
     function render(enabled) {
       button.setAttribute("aria-checked", String(enabled));
@@ -188,7 +198,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
     clearTimeout(simulationTimer);
     success.hidden = true;
     if (!enabled) return;
-    const stages = ["視覺特效 · 實際勝率不變", "分析模擬樣本…", "完成模擬運算…"];
+    const stages = ["載入特效…", "同步動畫…", "準備顯示…"];
     function advance(step) {
       progress.value = step;
       if (step < stages.length) {
@@ -201,7 +211,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       }
     }
     advance(0);
-  });
+  }, "視覺特效 · 不影響勝率");
 
   let spoilerEnabled = true;
   if (supportsFreeGameHistory) addFeatureSwitch("免遊劇透", shadow.getElementById("spoiler-content"), true, enabled => {
