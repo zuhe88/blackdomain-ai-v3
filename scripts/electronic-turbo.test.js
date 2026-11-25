@@ -69,7 +69,8 @@ test("installed extension drives demo controls and the five supported games", { 
       return result.value;
     }
     const switchSelector = 'this.querySelector("[role=switch]")';
-    assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "提高勝率（模擬）");
+    assert.equal(await inspectSimulation(switchSelector + '.getAttribute("aria-label")'), "提高勝率");
+    assert.equal(await inspectSimulation('this.getElementById("success").textContent'), "注入成功");
     const clickSimulation = () => inspectSimulation(switchSelector + ".click()");
     const successHidden = () => inspectSimulation('this.getElementById("success").hidden');
     await clickSimulation();
@@ -82,6 +83,24 @@ test("installed extension drives demo controls and the five supported games", { 
     assert.equal(await successHidden(), false);
     await delay(1200);
     assert.equal(await successHidden(), true);
+
+    const portal = "https://blackdomain-ai-v3-production.up.railway.app/portal/";
+    await context.route(portal, route => route.fulfill({ contentType: "text/html",
+      body: '<link rel="stylesheet" href="turbo/card.css"><a href="/portal/turbo/install.html"><b>電子加速器</b></a>' }));
+    for (const name of ["card.css", "release.css"]) {
+      await context.route(portal + "turbo/" + name, route => route.fulfill({
+        path: path.resolve(__dirname, "../public/portal/turbo", name), contentType: "text/css",
+      }));
+    }
+    await page.goto(portal);
+    const version = JSON.parse(fs.readFileSync(path.join(extension, "manifest.json"))).version;
+    await page.waitForFunction(v => document.documentElement.dataset.turboInstalled === v, version);
+    const badgeText = () => page.locator("a b").evaluate(b => getComputedStyle(b, "::after").content);
+    assert.equal(await badgeText(), JSON.stringify("已是最新版 " + version));
+    await page.evaluate(() => { document.documentElement.dataset.turboInstalled = "0.1.0"; });
+    assert.equal(await badgeText(), JSON.stringify("可更新至 " + version));
+    await page.evaluate(() => { delete document.documentElement.dataset.turboInstalled; });
+    assert.equal(await badgeText(), JSON.stringify("新版 " + version + " 可下載"));
 
     await worker.evaluate(() => {
       globalThis.fetch = async () => new Response(JSON.stringify({ authenticated: true, accessAllowed: true }));

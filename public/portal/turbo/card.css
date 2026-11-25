@@ -1,3 +1,5 @@
+@import url("./release.css");
+
 .electronic-turbo-card {
   text-decoration: none;
   color: inherit;
@@ -15,4 +17,17 @@
   max-height: none;
   object-fit: cover;
   object-position: center;
+}
+a[href="/portal/turbo/install.html"] :is(b, h2)::after {
+  content: var(--turbo-release-label);
+  display: inline-block;
+  vertical-align: middle;
+  margin-inline-start: .6em;
+  padding: .08em .65em;
+  border-radius: 1em;
+  border: 1px solid var(--turbo-badge-border, #62ccea);
+  background: var(--turbo-badge-bg, #16394c);
+  color: var(--turbo-badge-text, #b5f0ff);
+  font: 600 12px/1.65 system-ui, sans-serif;
+  white-space: nowrap;
 }

@@ -18,6 +18,7 @@ function Assert-True([bool]$condition, [string]$message) {
 }
 function Capture-Hashes([string]$folder) {
     foreach ($name in $releaseFiles) {
+        if (!(Test-Path -LiteralPath (Join-Path $folder $name))) { "missing $name"; continue }
         (Get-FileHash -LiteralPath (Join-Path $folder $name) -Algorithm SHA256).Hash
     }
 }

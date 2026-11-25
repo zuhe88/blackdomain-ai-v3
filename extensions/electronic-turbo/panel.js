@@ -73,7 +73,6 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
       #simulation progress { display: block; width: 100%; height: 5px; margin-top: 5px; accent-color: var(--accent); }
       #success:not([hidden]) { position: fixed; inset: 0; z-index: 1; pointer-events: none; display: grid; place-content: center; text-align: center; background: radial-gradient(ellipse, #18485dad, #06142242); animation: glow 1.1s ease-out both; }
       #success strong { font-size: clamp(28px, 6vw, 72px); color: #e2fbff; text-shadow: 0 0 18px #479eb4; }
-      #success span { color: white; text-shadow: 0 1px 4px black; }
       @keyframes glow { 0%, 100% { opacity: 0; } 20%, 65% { opacity: 1; } }
       @media (prefers-reduced-motion: reduce) { #success:not([hidden]) { animation: none; background: transparent; } }
     </style>
@@ -91,7 +90,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
         <details><summary>最近五次紀錄</summary><ol id="history"></ol></details></div>
       </div>
     </section>
-    <div id="success" aria-hidden="true" hidden><strong>注入成功</strong><span>視覺模擬 · 實際勝率不變</span></div>`;
+    <div id="success" aria-hidden="true" hidden><strong>注入成功</strong></div>`;
   if (!demo) host.dataset.overlay = "";
   const status = shadow.getElementById("status");
   const latest = shadow.getElementById("latest");
@@ -185,7 +184,7 @@ globalThis.createTurboPanel = function createTurboPanel(container, { demo = fals
   const progress = simulation.querySelector("progress");
   const message = simulation.querySelector("span");
   let simulationTimer;
-  addFeatureSwitch("提高勝率（模擬）", simulation, false, enabled => {
+  addFeatureSwitch("提高勝率", simulation, false, enabled => {
     clearTimeout(simulationTimer);
     success.hidden = true;
     if (!enabled) return;

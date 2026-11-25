@@ -6,7 +6,7 @@ $expectedName = '黑域 AI 電子加速器'
 $officialPortal = 'https://blackdomain-ai-v3-production.up.railway.app/*'
 $releaseFiles = @(
     'atg-scope.js', 'bankroll.js', 'demo.html', 'demo.js', 'extension.css',
-    'game.js', 'membership.js', 'panel.js', 'popup.html', 'popup.js',
+    'game.js', 'membership.js', 'panel.js', 'popup.html', 'popup.js', 'portal-version.js',
     'README.md', 'seth2-canvas.js', 'speed.js', 'manifest.json'
 )
 
