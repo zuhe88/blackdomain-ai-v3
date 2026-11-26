@@ -108,7 +108,9 @@
     visualOwner = owner;
     activeVisuals.add(owner);
     try {
-      return previousOwner ? run() : withTweenRate(engine, rate, run);
+      // Baphomet's tween manager already multiplies elapsed time. Only scale
+      // scheduler delays inside its presentation methods.
+      return previousOwner || (isBaphomet && installBaphometTiming(engine)) ? run() : withTweenRate(engine, rate, run);
     } finally {
       visualOwner = previousOwner;
       if (!alreadyActive) activeVisuals.delete(owner);
@@ -449,11 +451,17 @@
         } catch { /* Keep the halo locked while room data is loading. */ }
       }
       const Skeleton = engine?.sp?.Skeleton || window.sp?.Skeleton;
-      if (scene && isBaphomet) effectsReady = installBaphometTiming(engine);
-      if (scene && !isBaphomet && !supportsFreeGameHistory) {
-        watchAnimationStarts(Skeleton, ["setAnimation"]);
+      if (scene && isBaphomet) {
+        effectsReady = installBaphometTiming(engine);
+        for (const name of ["WinView", "RunScore", "InfoBarController", "InfoBarPController", "BigwinView", "FreeGameAlertView"]) {
+          effectsReady = installEffectControls(component(name), engine, effectMethods[name]) || effectsReady;
+        }
+      }
+      if (scene && !supportsFreeGameHistory) {
+        const commonSkeleton = isBaphomet ? null : Skeleton;
+        watchAnimationStarts(commonSkeleton, ["setAnimation"]);
         watchAnimationStarts(engine.Animation, ["play", "crossFade"]);
-        effectsReady = collectCommonAnimations(scene, engine, Skeleton, rate, targets, clips);
+        effectsReady = collectCommonAnimations(scene, engine, commonSkeleton, rate, targets, clips) || effectsReady;
       }
       if (scene && !isBaphomet) reelsReady = installReelControls(component("SymbolView"), engine);
       if (scene) {

@@ -154,6 +154,11 @@ test("installed extension drives demo controls and the five supported games", { 
             playBounceTween() { return new Tween().to(1); }
           }
           window.readTestTween = () => new ReelView().playBounceTween();
+          class RunScore {
+            scheduleOnce(callback, delay) { return [callback(), delay]; }
+            runScore() { return this.scheduleOnce(() => new Tween().to(1), 1); }
+          }
+          window.scoreTiming = () => new RunScore().runScore();
           class FreeGameAlertView {
             constructor(summary) { this.data = { getData: () => summary }; }
             showSummaryAlert() { return "shown"; }
@@ -177,7 +182,7 @@ test("installed extension drives demo controls and the five supported games", { 
             get: name => name.endsWith("/PlatformModel.ts") ? { default: { getData: () => window.roomFixture } }
               : name.endsWith("/SlotTableViewBase.ts") ? { default: SlotTableViewBase }
               : name.endsWith("/ParseResponse.ts") ? { default: parser } : ({
-              js: {getClassByName: name => ({ FreeGameAlertView, ReelView: isSeth2 ? ReelView : undefined })[name]},
+              js: {getClassByName: name => ({ FreeGameAlertView, RunScore, ReelView: isSeth2 ? ReelView : undefined })[name]},
               Tween,
               TweenSystem: { instance: { ActionManager: scoreManager } },
               Animation,
@@ -231,7 +236,8 @@ test("installed extension drives demo controls and the five supported games", { 
       await chooseGameRate(50);
       if (gamePath === gamePaths.baphomet) {
         await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "50");
-        assert.deepEqual(await page.evaluate(() => [window.readTestRate(), window.readTestClip(), window.advanceScore(0.02)]), [1, 1, 1]);
+        await page.waitForFunction(() => window.readTestClip() === 50);
+        assert.deepEqual(await page.evaluate(() => [window.readTestRate(), window.advanceScore(0.02), window.scoreTiming()]), [1, 1, [1, 0.02]]);
       } else {
         await page.waitForFunction(specific => window.readTestRate() === 50
           && (specific || window.readTestClip() === 50), usesSeth2Hooks);
@@ -243,6 +249,7 @@ test("installed extension drives demo controls and the five supported games", { 
       if (gamePath === gamePaths.baphomet) {
         await page.waitForFunction(() => document.documentElement.getAttribute("data-blackdomain-seth2-rate") === "1");
         assert.equal(await page.evaluate(() => window.advanceScore(0.02)), 1.02);
+        assert.deepEqual(await page.evaluate(() => window.scoreTiming()), [1, 1]);
       }
       assert.equal(await page.evaluate(() => window.readTestTween()), 1);
     }
