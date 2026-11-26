@@ -135,6 +135,14 @@ test("installed extension drives demo controls and the five supported games", { 
             getState(name) { return name === "wipe" ? oneShot : loopingClip; }
           }
           const animation = new Animation();
+          const observers = new Map();
+          window.App = { dispatcher: {
+            on(name, callback) { observers.set(name, callback); },
+            off(name) { observers.delete(name); }
+          } };
+          window.deliverFeature = (name, state) => observers.get("SlotFrameworkEvent:" + name)({
+            data: { engine: { spinId: "bonus-pack", gameState: state } }
+          });
           class SlotTableViewBase {}
           window.roomFixture = { table: { roomId: 0, number: 0 }, selecting: false };
           const scoreManager = {
@@ -252,6 +260,13 @@ test("installed extension drives demo controls and the five supported games", { 
         assert.deepEqual(await page.evaluate(() => window.scoreTiming()), [1, 1]);
       }
       assert.equal(await page.evaluate(() => window.readTestTween()), 1);
+      for (const rate of [10, 20, 50, 1]) {
+        await chooseGameRate(rate);
+        await page.waitForFunction(v => Number(document.documentElement.getAttribute("data-blackdomain-seth2-rate")) === v, rate);
+        const [duration, delay] = await page.evaluate(() => window.scoreTiming());
+        assert.equal(delay, 1 / rate);
+        assert.equal(duration, usesSeth2Hooks ? 1 / rate : 1);
+      }
     }
     async function gameText() {
       text.length = 0;
@@ -325,6 +340,12 @@ test("installed extension drives demo controls and the five supported games", { 
       assert.equal(await page.evaluate(() => window.showFreeGameSummary("split-round", 165)), "shown");
       await gameText();
       assert.ok(text.includes("165 分") && text.includes("已結算"), `${game} did not record the matching split round`);
+      await page.evaluate(() => window.deliverFeature("BUY_FEATURE_RESPONSE", {isBonus: true, freespinWinnings: 64}));
+      await gameText();
+      assert.ok(text.includes("64") && text.includes("累計中"), game);
+      await page.evaluate(() => window.deliverFeature("SPIN_RESPONSE", {complete: true, totalWinnings: 1720}));
+      await gameText();
+      assert.ok(text.includes("1,720") && text.includes("待結算"), game);
     }
 
     await page.goto(gameOrigin + "/egames/another-game/game/");

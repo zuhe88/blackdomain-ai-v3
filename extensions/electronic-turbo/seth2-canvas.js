@@ -110,7 +110,7 @@
     try {
       // Baphomet's tween manager already multiplies elapsed time. Only scale
       // scheduler delays inside its presentation methods.
-      return previousOwner || (isBaphomet && installBaphometTiming(engine)) ? run() : withTweenRate(engine, rate, run);
+      return previousOwner || (!supportsFreeGameHistory && installTweenClock(engine)) ? run() : withTweenRate(engine, rate, run);
     } finally {
       visualOwner = previousOwner;
       if (!alreadyActive) activeVisuals.delete(owner);
@@ -293,44 +293,53 @@
     return Number.isSafeInteger(count) ? count : undefined;
   }
 
-  function connectFreeGamePreview(parser) {
-    const methods = ["parseNewSpin", "parseNewEarlySpin"].filter(name => typeof parser?.[name] === "function");
-    if (!methods.length || previewParsers.has(parser)) return;
-    let activeFeature = null;
+  let activeFeature = null;
+  let lastPreview = null;
 
-    function showPreview(payload) {
-      const engine = payload?.engine || payload?.data?.engine;
-      const raw = engine?.gameState;
-      const states = Array.isArray(raw) ? raw : [raw];
-      const terminal = states.at(-1);
-      if (!terminal || typeof terminal !== "object") return;
+  function showPreview(payload, purchased = false) {
+    const engine = payload?.engine || payload?.data?.engine;
+    const raw = engine?.gameState;
+    const states = Array.isArray(raw) ? raw : [raw];
+    const terminal = states.at(-1);
+    if (!terminal || typeof terminal !== "object") return;
 
-      const value = engine.spinId ?? terminal.spinId;
-      const id = typeof value === "string" || Number.isSafeInteger(value) ? String(value) : "";
-      const linkedFeature = id && activeFeature?.id === id ? activeFeature : null;
-      const priorCounters = remainingCounters.filter(key => states.slice(0, -1).some(state => readRemaining(state, key) > 0));
-      const witnessed = new Set([...priorCounters, ...(linkedFeature?.counters || [])]);
-      const activeCounters = remainingCounters.filter(key => readRemaining(terminal, key) > 0);
-      const complete = witnessed.size > 0 && activeCounters.length === 0
-        && [...witnessed].every(key => readRemaining(terminal, key) === 0);
-      const accumulated = readAmount(terminal.freespinWinnings) ?? readAmount(engine.freespinWinnings);
-      const total = complete ? accumulated ?? readAmount(terminal.totalWinnings) ?? readAmount(engine.totalWinnings) : accumulated;
+    const value = engine.spinId ?? terminal.spinId;
+    const id = typeof value === "string" || Number.isSafeInteger(value) ? String(value) : "";
+    const linkedFeature = id && activeFeature?.id === id ? activeFeature : null;
+    const priorCounters = remainingCounters.filter(key => states.slice(0, -1).some(state => readRemaining(state, key) > 0));
+    const witnessed = new Set([...priorCounters, ...(linkedFeature?.counters || [])]);
+    const activeCounters = remainingCounters.filter(key => readRemaining(terminal, key) > 0);
+    const feature = purchased || Boolean(linkedFeature) || states.some(state =>
+      state?.isFreespin === true || state?.isBonus === true || readAmount(state?.startFreeGame) > 0);
+    const explicitEnd = terminal.complete === true || /^(?:complete|completed|settled|collect|end)$/i.test(terminal.status || terminal.action || "");
+    const complete = activeCounters.length === 0 && (witnessed.size > 0 || (feature && explicitEnd))
+      && [...witnessed].every(key => readRemaining(terminal, key) === 0);
+    const accumulated = readAmount(terminal.freespinWinnings) ?? readAmount(engine.freespinWinnings)
+      ?? readAmount(payload?.freespinWinnings) ?? readAmount(payload?.data?.freespinWinnings);
+    const total = complete ? accumulated ?? readAmount(terminal.totalWinnings) ?? readAmount(engine.totalWinnings)
+      ?? readAmount(payload?.totalWinnings) ?? readAmount(payload?.data?.totalWinnings) : accumulated;
 
-      if (complete && linkedFeature) activeFeature = null;
-      if (!complete && id) {
-        for (const key of activeCounters) witnessed.add(key);
-        if (witnessed.size) activeFeature = { id, counters: witnessed };
-      }
-      if (total === undefined || (!complete && !activeCounters.length)) return;
-
-      window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", { detail: { total, complete } }));
+    if (complete && linkedFeature) activeFeature = null;
+    if (!complete && id) {
+      for (const key of activeCounters) witnessed.add(key);
+      if (witnessed.size || feature) activeFeature = { id, counters: witnessed };
     }
+    if (total === undefined || (!complete && !activeCounters.length && !feature)) return;
+    if (lastPreview && ((lastPreview.engine === engine) || (id && lastPreview.id === id)) &&
+        lastPreview.total === total && lastPreview.complete === complete) return;
+    lastPreview = { engine, id, total, complete };
 
+    window.dispatchEvent(new CustomEvent("BLACKDOMAIN_TURBO_FREE_GAME_PREVIEW", { detail: { total, complete } }));
+  }
+
+  function connectFreeGamePreview(parser) {
+    const methods = ["parseNewSpin", "parseNewEarlySpin", "parseBuyFeature"].filter(name => typeof parser?.[name] === "function");
+    if (!methods.length || previewParsers.has(parser)) return;
     for (const name of methods) {
       const original = parser[name];
       try {
         parser[name] = function (payload, ...args) {
-          try { showPreview(payload); } catch { /* Keep game response processing independent of the panel. */ }
+          try { showPreview(payload, name === "parseBuyFeature"); } catch { /* Keep game response processing independent of the panel. */ }
           return original.call(this, payload, ...args);
         };
       } catch { /* Some game versions expose read-only parser methods. */ }
@@ -343,19 +352,36 @@
     catch { return window.cc; }
   }
 
+  let previewBus = null;
+  const previewEvents = ["SPIN_RESPONSE", "EARLY_SPIN_RESPONSE", "BUY_FEATURE_RESPONSE"];
+  function observePreviewEvents(bus) {
+    if (bus === previewBus) return;
+    if (previewBus) for (const name of previewEvents) previewBus.off("SlotFrameworkEvent:" + name, previewEvents);
+    previewBus = null;
+    activeFeature = null;
+    lastPreview = null;
+    if (!bus?.on || !bus.off) return;
+    previewBus = bus;
+    for (const name of previewEvents) {
+      bus.on("SlotFrameworkEvent:" + name, payload => {
+        try { showPreview(payload, name === "BUY_FEATURE_RESPONSE"); } catch { /* Presentation is optional. */ }
+      }, previewEvents);
+    }
+  }
+
   // Keep Baphomet's skeletal events and reel callbacks on their native clocks.
   // Driving the tween manager also covers score tweens built outside known views.
-  const baphometManagers = new WeakSet();
-  function installBaphometTiming(engine) {
+  const tweenManagers = new WeakSet();
+  function installTweenClock(engine) {
     const system = engine.TweenSystem?.instance || engine.director?.getSystem?.("TWEEN");
     const manager = system?.ActionManager || system?.actionMgr;
     if (typeof manager?.update !== "function") return false;
-    if (!baphometManagers.has(manager)) {
+    if (!tweenManagers.has(manager)) {
       const update = manager.update;
       manager.update = function (dt, ...args) {
         return update.call(this, Number.isFinite(dt) ? dt * requestedRate() : dt, ...args);
       };
-      baphometManagers.add(manager);
+      tweenManagers.add(manager);
     }
     return true;
   }
@@ -430,6 +456,9 @@
     let roomId = "";
     try {
       const loader = window.System;
+      try {
+        observePreviewEvents(window.App?.dispatcher ?? loader?.get?.("chunks:///_virtual/Dispatcher.ts")?.Dispatcher?.instance ?? null);
+      } catch { /* The dispatch module may load after the scene. */ }
       const engine = animationEngine(loader);
       const canvas = document.getElementById("GameCanvas") || engine?.game?.canvas;
       const scene = canvas && engine?.director?.getScene?.();
@@ -451,12 +480,7 @@
         } catch { /* Keep the halo locked while room data is loading. */ }
       }
       const Skeleton = engine?.sp?.Skeleton || window.sp?.Skeleton;
-      if (scene && isBaphomet) {
-        effectsReady = installBaphometTiming(engine);
-        for (const name of ["WinView", "RunScore", "InfoBarController", "InfoBarPController", "BigwinView", "FreeGameAlertView"]) {
-          effectsReady = installEffectControls(component(name), engine, effectMethods[name]) || effectsReady;
-        }
-      }
+      if (scene && !supportsFreeGameHistory) effectsReady = installTweenClock(engine);
       if (scene && !supportsFreeGameHistory) {
         const commonSkeleton = isBaphomet ? null : Skeleton;
         watchAnimationStarts(commonSkeleton, ["setAnimation"]);
@@ -476,12 +500,14 @@
         }
         catch { /* An unavailable preview parser must not block visual timing. */ }
       }
-      if (scene && !isBaphomet && engine.Tween) {
+      if (scene && engine.Tween) {
         for (const [name, methods] of Object.entries(effectMethods)) {
           effectsReady = installEffectControls(component(name), engine, methods) || effectsReady;
         }
         if (rate !== 1 && Skeleton) {
           for (const [name, fields] of Object.entries(skeletonFields)) {
+            // Reel symbol events on Baphomet must finish in the game's original order.
+            if (isBaphomet && !["BigwinView", "FullComboView", "FreeGameAlertView", "TransitionView", "JackpotView", "TreasuresView"].includes(name)) continue;
             const Component = component(name);
             if (!Component) continue;
             for (const view of scene.getComponentsInChildren(Component)) {
